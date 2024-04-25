@@ -3,9 +3,8 @@ import { CohortPanelConfig, CohortBuilderConfiguration } from './types';
 import { Tabs } from '@mantine/core';
 import { CohortPanel } from './CohortPanel';
 
-export const CohortBuilder = ({
-  explorerConfig,
-}: CohortBuilderConfiguration) => {
+export const CohortBuilder = ({ explorerConfig }: CohortBuilderConfiguration) => {
+  useGetCSRFQuery();
   return (
     <div className="w-full">
       <Tabs
