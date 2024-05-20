@@ -98,11 +98,17 @@ const SamplePage = ( {headerProps, footerProps}: NavPageLayoutProps) => {
    }`;
   useEffect(() => {
     const fetchData = async () => {
+      const  headers = {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      };
       try {
         const result = await gripApiFetch({
           query: query,
-          variables: variables
-        });
+          variables: variables,
+          endpoint_arg: 'graphql/synthea'
+        }, headers);
           setItems(result);
           setLoading(false);
       } catch (error) {
