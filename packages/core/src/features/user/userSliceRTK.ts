@@ -4,12 +4,6 @@ import { fetchFence, Gen3FenceResponse } from '../fence/fenceApi';
 import { Gen3User, LoginStatus } from './types';
 import { CoreState } from '../../reducers';
 import { getCookie } from 'cookies-next';
-import { GEN3_API } from '../../constants';
-import { JSONObject } from '../../types';
-
-export interface CSRFToken {
-  readonly csrfToken: string;
-}
 
 interface StatusWithCSRFTokenResponse {
   csrf: string;
@@ -80,12 +74,6 @@ const userAuthApi = coreCreateApi({
         return { csrfToken: response?.data?.csrf ?? '' };
       },
     }),
-    getCSRF: builder.query<CSRFToken, void>({
-      query: () => `${GEN3_API}/_status`,
-      transformResponse: (response: JSONObject): CSRFToken => {
-        return { csrfToken: response['csrf'] as string };
-      },
-    }),
   }),
 });
 
@@ -96,7 +84,7 @@ const EMPTY_USER: Gen3User = {
 export const {
   useFetchUserDetailsQuery,
   useLazyFetchUserDetailsQuery,
-  useGetCSRFQuery
+  useGetCSRFQuery,
 } = userAuthApi;
 export const userAuthApiMiddleware = userAuthApi.middleware;
 export const userAuthApiReducerPath = userAuthApi.reducerPath;
