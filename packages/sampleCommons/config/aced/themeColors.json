@@ -1,7 +1,7 @@
 {
   "primary": {
-    "DEFAULT": "#1B62BF",
-    "vivid": "#1061ca",
+    "DEFAULT": "#00b6ed",
+    "vivid": "#00b6ed",
     "min": "#030a13",
     "darkest": "#09203e",
     "darker": "#0f3669",
@@ -24,7 +24,7 @@
     "max": "#111111"
   },
   "secondary": {
-    "DEFAULT": "#2E038C",
+    "DEFAULT": "#00b6ed",
     "vivid": "#2d008f",
     "min": "#054c0e",
     "darkest": "#0ff92d",

@@ -7,12 +7,9 @@ interface Gen3ButtonProps {
 export const Gen3Button = tw.div<Gen3ButtonProps>`
 inline-block
 text-center
-px-2
-py-2
 text-accent-contrast-lighter
 leading-[1.5]
 font-semibold
-uppercase
 border-4
 border-solid
 border-transparent
