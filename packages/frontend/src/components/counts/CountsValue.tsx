@@ -16,7 +16,7 @@ const CountsValue = ({ label, isSuccess, counts }: CountsValueProps) => {
     <div className="mr-4">
       <LoadingOverlay visible={!isSuccess} />
       <Gen3Button
-        className="px-2 py-1 rounded mr-4 text-black"
+        className="rounded mr-4 text-primary-contrast"
         colors="primary"
       >
         {`${counts?.toLocaleString() ?? '...'} ${label}`}
