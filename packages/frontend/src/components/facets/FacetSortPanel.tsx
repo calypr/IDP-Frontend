@@ -63,7 +63,7 @@ const FacetSortPanel: React.FC<FacetSortPanelProps> = ({
     if (sortingStatus && liveRegionRef?.current) {
       liveRegionRef.current.textContent = sortingStatus;
     }
-  }, [sortType, valueLabel, field, setSort, sortingStatus]);
+  }, [sortingStatus]);
 
   const [NameSortIcon, nameIconSize] =
     sortType.type === 'alpha'

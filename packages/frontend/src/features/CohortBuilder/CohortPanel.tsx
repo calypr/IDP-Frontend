@@ -136,6 +136,7 @@ export const CohortPanel = ({
   buttons,
   loginForDownload,
 }: CohortPanelConfig): JSX.Element => {
+  const [showCharts, setShowCharts] = useState(false);
   const index = guppyConfig.dataType;
   const fields = useMemo(
     () => getAllFieldsFromFilterConfigs(filters?.tabs ?? []),
@@ -256,7 +257,6 @@ export const CohortPanel = ({
   if (isError) {
     return <ErrorCard message="Unable to fetch cohort data" />;
   }
-  const [showCharts, setShowCharts] = useState(false);
   return (
     <div className="flex mt-3 relative">
       <div>
