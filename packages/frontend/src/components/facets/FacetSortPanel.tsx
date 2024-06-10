@@ -59,7 +59,9 @@ const FacetSortPanel: React.FC<FacetSortPanelProps> = ({
     } else {
       setSortingStatus(sortTypeToAriaDescription(sortType, valueLabel, field));
     }
+  }, []);
 
+  useEffect(() => {
     if (sortingStatus && liveRegionRef?.current) {
       liveRegionRef.current.textContent = sortingStatus;
     }

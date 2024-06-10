@@ -16,7 +16,7 @@ py-1
 border-solid
 border-transparent
 rounded-[7px]
-${(p) => `bg-${p.colors}`}
+bg-primary
 ${(p) => `hover:bg-${p.colors}-max`}
 `;
 
