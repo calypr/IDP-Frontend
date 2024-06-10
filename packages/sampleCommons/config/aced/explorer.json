@@ -100,7 +100,18 @@
         "creation",
         "url",
         "category"
-      ]
+      ],
+      "columns": {
+        "id": {
+          "title": "id",
+          "type": "link",
+          "cellRenderFunction": "default",
+          "params": {
+            "baseURL": "user/data/download/"
+          },
+          "width": 200
+        }
+      }
     },
     "guppyConfig": {
       "dataType": "file",
