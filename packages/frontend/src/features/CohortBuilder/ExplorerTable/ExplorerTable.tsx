@@ -214,21 +214,14 @@ const ExplorerTable = ({ index, tableConfig }: ExplorerTableProps) => {
       density: 'xs',
       rowSelection: rowSelection,
     },
-    mantineTableBodyRowProps:
-      tableConfig.detailsConfig?.mode === 'click'
-        ? ({ row }) => ({
-            onClick: () => {
-              if (Object.keys(rowSelection).includes(row.id)) {
-                setRowSelection({});
-              } else {
-                setRowSelection({ [row.id as string]: true });
-              }
-            },
-            sx: {
-              cursor: 'pointer', //you might want to change the cursor too when adding an onClick
-            },
-          })
-        : {},
+    mantineTableBodyRowProps: ({ row }) => ({
+      onClick: (event) => {
+        console.info(event, row.id);
+      },
+      sx: {
+        cursor: 'pointer', //you might want to change the cursor too when adding an onClick
+      },
+    }),
   });
   return (
     <React.Fragment>
