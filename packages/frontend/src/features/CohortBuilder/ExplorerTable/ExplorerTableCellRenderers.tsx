@@ -4,7 +4,7 @@ import {
 } from '../../../utils/RendererFactory';
 import React, { ReactElement, useState } from 'react';
 import { isArray } from 'lodash';
-import { Badge, Text, Modal, Button, Alert, useModal } from '@mantine/core';
+import { Badge, Text, Modal, Alert } from '@mantine/core';
 import saveAs from 'file-saver';
 import { DiscoveryCellRendererFactory } from '../../Discovery';
 import { Gen3DiscoveryStandardCellRenderers } from '../../Discovery/TableRenderers/CellRenderers';

@@ -137,14 +137,14 @@
       "manifestMapping": {
         "resourceIndexType": "Patient",
         "resourceIdField": "_patient_id",
-        "referenceIdFieldInResourceIndex": "object_id",
-        "referenceIdFieldInDataIndex": "object_id"
+        "referenceIdFieldInResourceIndex": "id",
+        "referenceIdFieldInDataIndex": "id"
       },
       "accessibleFieldCheckList": [
         "project_id"
       ],
       "accessibleValidationField": "project_id",
-      "downloadAccessor": "object_id"
+      "downloadAccessor": "id"
     },
     "buttons": [
       {
@@ -157,13 +157,14 @@
         "fileName": "manifest.json",
         "actionArgs": {
           "resourceIndexType": "file",
-          "resourceIdField": "object_id",
-          "referenceIdFieldInDataIndex": "object_id",
-          "referenceIdFieldInResourceIndex": "object_id",
+          "resourceIdField": "id",
+          "referenceIdFieldInDataIndex": "id",
+          "referenceIdFieldInResourceIndex": "id",
           "fileFields": [
-            "file_name",
-            "md5sum",
-            "object_id"
+            "md5",
+            "id",
+            "title",
+            "size"
           ]
         }
       }
