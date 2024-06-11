@@ -164,9 +164,15 @@ const ExplorerTable = ({ index, tableConfig }: ExplorerTableProps) => {
     rowCount: totalRowCount,
     paginationDisplayMode: 'pages',
     localization: { rowsPerPage: limitLabel },
+
     mantinePaginationProps: {
       rowsPerPageOptions: ['5', '10', '20', '40', '100'],
       withEdges: false, //note: changed from `showFirstLastButtons` in v1.0
+    },
+
+    // this is where the page button color is passed. Not sure how to add a custom color though
+    mantineColumnActionsButtonProps: {
+      color: 'primary',
     },
     state: {
       isLoading,
@@ -176,6 +182,14 @@ const ExplorerTable = ({ index, tableConfig }: ExplorerTableProps) => {
       showAlertBanner: isError,
       density: 'xs',
     },
+    mantineTableBodyRowProps: ({ row }) => ({
+      onClick: (event) => {
+        console.info(event, row.id);
+      },
+      sx: {
+        cursor: 'pointer', //you might want to change the cursor too when adding an onClick
+      },
+    }),
   });
 
   return (

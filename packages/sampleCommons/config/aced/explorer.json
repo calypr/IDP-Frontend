@@ -32,15 +32,16 @@
     "table": {
       "enabled": true,
       "fields": [
+        "id",
         "project_id",
         "code",
+        "subject",
         "value_normalized",
         "category",
         "patient_us_core_race",
         "patient_us_core_ethnicity",
         "patient_us_core_birthsex",
-        "identifier",
-        "subject"
+        "identifier"
       ]
     },
     "guppyConfig": {
@@ -66,7 +67,7 @@
         "chartType": "fullPie",
         "title": "File Category"
       },
-      "contentType": {
+      "type": {
         "chartType": "fullPie",
         "title": "File Type"
       }
@@ -78,9 +79,10 @@
           "fields": [
             "project_id",
             "category",
-            "contentType",
+            "type",
+            "title",
             "subject",
-            "title"
+            "contentType"
           ]
         }
       ]
@@ -91,14 +93,25 @@
         "id",
         "title",
         "subject",
+        "source_url",
         "md5",
         "size",
-        "project_id",
         "contentType",
         "creation",
         "url",
         "category"
-      ]
+      ],
+      "columns": {
+        "id": {
+          "title": "id",
+          "type": "link",
+          "cellRenderFunction": "default",
+          "params": {
+            "baseURL": "user/data/download/"
+          },
+          "width": 200
+        }
+      }
     },
     "guppyConfig": {
       "dataType": "file",
@@ -124,14 +137,14 @@
       "manifestMapping": {
         "resourceIndexType": "Patient",
         "resourceIdField": "_patient_id",
-        "referenceIdFieldInResourceIndex": "object_id",
-        "referenceIdFieldInDataIndex": "object_id"
+        "referenceIdFieldInResourceIndex": "id",
+        "referenceIdFieldInDataIndex": "id"
       },
       "accessibleFieldCheckList": [
         "project_id"
       ],
       "accessibleValidationField": "project_id",
-      "downloadAccessor": "object_id"
+      "downloadAccessor": "id"
     },
     "buttons": [
       {
@@ -144,13 +157,14 @@
         "fileName": "manifest.json",
         "actionArgs": {
           "resourceIndexType": "file",
-          "resourceIdField": "object_id",
-          "referenceIdFieldInDataIndex": "object_id",
-          "referenceIdFieldInResourceIndex": "object_id",
+          "resourceIdField": "id",
+          "referenceIdFieldInDataIndex": "id",
+          "referenceIdFieldInResourceIndex": "id",
           "fileFields": [
-            "file_name",
-            "md5sum",
-            "object_id"
+            "md5",
+            "id",
+            "title",
+            "size"
           ]
         }
       }

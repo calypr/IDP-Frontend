@@ -15,7 +15,12 @@ import {
 import { FaGraduationCap, FaRegQuestionCircle, FaVideo } from 'react-icons/fa';
 import Gen3Link from '../../features/Navigation/Gen3Link';
 import TextContent, { ContentType } from './TextContent';
-import { CoreState, isAuthenticated, selectUserAuthStatus, useCoreSelector } from '@gen3/core';
+import {
+  CoreState,
+  isAuthenticated,
+  selectUserAuthStatus,
+  useCoreSelector,
+} from '@gen3/core';
 
 export interface LandingPageContentProp {
   content: LandingPageProps;
@@ -71,9 +76,11 @@ export interface LandingPageProps {
 const LandingPageContent = ({ content }: LandingPageContentProp) => {
   const { basePath } = useRouter();
 
-  const userStatus =  useCoreSelector((state: CoreState) => selectUserAuthStatus(state));
+  const userStatus = useCoreSelector((state: CoreState) =>
+    selectUserAuthStatus(state),
+  );
   const authenticated = isAuthenticated(userStatus);
-  
+
   return (
     <div className="sm:mt-8 2xl:mt-10 content-center w-full bg-base-max">
       {content?.body?.map((component, index) => {
@@ -105,15 +112,15 @@ const LandingPageContent = ({ content }: LandingPageContentProp) => {
               if (obj.link) {
                 return (
                   <Gen3Button
-                    colors="accent-lighter"
-                    className="mb-5 mr-5 text-accent-contrast-lighter"
+                    colors="primary"
+                    className="mb-5 mr-5 text-primary-contrast"
                     key={index}
                   >
                     <Gen3Link
                       className="flex items-center"
-                      href={authenticated ? obj.link.href : "/Login"}
+                      href={authenticated ? obj.link.href : '/Login'}
                       linkType={obj.link.linkType}
-                      text={authenticated ? obj.link.text : "LOGIN"}
+                      text={authenticated ? obj.link.text : 'LOGIN'}
                       showExternalIcon
                     />
                   </Gen3Button>
@@ -122,16 +129,19 @@ const LandingPageContent = ({ content }: LandingPageContentProp) => {
               if (obj.image) {
                 return (
                   <div key={index} className="md:w-3/4 lg:w-1/2">
-                      <img
-                        src={`${basePath}${obj.image.src}`}
-                        alt={obj.image.alt}
-                      />
+                    <img
+                      src={`${basePath}${obj.image.src}`}
+                      alt={obj.image.alt}
+                    />
                   </div>
                 );
               }
             });
           return (
-            <div key={index} className="flex mx-20 flex-col md:flex-row gap-x-4 p-0">
+            <div
+              key={index}
+              className="flex mx-20 flex-col md:flex-row gap-x-4 p-0"
+            >
               <div className="flex-1 flex p-10 justify-end">
                 {splitareaJsx(component.splitarea.left)}
               </div>

@@ -7,17 +7,16 @@ interface Gen3ButtonProps {
 export const Gen3Button = tw.div<Gen3ButtonProps>`
 inline-block
 text-center
-px-2
-py-2
-text-accent-contrast-lighter
+text-primary-contrast
 leading-[1.5]
 font-semibold
-uppercase
 border-4
+px-2
+py-1
 border-solid
 border-transparent
 rounded-[7px]
-${(p) => `bg-${p.colors}`}
+bg-primary
 ${(p) => `hover:bg-${p.colors}-max`}
 `;
 

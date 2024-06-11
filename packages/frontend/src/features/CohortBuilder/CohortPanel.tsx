@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Loader, LoadingOverlay, Tabs, Text } from '@mantine/core';
+import { Button, Loader, LoadingOverlay, Tabs, Text } from '@mantine/core';
 import { partial } from 'lodash';
 import {
   type FacetDefinition,
@@ -26,6 +26,7 @@ import {
   useUpdateFilters,
 } from '../../components/facets/utils';
 import { useClearFilters } from '../../components/facets/hooks';
+import { Gen3Button } from '../../components/Buttons/Gen3Button';
 import { FacetRequiredHooks } from '../../components/facets/types';
 import { FiltersPanel } from './FiltersPanel';
 import CohortManager from './CohortManager';
@@ -135,6 +136,7 @@ export const CohortPanel = ({
   buttons,
   loginForDownload,
 }: CohortPanelConfig): JSX.Element => {
+  const [showCharts, setShowCharts] = useState(false);
   const index = guppyConfig.dataType;
   const fields = useMemo(
     () => getAllFieldsFromFilterConfigs(filters?.tabs ?? []),
@@ -255,7 +257,6 @@ export const CohortPanel = ({
   if (isError) {
     return <ErrorCard message="Unable to fetch cohort data" />;
   }
-
   return (
     <div className="flex mt-3 relative">
       <div>
@@ -279,7 +280,7 @@ export const CohortPanel = ({
         <div className="flex flex-col">
           <CohortManager index={index} />
 
-          <div className="flex justify-between mb-1 ml-2">
+          <div className="flex justify-between ml-2">
             <DownloadsPanel
               dropdowns={dropdowns ?? {}}
               buttons={buttons ?? []}
@@ -289,20 +290,30 @@ export const CohortPanel = ({
               fields={fields}
               filter={cohortFilters}
             />
-
-            <CountsValue
-              label={guppyConfig.nodeCountTitle}
-              counts={counts}
-              isSuccess={isCountSuccess}
-            />
+            <div className="flex justify-between flex-row items-center mb-2">
+              <Gen3Button
+                colors="primary"
+                onClick={() => setShowCharts(!showCharts)}
+                className="rounded mr-4 active:scale-95"
+              >
+                {showCharts ? 'Hide Charts' : 'Show Charts'}
+              </Gen3Button>
+              <CountsValue
+                label={guppyConfig.nodeCountTitle}
+                counts={counts}
+                isSuccess={isCountSuccess}
+              />
+            </div>
           </div>
-          <Charts
-            index={index}
-            charts={summaryCharts}
-            data={data ?? EmptyData}
-            counts={counts}
-            isSuccess={isSuccess}
-          />
+          {showCharts && (
+            <Charts
+              index={index}
+              charts={summaryCharts}
+              data={data ?? EmptyData}
+              counts={counts}
+              isSuccess={isSuccess}
+            />
+          )}
           {table?.enabled ? (
             <div className="flex flex-col">
               <div className="grid">
