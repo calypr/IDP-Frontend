@@ -1,7 +1,11 @@
-import { CellRendererFunctionProps, RenderFactoryTypedInstance } from '../../../utils/RendererFactory';
-import React, { ReactElement } from 'react';
+import {
+  CellRendererFunctionProps,
+  RenderFactoryTypedInstance,
+} from '../../../utils/RendererFactory';
+import React, { ReactElement, useState } from 'react';
 import { isArray } from 'lodash';
-import { Badge, Text } from '@mantine/core';
+import { Badge, Text, Modal, Button, Alert, useModal } from '@mantine/core';
+import saveAs from 'file-saver';
 import { DiscoveryCellRendererFactory } from '../../Discovery';
 import { Gen3DiscoveryStandardCellRenderers } from '../../Discovery/TableRenderers/CellRenderers';
 
@@ -73,12 +77,38 @@ const RenderLinkCell = (
   { cell }: CellRendererFunctionProps,
   ...args: Array<Record<string, unknown>>
 ) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleClick = async () => {
+    const signedUrl = `${args[0].baseURL}${cell.getValue()}`;
+
+    const response = await fetch(signedUrl);
+
+    if (!response.ok) {
+      setError(
+        `Failed to download file ${response.status}:${response.statusText}`,
+      );
+      setIsOpen(true);
+    }
+    const data = await response.json();
+    saveAs(data.url, `${cell.getValue()}`);
+  };
 
   return (
-
-    <a href={`${args[0].baseURL}${cell.getValue()}`} target="_blank" rel="noreferrer">
-      <Text c="blue" td="underline" fw={700}> {cell.getValue() as ReactElement} </Text>
-    </a>
+    <>
+      <a onClick={handleClick}>
+        <Text c="blue" td="underline" fw={700}>
+          {' '}
+          {cell.getValue() as ReactElement}{' '}
+        </Text>
+      </a>
+      <Modal opened={isOpen} onClose={() => setIsOpen(false)}>
+        <Alert variant="error" icon={<Text>!</Text>}>
+          {error}
+        </Alert>
+      </Modal>
+    </>
   );
 };
 
@@ -92,7 +122,6 @@ export const ExplorerTableCellRendererFactory =
   (): RenderFactoryTypedInstance<CellRendererFunctionProps> => {
     if (!instance) {
       instance = new RenderFactoryTypedInstance<CellRendererFunctionProps>();
-
     }
     return instance;
   };
@@ -104,10 +133,10 @@ export const registerExplorerDefaultCellRenderers = () => {
       default: ValueCellRenderer,
     },
   });
-  ExplorerTableCellRendererFactory().registerRendererCatalog(
-    { array: ArrayCellFunctionCatalog }
-  );
-  ExplorerTableCellRendererFactory().registerRendererCatalog(
-    { link: LinkCellFunctionCatalog }
-  );
+  ExplorerTableCellRendererFactory().registerRendererCatalog({
+    array: ArrayCellFunctionCatalog,
+  });
+  ExplorerTableCellRendererFactory().registerRendererCatalog({
+    link: LinkCellFunctionCatalog,
+  });
 };
