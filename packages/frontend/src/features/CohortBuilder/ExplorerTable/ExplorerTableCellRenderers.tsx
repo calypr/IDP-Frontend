@@ -2,12 +2,9 @@ import {
   CellRendererFunctionProps,
   RenderFactoryTypedInstance,
 } from '../../../utils/RendererFactory';
-import React, { ReactElement, useState } from 'react';
+import React, { ReactElement } from 'react';
 import { isArray } from 'lodash';
-import { Badge, Text, Modal, Alert } from '@mantine/core';
-import saveAs from 'file-saver';
-import { DiscoveryCellRendererFactory } from '../../Discovery';
-import { Gen3DiscoveryStandardCellRenderers } from '../../Discovery/TableRenderers/CellRenderers';
+import { Badge, Text } from '@mantine/core';
 
 export interface CellRendererFunctionCatalogEntry {
   [key: string]: CellRendererFunction;
@@ -77,38 +74,17 @@ const RenderLinkCell = (
   { cell }: CellRendererFunctionProps,
   ...args: Array<Record<string, unknown>>
 ) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [error, setError] = useState('');
-
-  const handleClick = async () => {
-    const signedUrl = `${args[0].baseURL}${cell.getValue()}`;
-
-    const response = await fetch(signedUrl);
-
-    if (!response.ok) {
-      setError(
-        `Failed to download file ${response.status}:${response.statusText}`,
-      );
-      setIsOpen(true);
-    }
-    const data = await response.json();
-    saveAs(data.url, `${cell.getValue()}`);
-  };
-
   return (
-    <>
-      <a onClick={handleClick}>
-        <Text c="blue" td="underline" fw={700}>
-          {' '}
-          {cell.getValue() as ReactElement}{' '}
-        </Text>
-      </a>
-      <Modal opened={isOpen} onClose={() => setIsOpen(false)}>
-        <Alert variant="error" icon={<Text>!</Text>}>
-          {error}
-        </Alert>
-      </Modal>
-    </>
+    <a
+      href={`${args[0].baseURL}${cell.getValue()}`}
+      target="_blank"
+      rel="noreferrer"
+    >
+      <Text c="blue" td="underline" fw={700}>
+        {' '}
+        {cell.getValue() as ReactElement}{' '}
+      </Text>
+    </a>
   );
 };
 
