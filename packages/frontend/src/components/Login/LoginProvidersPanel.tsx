@@ -53,7 +53,7 @@ const LoginProviderSingleItem = ({
     <Button
       fullWidth
       key={provider.name}
-      color="accent.3"
+      color="secondary"
       onClick={() => handleLoginSelected(provider.urls[0].url)}
     >
       {' '}

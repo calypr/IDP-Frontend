@@ -17,7 +17,7 @@ export const SessionExpiredModal = ({
   return (
     <BaseModal
       title={
-        <Text size="lg" className="font-medium font-heading">
+        <Text size="lg" className="bg-primary font-medium font-heading">
           Session Timeout
         </Text>
       }

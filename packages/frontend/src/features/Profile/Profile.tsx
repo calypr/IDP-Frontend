@@ -20,11 +20,8 @@ const Profile = ({ profileConfig }: ProfileProps) => {
             multiple
             variant="separated"
             chevronPosition="left"
-            chevron={<Caret color="primary.4" size="1.75rem" />}
+            chevron={<Caret className="text-primary-contrast" size="1.75rem" />}
             defaultValue={['apiKeys']}
-            classNames={{
-              label: 'text-primary-contrast font-heading font-bold',
-            }}
           >
             {/* <Accordion.Item value="externalLogins">
               <div className="bg-secondary-lighter">
@@ -35,16 +32,24 @@ const Profile = ({ profileConfig }: ProfileProps) => {
               </Accordion.Panel>
             </Accordion.Item> */}
             <Accordion.Item value="apiKeys">
-              <div className="bg-primary">
-                <Accordion.Control>Current API Keys</Accordion.Control>
+              <div className="bg-primary rounded">
+                <Accordion.Control>
+                <div className="text-primary-contrast font-heading font-bold">
+                  Current API Keys
+                </div>
+                </Accordion.Control>
               </div>
               <Accordion.Panel>
                 <Credentials />
               </Accordion.Panel>
             </Accordion.Item>
             <Accordion.Item value="resources">
-              <div className="bg-primary">
-                <Accordion.Control>Resources</Accordion.Control>
+              <div className="bg-primary rounded">
+                <Accordion.Control>
+                  <div className="text-primary-contrast font-heading font-bold">
+                    Resources
+                  </div>
+                </Accordion.Control>
               </div>
               <Accordion.Panel>
                 <ResourcesPanel />

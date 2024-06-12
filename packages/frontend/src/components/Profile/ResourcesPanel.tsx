@@ -13,7 +13,7 @@ export const ResourcesPanel = () => {
   // Todo add project access Table other table types Resources vs Services Resources vs Methods
   return (
     <ResourcesProvider>
-      <div className="flex">
+      <div className="bg-secondary-contrast flex">
         <ResourcesFilters setFilters={setFilters} selectedFilters={filters} />
         <ResourcesTable filters={filters} />
       </div>

@@ -17,7 +17,7 @@ export interface CohortState {
 const initialCohortState: CohortState = {
   cohort: {
     id: 'default',
-    name: 'Filter',
+    name: 'Filter by Value',
     filters: { },
     modified_datetime: new Date().toISOString(),
   },
