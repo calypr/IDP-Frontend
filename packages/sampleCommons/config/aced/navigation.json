@@ -15,13 +15,13 @@
         "icon": "gen3:exploration",
         "href": "/Explorer",
         "name": "Exploration",
-        "tooltip": "The Exploration Page enables discovery of the data at the subject level and features a cohort builder."
+        "tooltip": "Explore data to create customized data subsets by project, patients, fields, etc."
       },
       {
         "icon": "gen3:profile",
         "href": "/Profile",
         "name": "Profile",
-        "tooltip": "Create API keys for programmatic data access, and review your authorization privileges to datasets and services."
+        "tooltip": "Create API keys for programmatic data access and view user privileges to datasets and services."
       }
     ]
   },
@@ -29,7 +29,7 @@
     "items": [
       {
         "href": "https://www.cancerresearchuk.org/funding-for-researchers/research-opportunities-in-early-detection-and-diagnosis/international-alliance-for-cancer-early-detection",
-        "name": "About"
+        "name": "About ACED"
       }
     ],
     "showLogin": true
