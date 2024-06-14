@@ -16,6 +16,7 @@ import { type SessionConfiguration } from './lib/session/types';
 import { type Fonts, type RegisteredIcons } from './lib/content/types';
 import ErrorCard from './components/ErrorCard';
 import '@gen3/core';
+import SmmartPage from './pages/Smmart/Smmart'
 
 // export Gen3 data UI standard pages
 import Gen3Provider from './components/Providers/Gen3Provider';
@@ -99,4 +100,5 @@ export {
   AISearchPageGetServerSideProps,
   SubmissionPage,
   SubmissionPageGetServerSideProps,
+  SmmartPage
 };
