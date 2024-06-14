@@ -27,10 +27,10 @@
     "table": {
       "enabled": true,
       "detailsConfig": {
-        "panel": "default",
+        "panel": "patientDetails",
         "mode" : "click",
-        "idField": "submitter_id",
-        "title": "Details"
+        "idField": "id",
+        "title": "Patient Details"
       },
       "fields": [
         "id",
@@ -86,10 +86,10 @@
       "detailsConfig": {
         "panel": "fileDetails",
         "mode": "click",
-        "idField": "file_name",
+        "idField": "id",
         "title": "File Details"
       },
-      "fields": ["project_id", "file_name", "object_id", "subject"],
+      "fields": ["id", "project_id", "file_name", "object_id", "subject"],
       "columns": {
         "id": {
           "title": "id",
