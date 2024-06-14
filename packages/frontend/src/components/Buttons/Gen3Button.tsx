@@ -22,7 +22,7 @@ ${(p) => `hover:bg-${p.colors}-max`}
 
 export const Gen3ButtonReverse = tw.div<Gen3ButtonProps>`
 bg-base-max
-text-accent-contrast
+text-primary-contrast
 border-accent-lighter
 inline-block
 text-center

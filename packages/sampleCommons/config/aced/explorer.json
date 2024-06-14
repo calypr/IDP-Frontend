@@ -18,12 +18,7 @@
           "fields": [
             "project_id",
             "code",
-            "value_normalized",
             "category",
-            "patient_us_core_race",
-            "patient_us_core_ethnicity",
-            "patient_us_core_birthsex",
-            "identifier",
             "subject"
           ]
         }
@@ -31,17 +26,18 @@
     },
     "table": {
       "enabled": true,
+      "detailsConfig": {
+        "panel": "default",
+        "mode" : "click",
+        "idField": "submitter_id",
+        "title": "Details"
+      },
       "fields": [
         "id",
         "project_id",
         "code",
         "subject",
-        "value_normalized",
-        "category",
-        "patient_us_core_race",
-        "patient_us_core_ethnicity",
-        "patient_us_core_birthsex",
-        "identifier"
+        "category"
       ]
     },
     "guppyConfig": {
@@ -80,27 +76,20 @@
             "project_id",
             "category",
             "type",
-            "title",
-            "subject",
-            "contentType"
+            "subject"
           ]
         }
       ]
     },
     "table": {
       "enabled": true,
-      "fields": [
-        "id",
-        "title",
-        "subject",
-        "source_url",
-        "md5",
-        "size",
-        "contentType",
-        "creation",
-        "url",
-        "category"
-      ],
+      "detailsConfig": {
+        "panel": "fileDetails",
+        "mode": "click",
+        "idField": "file_name",
+        "title": "File Details"
+      },
+      "fields": ["project_id", "file_name", "object_id", "subject"],
       "columns": {
         "id": {
           "title": "id",
@@ -171,3 +160,4 @@
     ]
   }
 ]
+

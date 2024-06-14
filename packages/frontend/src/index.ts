@@ -4,6 +4,7 @@ export * from './components/Profile';
 export * from './components/Login';
 export * from './components/Modals';
 export * from './components/charts';
+
 export * from './features/CohortBuilder';
 export * from './features/Query';
 export * from './features/Workspace';
@@ -13,7 +14,9 @@ import { getNavPageLayoutPropsFromConfig } from './lib/common/staticProps';
 import ContentSource from './lib/content';
 import { type SessionConfiguration } from './lib/session/types';
 import { type Fonts, type RegisteredIcons } from './lib/content/types';
+import ErrorCard from './components/ErrorCard';
 import '@gen3/core';
+import SmmartPage from './pages/Smmart/Smmart'
 
 // export Gen3 data UI standard pages
 import Gen3Provider from './components/Providers/Gen3Provider';
@@ -34,8 +37,6 @@ import { ColorThemePageGetServerSideProps } from './pages/Theme';
 
 import ProfilePage, { ProfilePageGetServerSideProps } from './pages/Profile';
 import LoginPage, { LoginPageGetServerSideProps } from './pages/Login';
-
-import SmmartPage from './pages/Smmart';
 
 import DataDictionaryPage from './pages/DataDictionary/DataDictonary';
 import { DataDictionaryPageGetServerSideProps } from './pages/DataDictionary';
@@ -67,6 +68,7 @@ export {
   type RegisteredIcons,
   type SessionConfiguration,
   SmmartPage,
+  ErrorCard,
   DiscoveryPage,
   DiscoveryPageGetServerSideProps,
   QueryPage,
@@ -98,5 +100,5 @@ export {
   AiSearchPage,
   AISearchPageGetServerSideProps,
   SubmissionPage,
-  SubmissionPageGetServerSideProps,
+  SubmissionPageGetServerSideProps
 };

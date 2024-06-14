@@ -247,7 +247,6 @@ export const CohortPanel = ({
   const {
     data: counts,
     isSuccess: isCountSuccess,
-    isFetching,
     isError,
   } = useGetCountsQuery({
     type: index,
@@ -294,7 +293,7 @@ export const CohortPanel = ({
               <Gen3Button
                 colors="primary"
                 onClick={() => setShowCharts(!showCharts)}
-                className="rounded mr-4 active:scale-95"
+                className="px-2 py-1 text-primary-contrast rounded mr-4 active:scale-95"
               >
                 {showCharts ? 'Hide Charts' : 'Show Charts'}
               </Gen3Button>
