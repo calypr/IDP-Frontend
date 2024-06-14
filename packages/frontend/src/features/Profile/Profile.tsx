@@ -22,9 +22,6 @@ const Profile = ({ profileConfig }: ProfileProps) => {
             chevronPosition="left"
             chevron={<Caret className="text-primary-contrast" size="1.75rem" />}
             defaultValue={['apiKeys']}
-            classNames={{
-              label: 'text-secondary-contrast-lighter font-heading font-bold',
-            }}
           >
             {/* <Accordion.Item value="externalLogins">
               <div className="bg-secondary-lighter">

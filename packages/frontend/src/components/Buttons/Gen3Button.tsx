@@ -7,7 +7,7 @@ interface Gen3ButtonProps {
 export const Gen3Button = tw.div<Gen3ButtonProps>`
 inline-block
 text-center
-text-accent-contrast-lighter
+text-primary-contrast
 leading-[1.5]
 font-semibold
 border-4
@@ -22,7 +22,7 @@ ${(p) => `hover:bg-${p.colors}-max`}
 
 export const Gen3ButtonReverse = tw.div<Gen3ButtonProps>`
 bg-base-max
-text-accent-contrast
+text-primary-contrast
 border-accent-lighter
 inline-block
 text-center
