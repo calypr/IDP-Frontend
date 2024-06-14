@@ -169,7 +169,6 @@ const ExplorerTable = ({ index, tableConfig }: ExplorerTableProps) => {
    * @param manualSorting - If this is true, you will be expected to sort your data before it is passed to the table.
    * @param manualPagination - If this is true, you will be expected to manually paginate the rows before passing them to the table
 0.
-
    * @param paginateExpandedRows - If true expanded rows will be paginated along with the rest of the table (which means expanded rows may span multiple pages)      -
    * @param onPaginationChange - If this function is provided, it will be called when the pagination state changes and you will be expected to manage the state yourself
    * @param onSortingChange - If provided, this function will be called with an updaterFn when variable state. sorting changes. Overrides default internal state management
@@ -214,14 +213,21 @@ const ExplorerTable = ({ index, tableConfig }: ExplorerTableProps) => {
       density: 'xs',
       rowSelection: rowSelection,
     },
-    mantineTableBodyRowProps: ({ row }) => ({
-      onClick: (event) => {
-        console.info(event, row.id);
-      },
-      sx: {
-        cursor: 'pointer', //you might want to change the cursor too when adding an onClick
-      },
-    }),
+    mantineTableBodyRowProps:
+      tableConfig.detailsConfig?.mode === 'click'
+        ? ({ row }) => ({
+            onClick: () => {
+              if (Object.keys(rowSelection).includes(row.id)) {
+                setRowSelection({});
+              } else {
+                setRowSelection({ [row.id as string]: true });
+              }
+            },
+            sx: {
+              cursor: 'pointer', //you might want to change the cursor too when adding an onClick
+            },
+          })
+        : {},
   });
   return (
     <React.Fragment>
