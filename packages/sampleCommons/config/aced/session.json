@@ -1,7 +1,7 @@
 {
   "sessionConfig" : {
-    "updateSessionTime": 5,
-    "inactiveTimeLimit": 20,
+    "updateSessionTime": 60,
+    "inactiveTimeLimit": 60,
     "logoutInactiveUsers": false
   }
 }
