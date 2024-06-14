@@ -20,7 +20,7 @@ const Profile = ({ profileConfig }: ProfileProps) => {
             multiple
             variant="separated"
             chevronPosition="left"
-            chevron={<Caret color="primary.4" size="1.75rem"/>}
+            chevron={<Caret className="text-primary-contrast" size="1.75rem" />}
             defaultValue={['apiKeys']}
             classNames={{
               label: 'text-secondary-contrast-lighter font-heading font-bold',

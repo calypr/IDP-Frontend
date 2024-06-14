@@ -293,7 +293,7 @@ export const CohortPanel = ({
               <Gen3Button
                 colors="primary"
                 onClick={() => setShowCharts(!showCharts)}
-                className="px-2 py-1 text-black rounded mr-4 active:scale-95"
+                className="px-2 py-1 text-primary-contrast rounded mr-4 active:scale-95"
               >
                 {showCharts ? 'Hide Charts' : 'Show Charts'}
               </Gen3Button>
