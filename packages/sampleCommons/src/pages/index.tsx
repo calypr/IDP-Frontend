@@ -1,13 +1,13 @@
-/*import {
+import {
   LandingPage,
   LandingPageGetStaticProps as getStaticProps,
 } from '@gen3/frontend';
 
 export default LandingPage;
-export { getStaticProps };*/
+export { getStaticProps };
 
-import { SmmartPage,
+/*import { SmmartPage,
   LandingPageGetStaticProps as getStaticProps,
  } from '@gen3/frontend';
 export default SmmartPage;
-export { getStaticProps };
+export { getStaticProps };*/

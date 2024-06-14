@@ -256,7 +256,6 @@ export const CohortPanel = ({
   if (isError) {
     return <ErrorCard message="Unable to fetch cohort data" />;
   }
-  const [showCharts, setShowCharts] = useState(false);
   return (
     <div className="flex mt-3 relative">
       <div>

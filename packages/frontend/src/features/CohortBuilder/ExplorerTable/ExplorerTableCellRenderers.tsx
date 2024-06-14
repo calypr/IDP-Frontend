@@ -4,7 +4,7 @@ import {
 } from '../../../utils/RendererFactory';
 import React, { ReactElement, useState } from 'react';
 import { isArray } from 'lodash';
-import { Badge, Text, Modal, Button, Alert, useModal } from '@mantine/core';
+import { Badge, Text, Modal, Button, Alert } from '@mantine/core';
 import saveAs from 'file-saver';
 import { DiscoveryCellRendererFactory } from '../../Discovery';
 import { Gen3DiscoveryStandardCellRenderers } from '../../Discovery/TableRenderers/CellRenderers';
@@ -81,18 +81,23 @@ const RenderLinkCell = (
   const [error, setError] = useState('');
 
   const handleClick = async () => {
-    const signedUrl = `${args[0].baseURL}${cell.getValue()}`;
+    if (args.length > 0 && args[0].baseURL) {
+      const signedUrl = `${args[0].baseURL}${cell.getValue()}`;
+      const response = await fetch(signedUrl);
 
-    const response = await fetch(signedUrl);
-
-    if (!response.ok) {
-      setError(
-        `Failed to download file ${response.status}:${response.statusText}`,
-      );
-      setIsOpen(true);
+      if (!response.ok) {
+        setError(
+          `Failed to download file ${response.status}:${response.statusText}`,
+        );
+        setIsOpen(true);
+      }
+      const data = await response.json();
+      saveAs(data.url, `${cell.getValue()}`);
+    } else if (args.length > 0 && args[0].modal_viewer === true) {
+      <Alert variant="error" icon={<Text>!</Text>}>
+        HELLO WE ARE HERE
+      </Alert>;
     }
-    const data = await response.json();
-    saveAs(data.url, `${cell.getValue()}`);
   };
 
   return (

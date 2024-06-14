@@ -1,3 +1,5 @@
+import type { Middleware, Reducer } from '@reduxjs/toolkit';
+import { coreCreateApi } from '../../api';
 import { JSONObject } from '../../types';
 import { GEN3_GRIP_API } from '../../constants';
 import { getCookie } from 'cookies-next';
@@ -6,12 +8,39 @@ import { CoreState } from '../../reducers';
 
 export interface gripApiResponse<H = JSONObject> {
   readonly data: H;
+  readonly errors: Record<string, string>;
+}
+
+export interface gripFetchError {
+  readonly url: string;
+  readonly status: number;
+  readonly statusText: string;
+  readonly text: string;
+  readonly variables?: Record<string, any>;
+  readonly code?: Record<string, any>;
 }
 
 export interface gripApiSliceRequest {
   readonly query: string;
   readonly variables?: Record<string, unknown>;
+  readonly endpoint_arg: string;
+
 }
+
+const buildGripFetchError = async (
+  res: Response,
+  variables?: Record<string, any>,
+): Promise<gripFetchError> => {
+  const errorData = await res.json();
+  return {
+    url: res.url,
+    status: res.status,
+    statusText: res.statusText,
+    text: errorData.Message,
+    code: errorData.StatusCode,
+    variables: variables,
+  };
+};
 
 export const gripApiFetch = async <T>(
   query: gripApiSliceRequest,
@@ -27,15 +56,6 @@ export const gripApiFetch = async <T>(
   throw await buildGripFetchError(res);
 };
 
-const buildGripFetchError = async (
-  res: Response,
-): Promise<Object> => {
-  const errorData = await res.json();
-  return {
-    text: errorData.Message,
-    code: errorData.StatusCode
-  };
-};
 
   export const gripApi = coreCreateApi({
     reducerPath: 'grip',
@@ -67,5 +87,6 @@ const buildGripFetchError = async (
   endpoints: () => ({}),
 });
 
-export const { useGetGripQuery} = gripApi;
-*/
+export const gripAPISliceMiddleware = gripApi.middleware as Middleware;
+export const gripApiSliceReducerPath: string = gripApi.reducerPath;
+export const gripApiReducer: Reducer = gripApi.reducer as Reducer;

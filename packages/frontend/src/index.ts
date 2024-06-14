@@ -100,4 +100,6 @@ export {
   AISearchPageGetServerSideProps,
   SubmissionPage,
   SubmissionPageGetServerSideProps,
+  ErrorCard,
+  SmmartPage
 };
