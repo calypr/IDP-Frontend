@@ -2,13 +2,13 @@
   {
     "tabTitle": "Patient",
     "charts": {
-      "code": {
+      "UCL_Definition": {
         "chartType": "fullPie",
-        "title": "Code"
+        "title": "UCL_Definition"
       },
-      "value_normalized": {
+      "Gleason_grade": {
         "chartType": "fullPie",
-        "title": "Value"
+        "title": "Gleason_grade"
       }
     },
     "filters": {
@@ -17,9 +17,17 @@
           "title": "Patient",
           "fields": [
             "project_id",
-            "code",
-            "category",
-            "subject"
+            "Gleason_grade",
+            "Maximum_Cancer_Core_Length_in_mm",
+            "UCL_Definition",
+            "Prostate_volume_on_MRI",
+            "Sampled_area_side_Left_or_Right",
+            "Sampled_area_zone_Peripheral_Transition_Both",
+            "Sampled_area_location_Posterior_Anterior_or_combinations",
+            "Sampled_area_level_Base_Midtogland_Apex_or_combinations",
+            "us_core_birthsex",
+            "us_core_ethnicity",
+            "us_core_race"
           ]
         }
       ]
@@ -28,22 +36,30 @@
       "enabled": true,
       "detailsConfig": {
         "panel": "patientDetails",
-        "mode" : "click",
+        "mode": "click",
         "idField": "id",
-        "title": "Patient Details"
+        "title": "Patient Details",
+        "nodeType": "file"
       },
       "fields": [
         "id",
-        "project_id",
-        "code",
-        "subject",
-        "category"
+        "Gleason_grade",
+        "Maximum_Cancer_Core_Length_in_mm",
+        "UCL_Definition",
+        "Prostate_volume_on_MRI",
+        "Sampled_area_side_Left_or_Right",
+        "Sampled_area_zone_Peripheral_Transition_Both",
+        "Sampled_area_location_Posterior_Anterior_or_combinations",
+        "Sampled_area_level_Base_Midtogland_Apex_or_combinations",
+        "us_core_birthsex",
+        "us_core_ethnicity",
+        "us_core_race"
       ]
     },
     "guppyConfig": {
       "dataType": "observation",
       "fieldMapping": [],
-      "nodeCountTitle": "Observations",
+      "nodeCountTitle": "Patients",
       "manifestMapping": {
         "resourceIndexType": "Patient",
         "resourceIdField": "_patient_id",
@@ -76,7 +92,9 @@
             "project_id",
             "category",
             "type",
-            "subject"
+            "title",
+            "subject",
+            "contentType"
           ]
         }
       ]
@@ -89,18 +107,18 @@
         "idField": "id",
         "title": "File Details"
       },
-      "fields": ["id", "project_id", "file_name", "object_id", "subject"],
-      "columns": {
-        "id": {
-          "title": "id",
-          "type": "link",
-          "cellRenderFunction": "default",
-          "params": {
-            "baseURL": "user/data/download/"
-          },
-          "width": 200
-        }
-      }
+      "fields": [
+        "id",
+        "title",
+        "subject",
+        "source_url",
+        "md5",
+        "size",
+        "contentType",
+        "creation",
+        "url",
+        "category"
+      ]
     },
     "guppyConfig": {
       "dataType": "file",
@@ -160,4 +178,3 @@
     ]
   }
 ]
-

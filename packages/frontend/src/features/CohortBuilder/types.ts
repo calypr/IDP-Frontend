@@ -21,6 +21,7 @@ export interface TabsConfig {
 export interface ManifestFieldsConfig {
   resourceIndexType: string;
   resourceIdField: string;
+  resourceNodeType: string;
   referenceIdFieldInResourceIndex: string;
   referenceIdFieldInDataIndex: string;
 }

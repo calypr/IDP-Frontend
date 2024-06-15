@@ -97,7 +97,7 @@ export const FileDetailsPanel = ({
         <Text weight="bold">{field}</Text>
       </td>
       <td>
-        {field === 'object_id' ? (
+        {field === 'id' ? (
           <Anchor
             href={`${GEN3_FENCE_API}/user/data/download/${
               value ? (value as string) : ''

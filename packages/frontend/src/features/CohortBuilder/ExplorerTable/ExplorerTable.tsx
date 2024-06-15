@@ -126,6 +126,19 @@ const ExplorerTable = ({ index, tableConfig }: ExplorerTableProps) => {
         : undefined;
   }, []);
 
+  const getNodeType = useCallback((tableConfig: SummaryTable) => {
+    const { detailsConfig } = tableConfig || {};
+    const nodeType: string | undefined = detailsConfig?.nodeType;
+    return (
+      originalRow: JSONObject,
+      _index: number,
+      _parentRow: MRT_Row<JSONObject>,
+    ) =>
+      nodeType && Object.keys(originalRow).includes(nodeType)
+        ? (originalRow[nodeType] as string)
+        : undefined;
+  }, []);
+
   const cohortFilters = useCoreSelector((state: CoreState) =>
     selectIndexFilters(state, index),
   );
@@ -190,6 +203,7 @@ const ExplorerTable = ({ index, tableConfig }: ExplorerTableProps) => {
     onSortingChange: setSorting,
     enableTopToolbar: false,
     getRowId: getRowId(tableConfig),
+    getNodeType: getNodeType(tableConfig),
     rowCount: totalRowCount,
     paginationDisplayMode: 'pages',
     enableRowSelection: tableConfig?.selectableRows ?? false,

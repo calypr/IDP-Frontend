@@ -20,6 +20,7 @@ import {
   MdContentCopy as IconCopy,
   MdCheck as IconCheck,
 } from 'react-icons/md';
+import { table } from 'console';
 
 // a definition of the query response
 interface QueryResponse {
@@ -44,11 +45,12 @@ const extractData = (
   data: QueryResponse,
   index: string,
 ): Record<string, any> => {
+  console.log('QUERY INDEX: ', index, 'QUERY DATA: ', data);
   if (data === undefined || data === null) return {};
   if (data.data === undefined || data.data === null) return {};
 
-  return Array.isArray(data.data[index]) && data.data[index].length > 0
-    ? data.data[index][0]
+  return Array.isArray(data.data['file']) && data.data['file'].length > 0
+    ? data.data['file'][0]
     : {};
 };
 
@@ -60,10 +62,20 @@ export const PatientDetailsPanel = ({
 }: TableDetailsPanelProps) => {
   //const [queryGuppy, { data, isLoading, isError }] = useLazyGeneralGQLQuery();
   const idField = tableConfig.detailsConfig?.idField;
+  const nodeType = tableConfig.detailsConfig?.nodeType;
   const { data, isLoading, isError } = useGeneralGQLQuery({
     query: `query ($filter: JSON) {
-        ${index} (filter: $filter,  accessibility: all) {
-        ${tableConfig.fields}
+        ${nodeType} (filter: $filter,  accessibility: all) {
+        id
+        title
+        subject
+        source_url
+        md5
+        size
+        contentType
+        creation
+        url
+        category
         }
       }`,
     variables: {
@@ -71,7 +83,7 @@ export const PatientDetailsPanel = ({
         AND: [
           {
             IN: {
-              [idField ?? 0]: [id],
+              subject: [id],
             },
           },
         ],
@@ -97,7 +109,7 @@ export const PatientDetailsPanel = ({
         <Text weight="bold">{field}</Text>
       </td>
       <td>
-        {field === 'object_id' ? (
+        {field === 'id' ? (
           <Anchor
             href={`${GEN3_FENCE_API}/user/data/download/${
               value ? (value as string) : ''

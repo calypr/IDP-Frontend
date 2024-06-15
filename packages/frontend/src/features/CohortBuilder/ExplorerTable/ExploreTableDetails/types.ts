@@ -16,6 +16,7 @@ export interface TableDetailsPanelProps extends DetailsPanelComponentProps {
  * @property {Record<string, unknown>} [params] - Additional parameters for the Explorer details panel.
  * @property {Record<string, string>} [classNames] - Additional CSS class names for the Explorer modal | drawer.
  * @property {string} [idField] - The field used as an identifier for the Explorer details.
+ * @property {string} [nodeType] - The node type used to index on
  */
 export interface ExplorerDetailsConfig {
   mode?: 'click' | 'doubleclick' | 'expand';
@@ -24,4 +25,5 @@ export interface ExplorerDetailsConfig {
   params?: Record<string, unknown>;
   classNames?: Record<string, string>;
   idField?: string;
+  nodeType?: string;
 }
