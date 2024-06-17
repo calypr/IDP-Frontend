@@ -22,6 +22,7 @@ export interface ManifestFieldsConfig {
   resourceIndexType: string;
   resourceIdField: string;
   resourceNodeType: string;
+  resourceFilterField: string;
   referenceIdFieldInResourceIndex: string;
   referenceIdFieldInDataIndex: string;
 }

@@ -65,6 +65,7 @@ export const PatientDetailsPanel = ({
   const [currentFileIndex, setCurrentFileIndex] = useState(0);
   const idField = tableConfig.detailsConfig?.idField;
   const nodeType = tableConfig.detailsConfig?.nodeType;
+  const filterField = tableConfig.detailsConfig?.filterField;
   const { data, isLoading, isError } = useGeneralGQLQuery({
     query: `query ($filter: JSON) {
         ${nodeType} (filter: $filter,  accessibility: all) {
@@ -85,7 +86,7 @@ export const PatientDetailsPanel = ({
         AND: [
           {
             IN: {
-              subject: [id],
+              [filterField ?? 0]: [id],
             },
           },
         ],

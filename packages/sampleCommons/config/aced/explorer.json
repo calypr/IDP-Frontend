@@ -25,6 +25,7 @@
             "Sampled_area_zone_Peripheral_Transition_Both",
             "Sampled_area_location_Posterior_Anterior_or_combinations",
             "Sampled_area_level_Base_Midtogland_Apex_or_combinations",
+            "identifier",
             "us_core_birthsex",
             "us_core_ethnicity",
             "us_core_race"
@@ -38,10 +39,12 @@
         "panel": "patientDetails",
         "mode": "click",
         "idField": "id",
+        "filterField": "subject",
         "title": "Patient Details",
         "nodeType": "file"
       },
       "fields": [
+        "identifier",
         "Gleason_grade",
         "Maximum_Cancer_Core_Length_in_mm",
         "UCL_Definition",
@@ -117,7 +120,8 @@
         "type",
         "category",
         "contentType",
-        "url"
+        "url",
+        "id"
       ]
     },
     "guppyConfig": {
