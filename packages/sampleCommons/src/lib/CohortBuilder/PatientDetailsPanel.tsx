@@ -21,10 +21,15 @@ import {
   MdCheck as IconCheck,
 } from 'react-icons/md';
 import { table } from 'console';
+import { useState } from 'react';
 
 // a definition of the query response
 interface QueryResponse {
   data?: Record<string, Array<any>>;
+}
+
+interface FileData {
+  [key: string]: any;
 }
 
 /**
@@ -41,17 +46,14 @@ const isQueryResponse = (obj: any): obj is QueryResponse => {
   );
 };
 
-const extractData = (
-  data: QueryResponse,
-  index: string,
-): Record<string, any> => {
+const extractData = (data: QueryResponse, index: string): FileData[] => {
   console.log('QUERY INDEX: ', index, 'QUERY DATA: ', data);
-  if (data === undefined || data === null) return {};
-  if (data.data === undefined || data.data === null) return {};
+  if (data === undefined || data === null) return [];
+  if (data.data === undefined || data.data === null) return [];
 
   return Array.isArray(data.data['file']) && data.data['file'].length > 0
-    ? data.data['file'][0]
-    : {};
+    ? data.data['file']
+    : [];
 };
 
 export const PatientDetailsPanel = ({
@@ -60,7 +62,7 @@ export const PatientDetailsPanel = ({
   tableConfig,
   onClose,
 }: TableDetailsPanelProps) => {
-  //const [queryGuppy, { data, isLoading, isError }] = useLazyGeneralGQLQuery();
+  const [currentFileIndex, setCurrentFileIndex] = useState(0);
   const idField = tableConfig.detailsConfig?.idField;
   const nodeType = tableConfig.detailsConfig?.nodeType;
   const { data, isLoading, isError } = useGeneralGQLQuery({
@@ -100,11 +102,14 @@ export const PatientDetailsPanel = ({
   if (isError) {
     return <ErrorCard message={'Error occurred while fetching data'} />;
   }
+  const queryData = isQueryResponse(data) ? extractData(data, index) : [];
 
-  const queryData = isQueryResponse(data) ? extractData(data, index) : {};
+  const totalFiles = queryData.length;
+  const currentFileData = queryData[currentFileIndex] || {};
 
-  const rows = Object.entries(queryData).map(([field, value]) => (
-    <tr key={field}>
+  // Render rows for the current file index
+  const rows = Object.entries(currentFileData).map(([field, value]) => (
+    <tr key={`${currentFileIndex}-${field}`}>
       <td>
         <Text weight="bold">{field}</Text>
       </td>
@@ -124,6 +129,21 @@ export const PatientDetailsPanel = ({
       </td>
     </tr>
   ));
+
+  // Handle previous file index
+  const handlePrevFile = () => {
+    if (currentFileIndex > 0) {
+      setCurrentFileIndex(currentFileIndex - 1);
+    }
+  };
+
+  // Handle next file index
+  const handleNextFile = () => {
+    if (currentFileIndex < totalFiles - 1) {
+      setCurrentFileIndex(currentFileIndex + 1);
+    }
+  };
+
   return (
     <Stack>
       <LoadingOverlay visible={isLoading} />
@@ -138,7 +158,22 @@ export const PatientDetailsPanel = ({
         <tbody>{rows}</tbody>
       </Table>
       <Group position="right">
-        <CopyButton value={JSON.stringify(queryData)} timeout={2000}>
+        <Button onClick={handlePrevFile} disabled={currentFileIndex === 0}>
+          Previous
+        </Button>
+        <Text>{`${currentFileIndex + 1} / ${totalFiles}`}</Text>
+        <Button
+          onClick={handleNextFile}
+          disabled={currentFileIndex === totalFiles - 1}
+        >
+          Next
+        </Button>
+      </Group>
+      <Group position="right">
+        <CopyButton
+          value={JSON.stringify(queryData[currentFileIndex])}
+          timeout={2000}
+        >
           {({ copied, copy }) => (
             <Tooltip
               label={copied ? 'Copied' : 'Copy'}

@@ -42,7 +42,6 @@
         "nodeType": "file"
       },
       "fields": [
-        "id",
         "Gleason_grade",
         "Maximum_Cancer_Core_Length_in_mm",
         "UCL_Definition",
@@ -53,7 +52,8 @@
         "Sampled_area_level_Base_Midtogland_Apex_or_combinations",
         "us_core_birthsex",
         "us_core_ethnicity",
-        "us_core_race"
+        "us_core_race",
+        "id"
       ]
     },
     "guppyConfig": {
@@ -90,8 +90,8 @@
           "title": "File",
           "fields": [
             "project_id",
-            "category",
             "type",
+            "category",
             "title",
             "subject",
             "contentType"
@@ -108,16 +108,16 @@
         "title": "File Details"
       },
       "fields": [
-        "id",
         "title",
-        "subject",
         "source_url",
-        "md5",
         "size",
-        "contentType",
         "creation",
-        "url",
-        "category"
+        "subject",
+        "md5",
+        "type",
+        "category",
+        "contentType",
+        "url"
       ]
     },
     "guppyConfig": {
