@@ -2,13 +2,17 @@
   {
     "tabTitle": "Patient",
     "charts": {
-      "UCL_Definition": {
+      "Years_Since_Prostate_Cancer_Diagnosis": {
         "chartType": "fullPie",
-        "title": "UCL_Definition"
+        "title": "Years since Prostate Cancer Diagnosis"
+      },
+      "Age_at_procedure": {
+        "chartType": "fullPie",
+        "title": "Age at Procedure"
       },
       "Gleason_grade": {
         "chartType": "fullPie",
-        "title": "Gleason_grade"
+        "title": "Gleason Grade"
       }
     },
     "filters": {
@@ -25,6 +29,8 @@
             "Sampled_area_zone_Peripheral_Transition_Both",
             "Sampled_area_location_Posterior_Anterior_or_combinations",
             "Sampled_area_level_Base_Midtogland_Apex_or_combinations",
+            "Years_Since_Prostate_Cancer_Diagnosis",
+            "Age_at_procedure",
             "identifier",
             "us_core_birthsex",
             "us_core_ethnicity",
@@ -40,7 +46,7 @@
         "mode": "click",
         "idField": "id",
         "filterField": "subject",
-        "title": "Patient Details",
+        "title": "Files attached to Patient",
         "nodeType": "file"
       },
       "fields": [
@@ -108,6 +114,7 @@
         "panel": "fileDetails",
         "mode": "click",
         "idField": "id",
+        "nodeType": "file",
         "title": "File Details"
       },
       "fields": [

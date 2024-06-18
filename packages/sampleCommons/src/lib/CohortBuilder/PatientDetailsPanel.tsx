@@ -22,6 +22,7 @@ import {
 } from 'react-icons/md';
 import { table } from 'console';
 import { useState } from 'react';
+import { FiDownload } from 'react-icons/fi';
 
 // a definition of the query response
 interface QueryResponse {
@@ -116,14 +117,19 @@ export const PatientDetailsPanel = ({
       </td>
       <td>
         {field === 'id' ? (
-          <Anchor
-            href={`${GEN3_FENCE_API}/user/data/download/${
-              value ? (value as string) : ''
-            }?redirect=true`}
-            target="_blank"
-          >
-            {value ? (value as string) : ''}
-          </Anchor>
+          <div className="flex">
+            <div className="px-2">
+              <FiDownload title="download" size={16} />
+            </div>
+            <Anchor
+              href={`${GEN3_FENCE_API}/user/data/download/${
+                value ? (value as string) : ''
+              }?redirect=true`}
+              target="_blank"
+            >
+              {value ? (value as string) : ''}
+            </Anchor>
+          </div>
         ) : (
           <Text>{value ? (value as string) : ''}</Text>
         )}
@@ -148,47 +154,71 @@ export const PatientDetailsPanel = ({
   return (
     <Stack>
       <LoadingOverlay visible={isLoading} />
-      <Text color="primary.4">Results for {id}</Text>
-      <Table withBorder withColumnBorders>
-        <thead>
-          <tr>
-            <th>Field</th>
-            <th>Value</th>
-          </tr>
-        </thead>
-        <tbody>{rows}</tbody>
-      </Table>
-      <Group position="right">
-        <Button onClick={handlePrevFile} disabled={currentFileIndex === 0}>
-          Previous
-        </Button>
-        <Text>{`${currentFileIndex + 1} / ${totalFiles}`}</Text>
-        <Button
-          onClick={handleNextFile}
-          disabled={currentFileIndex === totalFiles - 1}
-        >
-          Next
-        </Button>
-      </Group>
-      <Group position="right">
-        <CopyButton
-          value={JSON.stringify(queryData[currentFileIndex])}
-          timeout={2000}
-        >
-          {({ copied, copy }) => (
-            <Tooltip
-              label={copied ? 'Copied' : 'Copy'}
-              withArrow
-              position="right"
+      {totalFiles > 0 ? (
+        <div>
+          <Text color="primary.4">
+            {tableConfig.detailsConfig.nodeType} id {id} data:
+          </Text>
+
+          <Table withBorder withColumnBorders>
+            <thead>
+              <tr>
+                <th>Field</th>
+                <th>Value</th>
+              </tr>
+            </thead>
+            <tbody>{rows}</tbody>
+          </Table>
+          <div className="py-3">
+            <Group position="right">
+              <Button
+                onClick={handlePrevFile}
+                disabled={currentFileIndex === 0}
+              >
+                Previous
+              </Button>
+              <Text>{`${currentFileIndex + 1} / ${totalFiles}`}</Text>
+              <Button
+                onClick={handleNextFile}
+                disabled={currentFileIndex === totalFiles - 1}
+              >
+                Next
+              </Button>
+            </Group>
+          </div>
+          <Group position="right">
+            <CopyButton
+              value={JSON.stringify(queryData[currentFileIndex])}
+              timeout={2000}
             >
-              <ActionIcon color={copied ? 'accent.4' : 'gray'} onClick={copy}>
-                {copied ? <IconCheck size="1rem" /> : <IconCopy size="1rem" />}
-              </ActionIcon>
-            </Tooltip>
-          )}
-        </CopyButton>
-        <Button onClick={() => onClose && onClose(id)}>Close</Button>
-      </Group>
+              {({ copied, copy }) => (
+                <Tooltip
+                  label={copied ? 'Copied' : 'Copy'}
+                  withArrow
+                  position="right"
+                >
+                  <ActionIcon
+                    color={copied ? 'accent.4' : 'gray'}
+                    onClick={copy}
+                  >
+                    {copied ? (
+                      <IconCheck size="1rem" />
+                    ) : (
+                      <IconCopy size="1rem" />
+                    )}
+                  </ActionIcon>
+                </Tooltip>
+              )}
+            </CopyButton>
+
+            <Button onClick={() => onClose && onClose(id)}>Close</Button>
+          </Group>
+        </div>
+      ) : (
+        <div className="px-6">
+          <Text> No Files Found for id: {id}</Text>
+        </div>
+      )}
     </Stack>
   );
 };
