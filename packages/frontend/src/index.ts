@@ -67,6 +67,7 @@ export {
   type Fonts,
   type RegisteredIcons,
   type SessionConfiguration,
+  SmmartPage,
   ErrorCard,
   DiscoveryPage,
   DiscoveryPageGetServerSideProps,
@@ -99,6 +100,5 @@ export {
   AiSearchPage,
   AISearchPageGetServerSideProps,
   SubmissionPage,
-  SubmissionPageGetServerSideProps,
-  SmmartPage
+  SubmissionPageGetServerSideProps
 };
