@@ -2,13 +2,17 @@
   {
     "tabTitle": "Patient",
     "charts": {
-      "code": {
+      "Years_Since_Prostate_Cancer_Diagnosis": {
         "chartType": "fullPie",
-        "title": "Code"
+        "title": "Years since Prostate Cancer Diagnosis"
       },
-      "value_normalized": {
+      "Age_at_procedure": {
         "chartType": "fullPie",
-        "title": "Value"
+        "title": "Age at Procedure"
+      },
+      "Gleason_grade": {
+        "chartType": "fullPie",
+        "title": "Gleason Grade"
       }
     },
     "filters": {
@@ -17,9 +21,20 @@
           "title": "Patient",
           "fields": [
             "project_id",
-            "code",
-            "category",
-            "subject"
+            "Gleason_grade",
+            "Maximum_Cancer_Core_Length_in_mm",
+            "UCL_Definition",
+            "Prostate_volume_on_MRI",
+            "Sampled_area_side_Left_or_Right",
+            "Sampled_area_zone_Peripheral_Transition_Both",
+            "Sampled_area_location_Posterior_Anterior_or_combinations",
+            "Sampled_area_level_Base_Midtogland_Apex_or_combinations",
+            "Years_Since_Prostate_Cancer_Diagnosis",
+            "Age_at_procedure",
+            "identifier",
+            "us_core_birthsex",
+            "us_core_ethnicity",
+            "us_core_race"
           ]
         }
       ]
@@ -27,23 +42,33 @@
     "table": {
       "enabled": true,
       "detailsConfig": {
-        "panel": "default",
-        "mode" : "click",
-        "idField": "submitter_id",
-        "title": "Details"
+        "panel": "patientDetails",
+        "mode": "click",
+        "idField": "id",
+        "filterField": "subject",
+        "title": "Files attached to Patient",
+        "nodeType": "file"
       },
       "fields": [
-        "id",
-        "project_id",
-        "code",
-        "subject",
-        "category"
+        "identifier",
+        "Gleason_grade",
+        "Maximum_Cancer_Core_Length_in_mm",
+        "UCL_Definition",
+        "Prostate_volume_on_MRI",
+        "Sampled_area_side_Left_or_Right",
+        "Sampled_area_zone_Peripheral_Transition_Both",
+        "Sampled_area_location_Posterior_Anterior_or_combinations",
+        "Sampled_area_level_Base_Midtogland_Apex_or_combinations",
+        "us_core_birthsex",
+        "us_core_ethnicity",
+        "us_core_race",
+        "id"
       ]
     },
     "guppyConfig": {
       "dataType": "observation",
       "fieldMapping": [],
-      "nodeCountTitle": "Observations",
+      "nodeCountTitle": "Patients",
       "manifestMapping": {
         "resourceIndexType": "Patient",
         "resourceIdField": "_patient_id",
@@ -74,9 +99,11 @@
           "title": "File",
           "fields": [
             "project_id",
-            "category",
             "type",
-            "subject"
+            "category",
+            "title",
+            "subject",
+            "contentType"
           ]
         }
       ]
@@ -86,21 +113,23 @@
       "detailsConfig": {
         "panel": "fileDetails",
         "mode": "click",
-        "idField": "file_name",
+        "idField": "id",
+        "nodeType": "file",
         "title": "File Details"
       },
-      "fields": ["project_id", "file_name", "object_id", "subject"],
-      "columns": {
-        "id": {
-          "title": "id",
-          "type": "link",
-          "cellRenderFunction": "default",
-          "params": {
-            "baseURL": "user/data/download/"
-          },
-          "width": 200
-        }
-      }
+      "fields": [
+        "title",
+        "source_url",
+        "size",
+        "creation",
+        "subject",
+        "md5",
+        "type",
+        "category",
+        "contentType",
+        "url",
+        "id"
+      ]
     },
     "guppyConfig": {
       "dataType": "file",
@@ -160,4 +189,3 @@
     ]
   }
 ]
-

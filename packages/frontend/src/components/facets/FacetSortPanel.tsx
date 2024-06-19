@@ -88,7 +88,7 @@ const FacetSortPanel: React.FC<FacetSortPanelProps> = ({
         variant="subtle"
         size="xs"
         compact
-        color="base-contrast"
+        color="base-lightest"
         onClick={() => {
           const direction =
             sortType.type === 'alpha' && sortType.direction === 'asc'
@@ -111,7 +111,7 @@ const FacetSortPanel: React.FC<FacetSortPanelProps> = ({
         variant="subtle"
         size="xs"
         compact
-        color="base-contrast"
+        color="base-lightest"
         onClick={() => {
           const direction =
             sortType.type === 'value' && sortType.direction === 'asc'

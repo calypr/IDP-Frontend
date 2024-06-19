@@ -20,6 +20,8 @@ import {
   MdContentCopy as IconCopy,
   MdCheck as IconCheck,
 } from 'react-icons/md';
+import { FiDownload } from 'react-icons/fi';
+import { config } from 'next/dist/build/templates/pages';
 
 // a definition of the query response
 interface QueryResponse {
@@ -58,7 +60,6 @@ export const FileDetailsPanel = ({
   tableConfig,
   onClose,
 }: TableDetailsPanelProps) => {
-  //const [queryGuppy, { data, isLoading, isError }] = useLazyGeneralGQLQuery();
   const idField = tableConfig.detailsConfig?.idField;
   const { data, isLoading, isError } = useGeneralGQLQuery({
     query: `query ($filter: JSON) {
@@ -97,15 +98,20 @@ export const FileDetailsPanel = ({
         <Text weight="bold">{field}</Text>
       </td>
       <td>
-        {field === 'object_id' ? (
-          <Anchor
-            href={`${GEN3_FENCE_API}/user/data/download/${
-              value ? (value as string) : ''
-            }?redirect=true`}
-            target="_blank"
-          >
-            {value ? (value as string) : ''}
-          </Anchor>
+        {field === 'id' ? (
+          <div className="flex">
+            <div className="px-2">
+              <FiDownload title="download" size={16} />
+            </div>
+            <Anchor
+              href={`${GEN3_FENCE_API}/user/data/download/${
+                value ? (value as string) : ''
+              }?redirect=true`}
+              target="_blank"
+            >
+              {value ? (value as string) : ''}
+            </Anchor>
+          </div>
         ) : (
           <Text>{value ? (value as string) : ''}</Text>
         )}
@@ -115,7 +121,9 @@ export const FileDetailsPanel = ({
   return (
     <Stack>
       <LoadingOverlay visible={isLoading} />
-      <Text color="primary.4">Results for {id}</Text>
+      <Text color="primary.4">
+        {tableConfig.detailsConfig.nodeType} id {id} data:
+      </Text>
       <Table withBorder withColumnBorders>
         <thead>
           <tr>
