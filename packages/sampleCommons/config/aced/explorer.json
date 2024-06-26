@@ -2,17 +2,13 @@
   {
     "tabTitle": "Patient",
     "charts": {
-      "Years_Since_Prostate_Cancer_Diagnosis": {
-        "chartType": "fullPie",
-        "title": "Years since Prostate Cancer Diagnosis"
-      },
-      "Age_at_procedure": {
-        "chartType": "fullPie",
-        "title": "Age at Procedure"
-      },
       "Gleason_grade": {
         "chartType": "fullPie",
         "title": "Gleason Grade"
+      },
+      "UCL_Definition": {
+        "chartType": "fullPie",
+        "title": "def"
       }
     },
     "filters": {
@@ -21,6 +17,7 @@
           "title": "Patient",
           "fields": [
             "project_id",
+            "identifier",
             "Gleason_grade",
             "Maximum_Cancer_Core_Length_in_mm",
             "UCL_Definition",
@@ -28,13 +25,7 @@
             "Sampled_area_side_Left_or_Right",
             "Sampled_area_zone_Peripheral_Transition_Both",
             "Sampled_area_location_Posterior_Anterior_or_combinations",
-            "Sampled_area_level_Base_Midtogland_Apex_or_combinations",
-            "Years_Since_Prostate_Cancer_Diagnosis",
-            "Age_at_procedure",
-            "identifier",
-            "us_core_birthsex",
-            "us_core_ethnicity",
-            "us_core_race"
+            "Sampled_area_level_Base_Midtogland_Apex_or_combinations"
           ]
         }
       ]
@@ -47,7 +38,18 @@
         "idField": "id",
         "filterField": "subject",
         "title": "Files attached to Patient",
-        "nodeType": "file"
+        "nodeType": "file",
+        "nodeFields": [
+          "title",
+          "source_url",
+          "size",
+          "creation",
+          "subject",
+          "md5",
+          "contentType",
+          "url",
+          "id"
+        ]
       },
       "fields": [
         "identifier",
@@ -59,9 +61,6 @@
         "Sampled_area_zone_Peripheral_Transition_Both",
         "Sampled_area_location_Posterior_Anterior_or_combinations",
         "Sampled_area_level_Base_Midtogland_Apex_or_combinations",
-        "us_core_birthsex",
-        "us_core_ethnicity",
-        "us_core_race",
         "id"
       ]
     },
@@ -84,11 +83,11 @@
   {
     "tabTitle": "File",
     "charts": {
-      "category": {
+      "project_id": {
         "chartType": "fullPie",
         "title": "File Category"
       },
-      "type": {
+      "title": {
         "chartType": "fullPie",
         "title": "File Type"
       }
@@ -118,14 +117,13 @@
         "title": "File Details"
       },
       "fields": [
+        "project_id",
         "title",
         "source_url",
         "size",
         "creation",
         "subject",
         "md5",
-        "type",
-        "category",
         "contentType",
         "url",
         "id"

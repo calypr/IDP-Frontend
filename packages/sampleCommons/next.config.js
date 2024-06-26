@@ -56,21 +56,17 @@ const nextConfig = {
       },
     ];
   },
-  /*async redirects() {
-    const siteConfig = require('./config/siteConfig.json');
-    const theme = siteConfig.commons;
+  async redirects() {
     const redirects = [];
-    // TODO figure out how to do this properly so that it works on both frontends
-    if (theme == "cbds") {
-    redirects.push({
-      source: '/',
-      destination: '/cbdsLandingPage',
-      permanent: true,
-    });
-  }
-    return redirects
-}*/
+    if (process.env.GEN3_COMMONS_NAME == 'cbds') {
+      redirects.push({
+        source: '/',
+        destination: '/cbdsLandingPage',
+        permanent: true,
+      });
+    }
+    return redirects;
+  },
 };
 
 module.exports = withMDX(nextConfig);
-
