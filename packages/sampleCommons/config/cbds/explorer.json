@@ -2,17 +2,17 @@
   {
     "tabTitle": "Patient",
     "charts": {
-      "project_id": {
+      "us_core_race": {
         "chartType": "fullPie",
-        "title": "project_id"
+        "title": "us_core_race"
+      },
+      "us_core_ethnicity": {
+        "chartType": "fullPie",
+        "title": "us_core_ethnicity"
       },
       "gender": {
         "chartType": "fullPie",
         "title": "gender"
-      },
-      "maritalStatus": {
-        "chartType": "donut",
-        "title": "maritalStatus"
       }
     },
     "filters": {
@@ -20,6 +20,7 @@
         {
           "title": "Patient",
           "fields": [
+            "identifier",
             "project_id",
             "us_core_race",
             "us_core_ethnicity",
@@ -34,6 +35,7 @@
     "table": {
       "enabled": true,
       "fields": [
+        "identifier",
         "id",
         "project_id",
         "us_core_race",
@@ -44,6 +46,7 @@
         "disability_adjusted_life_years"
       ]
     },
+    "dropdowns": {},
     "guppyConfig": {
       "dataType": "patient",
       "fieldMapping": [
@@ -72,17 +75,13 @@
   {
     "tabTitle": "Observation",
     "charts": {
-      "project_id": {
+      "category": {
         "chartType": "fullPie",
-        "title": "Project"
+        "title": "Category"
       },
       "code": {
         "chartType": "fullPie",
         "title": "Code"
-      },
-      "valueString": {
-        "chartType": "fullPie",
-        "title": "Value"
       }
     },
     "filters": {
@@ -91,8 +90,9 @@
           "title": "Observation",
           "fields": [
             "project_id",
+            "category",
             "code",
-            "valueString"
+            "subject"
           ]
         }
       ]
@@ -104,9 +104,22 @@
         "project_id",
         "category",
         "code",
-        "valueString"
+        "bodySite",
+        "subject",
+        "effectiveDateTime",
+        "valueBoolean",
+        "valueCodeableConcept",
+        "valueDateTime",
+        "valueInteger",
+        "valueQuantity",
+        "valueRange",
+        "valueRatio",
+        "valueSampledData",
+        "valueString",
+        "interpretation"
       ]
     },
+    "dropdowns": {},
     "guppyConfig": {
       "dataType": "observation",
       "fieldMapping": [],
@@ -166,6 +179,7 @@
         "type_coding"
       ]
     },
+    "dropdowns": {},
     "guppyConfig": {
       "dataType": "file",
       "fieldMapping": [
@@ -209,14 +223,15 @@
         "rightIcon": "gen3:download",
         "fileName": "manifest.json",
         "actionArgs": {
-          "resourceIndexType": "Patient",
-          "resourceIdField": "_patient_id",
+          "resourceIndexType": "file",
+          "resourceIdField": "object_id",
           "referenceIdFieldInDataIndex": "object_id",
+          "referenceIdFieldInResourceIndex": "object_id",
           "fileFields": [
-            "file_name",
-            "file_size",
             "md5sum",
-            "object_id"
+            "object_id",
+            "file_name",
+            "content_attachment_size"
           ]
         }
       }
