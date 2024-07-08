@@ -4,6 +4,7 @@ export * from './components/Profile';
 export * from './components/Login';
 export * from './components/Modals';
 export * from './components/charts';
+export * from './components/Protected';
 
 export * from './features/CohortBuilder';
 export * from './features/Query';
@@ -16,7 +17,8 @@ import { type SessionConfiguration } from './lib/session/types';
 import { type Fonts, type RegisteredIcons } from './lib/content/types';
 import ErrorCard from './components/ErrorCard';
 import '@gen3/core';
-import SmmartPage from './pages/Smmart/Smmart'
+import SmmartPage from './pages/Smmart/Smmart';
+import { SmmartPageGetServerSideProps } from './pages/Smmart';
 
 // export Gen3 data UI standard pages
 import Gen3Provider from './components/Providers/Gen3Provider';
@@ -68,6 +70,7 @@ export {
   type RegisteredIcons,
   type SessionConfiguration,
   SmmartPage,
+  SmmartPageGetServerSideProps,
   ErrorCard,
   DiscoveryPage,
   DiscoveryPageGetServerSideProps,
@@ -100,5 +103,5 @@ export {
   AiSearchPage,
   AISearchPageGetServerSideProps,
   SubmissionPage,
-  SubmissionPageGetServerSideProps
+  SubmissionPageGetServerSideProps,
 };

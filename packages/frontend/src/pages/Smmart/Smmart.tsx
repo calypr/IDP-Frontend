@@ -1,41 +1,14 @@
-import { GetServerSideProps } from 'next';
 import { MantineProvider, Container, Text, Grid } from '@mantine/core';
-
-import { NavPageLayout, NavPageLayoutProps } from '../../features/Navigation';
-import { getNavPageLayoutPropsFromConfig } from '../../lib/common/staticProps';
+import { NavPageLayout } from '../../features/Navigation';
+import { SmmartLandingPageProps } from './types';
 
 import ProjectCard from './ProjectCard';
 
-interface SamplePageProps {
-  headerProps: any;
-  footerProps: any;
-}
-
-const projects = [
-  {
-    title: 'SMMART',
-    description:
-      'A clinical research study measuring tumor evolution and its resistance to therapy to deliver better cancer treatment.',
-    icon: '/icons/SMMART.svg',
-    href: '/SMCLICK',
-  },
-  {
-    title: 'ACED',
-    description:
-      'A repository and computational platform for cancer researchers who need to understand cancer, its clinical progression, and response to therapy.',
-    icon: '/icons/Soup.svg',
-    href: '/',
-  },
-  {
-    title: 'Detroit-ROCS',
-    description:
-      'A research study on the quality of life and other outcomes in African American cancer survivors who live in Metropolitan Detroit and were recently diagnosed with cancer.',
-    icon: '/icons/Soup.svg',
-    href: '/',
-  },
-];
-
-const SmmartPage = ({ headerProps, footerProps }: SamplePageProps) => {
+const SmmartPage = ({
+  headerProps,
+  footerProps,
+  smmartConfig,
+}: SmmartLandingPageProps) => {
   return (
     <NavPageLayout headerProps={headerProps} footerProps={footerProps}>
       <MantineProvider withGlobalStyles>
@@ -53,24 +26,20 @@ const SmmartPage = ({ headerProps, footerProps }: SamplePageProps) => {
             </Container>
           </div>
           <Grid gutter="lg" className="p-5 grid grid-cols-3">
-            {projects.map((project) => (
-              <ProjectCard {...project} />
+            {smmartConfig.smmartCards.map((project, index) => (
+              <ProjectCard
+                key={index}
+                title={project.title}
+                description={project.description}
+                icon={project.icon}
+                href={project.href}
+              />
             ))}
           </Grid>
         </div>
       </MantineProvider>
     </NavPageLayout>
   );
-};
-
-export const getServerSideProps: GetServerSideProps<
-  NavPageLayoutProps
-> = async () => {
-  return {
-    props: {
-      ...(await getNavPageLayoutPropsFromConfig()),
-    },
-  };
 };
 
 export default SmmartPage;

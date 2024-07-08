@@ -1,144 +1,287 @@
 import React from 'react';
 import { GetServerSideProps } from 'next';
-import { MantineProvider, Container, Text, Image } from '@mantine/core';
+import { useRouter } from 'next/router';
+import {
+  MantineProvider,
+  Container,
+  Text,
+  Image,
+  LoadingOverlay,
+  Button,
+} from '@mantine/core';
 import ReactECharts from 'echarts-for-react';
 
 import {
   NavPageLayout,
   NavPageLayoutProps,
+  ProtectedContent,
+  ErrorCard,
   getNavPageLayoutPropsFromConfig,
 } from '@gen3/frontend';
+
+import { useGeneralGQLQuery } from '@gen3/core';
+import { title } from 'process';
 
 interface SamplePageProps {
   headerProps: any;
   footerProps: any;
 }
 
-const HorizontalBarChart = () => {
-  // Sample data with 20 organs
-  const data = [
-    { name: 'Brain', value: 300 },
-    { name: 'Lung', value: 600 },
-    { name: 'Breast', value: 900 },
-    { name: 'Colon', value: 1200 },
-    { name: 'Liver', value: 1500 },
-    { name: 'Stomach', value: 1800 },
-    { name: 'Pancreas', value: 2100 },
-    { name: 'Ovary', value: 2400 },
-    { name: 'Prostate', value: 2700 },
-    { name: 'Kidney', value: 3000 },
-    { name: 'Bladder', value: 3300 },
-    { name: 'Thyroid', value: 3600 },
-    { name: 'Melanoma', value: 3900 },
-    { name: 'Leukemia', value: 4200 },
-    { name: 'Lymphoma', value: 4500 },
-    { name: 'Esophagus', value: 4800 },
-    { name: 'Bone', value: 5100 },
-    { name: 'Skin', value: 5400 },
-    { name: 'Soft Tissue', value: 5700 },
-    { name: 'Testis', value: 6000 },
-  ];
-
-  const organs = data.map((item) => item.name);
-
-  const option = {
-    yAxis: {
-      type: 'category',
-      data: organs,
-      axisLabel: {
-        interval: 0,
-      },
-    },
-    xAxis: {
-      type: 'value',
-    },
-    grid: {
-      containLabel: true,
-    },
-    series: [
-      {
-        data: data.map((item) => item.value),
-        type: 'bar',
-        barCategoryGap: '50%',
-      },
-    ],
-  };
-
+const isQueryResponse = (obj: any): obj is QueryResponse => {
   return (
-    <div className="w-full h-full">
-      <ReactECharts
-        option={option}
-        style={{ height: '100%', minHeight: '500px' }}
-      />
-    </div>
+    typeof obj === 'object' &&
+    (obj.data === undefined || typeof obj.data === 'object')
   );
 };
 
-const SMCLICK = ({ headerProps, footerProps }: SamplePageProps) => {
+interface HistogramData {
+  key: string;
+  count: number;
+}
+
+interface Observation {
+  [key: string]: {
+    histogram: HistogramData[];
+    _cardinalityCount?: number;
+  };
+}
+
+interface QueryResponse {
+  data?: Record<string, Observation[]>;
+  countsProperty?: string;
+}
+
+const extractData = (
+  data: QueryResponse,
+  countsProperty: string,
+  returnType: 'histogram' | 'totalCounts',
+): HistogramData[] | number => {
+  if (!data || !data.data || !data.data._aggregation || !countsProperty) {
+    return returnType === 'histogram' ? [] : 0;
+  }
+
+  const allObservations = Object.values(data.data._aggregation).flat();
+  const targetObservation = allObservations.find(
+    (observation) => observation[countsProperty],
+  );
+
+  if (!targetObservation) {
+    return returnType === 'histogram' ? [] : 0;
+  }
+
+  if (returnType === 'histogram') {
+    return Array.isArray(targetObservation[countsProperty].histogram)
+      ? targetObservation[countsProperty].histogram.slice(0, 20)
+      : [];
+  } else {
+    return typeof targetObservation[countsProperty]._cardinalityCount ==
+      'number'
+      ? targetObservation[countsProperty]._cardinalityCount
+      : 0;
+  }
+};
+
+const HorizontalBarChart = ({ headerProps, footerProps }: SamplePageProps) => {
+  const summaryCountsQuery = (countsProperty: string) => {
+    const summary_counts_query = {
+      query: `query ($filter: JSON){
+      _aggregation {
+        observation(filter: $filter, accessibility: all) {
+          ${countsProperty} {
+            _cardinalityCount
+            }
+          }
+        }
+      }`,
+      variables: {
+        filter: {
+          AND: [
+            {
+              IN: {
+                project_id: ['ohsu-smmart_labkey'],
+              },
+            },
+          ],
+        },
+      },
+    };
+    return summary_counts_query;
+  };
+
+  const countsQuery = (countsProperty: string) => {
+    const props_query = {
+      query: `query ($filter: JSON) {
+        _aggregation{
+          observation(filter: $filter accessibility:all) {
+            ${countsProperty}{
+              histogram {
+                key
+                count
+              }
+            }
+          }
+        }
+      }`,
+      variables: {
+        filter: {
+          AND: [
+            {
+              IN: {
+                project_id: ['ohsu-smmart_labkey'],
+              },
+            },
+          ],
+        },
+      },
+    };
+    return props_query;
+  };
+
+  const SummaryCounts = (countsProperty: string) => {
+    const { data, isLoading, isError } = useGeneralGQLQuery(
+      summaryCountsQuery(countsProperty),
+    );
+    const totalCountsData = isQueryResponse(data)
+      ? extractData(data, countsProperty, 'totalCounts')
+      : 0;
+    if (isError) {
+      return <ErrorCard message={'Error occurred while fetching data'} />;
+    }
+    return isLoading ? (
+      <div>loading...</div>
+    ) : (
+      <div className="text-2xl font-bold">
+        {typeof totalCountsData === 'number' ? (
+          totalCountsData
+        ) : (
+          <>{'missing data'}</>
+        )}
+      </div>
+    );
+  };
+
+  const Echart = (countsProperty: string) => {
+    const { data, isLoading, isError } = useGeneralGQLQuery(
+      countsQuery(countsProperty),
+    );
+    const queryData = isQueryResponse(data)
+      ? extractData(data, countsProperty, 'histogram')
+      : [];
+    if (isError) {
+      return <ErrorCard message={'Error occurred while fetching data'} />;
+    }
+    const option = {
+      title: {
+        text: countsProperty,
+        right: 50,
+      },
+      yAxis: {
+        type: 'category',
+        data: Array.isArray(queryData) ? queryData.map((item) => item.key) : [],
+        axisLabel: {
+          interval: 0,
+        },
+      },
+      xAxis: {
+        type: 'value',
+      },
+      grid: {
+        containLabel: true,
+      },
+      series: [
+        {
+          data: Array.isArray(queryData)
+            ? queryData.map((item) => item.count)
+            : [],
+          type: 'bar',
+          barCategoryGap: '50%',
+        },
+      ],
+    };
+    const chart = (
+      <div className="w-full h-full">
+        <div className="content-around">{countsProperty}</div>
+
+        <LoadingOverlay visible={isLoading} />
+        <ReactECharts
+          option={option}
+          style={{ height: '100%', minHeight: '500px' }}
+        />
+      </div>
+    );
+    return chart;
+  };
+  const router = useRouter();
+
   return (
-    <NavPageLayout headerProps={headerProps} footerProps={footerProps}>
-      <MantineProvider withGlobalStyles>
-        <div className="pt-5">
-          <div className="bg-cbds-primary pt-[1.5%] pb-[1.5%]">
-            <Container className="bg-cbds-monoprimary text-center">
-              <span className="flex items-center space-x-4">
-                <div className="p-5 flex-shrink-0">
-                  <Image src={'/icons/SMMART.svg'} alt={'logo'} />
+    <ProtectedContent>
+      <NavPageLayout headerProps={headerProps} footerProps={footerProps}>
+        <MantineProvider withGlobalStyles>
+          <div className="pt-5">
+            <div className="bg-cbds-primary pt-[1.5%] pb-[1.5%]">
+              <Container className="bg-cbds-monoprimary text-center">
+                <span className="flex items-center space-x-4">
+                  <div className="p-5 flex-shrink-0">
+                    <Image src={'/icons/SMMART.svg'} alt={'logo'} />
+                  </div>
+                  <Text className="whitespace-nowrap text-center text-white text-5xl font-bold">
+                    SMMART Clinical Trials Platform
+                  </Text>
+                </span>
+              </Container>
+            </div>
+
+            <div className="grid grid-cols-3 gap-4 mt-10">
+              <div className="col-span-1 p-10">
+                <h1 className="prose sm:prose-base 2xl:prose-lg mb-5 !mt-0">
+                  Overview of SMMART and datasets, what can be found in this
+                  project
+                </h1>
+                <Button
+                  onClick={() => {
+                    router.push('/Explorer');
+                  }}
+                  className="bg-cbds-monoprimary text-white py-2 px-4 rounded"
+                >
+                  Explore Datasets
+                </Button>
+              </div>
+
+              <div className="col-span-2 grid grid-cols-2 gap-4">
+                {Echart('condition_code')}
+
+                {Echart('product_notes_project_id')}
+              </div>
+            </div>
+            <div className="text-center mx-auto bg-gray-200 py-5">
+              <div className="flex justify-center space-x-8">
+                <div className="text-center">
+                  {SummaryCounts('patient_id')}
+                  <div className="text-sm">Donors</div>
                 </div>
-                <Text className="whitespace-nowrap text-center text-white text-5xl font-bold">
-                  SMMART Clinical Trials Platform
-                </Text>
-              </span>
-            </Container>
-          </div>
+                <div className="text-center">
+                  {SummaryCounts('specimen_identifier')}
+                  <div className="text-sm">Samples</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold">1</div>
+                  <div className="text-sm">Datasets</div>
+                </div>
+                <div className="text-center">
+                  {SummaryCounts('condition_code')}
 
-          <div className="grid grid-cols-3 gap-4 mt-10">
-            <div className="col-span-1 p-10">
-              <h1 className="prose sm:prose-base 2xl:prose-lg mb-5 !mt-0">
-                Overview of SMMART and datasets, what can be found in this
-                project
-              </h1>
-              <button className="bg-cbds-monoprimary text-white py-2 px-4 rounded">
-                Explore Datasets
-              </button>
-            </div>
-
-            <div className="col-span-2 grid grid-cols-2 gap-4">
-              <div className="h-full">
-                <HorizontalBarChart />
-              </div>
-              <div className="h-full">
-                <HorizontalBarChart />
+                  <div className="text-sm">Cancers</div>
+                </div>
+                <div className="text-center">
+                  {SummaryCounts('specimen_collection_concept')}
+                  <div className="text-sm">Collection Types</div>
+                </div>
               </div>
             </div>
           </div>
-          <div className="text-center mx-auto bg-gray-200 py-5">
-            <div className="flex justify-center space-x-8">
-              <div className="text-center">
-                <div className="text-2xl font-bold">A</div>
-                <div className="text-sm">Donors</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold">S</div>
-                <div className="text-sm">Samples</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold">D</div>
-                <div className="text-sm">Datasets</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold">F</div>
-                <div className="text-sm">Organs</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold">G</div>
-                <div className="text-sm">Collections</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </MantineProvider>
-    </NavPageLayout>
+        </MantineProvider>
+      </NavPageLayout>
+    </ProtectedContent>
   );
 };
 
@@ -152,4 +295,4 @@ export const getServerSideProps: GetServerSideProps<
   };
 };
 
-export default SMCLICK;
+export default HorizontalBarChart;
