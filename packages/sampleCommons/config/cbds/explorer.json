@@ -1,195 +1,218 @@
 [
-  {
-    "tabTitle": "Patient",
-    "charts": {
-      "American_Joint_Committee_on_Cancer_pathological_T_category_allowable_value": {
-        "chartType": "fullPie",
-        "title": "Tumor Size"
-      },
-      "American_Joint_Committee_on_Cancer_pathological_N_category_allowable_value": {
-        "chartType": "fullPie",
-        "title": "N Stage"
-      },
-      "American_Joint_Committee_on_Cancer_pathological_M_category_allowable_value": {
-        "chartType": "fullPie",
-        "title": "M Stage"
-      }
-    },
-    "filters": {
-      "tabs": [
-        {
-          "title": "Observation",
-          "fields": [
-            "identifier",
-            "project_id",
-            "category",
-            "American_Joint_Committee_on_Cancer_pathological_M_category_allowable_value",
-            "American_Joint_Committee_on_Cancer_pathological_N_category_allowable_value",
-            "American_Joint_Committee_on_Cancer_pathological_T_category_allowable_value",
-            "American_Joint_Committee_on_Cancer_pathological_grade_allowable_value",
-            "American_Joint_Committee_on_Cancer_pathological_stage_group_allowable_value",
-            "patient_id",
-            "library_id",
-            "product_notes_end_type",
-            "product_notes_index",
-            "product_notes_project_id",
-            "product_notes_sequencing_site",
-            "product_notes_sequencing_site",
-            "protocol_hybrid_capture_bait_set",
-            "protocol_library_construction",
-            "specimen_processing_method",
-            "specimen_collection_concept",
-            "specimen_identifier"
-          ]
+    {
+        "tabTitle": "Patient",
+        "charts": {
+            "American_Joint_Committee_on_Cancer_pathological_T_category_allowable_value": {
+                "chartType": "fullPie",
+                "title": "Tumor Size"
+            },
+            "American_Joint_Committee_on_Cancer_pathological_N_category_allowable_value": {
+                "chartType": "fullPie",
+                "title": "N Stage"
+            },
+            "American_Joint_Committee_on_Cancer_pathological_M_category_allowable_value": {
+                "chartType": "fullPie",
+                "title": "M Stage"
+            }
+        },
+        "filters": {
+            "tabs": [
+                {
+                    "title": "Observation",
+                    "fields": [
+                        "identifier",
+                        "project_id",
+                        "category",
+                        "American_Joint_Committee_on_Cancer_pathological_M_category_allowable_value",
+                        "American_Joint_Committee_on_Cancer_pathological_N_category_allowable_value",
+                        "American_Joint_Committee_on_Cancer_pathological_T_category_allowable_value",
+                        "American_Joint_Committee_on_Cancer_pathological_grade_allowable_value",
+                        "American_Joint_Committee_on_Cancer_pathological_stage_group_allowable_value",
+                        "patient_id",
+                        "library_id",
+                        "product_notes_end_type",
+                        "product_notes_index",
+                        "product_notes_project_id",
+                        "product_notes_sequencing_site",
+                        "product_notes_sequencing_site",
+                        "protocol_hybrid_capture_bait_set",
+                        "protocol_library_construction",
+                        "specimen_processing_method",
+                        "specimen_collection_concept",
+                        "specimen_identifier"
+                    ]
+                }
+            ]
+        },
+        "table": {
+            "enabled": true,
+            "detailsConfig": {
+                "panel": "patientDetails",
+                "mode": "click",
+                "idField": "id",
+                "filterField": "subject",
+                "title": "Files attached to Patient",
+                "nodeType": "file",
+                "nodeFields": [
+                    "identifier",
+                    "project_id",
+                    "title",
+                    "date",
+                    "source_url",
+                    "size",
+                    "md5",
+                    "url",
+                    "subject",
+                    "id"
+                ]
+            },
+            "fields": [
+                "identifier",
+                "project_id",
+                "American_Joint_Committee_on_Cancer_pathological_M_category_allowable_value",
+                "American_Joint_Committee_on_Cancer_pathological_N_category_allowable_value",
+                "American_Joint_Committee_on_Cancer_pathological_T_category_allowable_value",
+                "American_Joint_Committee_on_Cancer_pathological_grade_allowable_value",
+                "American_Joint_Committee_on_Cancer_pathological_stage_group_allowable_value",
+                "patient_id",
+                "library_id",
+                "product_notes_end_type",
+                "product_notes_index",
+                "product_notes_project_id",
+                "product_notes_sequencing_site",
+                "product_notes_sequencing_site",
+                "protocol_hybrid_capture_bait_set",
+                "protocol_library_construction",
+                "specimen_processing_method",
+                "specimen_collection_concept"
+            ]
+        },
+        "dropdowns": {},
+        "guppyConfig": {
+            "dataType": "observation",
+            "fieldMapping": [],
+            "nodeCountTitle": "Observations",
+            "manifestMapping": {
+                "resourceIndexType": "Observation",
+                "resourceIdField": "_patient_id",
+                "referenceIdFieldInResourceIndex": "object_id",
+                "referenceIdFieldInDataIndex": "object_id"
+            },
+            "accessibleFieldCheckList": [
+                "project_id"
+            ],
+            "accessibleValidationField": "project_id"
         }
-      ]
     },
-    "table": {
-      "enabled": true,
-      "fields": [
-        "identifier",
-        "project_id",
-        "American_Joint_Committee_on_Cancer_pathological_M_category_allowable_value",
-        "American_Joint_Committee_on_Cancer_pathological_N_category_allowable_value",
-        "American_Joint_Committee_on_Cancer_pathological_T_category_allowable_value",
-        "American_Joint_Committee_on_Cancer_pathological_grade_allowable_value",
-        "American_Joint_Committee_on_Cancer_pathological_stage_group_allowable_value",
-        "patient_id",
-        "library_id",
-        "product_notes_end_type",
-        "product_notes_index",
-        "product_notes_project_id",
-        "product_notes_sequencing_site",
-        "product_notes_sequencing_site",
-        "protocol_hybrid_capture_bait_set",
-        "protocol_library_construction",
-        "specimen_processing_method",
-        "specimen_collection_concept"
-      ]
-    },
-    "dropdowns": {},
-    "guppyConfig": {
-      "dataType": "observation",
-      "fieldMapping": [],
-      "nodeCountTitle": "Observations",
-      "manifestMapping": {
-        "resourceIndexType": "Observation",
-        "resourceIdField": "_patient_id",
-        "referenceIdFieldInResourceIndex": "object_id",
-        "referenceIdFieldInDataIndex": "object_id"
-      },
-      "accessibleFieldCheckList": [
-        "project_id"
-      ],
-      "accessibleValidationField": "project_id"
+    {
+        "tabTitle": "File",
+        "charts": {
+            "type": {
+                "chartType": "fullPie",
+                "title": "File Type"
+            },
+            "category": {
+                "chartType": "fullPie",
+                "title": "File Category"
+            }
+        },
+        "filters": {
+            "tabs": [
+                {
+                    "title": "File",
+                    "fields": [
+                        "identifier",
+                        "project_id",
+                        "title",
+                        "date",
+                        "source_url",
+                        "size",
+                        "md5",
+                        "url",
+                        "subject",
+                        "id"
+                    ]
+                }
+            ]
+        },
+        "table": {
+            "enabled": true,
+            "detailsConfig": {
+                "panel": "fileDetails",
+                "mode": "click",
+                "idField": "id",
+                "nodeType": "file",
+                "title": "File Details"
+            },
+            "fields": [
+                "identifier",
+                "project_id",
+                "title",
+                "date",
+                "source_url",
+                "size",
+                "md5",
+                "url",
+                "subject",
+                "id"
+            ]
+        },
+        "dropdowns": {},
+        "guppyConfig": {
+            "dataType": "file",
+            "fieldMapping": [
+                {
+                    "field": "object_id",
+                    "name": "Download ID"
+                },
+                {
+                    "field": "file_name",
+                    "name": "Name"
+                },
+                {
+                    "field": "data_type",
+                    "name": "Type"
+                },
+                {
+                    "field": "data_format",
+                    "name": "Format"
+                }
+            ],
+            "nodeCountTitle": "Files",
+            "manifestMapping": {
+                "resourceIndexType": "Observation",
+                "resourceIdField": "_patient_id",
+                "referenceIdFieldInResourceIndex": "id",
+                "referenceIdFieldInDataIndex": "id"
+            },
+            "accessibleFieldCheckList": [
+                "project_id"
+            ],
+            "accessibleValidationField": "project_id",
+            "downloadAccessor": "id"
+        },
+        "buttons": [
+            {
+                "enabled": true,
+                "type": "manifest",
+                "action": "manifest",
+                "title": "Download Manifest",
+                "leftIcon": "gen3:datafile",
+                "rightIcon": "gen3:download",
+                "fileName": "manifest.json",
+                "actionArgs": {
+                    "resourceIndexType": "file",
+                    "resourceIdField": "id",
+                    "referenceIdFieldInDataIndex": "id",
+                    "referenceIdFieldInResourceIndex": "id",
+                    "fileFields": [
+                        "id",
+                        "file_name",
+                        "title",
+                        "size"
+                    ]
+                }
+            }
+        ]
     }
-  },
-  {
-    "tabTitle": "File",
-    "charts": {
-      "type": {
-        "chartType": "fullPie",
-        "title": "File Type"
-      },
-      "category": {
-        "chartType": "fullPie",
-        "title": "File Category"
-      }
-    },
-    "filters": {
-      "tabs": [
-        {
-          "title": "File",
-          "fields": [
-            "patient",
-            "project_id",
-            "title",
-            "type",
-            "category",
-            "source_url",
-            "size",
-            "hash",
-            "subject",
-            "basedOn_0",
-            "basedOn_1",
-            "id"
-          ]
-        }
-      ]
-    },
-    "table": {
-      "enabled": true,
-      "fields": [
-        "patient",
-        "project_id",
-        "title",
-        "type",
-        "category",
-        "source_url",
-        "size",
-        "hash",
-        "subject",
-        "basedOn_0",
-        "basedOn_1",
-        "id"
-      ]
-    },
-    "dropdowns": {},
-    "guppyConfig": {
-      "dataType": "file",
-      "fieldMapping": [
-        {
-          "field": "object_id",
-          "name": "Download ID"
-        },
-        {
-          "field": "file_name",
-          "name": "Name"
-        },
-        {
-          "field": "data_type",
-          "name": "Type"
-        },
-        {
-          "field": "data_format",
-          "name": "Format"
-        }
-      ],
-      "nodeCountTitle": "Files",
-      "manifestMapping": {
-        "resourceIndexType": "Observation",
-        "resourceIdField": "_patient_id",
-        "referenceIdFieldInResourceIndex": "id",
-        "referenceIdFieldInDataIndex": "id"
-      },
-      "accessibleFieldCheckList": [
-        "project_id"
-      ],
-      "accessibleValidationField": "project_id",
-      "downloadAccessor": "id"
-    },
-    "buttons": [
-      {
-        "enabled": true,
-        "type": "manifest",
-        "action": "manifest",
-        "title": "Download Manifest",
-        "leftIcon": "gen3:datafile",
-        "rightIcon": "gen3:download",
-        "fileName": "manifest.json",
-        "actionArgs": {
-          "resourceIndexType": "file",
-          "resourceIdField": "id",
-          "referenceIdFieldInDataIndex": "id",
-          "referenceIdFieldInResourceIndex": "id",
-          "fileFields": [
-            "id",
-            "file_name",
-            "title",
-            "size"
-          ]
-        }
-      }
-    ]
-  }
 ]

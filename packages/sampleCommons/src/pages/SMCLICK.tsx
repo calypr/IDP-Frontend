@@ -73,12 +73,14 @@ const extractData = (
     return Array.isArray(targetObservation[countsProperty].histogram)
       ? targetObservation[countsProperty].histogram.slice(0, 20)
       : [];
-  } else {
-    return typeof targetObservation[countsProperty]._cardinalityCount ==
-      'number'
-      ? targetObservation[countsProperty]._cardinalityCount
-      : 0;
+  } else if (targetObservation && targetObservation[countsProperty]) {
+    const cardinalityCount =
+      targetObservation[countsProperty]!._cardinalityCount;
+    if (typeof cardinalityCount === 'number') {
+      return cardinalityCount;
+    }
   }
+  return 0;
 };
 
 const HorizontalBarChart = ({ headerProps, footerProps }: SamplePageProps) => {
@@ -98,7 +100,7 @@ const HorizontalBarChart = ({ headerProps, footerProps }: SamplePageProps) => {
           AND: [
             {
               IN: {
-                project_id: ['ohsu-smmart_labkey'],
+                project_id: ['cbds-smmart_labkey_demo'],
               },
             },
           ],
@@ -127,7 +129,7 @@ const HorizontalBarChart = ({ headerProps, footerProps }: SamplePageProps) => {
           AND: [
             {
               IN: {
-                project_id: ['ohsu-smmart_labkey'],
+                project_id: ['cbds-smmart_labkey_demo'],
               },
             },
           ],
@@ -200,8 +202,6 @@ const HorizontalBarChart = ({ headerProps, footerProps }: SamplePageProps) => {
     };
     const chart = (
       <div className="w-full h-full">
-        <div className="content-around">{countsProperty}</div>
-
         <LoadingOverlay visible={isLoading} />
         <ReactECharts
           option={option}

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { Center, Text, Paper } from '@mantine/core';
 import { useGeneralGQLQuery } from '@gen3/core';
 import {
@@ -98,6 +98,8 @@ const D3Page = ({ headerProps, footerProps }: NavPageLayoutProps) => {
   const { data, isLoading, isError } = useGeneralGQLQuery(
     countsQuery('product_notes_project_id'),
   );
+  const svgRef = useRef(); // directly reference the SVG and tooltip elements
+  const tooltipRef = useRef(); // directly reference the SVG and tooltip elements
 
   const queryData = isQueryResponse(data)
     ? extractData(data, 'product_notes_project_id', 'histogram')
@@ -114,8 +116,8 @@ const D3Page = ({ headerProps, footerProps }: NavPageLayoutProps) => {
 
     // Margin for chart area
     const margin = { left: 150, right: 30, top: 20, bottom: 60 };
-    const width = 1000;
-    const height = 800;
+    const width = 1000 - margin.left - margin.right;
+    const height = 800 - margin.top - margin.bottom;
 
     // Don't need to sort data, it is returned sorted. Sort data from small to large
     //let histogramData = queryData.sort((a, b) => a.count - b.count);
@@ -126,24 +128,13 @@ const D3Page = ({ headerProps, footerProps }: NavPageLayoutProps) => {
       ? histogramData.filter((d) => d.count >= 3 && d.count <= 108)
       : [];
 
-    // Calculate height based on data points
-    const barHeight = 20; // height of each bar
-    const barSpacing = 5; // spacing between bars
-    const svgHeight =
-      histogramData.length * (barHeight + barSpacing) -
-      barSpacing +
-      margin.top +
-      margin.bottom;
-
     // Remove any existing SVG to avoid duplication
-    d3.select('#chart-area').selectAll('*').remove();
-
+    d3.select(svgRef.current).selectAll('*').remove();
     // Create canvas
     const svg = d3
-      .select('#chart-area')
-      .append('svg')
+      .select(svgRef.current)
       .attr('width', width + margin.left + margin.right)
-      .attr('height', svgHeight);
+      .attr('height', height + margin.top + margin.bottom);
 
     const g = svg
       .append('g')
@@ -158,14 +149,19 @@ const D3Page = ({ headerProps, footerProps }: NavPageLayoutProps) => {
     const y = d3
       .scaleBand()
       .domain(histogramData.map((d) => d.key))
-      .range([0, svgHeight - margin.top - margin.bottom])
+      .range([0, height])
       .padding(0.1);
 
     // Create axes
     const xAxis = d3.axisBottom(x).ticks(10);
     const yAxis = d3.axisLeft(y);
 
-    // Append bars
+    // Tooltip initialization
+    //
+    const tooltip = d3
+      .select(tooltipRef.current) // ensure tooltip is referenced correctly
+      .style('opacity', 0);
+
     g.selectAll('.bar')
       .data(histogramData)
       .enter()
@@ -176,40 +172,31 @@ const D3Page = ({ headerProps, footerProps }: NavPageLayoutProps) => {
       .attr('width', (d) => x(d.count))
       .attr('height', y.bandwidth())
       .on('mouseover', function (event, d) {
-        d3.select(this).classed('text-lightblue-400', true); // Add hover class using D3
-        tooltip.transition().duration(200).style('opacity', 0.9);
+        tooltip.transition().duration(200).style('opacity', 0.9); // position relative to mouse pointer
         tooltip
           .html(`${d.key}<br>Count: ${d.count}`)
-          .style('left', `${event.pageX + 5}px`)
-          .style('top', `${event.pageY - 28}px`);
+          .style('left', `${event.pageX - 100}px`)
+          .style('top', `${event.pageY - 125}px`);
+      })
+      .on('mousemove', function (event) {
+        tooltip
+          .style('left', `${event.pageX - 100}px`) // readability: slight right of mouse
+          .style('top', `${event.pageY - 125}px`); // readability: slight above of mouse
       })
       .on('mouseout', function () {
-        d3.select(this).classed('text-lightblue-400', false); // Remove hover class using D3
-        tooltip.transition().duration(500).style('opacity', 0);
+        tooltip.transition().duration(500).style('opacity', 0); //fade out (500 milliseconds) when mouse leaves the bar-chart
       });
 
     // Append axes to SVG
     g.append('g')
       .attr('class', 'x axis')
-      .attr(
-        'transform',
-        `translate(0, ${svgHeight - margin.top - margin.bottom})`,
-      )
+      .attr('transform', `translate(0, ${height})`)
       .call(xAxis);
 
     g.append('g').attr('class', 'y axis').call(yAxis);
 
     // Tooltip
-    const tooltip = d3
-      .select('body')
-      .append('div')
-      .attr(
-        'class',
-        'tooltip absolute text-center w-36 h-6 p-0.5 text-xs bg-lightblue-400 rounded-md',
-      )
-      .style('pointer-events', 'none')
-      .style('opacity', 0);
-  }, [data, isError, isLoading]); // Dependency array ensures useEffect runs only when these props change
+  }, []); // Dependency array ensures useEffect runs only when these props change
 
   if (isError || isLoading) {
     return <ErrorCard message={'Error occurred while fetching data'} />;
@@ -217,7 +204,8 @@ const D3Page = ({ headerProps, footerProps }: NavPageLayoutProps) => {
 
   return (
     <NavPageLayout headerProps={headerProps} footerProps={footerProps}>
-      <div id="chart-area"></div>
+      <svg ref={svgRef}></svg>
+      <div ref={tooltipRef} className="tooltip"></div>{' '}
     </NavPageLayout>
   );
 };

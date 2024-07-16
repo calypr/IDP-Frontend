@@ -80,7 +80,7 @@ export const PatientDetailsPanel = ({
         AND: [
           {
             IN: {
-              [filterField ?? 0]: [`Patient/${id}`],
+              [filterField ?? 0]: [`${id}`],
             },
           },
         ],
