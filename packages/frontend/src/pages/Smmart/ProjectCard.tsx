@@ -1,6 +1,13 @@
 import { Text, Button, Card, Image } from '@mantine/core';
 import { useRouter } from 'next/router';
 
+import {
+  CoreState,
+  isAuthenticated,
+  selectUserAuthStatus,
+  useCoreSelector,
+} from '@gen3/core';
+
 interface HomepageCardProps {
   icon: string;
   title: string;
@@ -9,9 +16,14 @@ interface HomepageCardProps {
 }
 
 const ProjectCard = ({ title, description, icon, href }: HomepageCardProps) => {
+  const userStatus = useCoreSelector((state: CoreState) =>
+    selectUserAuthStatus(state),
+  );
+  const authenticated = isAuthenticated(userStatus);
+
   const router = useRouter();
   const handleButtonClick = () => {
-    router.push(href);
+    authenticated ? router.push(href) : router.push(`Login?redirect=${href}`);
   };
 
   return (

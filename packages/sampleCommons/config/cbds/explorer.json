@@ -28,7 +28,6 @@
                         "American_Joint_Committee_on_Cancer_pathological_T_category_allowable_value",
                         "American_Joint_Committee_on_Cancer_pathological_grade_allowable_value",
                         "American_Joint_Committee_on_Cancer_pathological_stage_group_allowable_value",
-                        "patient_id",
                         "library_id",
                         "product_notes_end_type",
                         "product_notes_index",
@@ -39,7 +38,9 @@
                         "protocol_library_construction",
                         "specimen_processing_method",
                         "specimen_collection_concept",
-                        "specimen_identifier"
+                        "specimen_identifier",
+                        "patient_id",
+                        "id"
                     ]
                 }
             ]
@@ -49,7 +50,7 @@
             "detailsConfig": {
                 "panel": "patientDetails",
                 "mode": "click",
-                "idField": "id",
+                "idField": "patient_id",
                 "filterField": "subject",
                 "title": "Files attached to Patient",
                 "nodeType": "file",
@@ -74,7 +75,6 @@
                 "American_Joint_Committee_on_Cancer_pathological_T_category_allowable_value",
                 "American_Joint_Committee_on_Cancer_pathological_grade_allowable_value",
                 "American_Joint_Committee_on_Cancer_pathological_stage_group_allowable_value",
-                "patient_id",
                 "library_id",
                 "product_notes_end_type",
                 "product_notes_index",
@@ -84,7 +84,9 @@
                 "protocol_hybrid_capture_bait_set",
                 "protocol_library_construction",
                 "specimen_processing_method",
-                "specimen_collection_concept"
+                "specimen_collection_concept",
+                "patient_id",
+                "id"
             ]
         },
         "dropdowns": {},
@@ -106,16 +108,6 @@
     },
     {
         "tabTitle": "File",
-        "charts": {
-            "type": {
-                "chartType": "fullPie",
-                "title": "File Type"
-            },
-            "category": {
-                "chartType": "fullPie",
-                "title": "File Category"
-            }
-        },
         "filters": {
             "tabs": [
                 {
@@ -207,7 +199,7 @@
                     "referenceIdFieldInResourceIndex": "id",
                     "fileFields": [
                         "id",
-                        "file_name",
+                        "md5",
                         "title",
                         "size"
                     ]
