@@ -2,17 +2,17 @@
     {
         "tabTitle": "Patient",
         "charts": {
-            "American_Joint_Committee_on_Cancer_pathological_T_category_allowable_value": {
+            "biopsy_procedure_type": {
                 "chartType": "fullPie",
-                "title": "Tumor Size"
+                "title": "biopsy_procedure_type"
             },
-            "American_Joint_Committee_on_Cancer_pathological_N_category_allowable_value": {
+            "product_notes_read_length": {
                 "chartType": "fullPie",
-                "title": "N Stage"
+                "title": "product_notes_read_length"
             },
-            "American_Joint_Committee_on_Cancer_pathological_M_category_allowable_value": {
+            "protocol_library_type": {
                 "chartType": "fullPie",
-                "title": "M Stage"
+                "title": "protocol_library_type"
             }
         },
         "filters": {
@@ -22,23 +22,33 @@
                     "fields": [
                         "identifier",
                         "project_id",
-                        "category",
-                        "American_Joint_Committee_on_Cancer_pathological_M_category_allowable_value",
-                        "American_Joint_Committee_on_Cancer_pathological_N_category_allowable_value",
-                        "American_Joint_Committee_on_Cancer_pathological_T_category_allowable_value",
-                        "American_Joint_Committee_on_Cancer_pathological_grade_allowable_value",
-                        "American_Joint_Committee_on_Cancer_pathological_stage_group_allowable_value",
+                        "pathology_record_number",
+                        "package_recipient",
                         "library_id",
+                        "indexed_collection_date_days",
+                        "histology",
+                        "enrollment_diagnosis",
+                        "clinical_event",
+                        "biopsy_specimens_bems_id",
+                        "biopsy_procedure_type",
+                        "biopsy_event",
+                        "biopsy_anatomical_location",
+                        "allocated_for_site",
+                        "alias",
                         "product_notes_end_type",
                         "product_notes_index",
                         "product_notes_project_id",
-                        "product_notes_sequencing_site",
+                        "product_notes_read_length",
+                        "product_notes_sequencer",
                         "product_notes_sequencing_site",
                         "protocol_hybrid_capture_bait_set",
+                        "protocol_library_type",
                         "protocol_library_construction",
                         "specimen_processing_method",
                         "specimen_collection_concept",
                         "specimen_identifier",
+                        "tissue_type",
+                        "treatments",
                         "patient_id",
                         "id"
                     ]
@@ -55,6 +65,7 @@
                 "title": "Files attached to Patient",
                 "nodeType": "file",
                 "nodeFields": [
+                    "id",
                     "identifier",
                     "project_id",
                     "title",
@@ -64,27 +75,51 @@
                     "md5",
                     "url",
                     "subject",
-                    "id"
+                    "basedOn_0",
+                    "basedOn_1",
+                    "category",
+                    "contentType",
+                    "creation",
+                    "docStatus",
+                    "group_subject",
+                    "hash",
+                    "patient",
+                    "resourceType",
+                    "specimen_subject",
+                    "status",
+                    "subject_type"
                 ]
             },
             "fields": [
                 "identifier",
                 "project_id",
-                "American_Joint_Committee_on_Cancer_pathological_M_category_allowable_value",
-                "American_Joint_Committee_on_Cancer_pathological_N_category_allowable_value",
-                "American_Joint_Committee_on_Cancer_pathological_T_category_allowable_value",
-                "American_Joint_Committee_on_Cancer_pathological_grade_allowable_value",
-                "American_Joint_Committee_on_Cancer_pathological_stage_group_allowable_value",
+                "pathology_record_number",
+                "package_recipient",
                 "library_id",
+                "indexed_collection_date_days",
+                "histology",
+                "enrollment_diagnosis",
+                "clinical_event",
+                "biopsy_specimens_bems_id",
+                "biopsy_procedure_type",
+                "biopsy_event",
+                "biopsy_anatomical_location",
+                "allocated_for_site",
+                "alias",
                 "product_notes_end_type",
                 "product_notes_index",
                 "product_notes_project_id",
-                "product_notes_sequencing_site",
+                "product_notes_read_length",
+                "product_notes_sequencer",
                 "product_notes_sequencing_site",
                 "protocol_hybrid_capture_bait_set",
+                "protocol_library_type",
                 "protocol_library_construction",
                 "specimen_processing_method",
                 "specimen_collection_concept",
+                "specimen_identifier",
+                "tissue_type",
+                "treatments",
                 "patient_id",
                 "id"
             ]
@@ -122,7 +157,20 @@
                         "md5",
                         "url",
                         "subject",
-                        "id"
+                        "id",
+                        "basedOn_0",
+                        "basedOn_1",
+                        "category",
+                        "contentType",
+                        "creation",
+                        "docStatus",
+                        "group_subject",
+                        "hash",
+                        "patient",
+                        "resourceType",
+                        "specimen_subject",
+                        "status",
+                        "subject_type"
                     ]
                 }
             ]
@@ -146,7 +194,20 @@
                 "md5",
                 "url",
                 "subject",
-                "id"
+                "id",
+                "basedOn_0",
+                "basedOn_1",
+                "category",
+                "contentType",
+                "creation",
+                "docStatus",
+                "group_subject",
+                "hash",
+                "patient",
+                "resourceType",
+                "specimen_subject",
+                "status",
+                "subject_type"
             ]
         },
         "dropdowns": {},
