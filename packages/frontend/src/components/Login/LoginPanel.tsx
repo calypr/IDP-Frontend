@@ -12,7 +12,7 @@ import ContactWithEmailContent from '../Content/ContactWithEmailContent';
 const filterRedirect = (redirect: string | string[] | undefined) => {
   let redirectPath  = '';
   if (Array.isArray(redirect)) {
-    redirectPath =   redirect[0];
+    redirectPath = redirect[0];
   } else {
     redirectPath = redirect ?? '/Explorer';
   }
