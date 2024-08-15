@@ -57,7 +57,7 @@ const extractData = (data: QueryResponse, index: string): FileData[] => {
     : [];
 };
 
-export const PatientDetailsPanel = ({
+export const ResourceDetailsPanel = ({
   id,
   index,
   tableConfig,
@@ -149,10 +149,6 @@ export const PatientDetailsPanel = ({
       <LoadingOverlay visible={isLoading} />
       {totalFiles > 0 ? (
         <div>
-          <Text color="primary.4">
-            {tableConfig.detailsConfig.nodeType} id {id} data:
-          </Text>
-
           <Table withBorder withColumnBorders>
             <thead>
               <tr>
@@ -160,7 +156,17 @@ export const PatientDetailsPanel = ({
                 <th>Value</th>
               </tr>
             </thead>
-            <tbody>{rows}</tbody>
+            <tbody>
+              <tr>
+                <td>
+                  <Text weight="bold">{idField}</Text>
+                </td>
+                <td>
+                  <Text>{id}</Text>
+                </td>
+              </tr>
+              {rows}
+            </tbody>
           </Table>
           <div className="py-3">
             <Group position="right">
@@ -209,16 +215,16 @@ export const PatientDetailsPanel = ({
         </div>
       ) : (
         <div className="px-6">
-          <Text> No Files Found for id: {id}</Text>
+          <Text> No {nodeType}s found for {idField} {id}</Text>
         </div>
       )}
     </Stack>
   );
 };
 
-export const registerCustomExplorerPatientDetailsPanels = () => {
+export const registerCustomExplorerResourceDetailsPanels = () => {
   ExplorerTableDetailsPanelFactory().registerRendererCatalog({
     // NOTE: The catalog name must be tableDetails
-    tableDetails: { patientDetails: PatientDetailsPanel }, // TODO: add simpler registration function that ensures the catalog name is tableDetails
+    tableDetails: { resourceDetails: ResourceDetailsPanel }, // TODO: add simpler registration function that ensures the catalog name is tableDetails
   });
 };

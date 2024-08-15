@@ -1,134 +1,112 @@
 [
     {
-        "tabTitle": "Patient",
+        "tabTitle": "Specimen",
         "charts": {
-            "biopsy_procedure_type": {
+            "enrollment_diagnosis": {
                 "chartType": "fullPie",
-                "title": "biopsy_procedure_type"
+                "title": "Enrollment Diagnosis"
             },
-            "product_notes_read_length": {
+            "product_notes_sequencing_site": {
                 "chartType": "fullPie",
-                "title": "product_notes_read_length"
+                "title": "Product Notes Sequencing Site"
             },
             "protocol_library_type": {
                 "chartType": "fullPie",
-                "title": "protocol_library_type"
+                "title": "Protocol Library Type"
             }
         },
         "filters": {
             "tabs": [
                 {
-                    "title": "Observation",
                     "fields": [
-                        "identifier",
                         "project_id",
-                        "pathology_record_number",
-                        "package_recipient",
-                        "library_id",
-                        "indexed_collection_date_days",
-                        "histology",
-                        "enrollment_diagnosis",
-                        "clinical_event",
-                        "biopsy_specimens_bems_id",
-                        "biopsy_procedure_type",
-                        "biopsy_event",
+                        "enrollment_diagnosis", 
                         "biopsy_anatomical_location",
-                        "allocated_for_site",
-                        "alias",
-                        "product_notes_end_type",
-                        "product_notes_index",
-                        "product_notes_project_id",
-                        "product_notes_read_length",
-                        "product_notes_sequencer",
-                        "product_notes_sequencing_site",
-                        "protocol_hybrid_capture_bait_set",
-                        "protocol_library_type",
-                        "protocol_library_construction",
-                        "specimen_processing_method",
                         "specimen_collection_concept",
-                        "specimen_identifier",
-                        "tissue_type",
-                        "treatments",
-                        "patient_id",
-                        "id"
+                        "protocol_library_type",
+                        "product_notes_sequencing_site",
+                        "product_notes_sequencer", 
+                        "product_notes_end_type", 
+                        "product_notes_read_length",
+                        "protocol_library_construction", 
+                        "protocol_hybrid_capture_bait_set"
                     ]
                 }
             ]
         },
         "table": {
             "enabled": true,
+            "columns": {
+                "specimen_identifier":
+                {
+                  "title": "BEMS ID"
+                },
+                "identifier":
+                {
+                  "title": "Subject ID"
+                },
+                "product_notes_project_id": {
+                    "title": "Product Notes Project ID"
+                }
+            },
+            "fields": [
+                "specimen_identifier",
+                "identifier",
+                "indexed_collection_date_days",
+                "enrollment_diagnosis",
+                "biopsy_anatomical_location",
+                "protocol_library_type",
+                "product_notes_sequencing_site",
+                "product_notes_sequencer",
+                "product_notes_end_type",
+                "product_notes_read_length",
+                "protocol_library_construction",
+                "protocol_hybrid_capture_bait_set",
+                "specimen_processing_method",
+                "specimen_collection_concept",
+                "treatments",
+                "tissue_type",
+                "histology",
+                "allocated_for_site",
+                "pathology_record_number",
+                "package_recipient",
+                "clinical_event",
+                "biopsy_procedure_type",
+                "biopsy_event",
+                "product_notes_index",
+                "alias",
+                "library_id",
+                "product_notes_project_id",
+                "biopsy_specimens_bems_id",
+                "project_id",
+                "patient_id",
+                "id"
+            ],
             "detailsConfig": {
-                "panel": "patientDetails",
+                "panel": "resourceDetails",
                 "mode": "click",
                 "idField": "patient_id",
                 "filterField": "subject",
-                "title": "Files attached to Patient",
+                "title": "Files Associated with a Given Patient",
                 "nodeType": "file",
                 "nodeFields": [
-                    "id",
-                    "identifier",
-                    "project_id",
-                    "title",
-                    "date",
-                    "source_url",
-                    "size",
-                    "md5",
-                    "url",
-                    "subject",
-                    "basedOn_0",
-                    "basedOn_1",
-                    "category",
-                    "contentType",
-                    "creation",
-                    "docStatus",
-                    "group_subject",
-                    "hash",
-                    "patient",
-                    "resourceType",
-                    "specimen_subject",
-                    "status",
-                    "subject_type"
-                ]
-            },
-            "fields": [
-                "identifier",
-                "project_id",
-                "pathology_record_number",
-                "package_recipient",
-                "library_id",
-                "indexed_collection_date_days",
-                "histology",
-                "enrollment_diagnosis",
-                "clinical_event",
-                "biopsy_specimens_bems_id",
-                "biopsy_procedure_type",
-                "biopsy_event",
-                "biopsy_anatomical_location",
-                "allocated_for_site",
-                "alias",
-                "product_notes_end_type",
-                "product_notes_index",
-                "product_notes_project_id",
-                "product_notes_read_length",
-                "product_notes_sequencer",
-                "product_notes_sequencing_site",
-                "protocol_hybrid_capture_bait_set",
-                "protocol_library_type",
-                "protocol_library_construction",
-                "specimen_processing_method",
-                "specimen_collection_concept",
-                "specimen_identifier",
-                "tissue_type",
-                "treatments",
-                "patient_id",
+                "title",
+                "source_url",
+                "size",
+                "creation",
+                "subject",
+                "md5",
+                "contentType",
+                "url",
                 "id"
-            ]
+                ]
+            }
         },
         "dropdowns": {},
         "guppyConfig": {
             "dataType": "observation",
             "fieldMapping": [],
-            "nodeCountTitle": "Observations",
+            "nodeCountTitle": "Specimens",
             "manifestMapping": {
                 "resourceIndexType": "Observation",
                 "resourceIdField": "_patient_id",
@@ -142,73 +120,96 @@
         }
     },
     {
-        "tabTitle": "File",
+        "tabTitle": "Research Subject",
         "filters": {
             "tabs": [
                 {
-                    "title": "File",
                     "fields": [
-                        "identifier",
-                        "project_id",
-                        "title",
-                        "date",
-                        "source_url",
-                        "size",
-                        "md5",
-                        "url",
-                        "subject",
-                        "id",
-                        "basedOn_0",
-                        "basedOn_1",
-                        "category",
-                        "contentType",
-                        "creation",
-                        "docStatus",
-                        "group_subject",
-                        "hash",
-                        "patient",
-                        "resourceType",
-                        "specimen_subject",
-                        "status",
-                        "subject_type"
+                        "project_id"
                     ]
                 }
             ]
         },
         "table": {
             "enabled": true,
+            "columns" : {
+                "project_id": {
+                    "title": "Clinical Trial"
+                },
+                "identifier": {
+                    "title": "Research Subject ID"
+                },
+                "subject_id": {
+                    "title": "Patient ID"
+                }
+            },
+            "fields": [
+                "project_id",
+                "identifier",
+                "subject_id"
+            ],
+            "detailsConfig": {
+                "panel": "resourceDetails",
+                "mode": "click",
+                "idField": "subject_id",
+                "filterField": "subject",
+                "title": "Files Associated with a Given Patient",
+                "nodeType": "file",
+                "nodeFields": [
+                "title",
+                "source_url",
+                "size",
+                "creation",
+                "subject",
+                "md5",
+                "contentType",
+                "url",
+                "id"
+                ]
+            }
+        },
+        "dropdowns": {},
+        "guppyConfig": {
+            "dataType": "researchsubject",
+            "nodeCountTitle": "Research Subjects",
+            "fieldMapping": []
+        }
+    },
+    {
+        "tabTitle": "File",
+        "filters": {
+            "tabs": [
+                {
+                    "fields": [
+                        "project_id",
+                        "contentType"
+                    ]
+                }
+            ]
+        },
+        "table": {
+            "enabled": true,
+            "fields": [
+                "title",
+                "contentType",
+                "size",
+                "md5",
+                "source_url",
+                "date",
+                "project_id",
+                "creation",
+                "specimen_subject",
+                "subject",
+                "id",
+                "identifier"
+            ],
             "detailsConfig": {
                 "panel": "fileDetails",
                 "mode": "click",
                 "idField": "id",
                 "nodeType": "file",
                 "title": "File Details"
-            },
-            "fields": [
-                "identifier",
-                "project_id",
-                "title",
-                "date",
-                "source_url",
-                "size",
-                "md5",
-                "url",
-                "subject",
-                "id",
-                "basedOn_0",
-                "basedOn_1",
-                "category",
-                "contentType",
-                "creation",
-                "docStatus",
-                "group_subject",
-                "hash",
-                "patient",
-                "resourceType",
-                "specimen_subject",
-                "status",
-                "subject_type"
-            ]
+            }
         },
         "dropdowns": {},
         "guppyConfig": {

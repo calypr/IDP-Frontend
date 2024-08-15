@@ -5,11 +5,11 @@ import {
 
 import { registerCohortTableCustomCellRenderers } from '@/lib/CohortBuilder/CustomCellRenderers';
 import { registerCustomExplorerDetailsPanels } from '@/lib/CohortBuilder/FileDetailsPanel';
-import { registerCustomExplorerPatientDetailsPanels } from '@/lib/CohortBuilder/PatientDetailsPanel';
+import { registerCustomExplorerResourceDetailsPanels } from '@/lib/CohortBuilder/ResourceDetailsPanel';
 
 registerCohortTableCustomCellRenderers();
 registerCustomExplorerDetailsPanels();
-registerCustomExplorerPatientDetailsPanels();
+registerCustomExplorerResourceDetailsPanels();
 
 export default ExplorerPage;
 

@@ -121,9 +121,6 @@ export const FileDetailsPanel = ({
   return (
     <Stack>
       <LoadingOverlay visible={isLoading} />
-      <Text color="primary.4">
-        {tableConfig.detailsConfig.nodeType} id {id} data:
-      </Text>
       <Table withBorder withColumnBorders>
         <thead>
           <tr>
@@ -131,7 +128,17 @@ export const FileDetailsPanel = ({
             <th>Value</th>
           </tr>
         </thead>
-        <tbody>{rows}</tbody>
+        <tbody>
+          <tr>
+            <td>
+              <Text weight="bold">{idField}</Text>
+            </td>
+            <td>
+              <Text>{id}</Text>
+            </td>
+          </tr>
+          {rows}
+        </tbody>
       </Table>
       <Group position="right">
         <CopyButton value={JSON.stringify(queryData)} timeout={2000}>
