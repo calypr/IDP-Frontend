@@ -8,6 +8,10 @@ import {
   registerCohortBuilderDefaultPreviewRenderers,
 } from '../../features/CohortBuilder';
 
+import {
+  ProtectedContent,
+} from '@gen3/frontend';
+
 registerExplorerDefaultCellRenderers();
 registerCohortBuilderDefaultPreviewRenderers();
 
@@ -25,9 +29,11 @@ const ExplorerPage = ({
   }
 
   return (
-    <NavPageLayout {...{ headerProps, footerProps }}>
-      <CohortBuilder explorerConfig={explorerConfig} />
-    </NavPageLayout>
+    <ProtectedContent>
+      <NavPageLayout {...{ headerProps, footerProps }}>
+        <CohortBuilder explorerConfig={explorerConfig} />
+      </NavPageLayout>
+    </ProtectedContent>
   );
 };
 

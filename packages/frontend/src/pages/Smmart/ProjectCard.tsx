@@ -7,6 +7,7 @@ import {
   selectUserAuthStatus,
   useCoreSelector,
 } from '@gen3/core';
+import { usePathname } from 'next/navigation';
 
 interface HomepageCardProps {
   icon: string;
@@ -22,8 +23,9 @@ const ProjectCard = ({ title, description, icon, href }: HomepageCardProps) => {
   const authenticated = isAuthenticated(userStatus);
 
   const router = useRouter();
+  const pathname = usePathname();
   const handleButtonClick = () => {
-    authenticated ? router.push(href) : router.push(`Login?redirect=${href}`);
+    authenticated ? router.push(href) : router.push(`/Login?redirect=${pathname}`);
   };
 
   return (
