@@ -9,10 +9,6 @@
             "product_notes_sequencing_site": {
                 "chartType": "fullPie",
                 "title": "Product Notes Sequencing Site"
-            },
-            "protocol_library_type": {
-                "chartType": "fullPie",
-                "title": "Protocol Library Type"
             }
         },
         "filters": {
@@ -23,13 +19,10 @@
                         "enrollment_diagnosis", 
                         "biopsy_anatomical_location",
                         "specimen_collection_concept",
-                        "protocol_library_type",
                         "product_notes_sequencing_site",
                         "product_notes_sequencer", 
                         "product_notes_end_type", 
-                        "product_notes_read_length",
-                        "protocol_library_construction", 
-                        "protocol_hybrid_capture_bait_set"
+                        "product_notes_read_length"
                     ]
                 }
             ]
@@ -55,13 +48,6 @@
                 "indexed_collection_date_days",
                 "enrollment_diagnosis",
                 "biopsy_anatomical_location",
-                "protocol_library_type",
-                "product_notes_sequencing_site",
-                "product_notes_sequencer",
-                "product_notes_end_type",
-                "product_notes_read_length",
-                "protocol_library_construction",
-                "protocol_hybrid_capture_bait_set",
                 "specimen_processing_method",
                 "specimen_collection_concept",
                 "treatments",
@@ -177,12 +163,21 @@
     },
     {
         "tabTitle": "File",
+        "charts": {
+            "protocol_library_type": {
+                "chartType": "fullPie",
+                "title": "Protocol Library Type"
+            }
+        },
         "filters": {
             "tabs": [
                 {
                     "fields": [
                         "project_id",
-                        "contentType"
+                        "contentType",
+                        "protocol_library_type",
+                        "protocol_library_construction", 
+                        "protocol_hybrid_capture_bait_set"
                     ]
                 }
             ]
@@ -201,7 +196,14 @@
                 "specimen_subject",
                 "subject",
                 "id",
-                "identifier"
+                "identifier",
+                "protocol_library_type",
+                "product_notes_sequencing_site",
+                "product_notes_sequencer",
+                "product_notes_end_type",
+                "product_notes_read_length",
+                "protocol_library_construction",
+                "protocol_hybrid_capture_bait_set"
             ],
             "detailsConfig": {
                 "panel": "fileDetails",
