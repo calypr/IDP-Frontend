@@ -16,12 +16,12 @@
                 {
                     "fields": [
                         "project_id",
-                        "enrollment_diagnosis", 
+                        "enrollment_diagnosis",
                         "biopsy_anatomical_location",
                         "specimen_collection_concept",
                         "product_notes_sequencing_site",
-                        "product_notes_sequencer", 
-                        "product_notes_end_type", 
+                        "product_notes_sequencer",
+                        "product_notes_end_type",
                         "product_notes_read_length"
                     ]
                 }
@@ -30,13 +30,11 @@
         "table": {
             "enabled": true,
             "columns": {
-                "specimen_identifier":
-                {
-                  "title": "BEMS ID"
+                "specimen_identifier": {
+                    "title": "BEMS ID"
                 },
-                "identifier":
-                {
-                  "title": "Subject ID"
+                "identifier": {
+                    "title": "Subject ID"
                 },
                 "product_notes_project_id": {
                     "title": "Product Notes Project ID"
@@ -71,20 +69,21 @@
             "detailsConfig": {
                 "panel": "resourceDetails",
                 "mode": "click",
-                "idField": "patient_id",
+                "idField": "id",
+                "patient_field": "patient_id",
                 "filterField": "subject",
                 "title": "Files Associated with a Given Patient",
                 "nodeType": "file",
                 "nodeFields": [
-                "title",
-                "source_url",
-                "size",
-                "creation",
-                "subject",
-                "md5",
-                "contentType",
-                "url",
-                "id"
+                    "title",
+                    "source_url",
+                    "size",
+                    "creation",
+                    "subject",
+                    "md5",
+                    "contentType",
+                    "url",
+                    "id"
                 ]
             }
         },
@@ -118,7 +117,7 @@
         },
         "table": {
             "enabled": true,
-            "columns" : {
+            "columns": {
                 "project_id": {
                     "title": "Clinical Trial"
                 },
@@ -137,20 +136,21 @@
             "detailsConfig": {
                 "panel": "resourceDetails",
                 "mode": "click",
-                "idField": "subject_id",
+                "idField": "id",
+                "patient_field": "subject_id",
                 "filterField": "subject",
                 "title": "Files Associated with a Given Patient",
                 "nodeType": "file",
                 "nodeFields": [
-                "title",
-                "source_url",
-                "size",
-                "creation",
-                "subject",
-                "md5",
-                "contentType",
-                "url",
-                "id"
+                    "title",
+                    "source_url",
+                    "size",
+                    "creation",
+                    "subject",
+                    "md5",
+                    "contentType",
+                    "url",
+                    "id"
                 ]
             }
         },
@@ -176,7 +176,7 @@
                         "project_id",
                         "contentType",
                         "protocol_library_type",
-                        "protocol_library_construction", 
+                        "protocol_library_construction",
                         "protocol_hybrid_capture_bait_set"
                     ]
                 }
@@ -209,6 +209,7 @@
                 "panel": "fileDetails",
                 "mode": "click",
                 "idField": "id",
+                "patient_field": "id",
                 "nodeType": "file",
                 "title": "File Details"
             }

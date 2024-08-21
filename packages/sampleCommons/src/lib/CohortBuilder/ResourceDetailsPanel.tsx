@@ -64,7 +64,7 @@ export const ResourceDetailsPanel = ({
   onClose,
 }: TableDetailsPanelProps) => {
   const [currentFileIndex, setCurrentFileIndex] = useState(0);
-  const idField = tableConfig.detailsConfig?.idField;
+  const patientField = tableConfig.detailsConfig?.patient_field;
   const nodeType = tableConfig.detailsConfig?.nodeType;
   const nodeFields = tableConfig.detailsConfig?.nodeFields;
   console.log('NODE FIELDS: ', nodeFields);
@@ -88,9 +88,11 @@ export const ResourceDetailsPanel = ({
     },
   });
 
-  if (!idField || idField === null) {
+  if (!patientField || patientField === null) {
     return (
-      <ErrorCard message={'idField not configure in Tables Details Config'} />
+      <ErrorCard
+        message={'patientField not configure in Tables Details Config'}
+      />
     );
   }
 
@@ -159,7 +161,7 @@ export const ResourceDetailsPanel = ({
             <tbody>
               <tr>
                 <td>
-                  <Text weight="bold">{idField}</Text>
+                  <Text weight="bold">{patientField}</Text>
                 </td>
                 <td>
                   <Text>{id}</Text>
@@ -215,7 +217,10 @@ export const ResourceDetailsPanel = ({
         </div>
       ) : (
         <div className="px-6">
-          <Text> No {nodeType}s found for {idField} {id}</Text>
+          <Text>
+            {' '}
+            No {nodeType}s found for {patientField} {id}
+          </Text>
         </div>
       )}
     </Stack>

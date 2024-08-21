@@ -65,7 +65,6 @@ const extractData = (
   if (!data || !data.data || !data.data._aggregation || !countsProperty) {
     return returnType === 'histogram' ? [] : 0;
   }
-
   const allObservations = Object.values(data.data._aggregation).flat();
   const targetObservation = allObservations.find(
     (observation) => observation[countsProperty],
@@ -90,8 +89,8 @@ const extractData = (
 };
 
 const summaryCountsQuery = (resourceType: string, countsProperty: string) => {
-    const summary_counts_query = {
-      query: `query ($filter: JSON){
+  const summary_counts_query = {
+    query: `query ($filter: JSON){
       _aggregation {
         ${resourceType}(filter: $filter, accessibility: all) {
           ${countsProperty} {
@@ -100,20 +99,20 @@ const summaryCountsQuery = (resourceType: string, countsProperty: string) => {
           }
         }
       }`,
-      variables: {
-        filter: {
-          AND: [
-            {
-              IN: {
-                project_id: ['cbds-smmart_labkey_demo'],
-              },
+    variables: {
+      filter: {
+        AND: [
+          {
+            IN: {
+              project_id: ['cbds-smmart_labkey_demo'],
             },
-          ],
-        },
+          },
+        ],
       },
-    };
-    return summary_counts_query;
+    },
   };
+  return summary_counts_query;
+};
 
 const countsQuery = (countsProperty: string) => {
   const props_query = {
@@ -144,7 +143,7 @@ const countsQuery = (countsProperty: string) => {
   return props_query;
 };
 
-const countsFromField = (resourceType: string, countsProperty: string) => {
+const CountsFromField = (resourceType: string, countsProperty: string) => {
   const { data, isLoading, isError } = useGeneralGQLQuery(
     summaryCountsQuery(resourceType, countsProperty),
   );
@@ -167,7 +166,7 @@ const countsFromField = (resourceType: string, countsProperty: string) => {
   );
 };
 
-const chartFromField = (countsProperty: string) => {
+const ChartFromField = (countsProperty: string) => {
   const { data, isLoading, isError } = useGeneralGQLQuery(
     countsQuery(countsProperty),
   );
@@ -217,19 +216,23 @@ const chartFromField = (countsProperty: string) => {
   return chart;
 };
 
-const countsByResource = (resourceType: string) => {
+const CountsByResource = (resourceType: string) => {
   const { data, isLoading, isError } = useGeneralGQLQuery(
     countsByResourceQuery(resourceType),
   );
-  const count = isQueryResponse(data)
-    ? data.data._aggregation.file._totalCount
-    : 0
+  const totalCountsData = isQueryResponse(data)
+    ? extractData(data, resourceType, 'totalCounts')
+    : 0;
   return (
     <div className="text-2xl font-bold">
-      {count}
+      {typeof totalCountsData === 'number' ? (
+        totalCountsData
+      ) : (
+        <>{'missing data'}</>
+      )}
     </div>
-  )
-}
+  );
+};
 
 const countsByResourceQuery = (resourceType: string) => {
   return {
@@ -252,9 +255,7 @@ const countsByResourceQuery = (resourceType: string) => {
       },
     },
   };
-}
-
-
+};
 
 ///////////////
 // COMPONENT //
@@ -263,11 +264,19 @@ const HorizontalBarChart = ({ headerProps, footerProps }: SamplePageProps) => {
   const router = useRouter();
 
   // TODO: refactor out into a config
-  const chartFields = ['enrollment_diagnosis', 'protocol_library_type', 'biopsy_anatomical_location'];
-  const numChartCols = chartFields.length <= 3 ? chartFields.length : 3
-  const countsFields = ['patient_id', 'specimen_identifier', 'specimen_collection_concept', 'clinical_trials']
-  const countsTitles = ['Patients', 'Specimens', 'Cancers', 'Clinical Trials']
-
+  const chartFields = [
+    'enrollment_diagnosis',
+    'protocol_library_type',
+    'biopsy_anatomical_location',
+  ];
+  const numChartCols = chartFields.length <= 3 ? chartFields.length : 3;
+  const countsFields = [
+    'patient_id',
+    'specimen_identifier',
+    'specimen_collection_concept',
+    'clinical_trials',
+  ];
+  const countsTitles = ['Patients', 'Specimens', 'Cancers', 'Clinical Trials'];
 
   return (
     <ProtectedContent>
@@ -302,24 +311,26 @@ const HorizontalBarChart = ({ headerProps, footerProps }: SamplePageProps) => {
                   Explore Datasets
                 </Button>
               </div>
-              <div className={`col-span-${numChartCols} grid grid-cols-${numChartCols} gap-2`}>
-                {chartFields.map(field => chartFromField(field))}
+              <div
+                className={`col-span-${numChartCols} grid grid-cols-${numChartCols} gap-2`}
+              >
+                {chartFields.map((field) => ChartFromField(field))}
               </div>
             </div>
             <div className="text-center mx-auto bg-gray-200 py-5">
               <div className="flex justify-center space-x-8">
                 <div className="text-center">
-                  {countsFromField('observation', 'specimen_identifier')}
+                  {CountsFromField('observation', 'specimen_identifier')}
                   <div className="text-sm">Specimens</div>
                 </div>
                 <div className="text-center">
-                  {countsByResource('file')}
+                  {CountsByResource('file')}
                   <div className="text-sm">Files</div>
                 </div>
-              {/* {countsFields.map((field, i) => {
+                {/* {countsFields.map((field, i) => {
                 return (
                   <div className="text-center">
-                    {countsFromField(field)}
+                    {CountsFromField(field)}
                     <div className="text-sm">{countsTitles[i]}</div>
                   </div>
                 )
