@@ -6,6 +6,12 @@ import { Tooltip } from '@mantine/core';
 import { extractClassName } from './utils';
 import { mergeDefaultTailwindClassnames } from '../../utils/mergeDefaultTailwindClassnames';
 import { TooltipStyle } from './style';
+import {
+  CoreState,
+  isAuthenticated,
+  selectUserAuthStatus,
+  useCoreSelector,
+} from '@gen3/core';
 
 /**
  * NavigationBarButton: a button for the navigation bar
@@ -32,6 +38,17 @@ const NavigationBarButton = ({
   };
 
   const mergedClassnames = mergeDefaultTailwindClassnames(classNamesDefaults, classNames);
+
+  const base_url = process.env.NEXT_PUBLIC_PORTAL_BASENAME &&
+    process.env.NEXT_PUBLIC_PORTAL_BASENAME !== '/'
+      ? process.env.NEXT_PUBLIC_PORTAL_BASENAME
+      : ''
+
+  const userStatus = useCoreSelector((state: CoreState) =>
+    selectUserAuthStatus(state),
+  );
+  const authenticated = isAuthenticated(userStatus);
+
   return (
     <React.Fragment>
       <Tooltip
@@ -48,13 +65,10 @@ const NavigationBarButton = ({
         width={220}
       >
         <Link
-          href={`${
-            // need this to preserve running in hybrid mode
-            process.env.NEXT_PUBLIC_PORTAL_BASENAME &&
-            process.env.NEXT_PUBLIC_PORTAL_BASENAME !== '/'
-              ? process.env.NEXT_PUBLIC_PORTAL_BASENAME
-              : ''
-          }${href}`}
+          href={authenticated
+            ? `${base_url}${href}`
+            : `${base_url}Login?redirect=${href}`
+          }
         >
           <div className={extractClassName('root', mergedClassnames)}>
             <Icon
