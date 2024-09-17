@@ -9,7 +9,14 @@ import { GetServerSideProps } from 'next';
 
 const SamplePage = ({ headerProps, footerProps }: NavPageLayoutProps) => {
   return (
-    <NavPageLayout {...{ headerProps, footerProps }}>
+    <NavPageLayout
+      {...{ headerProps, footerProps }}
+      headerData={{
+        title: 'Gen3 Sample Page',
+        content: 'Sample Data',
+        key: 'gen3-sample-page',
+      }}
+    >
       <div className="w-full m-10">
         <Center>
           <Paper shadow="md" p="xl" withBorder>

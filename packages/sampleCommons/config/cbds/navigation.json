@@ -1,13 +1,14 @@
 {
   "navigation": {
     "classNames": {
-      "root": "pl-1 mr-6 bg-base-max text-primary opacity-100 hover:opacity-100",
+      "root": "bg-base-max text-primary opacity-100 hover:opacity-100",
       "item": "py-2 px-4 hover:bg-base-lightest hover:text-base-contrast",
       "navigationPanel": "bg-base-max text-primary"
     },
     "logo": {
       "src": "/icons/cbds.png",
-      "height": 220,
+      "width": 200,
+      "height": 60,
       "href": "/cbdsLandingPage"
     },
     "items": [
@@ -16,12 +17,6 @@
         "href": "/Explorer",
         "name": "Exploration",
         "tooltip": "The Exploration Page enables discovery of the data at the subject level and features a cohort builder."
-      },
-      {
-        "icon": "gen3:query",
-        "href": "/Query",
-        "name": "Query",
-        "tooltip": "Query the databases using GraphiQL."
       },
       {
         "icon": "gen3:profile",
@@ -35,9 +30,14 @@
     "items": [
       {
         "href": "https://www.ohsu.edu/knight-cancer-institute",
-        "name": "CBDS"
+        "name": "CBDS",
+        "classNames": {
+          "root": "border-base-light",
+          "label": "text-primary-contrast",
+          "button": "hover:border-primary-contrast"
+        }
       }
     ],
-    "showLogin": true
+    "loginButtonVisibility": "hidden"
   }
 }

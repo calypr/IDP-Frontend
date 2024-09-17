@@ -88,10 +88,17 @@ const LandingPageContent = ({ content }: LandingPageContentProp) => {
           return (
             <Title
               key={index}
-              color={index % 2 === 0 ? 'primary.5' : 'primary.4'}
-              className="mb-5 pl-20 pb-2"
+              className={`mb-5 pl-20 pb-2 ${
+                index % 2 === 0 ? 'text-primary' : 'text-primary-lighter'
+              }`}
               order={component.title.level}
             >
+              {/* TODO: verify this color is correct */}
+              <span
+                className={`${
+                  index % 2 === 0 ? 'text-primary' : 'text-primary-lighter'
+                }}`}
+              ></span>
               {component.title.text}
             </Title>
           );

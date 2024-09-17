@@ -268,8 +268,14 @@ const HorizontalBarChart = ({ headerProps, footerProps }: SamplePageProps) => {
 
 
   return (
-      <NavPageLayout headerProps={headerProps} footerProps={footerProps}>
-        <MantineProvider withGlobalStyles>
+      <NavPageLayout
+        {...{ headerProps, footerProps }}
+        headerData={{
+          title: 'SMMART Report Page',
+          content: 'SMMART Report Page',
+        key: 'smmart-report-page',
+        }}>
+        <MantineProvider>
           <div className="pt-5">
             <div className="bg-cbds-primary pt-[1.5%] pb-[1.5%]">
               <Container className="bg-cbds-monoprimary text-center">

@@ -1,10 +1,10 @@
 import React from 'react';
 import TopBar from './TopBar';
 import NavigationBar from './NavigationBar';
+import { Banner } from './Banner';
 import { HeaderProps } from './types';
 import HorizontalNavigationBar from './HorizontalClean/HorizontalNavigationBar';
 import { useGetCSRFQuery } from '@gen3/core';
-
 
 
 /**
@@ -16,10 +16,15 @@ import { useGetCSRFQuery } from '@gen3/core';
  * @param {string} props.type - The type of header to render. Default value is 'original'.
  * @returns {JSX.Element} - The rendered Header component.
  */
-const Header = ({ top, navigation, type = 'original' }: HeaderProps) => {
-  useGetCSRFQuery();
+const Header = ({
+  top,
+  navigation,
+  banners,
+  type = 'original',
+}: HeaderProps) => {
   return type === 'horizontal' ? (
     <div className="w-full">
+      {banners?.map((banner) => <Banner {...banner} key={banner.id} />)}
       <HorizontalNavigationBar
         logo={navigation.logo}
         title={navigation.title}
@@ -29,23 +34,28 @@ const Header = ({ top, navigation, type = 'original' }: HeaderProps) => {
       />
     </div>
   ) : type === 'vertical' ? (
-    <HorizontalNavigationBar
-      logo={navigation.logo}
-      title={navigation.title}
-      classNames={{ ...navigation.classNames }}
-      actions={top}
-    />
+    <div>
+      {banners?.map((banner) => <Banner {...banner} key={banner.id} />)}
+      <HorizontalNavigationBar
+        logo={navigation.logo}
+        title={navigation.title}
+        classNames={{ ...navigation.classNames }}
+        actions={top}
+      />
+    </div>
   ) : (
     <div className="w-100">
       <TopBar
         items={top.items}
-        showLogin={top?.showLogin}
+        loginButtonVisibility={top?.loginButtonVisibility}
         classNames={{ ...top.classNames }}
       />
+      {banners?.map((banner) => <Banner {...banner} key={banner.id} />)}
       <NavigationBar
         logo={navigation.logo}
         title={navigation.title}
         items={navigation.items}
+        classNames={navigation?.classNames}
       />
     </div>
   );

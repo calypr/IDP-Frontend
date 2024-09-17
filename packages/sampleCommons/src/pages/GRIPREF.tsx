@@ -204,7 +204,13 @@ const SamplePage = ({ headerProps, footerProps }: NavPageLayoutProps) => {
   };
 
   return (
-    <NavPageLayout {...{ headerProps, footerProps }}>
+    <NavPageLayout
+      {...{ headerProps, footerProps }}
+      headerData={{
+        title: 'Gen3 GRIPREF Page',
+        content: 'Gen3 GRIPREF Page',
+        key: 'gen3-gripref-page',
+    }}>
       <Paper>
         <div style={{ display: 'flex', alignItems: 'center' }}>
           {state.isLoading ? (

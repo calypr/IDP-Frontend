@@ -32,6 +32,6 @@
         "name": "About ACED"
       }
     ],
-    "showLogin": true
+    "loginButtonVisibility": true
   }
 }

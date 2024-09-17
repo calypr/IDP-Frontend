@@ -10,8 +10,15 @@ const SmmartPage = ({
   smmartConfig,
 }: SmmartLandingPageProps) => {
   return (
-    <NavPageLayout headerProps={headerProps} footerProps={footerProps}>
-      <MantineProvider withGlobalStyles>
+    <NavPageLayout
+      {...{ headerProps, footerProps }}
+      headerData={{
+        title: 'Gen3 Landing Page',
+        content: 'Gen3 Landing Page',
+        key: 'gen3-landing-page',
+      }}
+    >
+      <MantineProvider withGlobalClasses>
         <div className="w-full pt-20">
           <div className="bg-cbds-primary pt-[1.5%] pb-[1.5%]">
             <Container className="bg-cbds-monoprimary text-center pt-[2.5%] pb-[2.5%]">
@@ -25,15 +32,17 @@ const SmmartPage = ({
               </Text>
             </Container>
           </div>
-          <Grid gutter="lg" className="p-5 grid grid-cols-3">
+          <Grid gutter="md" className="p-3">
             {smmartConfig.smmartCards.map((project, index) => (
-              <ProjectCard
-                key={index}
-                title={project.title}
-                description={project.description}
-                icon={project.icon}
-                href={project.href}
-              />
+              <Grid.Col span={4}>
+                <ProjectCard
+                  key={index}
+                  title={project.title}
+                  description={project.description}
+                  icon={project.icon}
+                  href={project.href}
+                />
+              </Grid.Col>
             ))}
           </Grid>
         </div>

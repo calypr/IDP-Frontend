@@ -28,11 +28,9 @@ export const DetailsModal = <
   const [opened, { open, close }] = useDisclosure(id !== undefined);
 
   const styling = useMemo(
-    () => mergeDefaultTailwindClassnames(DEFAULT_PROPS, classNames ?? {}, true),
-    [],
+    () => mergeDefaultTailwindClassnames(DEFAULT_PROPS, classNames ?? {}),
+    [classNames],
   );
-
-  console.log('mergedStyles', styling);
 
   useEffect(() => {
     if (id !== undefined) open();

@@ -1,8 +1,4 @@
-import { Button, LoadingOverlay, Text } from '@mantine/core';
-
-import { FilterSet, useGetCountsQuery } from '@gen3/core';
-
-import { Gen3Button } from '../Buttons/Gen3Button';
+import { Paper, LoadingOverlay, Text } from '@mantine/core';
 
 interface CountsValueProps {
   readonly label: string;

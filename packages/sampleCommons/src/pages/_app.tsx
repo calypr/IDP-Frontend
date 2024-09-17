@@ -1,5 +1,10 @@
 import App, { AppProps, AppContext, AppInitialProps } from 'next/app';
-import { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
+
+import { Faro, FaroErrorBoundary, withFaroProfiler } from "@grafana/faro-react";
+
+import { initGrafanaFaro } from '../lib/Grafana/grafana';
+
 import {
   Gen3Provider,
   TenStringArray,
@@ -10,11 +15,23 @@ import {
   SessionConfiguration,
 } from '@gen3/frontend';
 import '../styles/globals.css';
-import 'react-responsive-carousel/lib/styles/carousel.min.css';
-import 'graphiql/graphiql.css';
-import '@graphiql/react/dist/style.css';
+// import 'graphiql/graphiql.css';
+//import '@graphiql/react/dist/style.css';
+import '@fontsource/montserrat';
+import '@fontsource/source-sans-pro';
+import '@fontsource/poppins';
+import '@fontsource/lato';
+
 import { GEN3_COMMONS_NAME, setDRSHostnames } from '@gen3/core';
 import drsHostnames from '../../config/drsHostnames.json';
+
+if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const ReactDOM = require('react-dom');
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const axe = require('@axe-core/react');
+  axe(React, ReactDOM, 1000);
+}
 
 interface Gen3AppProps {
   colors: Record<string, TenStringArray>;
@@ -37,16 +54,31 @@ const Gen3App = ({
     setDRSHostnames(drsHostnames);
   }, []);
 
+  const faroRef = useRef<null | Faro>(null);
+
+  useEffect(() => {
+    // if (
+    //   process.env.NEXT_PUBLIC_FARO_COLLECTOR_URL &&
+    //   process.env.NEXT_PUBLIC_FARO_APP_ENVIRONMENT != "local" &&
+    //   !faroRef.current
+    // ) {
+    faroRef.current = initGrafanaFaro();
+    // }
+  }, []);
+
   return (
-    <Gen3Provider
-      colors={colors}
-      icons={icons}
-      fonts={themeFonts}
-      sessionConfig={sessionConfig}
-      modalsConfig={modalsConfig}
-    >
-      <Component {...pageProps} />
-    </Gen3Provider>
+    <FaroErrorBoundary>
+
+      <Gen3Provider
+        colors={colors}
+        icons={icons}
+        fonts={themeFonts}
+        sessionConfig={sessionConfig}
+        modalsConfig={modalsConfig}
+      >
+        <Component {...pageProps} />
+      </Gen3Provider>
+    </FaroErrorBoundary>
   );
 };
 
@@ -79,7 +111,7 @@ Gen3App.getInitialProps = async (
       ]),
     );
 
-    const icons = await ContentSource.get(`config/icons/gen3.json`);
+    const icons = await ContentSource.get('config/icons/gen3.json');
     return {
       ...ctx,
       modalsConfig: modals,
@@ -111,4 +143,4 @@ Gen3App.getInitialProps = async (
     sessionConfig: {},
   };
 };
-export default Gen3App;
+export default withFaroProfiler(Gen3App);

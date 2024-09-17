@@ -68,7 +68,7 @@
         }
       }
     ],
-    "showLogin": true,
+    "loginButtonVisibility": true,
     "classNames": {
       "root": "bg-primary"
     }

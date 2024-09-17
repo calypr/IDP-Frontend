@@ -21,16 +21,26 @@ const Profile = ({ profileConfig }: ProfileProps) => {
             variant="separated"
             chevronPosition="left"
             chevron={<Caret className="text-primary-contrast" size="1.75rem" />}
-            defaultValue={['apiKeys']}
+            defaultValue={[
+              ...['apiKeys'],
+              ...(profileConfig?.hasExternalLogins ? ['externalLogins'] : []),
+            ]}
+            classNames={{
+              label: 'text-primary-contrast-lighter font-heading font-bold',
+            }}
           >
-            {/* <Accordion.Item value="externalLogins">
-              <div className="bg-secondary-lighter">
-                <Accordion.Control className='text-secondary-contrast'>Link Account from External Data Resources</Accordion.Control>
-              </div>
-              <Accordion.Panel>
-                <ExternalProvidersPanel />
-              </Accordion.Panel>
-            </Accordion.Item> */}
+            {profileConfig?.hasExternalLogins && (
+              <Accordion.Item value="externalLogins">
+                <div className="bg-secondary-lighter">
+                  <Accordion.Control>
+                    Link Account from External Data Resources
+                  </Accordion.Control>
+                </div>
+                <Accordion.Panel>
+                  <ExternalProvidersPanel />
+                </Accordion.Panel>
+              </Accordion.Item>
+            )}
             <Accordion.Item value="apiKeys">
               <div className="bg-primary rounded">
                 <Accordion.Control>

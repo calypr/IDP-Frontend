@@ -16,12 +16,11 @@ import {
   type TableDetailsPanelProps,
   ExplorerTableDetailsPanelFactory,
 } from '@gen3/frontend';
+import { FiDownload } from 'react-icons/fi';
 import {
   MdContentCopy as IconCopy,
   MdCheck as IconCheck,
 } from 'react-icons/md';
-import { FiDownload } from 'react-icons/fi';
-import { config } from 'next/dist/build/templates/pages';
 
 // a definition of the query response
 interface QueryResponse {
@@ -42,6 +41,13 @@ const isQueryResponse = (obj: any): obj is QueryResponse => {
   );
 };
 
+/**
+ * Extracts data from a QueryResponse object based on an index.
+ *
+ * @param {QueryResponse} data - The QueryResponse object containing the data.
+ * @param {string} index - The index to extract the data from.
+ * @returns {Record<string, any>} - The extracted data as a key-value pair object.
+ */
 const extractData = (
   data: QueryResponse,
   index: string,
@@ -60,7 +66,9 @@ export const FileDetailsPanel = ({
   tableConfig,
   onClose,
 }: TableDetailsPanelProps) => {
+  // get the idField from the configuration
   const idField = tableConfig.detailsConfig?.idField;
+  // call the general Guppy GQL which takes an object { query: string, variables: object }
   const { data, isLoading, isError } = useGeneralGQLQuery({
     query: `query ($filter: JSON) {
         ${index} (filter: $filter,  accessibility: all) {
@@ -80,30 +88,38 @@ export const FileDetailsPanel = ({
     },
   });
 
-  if (!idField || idField === null) {
+  // handle misconfiguration
+  if (!idField) {
     return (
       <ErrorCard message={'idField not configure in Tables Details Config'} />
     );
   }
-
+  // show data error if graphql fails
   if (isError) {
     return <ErrorCard message={'Error occurred while fetching data'} />;
   }
 
+  // process guppy response
   const queryData = isQueryResponse(data) ? extractData(data, index) : {};
 
+  // create the rows for the table
   const rows = Object.entries(queryData).map(([field, value]) => (
-    <tr key={field}>
-      <td>
-        <Text weight="bold">{field}</Text>
-      </td>
-      <td>
+    <Table.Tr key={field}>
+      <Table.Td>
+        <Text fw={700}>{field}</Text>
+      </Table.Td>
+      <Table.Td>
+        {/*
+          if field is one that we want a link for make it an Anchor otherwise
+          render as text.
+         */}
         {field === 'id' ? (
           <div className="flex">
             <div className="px-2">
-              <FiDownload title="download" size={16} />
+              <FiDownload title="download" className='float-start' size={16} />
             </div>
             <Anchor
+              c="accent.1"
               href={`${GEN3_FENCE_API}/user/data/download/${
                 value ? (value as string) : ''
               }?redirect=true`}
@@ -115,32 +131,23 @@ export const FileDetailsPanel = ({
         ) : (
           <Text>{value ? (value as string) : ''}</Text>
         )}
-      </td>
-    </tr>
+      </Table.Td>
+    </Table.Tr>
   ));
   return (
     <Stack>
       <LoadingOverlay visible={isLoading} />
-      <Table withBorder withColumnBorders>
-        <thead>
-          <tr>
-            <th>Field</th>
-            <th>Value</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>
-              <Text weight="bold">{idField}</Text>
-            </td>
-            <td>
-              <Text>{id}</Text>
-            </td>
-          </tr>
-          {rows}
-        </tbody>
+      <Text c="primary.4">Results for {id}</Text>
+      <Table withTableBorder withColumnBorders>
+        <Table.Thead>
+          <Table.Tr>
+            <Table.Th>Field</Table.Th>
+            <Table.Th>Value</Table.Th>
+          </Table.Tr>
+        </Table.Thead>
+        <Table.Tbody>{rows}</Table.Tbody>
       </Table>
-      <Group position="right">
+      <Group justify="flex-end">
         <CopyButton value={JSON.stringify(queryData)} timeout={2000}>
           {({ copied, copy }) => (
             <Tooltip
@@ -154,7 +161,9 @@ export const FileDetailsPanel = ({
             </Tooltip>
           )}
         </CopyButton>
-        <Button onClick={() => onClose && onClose(id)}>Close</Button>
+        <Button color="accent.5" onClick={() => onClose && onClose(id)}>
+          Close
+        </Button>
       </Group>
     </Stack>
   );

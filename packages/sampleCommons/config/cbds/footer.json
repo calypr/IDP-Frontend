@@ -1,12 +1,22 @@
 {
-  "footerRightLogos": [
-    [
+  "classNames": {
+    "root": "bg-primary-contrast",
+    "layout": "flex items-center justify-center"
+  },
+  "rightSection": {
+    "columns": [
       {
-        "logo": "/icons/knight.png",
-        "width": 150,
-        "height": 70,
-        "description": "Knight Cancer Institute"
+        "rows": [
+          {
+            "Icon": {
+              "logo": "/icons/knight.png",
+              "width": 150,
+              "height": 70,
+              "description": "Knight Cancer Institute"
+            }
+          }
+        ]
       }
     ]
-  ]
+  }
 }

@@ -30,6 +30,8 @@ export const GEN3_SUBMISSION_API =
   `${GEN3_API}/api/v0/submission`;
 export const GEN3_WTS_API =
   process.env.NEXT_PUBLIC_GEN3_WTS_API || `${GEN3_API}/wts`;
+  export const GEN3_CROSSWALK_API =
+  process.env.NEXT_PUBLIC_GEN3_CROSSWALK_API || `${GEN3_API}/mds`;
 
 export enum Accessibility {
   ACCESSIBLE = 'accessible',

@@ -202,11 +202,14 @@
     "lightest": "#ffffff",
     "max": "#ffffff"
   },
-  "tablePallet-contrast": {
-    "DEFAULT": "#fefefe",
-    "vivid": "#fefefe",
-    "min": "#111111",
-    "darkest": "#111111",
+  "table-contrast": {
+    "max": "#111111",
+    "lightest": "#111111",
+    "lighter": "#111111",
+    "light": "#111111",
+    "DEFAULT": "#111111",
+    "vivid": "#111111",
+    "dark": "#111111",
     "darker": "#111111",
     "dark": "#111111",
     "light": "#111111",

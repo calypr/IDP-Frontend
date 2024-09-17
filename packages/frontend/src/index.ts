@@ -40,8 +40,9 @@ import { ColorThemePageGetServerSideProps } from './pages/Theme';
 import ProfilePage, { ProfilePageGetServerSideProps } from './pages/Profile';
 import LoginPage, { LoginPageGetServerSideProps } from './pages/Login';
 
-import DataDictionaryPage from './pages/DataDictionary/DataDictonary';
-import { DataDictionaryPageGetServerSideProps } from './pages/DataDictionary';
+import DictionaryPage, {
+  DictionaryPageGetServerSideProps,
+} from './pages/DataDictionary';
 
 import AuthzPage from './pages/admin/authz/Authz';
 import { AdminAuthZPageGetServerSideProps } from './pages/admin/authz/data';
@@ -57,6 +58,10 @@ import { WorkspacesPageGetServerSideProps } from './pages/Workspace/data';
 import AiSearchPage from './pages/AiSearch/AiSearch';
 import { AISearchPageGetServerSideProps } from './pages/AiSearch/data';
 
+// TODO Replace with AppTool plugin
+import CrosswalkPage from './pages/Crosswalk';
+import { CrosswalkPageGetServerSideProps } from './pages/Crosswalk/data';
+
 import { TailwindConfig } from './utils/tailwindConfig';
 
 import sessionToken from './api/auth/sessionToken';
@@ -69,19 +74,19 @@ export {
   type Fonts,
   type RegisteredIcons,
   type SessionConfiguration,
-  SmmartPage,
-  SmmartPageGetServerSideProps,
   ErrorCard,
   DiscoveryPage,
   DiscoveryPageGetServerSideProps,
   QueryPage,
   QueryPageGetServerSideProps,
+  SmmartPage,
+  SmmartPageGetServerSideProps,
   LandingPage,
   LandingPageGetStaticProps,
   ColorThemePage,
   ColorThemePageGetServerSideProps,
-  DataDictionaryPage,
-  DataDictionaryPageGetServerSideProps,
+  DictionaryPage,
+  DictionaryPageGetServerSideProps,
   ExplorerPage,
   ExplorerPageGetServerSideProps,
   ProfilePage,
@@ -102,6 +107,8 @@ export {
   credentialsLogout,
   AiSearchPage,
   AISearchPageGetServerSideProps,
+  CrosswalkPage,
+  CrosswalkPageGetServerSideProps,
   SubmissionPage,
   SubmissionPageGetServerSideProps,
 };

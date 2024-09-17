@@ -9,6 +9,7 @@ import {
   ActionIcon,
   Tooltip,
   Button,
+  ScrollArea,
 } from '@mantine/core';
 import { useGeneralGQLQuery, GEN3_FENCE_API } from '@gen3/core';
 import {
@@ -48,7 +49,6 @@ const isQueryResponse = (obj: any): obj is QueryResponse => {
 };
 
 const extractData = (data: QueryResponse, index: string): FileData[] => {
-  console.log('QUERY INDEX: ', index, 'QUERY DATA: ', data);
   if (data === undefined || data === null) return [];
   if (data.data === undefined || data.data === null) return [];
 
@@ -67,7 +67,6 @@ export const ResourceDetailsPanel = ({
   const idField = tableConfig.detailsConfig?.idField;
   const nodeType = tableConfig.detailsConfig?.nodeType;
   const nodeFields = tableConfig.detailsConfig?.nodeFields;
-  console.log('NODE FIELDS: ', nodeFields);
   const filterField = tableConfig.detailsConfig?.filterField;
   const { data, isLoading, isError } = useGeneralGQLQuery({
     query: `query ($filter: JSON) {
@@ -104,17 +103,18 @@ export const ResourceDetailsPanel = ({
 
   // Render rows for the current file index
   const rows = Object.entries(currentFileData).map(([field, value]) => (
-    <tr key={`${currentFileIndex}-${field}`}>
-      <td>
-        <Text weight="bold">{field}</Text>
-      </td>
-      <td>
+    <Table.Tr key={`${currentFileIndex}-${field}`}>
+      <Table.Td>
+        <Text fw={500}>{field}</Text>
+      </Table.Td>
+      <Table.Td>
         {field === 'id' ? (
           <div className="flex">
             <div className="px-2">
               <FiDownload title="download" size={16} />
             </div>
             <Anchor
+              c="accent.1"
               href={`${GEN3_FENCE_API}/user/data/download/${
                 value ? (value as string) : ''
               }?redirect=true`}
@@ -126,8 +126,8 @@ export const ResourceDetailsPanel = ({
         ) : (
           <Text>{value ? (value as string) : ''}</Text>
         )}
-      </td>
-    </tr>
+      </Table.Td>
+    </Table.Tr>
   ));
 
   // Handle previous file index
@@ -145,31 +145,22 @@ export const ResourceDetailsPanel = ({
   };
 
   return (
-    <Stack>
-      <LoadingOverlay visible={isLoading} />
-      {totalFiles > 0 ? (
-        <div>
-          <Table withBorder withColumnBorders>
-            <thead>
-              <tr>
-                <th>Field</th>
-                <th>Value</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>
-                  <Text weight="bold">{idField}</Text>
-                </td>
-                <td>
-                  <Text>{id}</Text>
-                </td>
-              </tr>
-              {rows}
-            </tbody>
-          </Table>
+      totalFiles > 0 ? (
+        <Stack>
+          <LoadingOverlay visible={isLoading} />
+          <ScrollArea.Autosize maw={1200} mx="auto" >
+            <Table withTableBorder withColumnBorders>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Field</Table.Th>
+                  <Table.Th>Value</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>{rows}</Table.Tbody>
+            </Table>
+          </ScrollArea.Autosize>
           <div className="py-3">
-            <Group position="right">
+            <Group justify="right">
               <Button
                 onClick={handlePrevFile}
                 disabled={currentFileIndex === 0}
@@ -185,7 +176,7 @@ export const ResourceDetailsPanel = ({
               </Button>
             </Group>
           </div>
-          <Group position="right">
+          <Group justify="right">
             <CopyButton
               value={JSON.stringify(queryData[currentFileIndex])}
               timeout={2000}
@@ -212,13 +203,12 @@ export const ResourceDetailsPanel = ({
 
             <Button onClick={() => onClose && onClose(id)}>Close</Button>
           </Group>
-        </div>
+        </Stack>
       ) : (
         <div className="px-6">
           <Text> No {nodeType}s found for {idField} {id}</Text>
         </div>
-      )}
-    </Stack>
+      )
   );
 };
 

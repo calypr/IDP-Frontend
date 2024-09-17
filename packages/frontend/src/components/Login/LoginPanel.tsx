@@ -10,13 +10,15 @@ import { GEN3_REDIRECT_URL } from '@gen3/core';
 import ContactWithEmailContent from '../Content/ContactWithEmailContent';
 
 const filterRedirect = (redirect: string | string[] | undefined) => {
-  let redirectPath  = '';
+  let redirectPath = '';
   if (Array.isArray(redirect)) {
     redirectPath = redirect[0];
   } else {
     redirectPath = redirect ?? '/Explorer';
   }
-  return GEN3_REDIRECT_URL ? `${GEN3_REDIRECT_URL}/${redirectPath}` : redirectPath;
+  return GEN3_REDIRECT_URL
+    ? `${GEN3_REDIRECT_URL}/${redirectPath}`
+    : redirectPath;
 };
 
 const LoginPanel = (loginConfig: LoginConfig) => {
@@ -24,24 +26,26 @@ const LoginPanel = (loginConfig: LoginConfig) => {
 
   const router = useRouter();
   const {
-    query: { redirect },
+    query: { referer },
   } = router;
 
-
-  const handleFenceLoginSelected = useCallback( async (loginURL: string) => {
-     router
-      .push(`${loginURL}?redirect=${filterRedirect(redirect)}`)
-      .catch((e) => {
-        showNotification({
-          title: 'Login Error',
-          message: `error logging in ${e.message}`,
+  const handleFenceLoginSelected = useCallback(
+    async (loginURL: string) => {
+      router
+        .push(`${loginURL}?redirect=${filterRedirect(referer)}`)
+        .catch((e) => {
+          showNotification({
+            title: 'Login Error',
+            message: `error logging in ${e.message}`,
+          });
         });
-      });
-  }, [redirect, router]);
+    },
+    [referer, router],
+  );
 
-  const handleCredentialsLogin = useCallback( async () => {
-    await router.push(filterRedirect(redirect));
-  }, [redirect, router]);
+  const handleCredentialsLogin = useCallback(async () => {
+    await router.push(filterRedirect(referer));
+  }, [referer, router]);
 
   return (
     <div className="grid grid-cols-6 w-full">
@@ -50,7 +54,7 @@ const LoginPanel = (loginConfig: LoginConfig) => {
         {topContent?.map((content, index) => {
           if (content.image) {
             return (
-              
+
               <div key={index}>
                 <img
                 src={`${router.basePath}${content.image.src}`}
@@ -66,19 +70,22 @@ const LoginPanel = (loginConfig: LoginConfig) => {
           }
           })
         }
-        <LoginProvidersPanel
-          handleLoginSelected={handleFenceLoginSelected}
-        />
 
-        { loginConfig?.showCredentialsLogin &&
-          <CredentialsLogin handleLogin={handleCredentialsLogin}/>}
+        <LoginProvidersPanel handleLoginSelected={handleFenceLoginSelected} />
 
-        {bottomContent?.map((content, index) => (
-          (content?.email) ? <ContactWithEmailContent {...content} key={index} /> : <TextContent {...content} key={index} />
-        ))}
+        {loginConfig?.showCredentialsLogin && (
+          <CredentialsLogin handleLogin={handleCredentialsLogin} />
+        )}
+
+        {bottomContent?.map((content, index) =>
+          content?.email ? (
+            <ContactWithEmailContent {...content} key={index} />
+          ) : (
+            <TextContent {...content} key={index} />
+          ),
+        )}
       </div>
       <TexturedSidePanel url={image} />
-
     </div>
   );
 };

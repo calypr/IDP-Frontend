@@ -122,12 +122,15 @@
                 },
                 "identifier": {
                     "title": "Research Subject ID"
+                },
+                "subject_id": {
+                    "title": "Patient ID"
                 }
             },
             "fields": [
                 "project_id",
                 "identifier",
-                "patient_id"
+                "subject_id"
             ]
         },
         "dropdowns": {},
