@@ -25,9 +25,8 @@
         "table": {
             "enabled": true,
             "columns": {
-                "identifier":
-                {
-                  "title": "BEMS ID"
+                "identifier": {
+                    "title": "BEMS ID"
                 },
                 "processing": {
                     "title": "Processing Method"
@@ -62,28 +61,28 @@
                 "mode": "click",
                 "idField": "id",
                 "filterField": "specimen_id",
-                "title": "Files Associated with a Given Specimen",
+                "title": "Specimen, Files associated with a given Research Subject",
                 "nodeType": "file",
-                "nodeFields": [
-                    "title",
-                    "contentType",
-                    "size",
-                    "md5",
-                    "source_path",
-                    "date",
-                    "project_id",
-                    "creation",
-                    "specimen_id",
-                    "id",
-                    "identifier",
-                    "protocol_library_type",
-                    "product_notes_sequencing_site",
-                    "product_notes_sequencer",
-                    "product_notes_end_type",
-                    "product_notes_read_length",
-                    "protocol_library_construction",
-                    "protocol_hybrid_capture_bait_set"
-                ]
+                "nodeFields": {
+                    "Title": "title",
+                    "Content_Type": "contentType",
+                    "File_Size": "size",
+                    "Md5sum": "md5",
+                    "Source_Path": "source_path",
+                    "Date": "date",
+                    "Project_Id": "project_id",
+                    "Creation_Date": "creation",
+                    "Specimen_Id": "specimen_id",
+                    "File_Download": "id",
+                    "Identifier": "identifier",
+                    "Library_Type": "protocol_library_type",
+                    "Sequencing_Site": "product_notes_sequencing_site",
+                    "Sequencer": "product_notes_sequencer",
+                    "End_Type": "product_notes_end_type",
+                    "Notes_Read_Length": "product_notes_read_length",
+                    "Library_Construction": "protocol_library_construction",
+                    "Capture_Bait_Set": "protocol_hybrid_capture_bait_set"
+                }
             }
         },
         "dropdowns": {},
@@ -116,7 +115,7 @@
         },
         "table": {
             "enabled": true,
-            "columns" : {
+            "columns": {
                 "project_id": {
                     "title": "Clinical Trial"
                 },
@@ -130,8 +129,27 @@
             "fields": [
                 "project_id",
                 "identifier",
-                "subject_id"
-            ]
+                "subject_id",
+                "id"
+            ],
+            "detailsConfig": {
+                "panel": "researchSubject",
+                "mode": "click",
+                "idField": "subject_id",
+                "filterField": "patient_id",
+                "title": "Files Associated with a Given Specimen",
+                "nodeType": "specimen",
+                "nodeFields": {
+                    "Collection_Site": "collection",
+                    "Histology": "histology",
+                    "Tumor_Purity": "percent_tumor",
+                    "Procedure": "biopsy_procedure_type",
+                    "Processing": "processing",
+                    "Sample_Type": "sample_type",
+                    "Library": "library_id",
+                    "Identifier": "identifier"
+                }
+            }
         },
         "dropdowns": {},
         "guppyConfig": {
@@ -155,7 +173,7 @@
                         "project_id",
                         "contentType",
                         "protocol_library_type",
-                        "protocol_library_construction", 
+                        "protocol_library_construction",
                         "protocol_hybrid_capture_bait_set"
                     ]
                 }
@@ -184,11 +202,32 @@
                 "protocol_hybrid_capture_bait_set"
             ],
             "detailsConfig": {
-                "panel": "fileDetails",
+                "panel": "resourceDetails",
                 "mode": "click",
                 "idField": "id",
+                "filterField": "id",
                 "nodeType": "file",
-                "title": "File Details"
+                "title": "File Details",
+                "nodeFields": {
+                    "Title": "title",
+                    "Content_Type": "contentType",
+                    "File_Size": "size",
+                    "Md5sum": "md5",
+                    "Source_Path": "source_path",
+                    "Date": "date",
+                    "Project_Id": "project_id",
+                    "Creation_Date": "creation",
+                    "Specimen_Id": "specimen_id",
+                    "File_Download": "id",
+                    "Identifier": "identifier",
+                    "Library_Type": "protocol_library_type",
+                    "Sequencing_Site": "product_notes_sequencing_site",
+                    "Sequencer": "product_notes_sequencer",
+                    "End_Type": "product_notes_end_type",
+                    "Notes_Read_Length": "product_notes_read_length",
+                    "Library_Construction": "protocol_library_construction",
+                    "Capture_Bait_Set": "protocol_hybrid_capture_bait_set"
+                }
             }
         },
         "dropdowns": {},

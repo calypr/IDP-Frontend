@@ -21,7 +21,6 @@ import {
   MdContentCopy as IconCopy,
   MdCheck as IconCheck,
 } from 'react-icons/md';
-import { table } from 'console';
 import { useState } from 'react';
 import { FiDownload } from 'react-icons/fi';
 
@@ -48,17 +47,28 @@ const isQueryResponse = (obj: any): obj is QueryResponse => {
   );
 };
 
-const extractData = (data: QueryResponse, index: string): FileData[] => {
-  if (data === undefined || data === null) return [];
+const extractData = (
+  data: QueryResponse,
+  index: string | undefined,
+): FileData[] => {
+  console.log('EXTRACT:', data);
+  console.log('INDEX: ', index);
+  if (
+    data === undefined ||
+    data === null ||
+    index === undefined ||
+    index === null
+  )
+    return [];
   if (data.data === undefined || data.data === null) return [];
 
-  return Array.isArray(data.data['file']) && data.data['file'].length > 0
-    ? data.data['file']
+  return Array.isArray(data.data[index]) && data.data[index].length > 0
+    ? data.data[index]
     : [];
 };
 
-export const ResourceDetailsPanel = ({
-  id,
+export const ResearchSubjectDetailPanel = ({
+  id, // The table value corresponding to the column name 'idField'
   index,
   tableConfig,
   onClose,
@@ -73,10 +83,11 @@ export const ResourceDetailsPanel = ({
     .map(([alias, field]) => `${alias}: ${field}`)
     .join('\n');
 
+  // The filters in this query assume that the patient ID is unique across all other projects.
   const { data, isLoading, isError } = useGeneralGQLQuery({
     query: `query ($filter: JSON) {
-        ${nodeType} (filter: $filter,  accessibility: all) {
-        ${ProcessedNodeFields}
+              ${nodeType} (filter: $filter,  accessibility: all) {
+              ${ProcessedNodeFields}
         }
       }`,
     variables: {
@@ -101,7 +112,7 @@ export const ResourceDetailsPanel = ({
   if (isError) {
     return <ErrorCard message={'Error occurred while fetching data'} />;
   }
-  const queryData = isQueryResponse(data) ? extractData(data, index) : [];
+  const queryData = isQueryResponse(data) ? extractData(data, nodeType) : [];
 
   const totalFiles = queryData.length;
   const currentFileData = queryData[currentFileIndex] || {};
@@ -115,7 +126,7 @@ export const ResourceDetailsPanel = ({
           <Text fw={500}>{field}</Text>
         </Table.Td>
         <Table.Td>
-          {field === 'File Download' ? (
+          {field === 'Id' ? (
             <div className="flex">
               <div className="px-2">
                 <FiDownload title="download" size={16} />
@@ -166,22 +177,20 @@ export const ResourceDetailsPanel = ({
           <Table.Tbody>{rows}</Table.Tbody>
         </Table>
       </ScrollArea.Autosize>
-      {totalFiles > 1 ? (
-        <div className="py-3">
-          <Group justify="right">
-            <Button onClick={handlePrevFile} disabled={currentFileIndex === 0}>
-              Previous
-            </Button>
-            <Text>{`${currentFileIndex + 1} / ${totalFiles}`}</Text>
-            <Button
-              onClick={handleNextFile}
-              disabled={currentFileIndex === totalFiles - 1}
-            >
-              Next
-            </Button>
-          </Group>
-        </div>
-      ) : null}
+      <div className="py-3">
+        <Group justify="right">
+          <Button onClick={handlePrevFile} disabled={currentFileIndex === 0}>
+            Previous
+          </Button>
+          <Text>{`${currentFileIndex + 1} / ${totalFiles}`}</Text>
+          <Button
+            onClick={handleNextFile}
+            disabled={currentFileIndex === totalFiles - 1}
+          >
+            Next
+          </Button>
+        </Group>
+      </div>
       <Group justify="right">
         <CopyButton
           value={JSON.stringify(queryData[currentFileIndex])}
@@ -213,9 +222,9 @@ export const ResourceDetailsPanel = ({
   );
 };
 
-export const registerCustomExplorerResourceDetailsPanels = () => {
+export const registerCustomExplorerResearchSubjectDetailsPanels = () => {
   ExplorerTableDetailsPanelFactory().registerRendererCatalog({
     // NOTE: The catalog name must be tableDetails
-    tableDetails: { resourceDetails: ResourceDetailsPanel }, // TODO: add simpler registration function that ensures the catalog name is tableDetails
+    tableDetails: { researchSubject: ResearchSubjectDetailPanel }, // TODO: add simpler registration function that ensures the catalog name is tableDetails
   });
 };
