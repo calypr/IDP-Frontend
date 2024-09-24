@@ -4,6 +4,7 @@ import {
   LoadingOverlay,
   Stack,
   Table,
+  Title,
   Text,
   CopyButton,
   ActionIcon,
@@ -16,6 +17,7 @@ import {
   ErrorCard,
   type TableDetailsPanelProps,
   ExplorerTableDetailsPanelFactory,
+  PieChart,
 } from '@gen3/frontend';
 import {
   MdContentCopy as IconCopy,
@@ -50,9 +52,8 @@ const isQueryResponse = (obj: any): obj is QueryResponse => {
 const extractData = (
   data: QueryResponse,
   index: string | undefined,
+  aggregation_val: string,
 ): FileData[] => {
-  console.log('EXTRACT:', data);
-  console.log('INDEX: ', index);
   if (
     data === undefined ||
     data === null ||
@@ -61,10 +62,131 @@ const extractData = (
   )
     return [];
   if (data.data === undefined || data.data === null) return [];
-
+  if (aggregation_val !== '') {
+    return Array.isArray(
+      data.data._aggregation[index][aggregation_val].histogram,
+    ) && data.data._aggregation[index][aggregation_val].histogram.length > 0
+      ? data.data._aggregation[index][aggregation_val].histogram
+      : [];
+  }
   return Array.isArray(data.data[index]) && data.data[index].length > 0
     ? data.data[index]
     : [];
+};
+
+const AssociatedFilesChart = ({ identifiers }: { identifiers: string }) => {
+  const { data, isLoading, isError } = useGeneralGQLQuery({
+    query: `query ($filter: JSON) {
+              file (filter: $filter, accessibility: all) {
+          	  	id
+                title
+              }
+            } `,
+    variables: {
+      filter: {
+        AND: [
+          {
+            IN: {
+              specimen_identifier: [identifiers],
+            },
+          },
+        ],
+      },
+    },
+  });
+
+  if (isError) {
+    return <ErrorCard message={'Error occurred while fetching data'} />;
+  }
+  const resData = isQueryResponse(data) ? extractData(data, 'file', '') : [];
+  return (
+    <Stack>
+      <LoadingOverlay visible={isLoading} />
+      {resData.length > 0 && (
+        <div className="text-primary">
+          <Title className="text-lg p-5 text-center">
+            Specimen Identifier {identifiers} files
+          </Title>
+          <Table>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Title</Table.Th>
+                <Table.Th>Download</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {resData.map((element) => (
+                <Table.Tr key={element.id}>
+                  <Table.Td>{element.title}</Table.Td>
+                  <Table.Td>
+                    <div className="flex">
+                      <div className="px-2">
+                        <FiDownload title="download" size={16} />
+                      </div>
+                      <Anchor
+                        c="accent.1"
+                        href={`${GEN3_FENCE_API}/user/data/download/${
+                          element.id ? (element.id as string) : ''
+                        }?redirect=true`}
+                        target="_blank"
+                      >
+                        {element.id ? (element.id as string) : ''}
+                      </Anchor>
+                    </div>
+                  </Table.Td>
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+        </div>
+      )}
+    </Stack>
+  );
+};
+
+const SpecimenAggregationCountsChart = ({
+  identifiers,
+}: {
+  identifiers: string[];
+}) => {
+  const { data, isLoading, isError } = useGeneralGQLQuery({
+    query: `query ($filter: JSON) {
+              _aggregation{
+                file (filter: $filter, accessibility: all) {
+                 	product_notes_project_id{
+                      histogram{
+                        key
+                        count
+                      }
+                  }
+                }
+              }
+            }`,
+    variables: {
+      filter: {
+        AND: [
+          {
+            IN: {
+              specimen_identifier: identifiers,
+            },
+          },
+        ],
+      },
+    },
+  });
+
+  if (isError) {
+    return <ErrorCard message={'Error occurred while fetching data'} />;
+  }
+  const resData = isQueryResponse(data)
+    ? extractData(data, 'file', 'product_notes_project_id')
+    : [];
+  return (
+    <Stack>
+      <LoadingOverlay visible={isLoading} />
+      {resData && <PieChart data={resData} />}
+    </Stack>
+  );
 };
 
 export const ResearchSubjectDetailPanel = ({
@@ -112,8 +234,16 @@ export const ResearchSubjectDetailPanel = ({
   if (isError) {
     return <ErrorCard message={'Error occurred while fetching data'} />;
   }
-  const queryData = isQueryResponse(data) ? extractData(data, nodeType) : [];
+  const queryData = isQueryResponse(data)
+    ? extractData(data, nodeType, '')
+    : [];
 
+  const querySpecimenIdentifiers = queryData.map(
+    (queryData) => queryData.Identifier,
+  );
+
+  const totalIdentifiers = querySpecimenIdentifiers.length;
+  console.log('TOTAL IDENTIFIERS: ', totalIdentifiers);
   const totalFiles = queryData.length;
   const currentFileData = queryData[currentFileIndex] || {};
 
@@ -126,24 +256,7 @@ export const ResearchSubjectDetailPanel = ({
           <Text fw={500}>{field}</Text>
         </Table.Td>
         <Table.Td>
-          {field === 'Id' ? (
-            <div className="flex">
-              <div className="px-2">
-                <FiDownload title="download" size={16} />
-              </div>
-              <Anchor
-                c="accent.1"
-                href={`${GEN3_FENCE_API}/user/data/download/${
-                  value ? (value as string) : ''
-                }?redirect=true`}
-                target="_blank"
-              >
-                {value ? (value as string) : ''}
-              </Anchor>
-            </div>
-          ) : (
-            <Text>{value ? (value as string) : ''}</Text>
-          )}
+          <Text>{value ? (value as string) : ''}</Text>
         </Table.Td>
       </Table.Tr>
     );
@@ -167,15 +280,21 @@ export const ResearchSubjectDetailPanel = ({
     <Stack>
       <LoadingOverlay visible={isLoading} />
       <ScrollArea.Autosize maw={1200} mx="auto">
+        <SpecimenAggregationCountsChart
+          identifiers={querySpecimenIdentifiers}
+        />
         <Table withTableBorder withColumnBorders>
           <Table.Thead>
             <Table.Tr>
-              <Table.Th>Field</Table.Th>
-              <Table.Th>Value</Table.Th>
+              <Table.Th>Sample</Table.Th>
+              <Table.Th>Value </Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>{rows}</Table.Tbody>
         </Table>
+        <AssociatedFilesChart
+          identifiers={querySpecimenIdentifiers[currentFileIndex]}
+        />
       </ScrollArea.Autosize>
       <div className="py-3">
         <Group justify="right">

@@ -21,7 +21,6 @@ import {
   MdContentCopy as IconCopy,
   MdCheck as IconCheck,
 } from 'react-icons/md';
-import { table } from 'console';
 import { useState } from 'react';
 import { FiDownload } from 'react-icons/fi';
 
