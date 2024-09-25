@@ -1,10 +1,8 @@
 import {
-  Anchor,
   Group,
   LoadingOverlay,
   Stack,
   Table,
-  Title,
   Text,
   CopyButton,
   ActionIcon,
@@ -12,167 +10,30 @@ import {
   Button,
   ScrollArea,
 } from '@mantine/core';
-import { useGeneralGQLQuery, GEN3_FENCE_API } from '@gen3/core';
+import { useGeneralGQLQuery } from '@gen3/core';
 import {
   ErrorCard,
   type TableDetailsPanelProps,
   ExplorerTableDetailsPanelFactory,
-  PieChart,
 } from '@gen3/frontend';
 import {
   MdContentCopy as IconCopy,
   MdCheck as IconCheck,
 } from 'react-icons/md';
 import { useState } from 'react';
-import { FiDownload } from 'react-icons/fi';
-import { QueryResponse } from './types';
+import {
+  AssociatedFilesTable,
+  AssociatedFilesText,
+  UniqueAssociatedValsForSpecimen,
+} from './ResearchSubjectModal/AssociatedFiles';
+import { SpecimenAggregationCountsChart } from './ResearchSubjectModal/AssociatedSpecimen';
+import { isQueryResponse, extractData } from './ResearchSubjectModal/tools';
 /**
  * Checks if the given object is a QueryResponse.
  *
  * @param {any} obj - The object to be checked.
  * @returns {boolean} Returns true if the object is a QueryResponse, false otherwise.
  */
-const isQueryResponse = (obj: any): obj is QueryResponse => {
-  // Considering that the data property can be optional
-  return (
-    typeof obj === 'object' &&
-    (obj.data === undefined || typeof obj.data === 'object')
-  );
-};
-
-function extractData(
-  response: QueryResponse,
-  index: string,
-  aggregation_val: string,
-) {
-  if (aggregation_val !== '') {
-    const aggregationData = response.data._aggregation[index]; // Access using string key
-    if (aggregationData && aggregation_val in aggregationData) {
-      const histogram = aggregationData[aggregation_val]?.histogram;
-      return Array.isArray(histogram) && histogram.length > 0 ? histogram : [];
-    }
-  }
-  // Handle the case for data without aggregation
-  return Array.isArray(response.data[index]) && response.data[index].length > 0
-    ? response.data[index]
-    : [];
-}
-
-const AssociatedFilesChart = ({ identifiers }: { identifiers: string }) => {
-  const { data, isLoading, isError } = useGeneralGQLQuery({
-    query: `query ($filter: JSON) {
-              file (filter: $filter, accessibility: all) {
-          	  	id
-                title
-              }
-            } `,
-    variables: {
-      filter: {
-        AND: [
-          {
-            IN: {
-              specimen_identifier: [identifiers],
-            },
-          },
-        ],
-      },
-    },
-  });
-
-  if (isError) {
-    return <ErrorCard message={'Error occurred while fetching data'} />;
-  }
-  const resData = isQueryResponse(data) ? extractData(data, 'file', '') : [];
-  return (
-    <Stack>
-      <LoadingOverlay visible={isLoading} />
-      {resData.length > 0 && (
-        <div className="text-primary">
-          <Title className="text-lg p-5 text-center">
-            Specimen Identifier {identifiers} files
-          </Title>
-          <Table>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Title</Table.Th>
-                <Table.Th>Download</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {resData.map((element) => (
-                <Table.Tr key={element.id}>
-                  <Table.Td>{element.title}</Table.Td>
-                  <Table.Td>
-                    <div className="flex">
-                      <div className="px-2">
-                        <FiDownload title="download" size={16} />
-                      </div>
-                      <Anchor
-                        c="accent.1"
-                        href={`${GEN3_FENCE_API}/user/data/download/${
-                          element.id ? (element.id as string) : ''
-                        }?redirect=true`}
-                        target="_blank"
-                      >
-                        {element.id ? (element.id as string) : ''}
-                      </Anchor>
-                    </div>
-                  </Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        </div>
-      )}
-    </Stack>
-  );
-};
-
-const SpecimenAggregationCountsChart = ({
-  identifiers,
-}: {
-  identifiers: string[];
-}) => {
-  const { data, isLoading, isError } = useGeneralGQLQuery({
-    query: `query ($filter: JSON) {
-              _aggregation{
-                file (filter: $filter, accessibility: all) {
-                 	product_notes_project_id{
-                      histogram{
-                        key
-                        count
-                      }
-                  }
-                }
-              }
-            }`,
-    variables: {
-      filter: {
-        AND: [
-          {
-            IN: {
-              specimen_identifier: identifiers,
-            },
-          },
-        ],
-      },
-    },
-  });
-
-  if (isError) {
-    return <ErrorCard message={'Error occurred while fetching data'} />;
-  }
-  const resData = isQueryResponse(data)
-    ? extractData(data, 'file', 'product_notes_project_id')
-    : [];
-  // Not sure what the total arg is doing
-  return (
-    <Stack>
-      <LoadingOverlay visible={isLoading} />
-      {resData && <PieChart total={1} data={resData} />}
-    </Stack>
-  );
-};
 
 export const ResearchSubjectDetailPanel = ({
   id, // The table value corresponding to the column name 'idField'
@@ -192,7 +53,7 @@ export const ResearchSubjectDetailPanel = ({
   // The filters in this query assume that the patient ID is unique across all other projects.
   const { data, isLoading, isError } = useGeneralGQLQuery({
     query: `query ($filter: JSON) {
-              ${nodeType} (filter: $filter,  accessibility: all) {
+              ${nodeType} (filter: $filter,  accessibility: all, first: 10000) {
               ${ProcessedNodeFields}
         }
       }`,
@@ -262,6 +123,11 @@ export const ResearchSubjectDetailPanel = ({
     <Stack>
       <LoadingOverlay visible={isLoading} />
       <ScrollArea.Autosize maw={1200} mx="auto">
+        <UniqueAssociatedValsForSpecimen
+          identifiers={querySpecimenIdentifiers}
+          asoc_val={'product_notes_sequencing_site'}
+        />
+        <AssociatedFilesText identifiers={querySpecimenIdentifiers} />
         <SpecimenAggregationCountsChart
           identifiers={querySpecimenIdentifiers}
         />
@@ -274,7 +140,7 @@ export const ResearchSubjectDetailPanel = ({
           </Table.Thead>
           <Table.Tbody>{rows}</Table.Tbody>
         </Table>
-        <AssociatedFilesChart
+        <AssociatedFilesTable
           identifiers={querySpecimenIdentifiers[currentFileIndex]}
         />
       </ScrollArea.Autosize>
