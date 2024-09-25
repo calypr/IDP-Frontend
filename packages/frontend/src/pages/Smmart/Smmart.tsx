@@ -34,9 +34,8 @@ const SmmartPage = ({
           </div>
           <Grid gutter="md" className="p-3">
             {smmartConfig.smmartCards.map((project, index) => (
-              <Grid.Col span={4}>
+              <Grid.Col key={index} span={4}>
                 <ProjectCard
-                  key={index}
                   title={project.title}
                   description={project.description}
                   icon={project.icon}

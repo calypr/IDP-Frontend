@@ -25,16 +25,7 @@ import {
 } from 'react-icons/md';
 import { useState } from 'react';
 import { FiDownload } from 'react-icons/fi';
-
-// a definition of the query response
-interface QueryResponse {
-  data?: Record<string, Array<any>>;
-}
-
-interface FileData {
-  [key: string]: any;
-}
-
+import { QueryResponse } from './types';
 /**
  * Checks if the given object is a QueryResponse.
  *
@@ -49,30 +40,23 @@ const isQueryResponse = (obj: any): obj is QueryResponse => {
   );
 };
 
-const extractData = (
-  data: QueryResponse,
-  index: string | undefined,
+function extractData(
+  response: QueryResponse,
+  index: string,
   aggregation_val: string,
-): FileData[] => {
-  if (
-    data === undefined ||
-    data === null ||
-    index === undefined ||
-    index === null
-  )
-    return [];
-  if (data.data === undefined || data.data === null) return [];
+) {
   if (aggregation_val !== '') {
-    return Array.isArray(
-      data.data._aggregation[index][aggregation_val].histogram,
-    ) && data.data._aggregation[index][aggregation_val].histogram.length > 0
-      ? data.data._aggregation[index][aggregation_val].histogram
-      : [];
+    const aggregationData = response.data._aggregation[index]; // Access using string key
+    if (aggregationData && aggregation_val in aggregationData) {
+      const histogram = aggregationData[aggregation_val]?.histogram;
+      return Array.isArray(histogram) && histogram.length > 0 ? histogram : [];
+    }
   }
-  return Array.isArray(data.data[index]) && data.data[index].length > 0
-    ? data.data[index]
+  // Handle the case for data without aggregation
+  return Array.isArray(response.data[index]) && response.data[index].length > 0
+    ? response.data[index]
     : [];
-};
+}
 
 const AssociatedFilesChart = ({ identifiers }: { identifiers: string }) => {
   const { data, isLoading, isError } = useGeneralGQLQuery({
@@ -181,17 +165,17 @@ const SpecimenAggregationCountsChart = ({
   const resData = isQueryResponse(data)
     ? extractData(data, 'file', 'product_notes_project_id')
     : [];
+  // Not sure what the total arg is doing
   return (
     <Stack>
       <LoadingOverlay visible={isLoading} />
-      {resData && <PieChart data={resData} />}
+      {resData && <PieChart total={1} data={resData} />}
     </Stack>
   );
 };
 
 export const ResearchSubjectDetailPanel = ({
   id, // The table value corresponding to the column name 'idField'
-  index,
   tableConfig,
   onClose,
 }: TableDetailsPanelProps) => {
@@ -235,15 +219,13 @@ export const ResearchSubjectDetailPanel = ({
     return <ErrorCard message={'Error occurred while fetching data'} />;
   }
   const queryData = isQueryResponse(data)
-    ? extractData(data, nodeType, '')
+    ? extractData(data, nodeType ?? '', '')
     : [];
 
   const querySpecimenIdentifiers = queryData.map(
     (queryData) => queryData.Identifier,
   );
 
-  const totalIdentifiers = querySpecimenIdentifiers.length;
-  console.log('TOTAL IDENTIFIERS: ', totalIdentifiers);
   const totalFiles = queryData.length;
   const currentFileData = queryData[currentFileIndex] || {};
 

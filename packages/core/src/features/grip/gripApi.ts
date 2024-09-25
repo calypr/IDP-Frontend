@@ -76,7 +76,7 @@ export const gripApiFetch = async <T>(
       ...(accessToken && { 'Authorization': `bearer ${accessToken}` }),
     };
 
-    console.log("HEADERS: ", headers);
+    console.log('HEADERS: ', headers);
     try {
       const results = await gripApiFetch(request, headers);
       return { data: results };

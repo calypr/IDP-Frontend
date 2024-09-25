@@ -166,7 +166,7 @@ const useCountsFromField = (resourceType: string, countsProperty: string) => {
       {typeof totalCountsData === 'number' ? (
         totalCountsData
       ) : (
-        <>{'missing data'}</>
+        <React.Fragment>{'missing data'}</React.Fragment>
       )}
     </div>
   );
@@ -189,7 +189,7 @@ const SummaryCounts = (countsProperty: string) => {
       {typeof totalCountsData === 'number' ? (
         totalCountsData
       ) : (
-        <>{'missing data'}</>
+        <React.Fragment>{'missing data'}</React.Fragment>
       )}
     </div>
   );

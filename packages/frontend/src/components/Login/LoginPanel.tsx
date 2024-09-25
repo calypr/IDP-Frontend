@@ -66,7 +66,7 @@ const LoginPanel = (loginConfig: LoginConfig) => {
           else {
             return (
               <TextContent {...content} key={index} />
-            )
+            );
           }
           })
         }

@@ -1,5 +1,6 @@
 import Document, { DocumentContext, DocumentInitialProps } from 'next/document';
 import { ColorSchemeScript } from '@mantine/core';
+import React from 'react';
 
 class Gen3Document extends Document {
   static async getInitialProps(
@@ -9,10 +10,10 @@ class Gen3Document extends Document {
     return {
       ...initialProps,
       styles: (
-        <>
+        <React.Fragment>
           {initialProps.styles}
           <ColorSchemeScript defaultColorScheme="auto" />
-        </>
+        </React.Fragment>
       ),
     };
   }

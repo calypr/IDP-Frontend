@@ -1,5 +1,5 @@
-import { getWebInstrumentations, initializeFaro, ReactIntegration } from "@grafana/faro-react";
-import { TracingInstrumentation } from "@grafana/faro-web-tracing";
+import { getWebInstrumentations, initializeFaro, ReactIntegration } from '@grafana/faro-react';
+import { TracingInstrumentation } from '@grafana/faro-web-tracing';
 
 // Get the current, runtime version of the App to surface to Faro
 // import packageJson from "../../package.json";
@@ -10,10 +10,10 @@ export const initGrafanaFaro = () => {
 
         app: {
             // TODO: Populate with real values.
-            name: "gen3-frontend-framework",
+            name: 'gen3-frontend-framework',
             //   version: packageJson.version,
-            version: "10.0.0",
-            environment: "local",
+            version: '10.0.0',
+            environment: 'local',
         },
 
         instrumentations: [

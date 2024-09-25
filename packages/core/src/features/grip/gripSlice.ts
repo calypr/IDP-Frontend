@@ -91,4 +91,4 @@ export const {
     useGetAllPatientIdsWithEncounterEdgeQuery,
     useGetAllPatientIdsWithSpecimenEdgeQuery,
     useGetAllPatientIdsWithDocumentEdgeQuery
-} = gripexplorerApi
+} = gripexplorerApi;

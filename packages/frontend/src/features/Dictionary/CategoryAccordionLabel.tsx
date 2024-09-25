@@ -8,7 +8,7 @@ interface CategoryLabelProps {
 const CategoryAccordionLabel = ({ label, description }: CategoryLabelProps) => {
   return (
     <Group
-      wrap='nowrap'
+      wrap="nowrap"
       className="odd:text-base-contrast-lightest even:bg-base-contrast-max"
     >
       <Text className="min-w-40 max-w-40" fw={600}>

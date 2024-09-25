@@ -61,7 +61,7 @@
                 "mode": "click",
                 "idField": "id",
                 "filterField": "specimen_id",
-                "title": "Files Associated with a Given Specimen",
+                "title": "identifier",
                 "nodeType": "file",
                 "nodeFields": {
                     "Title": "title",
@@ -137,7 +137,7 @@
                 "mode": "click",
                 "idField": "subject_id",
                 "filterField": "patient_id",
-                "title": "TODO FIGURE OUT HOW TO MAP THIS",
+                "title": "identifier",
                 "nodeType": "specimen",
                 "nodeFields": {
                     "Collection_Site": "collection",
@@ -207,7 +207,7 @@
                 "idField": "id",
                 "filterField": "id",
                 "nodeType": "file",
-                "title": "File Details",
+                "title": "title",
                 "nodeFields": {
                     "Title": "title",
                     "Content_Type": "contentType",
