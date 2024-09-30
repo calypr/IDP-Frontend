@@ -4,15 +4,17 @@ import { ErrorCard, PieChart } from '@gen3/frontend';
 import { Stack, LoadingOverlay } from '@mantine/core';
 
 export const SpecimenAggregationCountsChart = ({
+  aggField,
   identifiers,
 }: {
+  aggField: string;
   identifiers: string[];
 }) => {
   const { data, isLoading, isError } = useGeneralGQLQuery({
     query: `query ($filter: JSON) {
               _aggregation{
                 file (filter: $filter, accessibility: all) {
-                 	product_notes_project_id{
+                 	${aggField}{
                       histogram{
                         key
                         count
@@ -38,7 +40,7 @@ export const SpecimenAggregationCountsChart = ({
     return <ErrorCard message={'Error occurred while fetching data'} />;
   }
   const resData = isQueryResponse(data)
-    ? extractData(data, 'file', 'product_notes_project_id')
+    ? extractData(data, 'file', aggField)
     : [];
   // Not sure what the total arg is doing
   return (

@@ -7,7 +7,7 @@ import {
   Text,
 } from '@mantine/core';
 import { ErrorCard } from '@gen3/frontend';
-import { useGeneralGQLQuery, GEN3_FENCE_API } from '@gen3/core';
+import { useGeneralGQLQuery, GEN3_FENCE_API, JSONObject } from '@gen3/core';
 import { FiDownload } from 'react-icons/fi';
 import { isQueryResponse, extractData } from './tools';
 import { useMemo } from 'react';
@@ -18,8 +18,10 @@ export const useFilesQuery = (identifiers: string[]) => {
               file (filter: $filter, accessibility: all, first: 10000) {
                 id
                 title
+                data_category
+                experimental_strategy
+                specimen_indexed_collection_date_days
                 product_notes_sequencing_site
-
               }
             }`,
     variables: {
@@ -63,32 +65,85 @@ export const UniqueAssociatedValsForSpecimen = ({
     ', ',
   );
 
-  return (
-    <div>
-      <LoadingOverlay visible={isLoading} />
-      <Text> {ResourceList}</Text>
-    </div>
-  );
+  return ResourceList;
 };
 
 export const AssociatedFilesText = ({
   identifiers,
+  asoc_val,
 }: {
   identifiers: string[];
+  asoc_val: string;
 }) => {
   const { resData, isLoading, isError } = useFilesQuery(identifiers);
   // Return the length, loading, and error status
   if (isError) {
     return <Text> Error occurred while fetching data </Text>;
   }
+  const vals = UniqueAssociatedValsForSpecimen({
+    identifiers: identifiers,
+    asoc_val: asoc_val,
+  });
 
   return (
     <div>
       <LoadingOverlay visible={isLoading} />
-      <Text>
-        Total of {resData.length} Files / {identifiers.length} Annotations
+      <Text className="whitespace-nowrap">
+        {identifiers.length} Annotations, {resData.length} Files From {vals}
       </Text>
     </div>
+  );
+};
+
+export const AssociatedAssaysTable = ({
+  identifiers,
+  //identifierIndexdDaysMap,
+}: {
+  identifiers: string[];
+  //identifierIndexdDaysMap: Record<string, any>;
+}) => {
+  const { resData, isLoading, isError } = useFilesQuery(identifiers);
+
+  if (isError) {
+    return <ErrorCard message={'Error occurred while fetching data'} />;
+  }
+
+  const filteredResources = resData.toSorted((a: JSONObject, b: JSONObject) => {
+    const left = a['specimen_indexed_collection_date_days'] as number;
+    const right = b['specimen_indexed_collection_date_days'] as number;
+    return left - right;
+  });
+
+  return (
+    <Stack>
+      <LoadingOverlay visible={isLoading} />
+      {resData.length > 0 && (
+        <div className="text-primary">
+          <Table>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>File Name</Table.Th>
+                <Table.Th>Assay</Table.Th>
+                <Table.Th>IndexdDays</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {filteredResources.map((element) => (
+                <Table.Tr
+                  key={`${element.experimental_strategy}-${element.title}`}
+                >
+                  <Table.Td>{element.title}</Table.Td>
+                  <Table.Td>{element.experimental_strategy}</Table.Td>
+                  <Table.Td>
+                    {element.specimen_indexed_collection_date_days}
+                  </Table.Td>
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+        </div>
+      )}
+    </Stack>
   );
 };
 
@@ -120,7 +175,7 @@ export const AssociatedFilesTable = ({
             </Table.Thead>
             <Table.Tbody>
               {resData.map((element) => (
-                <Table.Tr key={element.id}>
+                <Table.Tr key={element.title}>
                   <Table.Td>{element.title}</Table.Td>
                   <Table.Td>
                     <div className="flex">

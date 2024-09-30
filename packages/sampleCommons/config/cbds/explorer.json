@@ -38,6 +38,7 @@
             "fields": [
                 "identifier",
                 "indexed_collection_date_days",
+                "sample_family_id",
                 "biopsy_anatomical_location",
                 "processing",
                 "collection",
@@ -108,7 +109,8 @@
             "tabs": [
                 {
                     "fields": [
-                        "project_id"
+                        "project_id",
+                        "condition_Diagnosis"
                     ]
                 }
             ]
@@ -122,25 +124,28 @@
                 "identifier": {
                     "title": "Research Subject ID"
                 },
-                "subject_id": {
+                "patient_id": {
                     "title": "Patient ID"
                 }
             },
             "fields": [
                 "project_id",
                 "identifier",
-                "subject_id",
+                "condition_Diagnosis",
+                "patient_id",
                 "id"
             ],
             "detailsConfig": {
                 "panel": "researchSubject",
                 "mode": "click",
-                "idField": "subject_id",
+                "idField": "patient_id",
                 "filterField": "patient_id",
                 "title": "identifier",
                 "nodeType": "specimen",
                 "nodeFields": {
                     "Collection_Site": "collection",
+                    "Indexd_Collection_Date_Days": "indexed_collection_date_days",
+                    "Sample_Family_Id": "sample_family_id",
                     "Histology": "histology",
                     "Tumor_Purity": "percent_tumor",
                     "Procedure": "biopsy_procedure_type",

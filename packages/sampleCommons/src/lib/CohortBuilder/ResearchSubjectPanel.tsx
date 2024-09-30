@@ -9,6 +9,7 @@ import {
   Tooltip,
   Button,
   ScrollArea,
+  Grid,
 } from '@mantine/core';
 import { useGeneralGQLQuery } from '@gen3/core';
 import {
@@ -20,13 +21,13 @@ import {
   MdContentCopy as IconCopy,
   MdCheck as IconCheck,
 } from 'react-icons/md';
-import { useState } from 'react';
+import React, { useState } from 'react';
 import {
-  AssociatedFilesTable,
   AssociatedFilesText,
   UniqueAssociatedValsForSpecimen,
 } from './ResearchSubjectModal/AssociatedFiles';
 import { SpecimenAggregationCountsChart } from './ResearchSubjectModal/AssociatedSpecimen';
+import { TimeSeriesAssaySummaryModal } from './ResearchSubjectModal/TimeSeriesModal';
 import { isQueryResponse, extractData } from './ResearchSubjectModal/tools';
 /**
  * Checks if the given object is a QueryResponse.
@@ -41,6 +42,7 @@ export const ResearchSubjectDetailPanel = ({
   onClose,
 }: TableDetailsPanelProps) => {
   const [currentFileIndex, setCurrentFileIndex] = useState(0);
+
   const idField = tableConfig.detailsConfig?.idField;
   const nodeType = tableConfig.detailsConfig?.nodeType;
   const nodeFields = tableConfig.detailsConfig?.nodeFields;
@@ -87,6 +89,11 @@ export const ResearchSubjectDetailPanel = ({
     (queryData) => queryData.Identifier,
   );
 
+  /*const querySpecimenIdentifierIndexdDays = queryData.reduce((acc, item) => {
+    acc[item.Identifier] = item.Indexd_Collection_Date_Days;
+    return acc;
+    }, {});*/
+
   const totalFiles = queryData.length;
   const currentFileData = queryData[currentFileIndex] || {};
 
@@ -118,31 +125,44 @@ export const ResearchSubjectDetailPanel = ({
       setCurrentFileIndex(currentFileIndex + 1);
     }
   };
-
   return totalFiles > 0 ? (
-    <Stack>
+    <React.Fragment>
       <LoadingOverlay visible={isLoading} />
       <ScrollArea.Autosize maw={1200} mx="auto">
-        <UniqueAssociatedValsForSpecimen
-          identifiers={querySpecimenIdentifiers}
-          asoc_val={'product_notes_sequencing_site'}
-        />
-        <AssociatedFilesText identifiers={querySpecimenIdentifiers} />
-        <SpecimenAggregationCountsChart
-          identifiers={querySpecimenIdentifiers}
-        />
-        <Table withTableBorder withColumnBorders>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Sample</Table.Th>
-              <Table.Th>Value </Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>{rows}</Table.Tbody>
-        </Table>
-        <AssociatedFilesTable
-          identifiers={querySpecimenIdentifiers[currentFileIndex]}
-        />
+        <div className="flex">
+          <div className="flex-grow">
+            <TimeSeriesAssaySummaryModal
+              identifiers={querySpecimenIdentifiers}
+            />
+          </div>
+          <div className="ml-auto">
+            <AssociatedFilesText
+              identifiers={querySpecimenIdentifiers}
+              asoc_val="product_notes_sequencing_site"
+            />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="flex flex-col gap-2">
+            <SpecimenAggregationCountsChart
+              identifiers={querySpecimenIdentifiers}
+              aggField={'data_category'}
+            />
+            <SpecimenAggregationCountsChart
+              identifiers={querySpecimenIdentifiers}
+              aggField={'experimental_strategy'}
+            />
+          </div>
+          <Table withTableBorder withColumnBorders>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Sample</Table.Th>
+                <Table.Th>Value </Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>{rows}</Table.Tbody>
+          </Table>
+        </div>
       </ScrollArea.Autosize>
       <div className="py-3">
         <Group justify="right">
@@ -178,7 +198,7 @@ export const ResearchSubjectDetailPanel = ({
 
         <Button onClick={() => onClose && onClose(id)}>Close</Button>
       </Group>
-    </Stack>
+    </React.Fragment>
   ) : (
     <div className="px-6">
       <Text>
