@@ -9,6 +9,7 @@ import {
   Tooltip,
   Button,
   ScrollArea,
+  Space,
   Grid,
 } from '@mantine/core';
 import { useGeneralGQLQuery } from '@gen3/core';
@@ -22,10 +23,7 @@ import {
   MdCheck as IconCheck,
 } from 'react-icons/md';
 import React, { useState } from 'react';
-import {
-  AssociatedFilesText,
-  UniqueAssociatedValsForSpecimen,
-} from './ResearchSubjectModal/AssociatedFiles';
+import { AssociatedFilesText } from './ResearchSubjectModal/AssociatedFiles';
 import { SpecimenAggregationCountsChart } from './ResearchSubjectModal/AssociatedSpecimen';
 import { TimeSeriesAssaySummaryModal } from './ResearchSubjectModal/TimeSeriesModal';
 import { isQueryResponse, extractData } from './ResearchSubjectModal/tools';
@@ -38,6 +36,7 @@ import { isQueryResponse, extractData } from './ResearchSubjectModal/tools';
 
 export const ResearchSubjectDetailPanel = ({
   id, // The table value corresponding to the column name 'idField'
+  row,
   tableConfig,
   onClose,
 }: TableDetailsPanelProps) => {
@@ -129,6 +128,30 @@ export const ResearchSubjectDetailPanel = ({
     <React.Fragment>
       <LoadingOverlay visible={isLoading} />
       <ScrollArea.Autosize maw={1200} mx="auto">
+        <div className="pb-5">
+          <Table withTableBorder withColumnBorders>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Clinical Trial </Table.Th>
+                <Table.Th>Condition Diagnosis</Table.Th>
+                <Table.Th> Patient Id </Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              <Table.Tr key={`${row._valuesCache.id}`}>
+                <Table.Td>
+                  <Text fw={500}>{row._valuesCache.project_id}</Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text>{row._valuesCache.condition_Diagnosis}</Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text>{row._valuesCache.patient_id}</Text>
+                </Table.Td>
+              </Table.Tr>
+            </Table.Tbody>
+          </Table>
+        </div>
         <div className="flex">
           <div className="flex-grow">
             <TimeSeriesAssaySummaryModal

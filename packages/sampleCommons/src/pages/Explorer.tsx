@@ -1,6 +1,8 @@
 import {
   ExplorerPage,
   ExplorerPageGetServerSideProps as getServerSideProps,
+  registerCohortBuilderDefaultPreviewRenderers,
+  registerExplorerDefaultCellRenderers,
 } from '@gen3/frontend';
 
 import { registerCohortTableCustomCellRenderers } from '@/lib/CohortBuilder/CustomCellRenderers';
@@ -8,6 +10,8 @@ import { registerCustomExplorerDetailsPanels } from '@/lib/CohortBuilder/FileDet
 import { registerCustomExplorerResourceDetailsPanels } from '@/lib/CohortBuilder/ResourceDetailsPanel';
 import { registerCustomExplorerResearchSubjectDetailsPanels } from '@/lib/CohortBuilder/ResearchSubjectPanel';
 
+registerExplorerDefaultCellRenderers();
+registerCohortBuilderDefaultPreviewRenderers();
 registerCohortTableCustomCellRenderers();
 registerCustomExplorerDetailsPanels();
 registerCustomExplorerResourceDetailsPanels();

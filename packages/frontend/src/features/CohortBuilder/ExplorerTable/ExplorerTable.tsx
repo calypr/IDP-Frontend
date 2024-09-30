@@ -70,7 +70,9 @@ const ExplorerTable = ({ index, tableConfig }: ExplorerTableProps) => {
 
   const [sorting, setSorting] = useState<MRT_SortingState>([]);
   const [rowSelection, setRowSelection] = useState<MRT_RowSelectionState>({});
-
+  const [selectedRow, setSelectedRow] = useState<
+    MRT_Row<Record<string, any>> | undefined
+  >(undefined);
   const DetailsPanel = useMemo(
     () =>
       ExplorerTableDetailsPanelFactory().getRenderer(
@@ -239,7 +241,7 @@ const ExplorerTable = ({ index, tableConfig }: ExplorerTableProps) => {
     mantineTableHeadCellProps: {
       style: {
         '--mrt-base-background-color': 'var(--mantine-color-table-1)',
-        color: 'var(--mantine-color-table-contrast-5\')',
+        color: "var(--mantine-color-table-contrast-5')",
       },
       // sx: (theme) => {
       //   return {
@@ -267,8 +269,10 @@ const ExplorerTable = ({ index, tableConfig }: ExplorerTableProps) => {
             onClick: () => {
               if (Object.keys(rowSelection).includes(row.id)) {
                 setRowSelection({});
+                setSelectedRow(undefined);
               } else {
                 setRowSelection({ [row.id as string]: true });
+                setSelectedRow(row as MRT_Row<JSONObject>);
               }
             },
             sx: {
@@ -298,6 +302,7 @@ const ExplorerTable = ({ index, tableConfig }: ExplorerTableProps) => {
               : undefined
           }
           onClose={() => setRowSelection({})}
+          row={selectedRow}
           panel={DetailsPanel}
           classNames={tableConfig?.detailsConfig?.classNames}
           panelProps={{
