@@ -12,14 +12,14 @@ import { type RegisteredIcons, type Fonts } from '../../lib/content/types';
 import { ModalsProvider } from '@mantine/modals';
 import { Notifications } from '@mantine/notifications';
 import { addCollection } from '@iconify/react';
-import { SessionConfiguration } from '../../lib/session/types';
+import { SessionConfig } from '../../lib/session/types';
 import { Gen3ModalsProvider, type ModalsConfig } from '../Modals';
 
 interface Gen3ProviderProps {
   colors: Record<string, TenStringArray>;
   icons: RegisteredIcons;
   fonts: Fonts;
-  sessionConfig: SessionConfiguration;
+  sessionConfig: SessionConfig;
   modalsConfig: ModalsConfig;
   children?: ReactNode | undefined;
 }
@@ -90,13 +90,14 @@ const Gen3Provider = ({
   }, [icons]);
 
   const theme = createMantineTheme(fonts, colors);
+  console.log('SESSION CONFIG IN GEN3PROVIDER:', sessionConfig);
 
   return (
     <CoreProvider>
       <MantineProvider theme={theme}>
         <ModalsProvider>
           <Notifications />
-          <SessionProvider {...sessionConfig}>
+          <SessionProvider sessionConfig={sessionConfig}>
             <Gen3ModalsProvider config={modalsConfig}>
               {children}
             </Gen3ModalsProvider>

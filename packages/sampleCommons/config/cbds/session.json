@@ -2,6 +2,8 @@
   "sessionConfig": {
     "updateSessionTime": 1440,
     "inactiveTimeLimit": 1440,
-    "logoutInactiveUsers": false
+    "logoutInactiveUsers": false,
+    "refetchOnWindowFocus": false,
+    "workspaceInactivityTimeLimit": 1440
   }
 }

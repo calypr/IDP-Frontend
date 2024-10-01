@@ -16,6 +16,10 @@ export interface Session extends AuthTokenData {
   pending: boolean;
 }
 
+export interface SessionConfig {
+  sessionConfig?: SessionConfiguration;
+}
+
 export interface SessionConfiguration {
   /**
    * A time interval (in minutes) after which the session will be re-fetched.
