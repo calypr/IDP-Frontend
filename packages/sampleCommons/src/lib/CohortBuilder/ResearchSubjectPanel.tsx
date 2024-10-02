@@ -138,15 +138,15 @@ export const ResearchSubjectDetailPanel = ({
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              <Table.Tr key={`${row._valuesCache.id}`}>
+              <Table.Tr key={`${row?._valuesCache.id}`}>
                 <Table.Td>
-                  <Text fw={500}>{row._valuesCache.project_id}</Text>
+                  <Text fw={500}>{row?._valuesCache.project_id}</Text>
                 </Table.Td>
                 <Table.Td>
-                  <Text>{row._valuesCache.condition_Diagnosis}</Text>
+                  <Text>{row?._valuesCache.condition_Diagnosis}</Text>
                 </Table.Td>
                 <Table.Td>
-                  <Text>{row._valuesCache.patient_id}</Text>
+                  <Text>{row?._valuesCache.patient_id}</Text>
                 </Table.Td>
               </Table.Tr>
             </Table.Tbody>
@@ -166,15 +166,29 @@ export const ResearchSubjectDetailPanel = ({
           </div>
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <div className="flex flex-col gap-2">
-            <SpecimenAggregationCountsChart
-              identifiers={querySpecimenIdentifiers}
-              aggField={'data_category'}
-            />
-            <SpecimenAggregationCountsChart
-              identifiers={querySpecimenIdentifiers}
-              aggField={'experimental_strategy'}
-            />
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col flex-grow">
+              <Text className="text-center pt-10">
+                File Counts by Data Category
+              </Text>
+              <div className="flex-grow">
+                <SpecimenAggregationCountsChart
+                  identifiers={querySpecimenIdentifiers}
+                  aggField={'data_category'}
+                />
+              </div>
+            </div>
+            <div className="flex flex-col flex-grow">
+              <Text className="text-center">
+                File Counts by Experimental Strategy
+              </Text>
+              <div className="flex-grow">
+                <SpecimenAggregationCountsChart
+                  identifiers={querySpecimenIdentifiers}
+                  aggField={'experimental_strategy'}
+                />
+              </div>
+            </div>
           </div>
           <Table withTableBorder withColumnBorders>
             <Table.Thead>

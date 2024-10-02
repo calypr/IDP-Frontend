@@ -90,7 +90,6 @@ const Gen3Provider = ({
   }, [icons]);
 
   const theme = createMantineTheme(fonts, colors);
-  console.log('SESSION CONFIG IN GEN3PROVIDER:', sessionConfig);
 
   return (
     <CoreProvider>

@@ -12,7 +12,7 @@ import {
   ContentSource,
   RegisteredIcons,
   Fonts,
-  SessionConfiguration,
+  type SessionConfig,
 } from '@gen3/frontend';
 import '../styles/globals.css';
 // import 'graphiql/graphiql.css';
@@ -38,7 +38,7 @@ interface Gen3AppProps {
   icons: RegisteredIcons;
   themeFonts: Fonts;
   modalsConfig: ModalsConfig;
-  sessionConfig: SessionConfiguration;
+  sessionConfig: SessionConfig;
 }
 
 const Gen3App = ({
@@ -68,7 +68,6 @@ const Gen3App = ({
 
   return (
     <FaroErrorBoundary>
-
       <Gen3Provider
         colors={colors}
         icons={icons}

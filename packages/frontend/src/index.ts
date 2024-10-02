@@ -13,7 +13,7 @@ export * from './utils/';
 
 import { getNavPageLayoutPropsFromConfig } from './lib/common/staticProps';
 import ContentSource from './lib/content';
-import { type SessionConfiguration } from './lib/session/types';
+import { SessionConfig, type SessionConfiguration } from './lib/session/types';
 import { type Fonts, type RegisteredIcons } from './lib/content/types';
 import ErrorCard from './components/ErrorCard';
 import '@gen3/core';
@@ -74,6 +74,7 @@ export {
   type Fonts,
   type RegisteredIcons,
   type SessionConfiguration,
+  type SessionConfig,
   ErrorCard,
   DiscoveryPage,
   DiscoveryPageGetServerSideProps,

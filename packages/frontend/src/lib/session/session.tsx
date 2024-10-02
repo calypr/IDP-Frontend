@@ -177,8 +177,6 @@ export const SessionProvider = ({
   const router = useRouter();
   const coreDispatch = useCoreDispatch();
 
-  console.log('Value of session: ', sessionConfig);
-
   const defaultConfig: SessionConfig = {
     sessionConfig: {
       updateSessionTime: 5,
