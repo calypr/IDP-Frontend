@@ -1,16 +1,14 @@
 import {
   Group,
   LoadingOverlay,
-  Stack,
   Table,
   Text,
+  Title,
   CopyButton,
   ActionIcon,
   Tooltip,
   Button,
   ScrollArea,
-  Space,
-  Grid,
 } from '@mantine/core';
 import { useGeneralGQLQuery } from '@gen3/core';
 import {
@@ -22,17 +20,11 @@ import {
   MdContentCopy as IconCopy,
   MdCheck as IconCheck,
 } from 'react-icons/md';
-import React, { useState } from 'react';
+import React from 'react';
 import { AssociatedFilesText } from './ResearchSubjectModal/AssociatedFiles';
 import { SpecimenAggregationCountsChart } from './ResearchSubjectModal/AssociatedSpecimen';
 import { TimeSeriesAssaySummaryModal } from './ResearchSubjectModal/TimeSeriesModal';
 import { isQueryResponse, extractData } from './ResearchSubjectModal/tools';
-/**
- * Checks if the given object is a QueryResponse.
- *
- * @param {any} obj - The object to be checked.
- * @returns {boolean} Returns true if the object is a QueryResponse, false otherwise.
- */
 
 export const ResearchSubjectDetailPanel = ({
   id, // The table value corresponding to the column name 'idField'
@@ -40,22 +32,25 @@ export const ResearchSubjectDetailPanel = ({
   tableConfig,
   onClose,
 }: TableDetailsPanelProps) => {
-  const [currentFileIndex, setCurrentFileIndex] = useState(0);
-
   const idField = tableConfig.detailsConfig?.idField;
   const nodeType = tableConfig.detailsConfig?.nodeType;
   const nodeFields = tableConfig.detailsConfig?.nodeFields;
   const filterField = tableConfig.detailsConfig?.filterField;
 
-  const ProcessedNodeFields = Object.entries(nodeFields ?? {})
+  const processedNodeFields = Object.entries(nodeFields ?? {})
     .map(([alias, field]) => `${alias}: ${field}`)
     .join('\n');
+
+  //const ordered_fields = Object.keys(nodeFields);
+  //(a, b) => {
+  //  return ordered_fields.indexOf(b) - ordered_fields.indexOf(a);
+  //}
 
   // The filters in this query assume that the patient ID is unique across all other projects.
   const { data, isLoading, isError } = useGeneralGQLQuery({
     query: `query ($filter: JSON) {
               ${nodeType} (filter: $filter,  accessibility: all, first: 10000) {
-              ${ProcessedNodeFields}
+              ${processedNodeFields}
         }
       }`,
     variables: {
@@ -81,53 +76,45 @@ export const ResearchSubjectDetailPanel = ({
     return <ErrorCard message={'Error occurred while fetching data'} />;
   }
   const queryData = isQueryResponse(data)
-    ? extractData(data, nodeType ?? '', '')
+    ? extractData(data, nodeType ?? '', '') || []
     : [];
 
   const querySpecimenIdentifiers = queryData.map(
     (queryData) => queryData.Identifier,
   );
-
-  /*const querySpecimenIdentifierIndexdDays = queryData.reduce((acc, item) => {
-    acc[item.Identifier] = item.Indexd_Collection_Date_Days;
-    return acc;
-    }, {});*/
-
   const totalFiles = queryData.length;
-  const currentFileData = queryData[currentFileIndex] || {};
 
-  // Render rows for the current file index
-  const rows = Object.entries(currentFileData).map(([RawField, value]) => {
-    const field = RawField.replace(/_/g, ' ');
-    return (
-      <Table.Tr key={`${currentFileIndex}-${field}`}>
-        <Table.Td>
-          <Text fw={500}>{field}</Text>
-        </Table.Td>
-        <Table.Td>
-          <Text>{value ? (value as string) : ''}</Text>
-        </Table.Td>
-      </Table.Tr>
-    );
-  });
+  const specimen_headers = Array.from(
+    new Set(queryData.flatMap((dict) => Object.keys(dict))),
+  )
+    .sort()
+    .map((key) => {
+      const field = key.replace(/_/g, ' ');
+      return (
+        <Table.Th key={field} className="text-sm">
+          {field}
+        </Table.Th>
+      );
+    });
 
-  // Handle previous file index
-  const handlePrevFile = () => {
-    if (currentFileIndex > 0) {
-      setCurrentFileIndex(currentFileIndex - 1);
-    }
-  };
+  const specimen_rows = queryData.map((fileData, fileIndex) => (
+    <Table.Tr key={fileIndex}>
+      {Object.entries(fileData)
+        .sort()
+        .map(([RawField, value]) => {
+          return (
+            <Table.Td className="text-sm" key={RawField}>
+              {value ? (value as string) : ''}
+            </Table.Td>
+          );
+        })}
+    </Table.Tr>
+  ));
 
-  // Handle next file index
-  const handleNextFile = () => {
-    if (currentFileIndex < totalFiles - 1) {
-      setCurrentFileIndex(currentFileIndex + 1);
-    }
-  };
   return totalFiles > 0 ? (
     <React.Fragment>
       <LoadingOverlay visible={isLoading} />
-      <ScrollArea.Autosize maw={1200} mx="auto">
+      <ScrollArea.Autosize mx="auto">
         <div className="pb-5">
           <Table withTableBorder withColumnBorders>
             <Table.Thead>
@@ -166,75 +153,65 @@ export const ResearchSubjectDetailPanel = ({
           </div>
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col flex-grow">
-              <Text className="text-center pt-10">
-                File Counts by Data Category
-              </Text>
-              <div className="flex-grow">
-                <SpecimenAggregationCountsChart
-                  identifiers={querySpecimenIdentifiers}
-                  aggField={'data_category'}
-                />
-              </div>
-            </div>
-            <div className="flex flex-col flex-grow">
-              <Text className="text-center">
-                File Counts by Experimental Strategy
-              </Text>
-              <div className="flex-grow">
-                <SpecimenAggregationCountsChart
-                  identifiers={querySpecimenIdentifiers}
-                  aggField={'experimental_strategy'}
-                />
-              </div>
+          <div className="flex flex-col">
+            <Title order={4} className="text-center pt-5">
+              File Counts by Data Category
+            </Title>
+            <div className="flex-grow">
+              <SpecimenAggregationCountsChart
+                identifiers={querySpecimenIdentifiers}
+                aggField={'data_category'}
+              />
             </div>
           </div>
-          <Table withTableBorder withColumnBorders>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Sample</Table.Th>
-                <Table.Th>Value </Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>{rows}</Table.Tbody>
-          </Table>
+          <div className="flex flex-col">
+            <Title order={4} className="text-center pt-5">
+              File Counts by Experimental Strategy
+            </Title>
+            <div className="flex-grow">
+              <SpecimenAggregationCountsChart
+                identifiers={querySpecimenIdentifiers}
+                aggField={'experimental_strategy'}
+              />
+            </div>
+          </div>
         </div>
+        <Table
+          withTableBorder
+          withColumnBorders
+          verticalSpacing="xs"
+          horizontalSpacing="xs"
+          className="text-sm"
+        >
+          <Table.Thead>
+            <Table.Tr>{specimen_headers}</Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>{specimen_rows}</Table.Tbody>
+        </Table>
       </ScrollArea.Autosize>
-      <div className="py-3">
+      <div className="pt-5">
         <Group justify="right">
-          <Button onClick={handlePrevFile} disabled={currentFileIndex === 0}>
-            Previous
-          </Button>
-          <Text>{`${currentFileIndex + 1} / ${totalFiles}`}</Text>
-          <Button
-            onClick={handleNextFile}
-            disabled={currentFileIndex === totalFiles - 1}
-          >
-            Next
-          </Button>
+          <CopyButton value={JSON.stringify(queryData)} timeout={2000}>
+            {({ copied, copy }) => (
+              <Tooltip
+                label={copied ? 'Copied' : 'Copy'}
+                withArrow
+                position="right"
+              >
+                <ActionIcon color={copied ? 'accent.4' : 'gray'} onClick={copy}>
+                  {copied ? (
+                    <IconCheck size="1rem" />
+                  ) : (
+                    <IconCopy size="1rem" />
+                  )}
+                </ActionIcon>
+              </Tooltip>
+            )}
+          </CopyButton>
+
+          <Button onClick={() => onClose && onClose(id)}>Close</Button>
         </Group>
       </div>
-      <Group justify="right">
-        <CopyButton
-          value={JSON.stringify(queryData[currentFileIndex])}
-          timeout={2000}
-        >
-          {({ copied, copy }) => (
-            <Tooltip
-              label={copied ? 'Copied' : 'Copy'}
-              withArrow
-              position="right"
-            >
-              <ActionIcon color={copied ? 'accent.4' : 'gray'} onClick={copy}>
-                {copied ? <IconCheck size="1rem" /> : <IconCopy size="1rem" />}
-              </ActionIcon>
-            </Tooltip>
-          )}
-        </CopyButton>
-
-        <Button onClick={() => onClose && onClose(id)}>Close</Button>
-      </Group>
     </React.Fragment>
   ) : (
     <div className="px-6">

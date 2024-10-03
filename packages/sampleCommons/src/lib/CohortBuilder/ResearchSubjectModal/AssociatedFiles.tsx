@@ -5,12 +5,15 @@ import {
   LoadingOverlay,
   Title,
   Text,
+  Button,
 } from '@mantine/core';
+
 import { ErrorCard } from '@gen3/frontend';
 import { useGeneralGQLQuery, GEN3_FENCE_API, JSONObject } from '@gen3/core';
 import { FiDownload } from 'react-icons/fi';
 import { isQueryResponse, extractData } from './tools';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import { VicLineChart } from './LineChart';
 
 export const useFilesQuery = (identifiers: string[]) => {
   const { data, isLoading, isError } = useGeneralGQLQuery({
@@ -97,12 +100,11 @@ export const AssociatedFilesText = ({
 
 export const AssociatedAssaysTable = ({
   identifiers,
-  //identifierIndexdDaysMap,
 }: {
   identifiers: string[];
-  //identifierIndexdDaysMap: Record<string, any>;
 }) => {
   const { resData, isLoading, isError } = useFilesQuery(identifiers);
+  const [showTable, setshowTable] = useState(false);
 
   if (isError) {
     return <ErrorCard message={'Error occurred while fetching data'} />;
@@ -114,10 +116,26 @@ export const AssociatedAssaysTable = ({
     return left - right;
   });
 
+  const lineChartData = filteredResources
+    .filter(
+      (obj) =>
+        'specimen_indexed_collection_date_days' in obj &&
+        'experimental_strategy' in obj,
+    )
+    .map(
+      ({ specimen_indexed_collection_date_days, experimental_strategy }) => ({
+        y: experimental_strategy,
+        x: specimen_indexed_collection_date_days,
+      }),
+    );
+
   return (
     <Stack>
       <LoadingOverlay visible={isLoading} />
-      {resData.length > 0 && (
+      <Button onClick={() => setshowTable(!showTable)}>
+        Toggle Table / Chart
+      </Button>
+      {resData.length > 0 && showTable ? (
         <div className="text-primary">
           <Table>
             <Table.Thead>
@@ -142,6 +160,8 @@ export const AssociatedAssaysTable = ({
             </Table.Tbody>
           </Table>
         </div>
+      ) : (
+        <VicLineChart lineChartData={lineChartData} />
       )}
     </Stack>
   );

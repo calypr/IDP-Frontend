@@ -23,7 +23,7 @@ export const TimeSeriesAssaySummaryModal = ({
         }
         openModal={openModal}
         onClose={() => setOpenModal(false)}
-        size="100%"
+        size="80%"
         buttons={[
           {
             title: 'Close',
