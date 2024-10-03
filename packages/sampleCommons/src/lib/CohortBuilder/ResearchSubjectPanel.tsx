@@ -9,6 +9,7 @@ import {
   Tooltip,
   Button,
   ScrollArea,
+  Divider,
 } from '@mantine/core';
 import { useGeneralGQLQuery } from '@gen3/core';
 import {
@@ -40,11 +41,6 @@ export const ResearchSubjectDetailPanel = ({
   const processedNodeFields = Object.entries(nodeFields ?? {})
     .map(([alias, field]) => `${alias}: ${field}`)
     .join('\n');
-
-  //const ordered_fields = Object.keys(nodeFields);
-  //(a, b) => {
-  //  return ordered_fields.indexOf(b) - ordered_fields.indexOf(a);
-  //}
 
   // The filters in this query assume that the patient ID is unique across all other projects.
   const { data, isLoading, isError } = useGeneralGQLQuery({
@@ -114,7 +110,23 @@ export const ResearchSubjectDetailPanel = ({
   return totalFiles > 0 ? (
     <React.Fragment>
       <LoadingOverlay visible={isLoading} />
-      <ScrollArea.Autosize mx="auto">
+      <ScrollArea.Autosize maw={'80vw'} mx="auto">
+        <div className="flex pb-5">
+          <div className="flex-shrink">
+            <TimeSeriesAssaySummaryModal
+              identifiers={querySpecimenIdentifiers}
+            />
+          </div>
+          <div className="flex-grow text-center">
+            <Title order={3}> Subject Summary </Title>
+          </div>
+          <div className="ml-auto flex-shrink-0">
+            <AssociatedFilesText
+              identifiers={querySpecimenIdentifiers}
+              asoc_val="product_notes_sequencing_site"
+            />
+          </div>
+        </div>
         <div className="pb-5">
           <Table withTableBorder withColumnBorders>
             <Table.Thead>
@@ -139,20 +151,8 @@ export const ResearchSubjectDetailPanel = ({
             </Table.Tbody>
           </Table>
         </div>
-        <div className="flex">
-          <div className="flex-grow">
-            <TimeSeriesAssaySummaryModal
-              identifiers={querySpecimenIdentifiers}
-            />
-          </div>
-          <div className="ml-auto">
-            <AssociatedFilesText
-              identifiers={querySpecimenIdentifiers}
-              asoc_val="product_notes_sequencing_site"
-            />
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-2">
+        <Divider size="md" color="#2c2c54" />
+        <div className="grid grid-cols-2">
           <div className="flex flex-col">
             <Title order={4} className="text-center pt-5">
               File Counts by Data Category
@@ -164,6 +164,7 @@ export const ResearchSubjectDetailPanel = ({
               />
             </div>
           </div>
+
           <div className="flex flex-col">
             <Title order={4} className="text-center pt-5">
               File Counts by Experimental Strategy
@@ -175,6 +176,10 @@ export const ResearchSubjectDetailPanel = ({
               />
             </div>
           </div>
+        </div>
+        <Divider size="md" color="#2c2c54" />
+        <div className="text-center p-5">
+          <Title order={3}>Specimen Information Table</Title>
         </div>
         <Table
           withTableBorder
@@ -188,30 +193,33 @@ export const ResearchSubjectDetailPanel = ({
           </Table.Thead>
           <Table.Tbody>{specimen_rows}</Table.Tbody>
         </Table>
-      </ScrollArea.Autosize>
-      <div className="pt-5">
-        <Group justify="right">
-          <CopyButton value={JSON.stringify(queryData)} timeout={2000}>
-            {({ copied, copy }) => (
-              <Tooltip
-                label={copied ? 'Copied' : 'Copy'}
-                withArrow
-                position="right"
-              >
-                <ActionIcon color={copied ? 'accent.4' : 'gray'} onClick={copy}>
-                  {copied ? (
-                    <IconCheck size="1rem" />
-                  ) : (
-                    <IconCopy size="1rem" />
-                  )}
-                </ActionIcon>
-              </Tooltip>
-            )}
-          </CopyButton>
+        <div className="pt-5">
+          <Group justify="right">
+            <CopyButton value={JSON.stringify(queryData)} timeout={2000}>
+              {({ copied, copy }) => (
+                <Tooltip
+                  label={copied ? 'Copied' : 'Copy'}
+                  withArrow
+                  position="right"
+                >
+                  <ActionIcon
+                    color={copied ? 'accent.4' : 'gray'}
+                    onClick={copy}
+                  >
+                    {copied ? (
+                      <IconCheck size="1rem" />
+                    ) : (
+                      <IconCopy size="1rem" />
+                    )}
+                  </ActionIcon>
+                </Tooltip>
+              )}
+            </CopyButton>
 
-          <Button onClick={() => onClose && onClose(id)}>Close</Button>
-        </Group>
-      </div>
+            <Button onClick={() => onClose && onClose(id)}>Close</Button>
+          </Group>
+        </div>
+      </ScrollArea.Autosize>
     </React.Fragment>
   ) : (
     <div className="px-6">

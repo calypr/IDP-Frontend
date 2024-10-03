@@ -91,9 +91,10 @@ export const AssociatedFilesText = ({
   return (
     <div>
       <LoadingOverlay visible={isLoading} />
-      <Text className="whitespace-nowrap">
-        {identifiers.length} Annotations, {resData.length} Files From {vals}
+      <Text>
+        {identifiers.length} Annotations, {resData.length} Files From
       </Text>
+      <Text>{vals}</Text>
     </div>
   );
 };
