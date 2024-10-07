@@ -12,6 +12,19 @@ export const VicLineChart = ({
 }: {
   lineChartData: Array<Record<string, any>>;
 }) => {
+  const data = lineChartData
+    .filter(
+      (obj) =>
+        'specimen_indexed_collection_date_days' in obj &&
+        'experimental_strategy' in obj,
+    )
+    .map(
+      ({ specimen_indexed_collection_date_days, experimental_strategy }) => ({
+        y: experimental_strategy,
+        x: specimen_indexed_collection_date_days,
+      }),
+    );
+
   return (
     <div style={{ height: '70vh', width: '100%' }}>
       <VictoryChart
@@ -36,7 +49,7 @@ export const VicLineChart = ({
             grid: { stroke: 'none' },
             tickLabels: {
               fontSize: 18,
-              angle: lineChartData?.length > 10 ? 45 : 0,
+              angle: data?.length > 10 ? 45 : 0,
               padding: 10,
             },
           }}
@@ -60,7 +73,7 @@ export const VicLineChart = ({
         />
 
         <VictoryLine
-          data={lineChartData}
+          data={data}
           style={{
             data: { stroke: '#57af48', strokeWidth: 2 },
           }}
@@ -69,7 +82,7 @@ export const VicLineChart = ({
         <VictoryScatter
           style={{ data: { fill: '#5797c4' } }}
           size={4}
-          data={lineChartData}
+          data={data}
         />
       </VictoryChart>
     </div>

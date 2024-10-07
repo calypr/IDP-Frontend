@@ -1,7 +1,7 @@
 import { useGeneralGQLQuery } from '@gen3/core';
 import { isQueryResponse, extractData } from './tools';
 import { ErrorCard, PieChart } from '@gen3/frontend';
-import { Stack, LoadingOverlay } from '@mantine/core';
+import { Stack, LoadingOverlay, Text } from '@mantine/core';
 
 export const SpecimenAggregationCountsChart = ({
   aggField,

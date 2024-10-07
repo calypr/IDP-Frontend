@@ -35,7 +35,10 @@ export const TimeSeriesAssaySummaryModal = ({
         withCloseButton={true}
         closeOnClickOutside={true}
       >
-        <AssociatedAssaysTable identifiers={identifiers} />
+        <AssociatedAssaysTable
+          identifiers={identifiers}
+          asoc_val={'specimen_indexed_collection_date_days'}
+        />
       </BaseModal>
     </React.Fragment>
   );

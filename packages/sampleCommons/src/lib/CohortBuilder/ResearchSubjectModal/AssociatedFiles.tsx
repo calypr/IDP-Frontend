@@ -6,14 +6,14 @@ import {
   Title,
   Text,
   Button,
+  Checkbox,
 } from '@mantine/core';
 
 import { ErrorCard } from '@gen3/frontend';
 import { useGeneralGQLQuery, GEN3_FENCE_API, JSONObject } from '@gen3/core';
 import { FiDownload } from 'react-icons/fi';
 import { isQueryResponse, extractData } from './tools';
-import { useMemo, useState } from 'react';
-import { VicLineChart } from './LineChart';
+import React, { useMemo, useState } from 'react';
 
 export const useFilesQuery = (identifiers: string[]) => {
   const { data, isLoading, isError } = useGeneralGQLQuery({
@@ -25,6 +25,7 @@ export const useFilesQuery = (identifiers: string[]) => {
                 experimental_strategy
                 specimen_indexed_collection_date_days
                 product_notes_sequencing_site
+                specimen_sample_family_id
               }
             }`,
     variables: {
@@ -64,11 +65,12 @@ export const UniqueAssociatedValsForSpecimen = ({
   if (isError) {
     return <Text> Error occurred while fetching data </Text>;
   }
-  const ResourceList = [...new Set(resData.map((val) => val[asoc_val]))].join(
-    ', ',
-  );
-
-  return ResourceList;
+  if (!isLoading) {
+    const ResourceList = [...new Set(resData.map((val) => val[asoc_val]))].join(
+      ', ',
+    );
+    return ResourceList;
+  }
 };
 
 export const AssociatedFilesText = ({
@@ -101,8 +103,10 @@ export const AssociatedFilesText = ({
 
 export const AssociatedAssaysTable = ({
   identifiers,
+  asoc_val,
 }: {
   identifiers: string[];
+  asoc_val: string;
 }) => {
   const { resData, isLoading, isError } = useFilesQuery(identifiers);
   const [showTable, setshowTable] = useState(false);
@@ -112,29 +116,16 @@ export const AssociatedAssaysTable = ({
   }
 
   const filteredResources = resData.toSorted((a: JSONObject, b: JSONObject) => {
-    const left = a['specimen_indexed_collection_date_days'] as number;
-    const right = b['specimen_indexed_collection_date_days'] as number;
+    const left = a[asoc_val] as number;
+    const right = b[asoc_val] as number;
     return left - right;
   });
-
-  const lineChartData = filteredResources
-    .filter(
-      (obj) =>
-        'specimen_indexed_collection_date_days' in obj &&
-        'experimental_strategy' in obj,
-    )
-    .map(
-      ({ specimen_indexed_collection_date_days, experimental_strategy }) => ({
-        y: experimental_strategy,
-        x: specimen_indexed_collection_date_days,
-      }),
-    );
 
   return (
     <Stack>
       <LoadingOverlay visible={isLoading} />
       <Button onClick={() => setshowTable(!showTable)}>
-        Toggle Table / Chart
+        Toggle File / Assay
       </Button>
       {resData.length > 0 && showTable ? (
         <div className="text-primary">
@@ -144,6 +135,7 @@ export const AssociatedAssaysTable = ({
                 <Table.Th>File Name</Table.Th>
                 <Table.Th>Assay</Table.Th>
                 <Table.Th>IndexdDays</Table.Th>
+                <Table.Th> Sample Family Id </Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
@@ -156,13 +148,14 @@ export const AssociatedAssaysTable = ({
                   <Table.Td>
                     {element.specimen_indexed_collection_date_days}
                   </Table.Td>
+                  <Table.Td>{element.specimen_sample_family_id}</Table.Td>
                 </Table.Tr>
               ))}
             </Table.Tbody>
           </Table>
         </div>
       ) : (
-        <VicLineChart lineChartData={lineChartData} />
+        <AssayCheckboxChart data={filteredResources} />
       )}
     </Stack>
   );
@@ -221,5 +214,63 @@ export const AssociatedFilesTable = ({
         </div>
       )}
     </Stack>
+  );
+};
+
+export const AssayCheckboxChart = ({
+  data,
+}: {
+  data: Array<Record<string, any>>;
+}) => {
+  const resData = data.map((obj) => ({
+    family_id: obj.specimen_sample_family_id,
+    assay: obj.experimental_strategy,
+  }));
+
+  const uniqueAssays = [...new Set(resData.map((val) => val['assay']))].map(
+    (obj) => {
+      return <Table.Th key={obj}> {obj}</Table.Th>;
+    },
+  );
+
+  const simplifyList = () => {
+    const grouped: Record<string, any> = {};
+    resData.forEach(({ family_id, assay }) => {
+      if (!grouped[family_id]) {
+        grouped[family_id] = [];
+      }
+      if (!grouped[family_id].includes(assay)) {
+        grouped[family_id].push(assay);
+      }
+    });
+
+    return Object.entries(grouped).map(([family_id, assays]) => (
+      <Table.Tr key={family_id}>
+        <Table.Td>{family_id}</Table.Td>
+        {uniqueAssays.map((header, index) => {
+          return assays.some((assay: string) => assay === header.key) ? (
+            <Table.Td>
+              <Checkbox key={index} checked={true} color="#32CD32" size="lg" />
+            </Table.Td>
+          ) : (
+            <Table.Td></Table.Td>
+          );
+        })}
+      </Table.Tr>
+    ));
+  };
+
+  return (
+    <React.Fragment>
+      <Table>
+        <Table.Thead>
+          <Table.Tr>
+            <Table.Th>Sample Family Id</Table.Th>
+            {uniqueAssays}
+          </Table.Tr>
+        </Table.Thead>
+        <Table.Tbody>{simplifyList()}</Table.Tbody>
+      </Table>
+    </React.Fragment>
   );
 };
