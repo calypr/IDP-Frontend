@@ -33,10 +33,10 @@ const nextConfig = {
   experimental: {
     esmExternals: true,
   },
-  i18n: {
-    locales: ['en'],
-    defaultLocale: 'en',
-  },
+  //i18n: {
+  //  locales: ['en-US'],
+  //  defaultLocale: 'en-US',
+  //},
   pageExtensions: ['mdx', 'md', 'jsx', 'js', 'tsx', 'ts'],
   transpilePackages: ['@gen3/frontend'],
   basePath: process.env.BASE_PATH || '',
@@ -60,17 +60,7 @@ const nextConfig = {
       },
     ];
   },
-  async redirects() {
-    const redirects = [];
-    if (process.env.GEN3_COMMONS_NAME == 'cbds') {
-      redirects.push({
-        source: '/',
-        destination: '/cbdsLandingPage',
-        permanent: true,
-      });
-    }
-    return redirects;
-  },
+
 };
 
 module.exports = withMDX(nextConfig);

@@ -104,7 +104,7 @@ Gen3App.getInitialProps = async (
     const colors = Object.fromEntries(
       Object.entries(themeColors).map(([key, values]) => [
         key,
-        Object.values(values) as TenStringArray,
+        Object.values(values as string) as TenStringArray,
       ]),
     );
 

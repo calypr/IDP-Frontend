@@ -248,7 +248,7 @@ export const SessionProvider = ({
         });
       })
       .finally(() => {
-        router.push('/cbdsLandingPage'); // TODO replace with config option
+        router.push('/'); // TODO replace with config option
       });
   };
   /**

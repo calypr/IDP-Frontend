@@ -15,7 +15,7 @@ export const SmmartPageGetServerSideProps: GetServerSideProps<
     return {
       props: {
         ...(await getNavPageLayoutPropsFromConfig()),
-        smmartConfig: smmartConfig,
+        smmartConfig: smmartConfig ? smmartConfig : null,
       },
     };
   } catch (err) {

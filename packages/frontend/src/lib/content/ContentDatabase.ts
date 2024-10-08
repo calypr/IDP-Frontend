@@ -18,7 +18,7 @@ export class ContentDatabase {
 
   public async get<T extends Record<string, any>>(
     filepath: string,
-  ): Promise<T> {
+  ): Promise<T | any> {
     return this.store.get(filepath);
   }
 }

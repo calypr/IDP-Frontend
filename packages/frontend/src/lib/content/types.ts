@@ -1,5 +1,7 @@
 export interface ContentSource {
-  get<T extends Record<string, undefined>>(filepath: string): Promise<T>;
+  get<T extends Record<string, undefined>>(
+    filepath: string,
+  ): Promise<T | undefined>;
 }
 
 interface Gen3Icon {
@@ -19,7 +21,7 @@ export interface RegisteredIcons {
 }
 
 export interface Fonts {
-  heading: string| string[];
+  heading: string | string[];
   content: string | string[];
   fontFamily: string;
 }

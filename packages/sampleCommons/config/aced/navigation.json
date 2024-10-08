@@ -8,6 +8,7 @@
     "logo": {
       "src": "/icons/logo_small_2.png",
       "height": 220,
+      "width": 400,
       "href": "/"
     },
     "items": [

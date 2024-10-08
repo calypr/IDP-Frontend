@@ -10,13 +10,15 @@ export class FilesystemContent implements ContentSource {
 
   public async get<T extends Record<string, undefined>>(
     filepath: string,
-  ): Promise<T> {
+  ): Promise<T | undefined> {
+    // Allow the return type to also be `undefined`
     try {
       return await JSON.parse(
         fs.readFileSync(path.join(this.rootPath, filepath)).toString('utf-8'),
       );
     } catch (err) {
-      throw new Error(`Cannot process ${filepath}`);
+      console.log(`Cannot process ${filepath}, ${err}`);
+      return undefined;
     }
   }
 }
