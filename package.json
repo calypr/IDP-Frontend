@@ -32,6 +32,7 @@
     "@grafana/faro-react": "^1.9.1",
     "@grafana/faro-web-sdk": "^1.9.1",
     "@grafana/faro-web-tracing": "^1.9.1",
+    "@hms-dbmi/viv": "^0.16.1",
     "@mantine/core": "^7.13.1",
     "@mantine/form": "^7.12.1",
     "@mantine/hooks": "^7.12.1",

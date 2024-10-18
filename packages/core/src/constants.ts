@@ -1,4 +1,4 @@
-export const GEN3_COMMONS_NAME = process.env.GEN3_COMMONS_NAME || '';
+export const GEN3_COMMONS_NAME = process.env.GEN3_COMMONS_NAME || 'cbds';
 export const GEN3_API = process.env.NEXT_PUBLIC_GEN3_API || '';
 export const GEN3_DOMAIN = process.env.NEXT_PUBLIC_GEN3_DOMAIN || '';
 export const GUID_PREFIX_PATTERN = /^dg.[a-zA-Z0-9]+\//;
@@ -30,7 +30,7 @@ export const GEN3_SUBMISSION_API =
   `${GEN3_API}/api/v0/submission`;
 export const GEN3_WTS_API =
   process.env.NEXT_PUBLIC_GEN3_WTS_API || `${GEN3_API}/wts`;
-  export const GEN3_CROSSWALK_API =
+export const GEN3_CROSSWALK_API =
   process.env.NEXT_PUBLIC_GEN3_CROSSWALK_API || `${GEN3_API}/mds`;
 
 export enum Accessibility {

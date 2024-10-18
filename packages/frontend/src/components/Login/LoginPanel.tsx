@@ -54,28 +54,25 @@ const LoginPanel = (loginConfig: LoginConfig) => {
         {topContent?.map((content, index) => {
           if (content.image) {
             return (
-
               <div key={index}>
                 <img
-                src={`${router.basePath}${content.image.src}`}
-                alt={content.image.alt}
-                className="w-1/2 mx-auto" ></img>
+                  src={`${router.basePath}${content.image.src}`}
+                  alt={content.image.alt}
+                  className="w-1/2 mx-auto"
+                ></img>
               </div>
             );
+          } else {
+            return <TextContent {...content} key={index} />;
           }
-          else {
-            return (
-              <TextContent {...content} key={index} />
-            );
-          }
-          })
-        }
+        })}
 
         <LoginProvidersPanel handleLoginSelected={handleFenceLoginSelected} />
 
-        {loginConfig?.showCredentialsLogin && (
-          <CredentialsLogin handleLogin={handleCredentialsLogin} />
-        )}
+        {loginConfig?.showCredentialsLogin &&
+          process.env.NODE_ENV === 'development' && (
+            <CredentialsLogin handleLogin={handleCredentialsLogin} />
+          )}
 
         {bottomContent?.map((content, index) =>
           content?.email ? (
