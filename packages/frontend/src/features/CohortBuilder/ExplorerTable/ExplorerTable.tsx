@@ -285,7 +285,7 @@ const ExplorerTable = ({ index, tableConfig }: ExplorerTableProps) => {
     <React.Fragment>
       {Object.keys(rowSelection).length > 0 ? (
         <DetailsComponent
-          title={`${getFieldValue(
+          title={`${String(tableConfig?.detailsConfig?.nodeType).charAt(0).toUpperCase() + String(tableConfig?.detailsConfig?.nodeType).slice(1)} / ${getFieldValue(
             tableConfig,
             rowSelection,
             data?.data?.[index] ?? [],

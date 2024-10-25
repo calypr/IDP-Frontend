@@ -63,7 +63,7 @@ export const UniqueAssociatedValsForSpecimen = ({
 }) => {
   const { resData, isLoading, isError } = useFilesQuery(identifiers);
   if (isError) {
-    return <Text> Error occurred while fetching data </Text>;
+    return <Text> Error occurred while fetching file metadata </Text>;
   }
   if (!isLoading) {
     const ResourceList = [...new Set(resData.map((val) => val[asoc_val]))].join(
@@ -134,7 +134,7 @@ export const AssociatedAssaysTable = ({
               <Table.Tr>
                 <Table.Th>File Name</Table.Th>
                 <Table.Th>Assay</Table.Th>
-                <Table.Th>IndexdDays</Table.Th>
+                <Table.Th>Indexd Days</Table.Th>
                 <Table.Th> Sample Family Id </Table.Th>
               </Table.Tr>
             </Table.Thead>
@@ -156,62 +156,6 @@ export const AssociatedAssaysTable = ({
         </div>
       ) : (
         <AssayCheckboxChart data={filteredResources} />
-      )}
-    </Stack>
-  );
-};
-
-export const AssociatedFilesTable = ({
-  identifiers,
-}: {
-  identifiers: string;
-}) => {
-  const { resData, isLoading, isError } = useFilesQuery([identifiers]);
-
-  if (isError) {
-    return <ErrorCard message={'Error occurred while fetching data'} />;
-  }
-
-  return (
-    <Stack>
-      <LoadingOverlay visible={isLoading} />
-      {resData.length > 0 && (
-        <div className="text-primary">
-          <Title className="text-lg p-5 text-center">
-            Specimen Identifier {identifiers} files
-          </Title>
-          <Table>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Title</Table.Th>
-                <Table.Th>Download</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {resData.map((element) => (
-                <Table.Tr key={element.title}>
-                  <Table.Td>{element.title}</Table.Td>
-                  <Table.Td>
-                    <div className="flex">
-                      <div className="px-2">
-                        <FiDownload title="download" size={16} />
-                      </div>
-                      <Anchor
-                        c="accent.1"
-                        href={`${GEN3_FENCE_API}/user/data/download/${
-                          element.id ? (element.id as string) : ''
-                        }?redirect=true`}
-                        target="_blank"
-                      >
-                        {element.id ? (element.id as string) : ''}
-                      </Anchor>
-                    </div>
-                  </Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        </div>
       )}
     </Stack>
   );

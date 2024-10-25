@@ -198,7 +198,7 @@ export const ResearchSubjectDetailPanel = ({
             <CopyButton value={JSON.stringify(queryData)} timeout={2000}>
               {({ copied, copy }) => (
                 <Tooltip
-                  label={copied ? 'Copied' : 'Copy'}
+                  label={copied ? 'Copied' : 'Copy raw JSON data”'}
                   withArrow
                   position="right"
                 >

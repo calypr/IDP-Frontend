@@ -96,7 +96,7 @@ const Gen3Provider = ({
       <MantineProvider theme={theme}>
         <ModalsProvider>
           <Notifications />
-          <SessionProvider sessionConfig={sessionConfig}>
+          <SessionProvider {...sessionConfig}>
             <Gen3ModalsProvider config={modalsConfig}>
               {children}
             </Gen3ModalsProvider>

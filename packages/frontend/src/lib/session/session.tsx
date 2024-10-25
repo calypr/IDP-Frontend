@@ -4,18 +4,10 @@ import React, {
   useContext,
   useRef,
   useState,
-  useMemo,
 } from 'react';
-import { useRouter, NextRouter } from 'next/router';
-import {
-  Session,
-  SessionProviderProps,
-  SessionConfiguration,
-  SessionConfig,
-} from './types';
+import { useRouter } from 'next/router';
+import { Session, SessionProviderProps } from './types';
 import { isUserOnPage } from './utils';
-import { defaultComposer } from 'default-composer';
-
 import {
   useCoreDispatch,
   useCoreSelector,
@@ -33,11 +25,6 @@ import { showNotification } from '@mantine/notifications';
 
 const SecondsToMilliseconds = (seconds: number) => seconds * 1000;
 const MinutesToMilliseconds = (minutes: number) => minutes * 60 * 1000;
-
-interface Gen3StandardSessionProviderProps {
-  sessionConfig: SessionConfig;
-  children: React.ReactNode;
-}
 
 export const logoutSession = async () => {
   await fetch(`${GEN3_FENCE_API}/user/logout?next=${GEN3_REDIRECT_URL}/`, {
@@ -120,7 +107,6 @@ export const useIsAuthenticated = () => {
 };
 
 const refreshSession = (
-  updateSessionTime: number,
   getUserDetails: () => void,
   mostRecentSessionRefreshTimestamp: number,
   updateSessionRefreshTimestamp: (arg0: number) => void,
@@ -128,7 +114,7 @@ const refreshSession = (
   const timeSinceLastSessionUpdate =
     Date.now() - mostRecentSessionRefreshTimestamp;
   // don't hit Fence to refresh tokens too frequently
-  if (timeSinceLastSessionUpdate < updateSessionTime) {
+  if (timeSinceLastSessionUpdate < UPDATE_SESSION_LIMIT) {
     return;
   }
 
@@ -159,6 +145,8 @@ const useInterval = (callback: IntervalFunction, delay: number | null) => {
   }, [delay]);
 };
 
+const UPDATE_SESSION_LIMIT = MinutesToMilliseconds(5);
+
 /**
  * SessionProvider creates a React context which keeps track of wether the user is authenticated
  * and if their session is stale and logs them out if they do not preform an action in an alotted amount of time
@@ -171,25 +159,15 @@ const useInterval = (callback: IntervalFunction, delay: number | null) => {
  * @returns a Session context that can be used to keep track of user session activity
  */
 export const SessionProvider = ({
-  sessionConfig,
   children,
-}: Gen3StandardSessionProviderProps) => {
+  session,
+  updateSessionTime = 5,
+  inactiveTimeLimit = 20,
+  workspaceInactivityTimeLimit = 0,
+  logoutInactiveUsers = true,
+}: SessionProviderProps) => {
   const router = useRouter();
   const coreDispatch = useCoreDispatch();
-
-  const defaultConfig: SessionConfig = {
-    sessionConfig: {
-      updateSessionTime: 5,
-      inactiveTimeLimit: 20,
-      logoutInactiveUsers: true,
-      refetchOnWindowFocus: true,
-      workspaceInactivityTimeLimit: 50,
-    },
-  };
-  const sesConfig = useMemo(
-    () => defaultComposer(defaultConfig, sessionConfig),
-    [],
-  );
 
   const [getUserDetails] = useLazyFetchUserDetailsQuery(); // Fetch user details
   const userStatus = useCoreSelector((state: CoreState) =>
@@ -204,16 +182,14 @@ export const SessionProvider = ({
     setMostRecentSessionRefreshTimestamp,
   ] = useState(Date.now());
 
-  const inactiveTimeLimitMilliseconds = MinutesToMilliseconds(
-    sesConfig.sessionConfig.inactiveTimeLimit ?? 20,
-  );
+  const inactiveTimeLimitMilliseconds =
+    MinutesToMilliseconds(inactiveTimeLimit);
 
   const workspaceInactivityTimeLimitMilliseconds = MinutesToMilliseconds(
-    sesConfig.sessionConfig.workspaceInactivityTimeLimit ?? 20,
+    workspaceInactivityTimeLimit,
   );
-  const updateSessionIntervalMilliseconds = MinutesToMilliseconds(
-    sesConfig.sessionConfig.updateSessionTime ?? 5,
-  );
+  const updateSessionIntervalMilliseconds =
+    MinutesToMilliseconds(updateSessionTime);
 
   // Update session status using the session token api
   const updateSessionWithSessionApi = async () => {
@@ -248,7 +224,7 @@ export const SessionProvider = ({
         });
       })
       .finally(() => {
-        router.push('/'); // TODO replace with config option
+        router.push(`${GEN3_REDIRECT_URL}`); // TODO replace with config option
       });
   };
   /**
@@ -279,7 +255,7 @@ export const SessionProvider = ({
 
       const timeSinceLastActivity = Date.now() - mostRecentActivityTimestamp;
 
-      if (sesConfig.sessionConfig.logoutInactiveUsers) {
+      if (logoutInactiveUsers) {
         if (
           timeSinceLastActivity >= inactiveTimeLimitMilliseconds &&
           !isUserOnPage('workspace')
@@ -300,7 +276,6 @@ export const SessionProvider = ({
       }
       // fetching a userState will renew the session
       refreshSession(
-        updateSessionIntervalMilliseconds,
         getUserDetails,
         mostRecentSessionRefreshTimestamp,
         (ts: number) => setMostRecentSessionRefreshTimestamp(ts),
