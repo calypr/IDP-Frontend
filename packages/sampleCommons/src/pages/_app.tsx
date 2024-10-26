@@ -12,8 +12,16 @@ import {
   ContentSource,
   RegisteredIcons,
   Fonts,
-  type SessionConfig,
+  SessionConfiguration,
+  registerCohortDiscoveryApp,
+  registerCohortDiversityApp,
+  registerCohortBuilderDefaultPreviewRenderers,
+  registerExplorerDefaultCellRenderers,
 } from '@gen3/frontend';
+
+import { registerCohortTableCustomCellRenderers } from '@/lib/CohortBuilder/CustomCellRenderers';
+import { registerCustomExplorerDetailsPanels } from '@/lib/CohortBuilder/FileDetailsPanel';
+
 import '../styles/globals.css';
 import '@fontsource/montserrat';
 import '@fontsource/source-sans-pro';
@@ -55,12 +63,20 @@ const Gen3App = ({
   const faroRef = useRef<null | Faro>(null);
 
   useEffect(() => {
+    // one time init
     // if (
     //   process.env.NEXT_PUBLIC_FARO_COLLECTOR_URL &&
     //   process.env.NEXT_PUBLIC_FARO_APP_ENVIRONMENT != "local" &&
     //   !faroRef.current
     // ) {
-    faroRef.current = initGrafanaFaro();
+
+    if (!faroRef.current) faroRef.current = initGrafanaFaro();
+    registerCohortDiscoveryApp();
+    registerCohortDiversityApp();
+    registerExplorerDefaultCellRenderers();
+    registerCohortBuilderDefaultPreviewRenderers();
+    registerCohortTableCustomCellRenderers();
+    registerCustomExplorerDetailsPanels();
     // }
   }, []);
 

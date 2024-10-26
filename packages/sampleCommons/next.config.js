@@ -32,6 +32,11 @@ const nextConfig = {
   },
   experimental: {
     esmExternals: true,
+    instrumentationHook: true,
+    optimizePackageImports: ['@gen3/frontend', '@gen3/core'],
+    turbo: {
+      moduleIdStrategy: 'deterministic',
+    },
   },
   //i18n: {
   //  locales: ['en-US'],
