@@ -3,6 +3,8 @@
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const dns = require('dns');
 
+const basePath = process.env.NEXT_PUBLIC_BASEPATH;
+
 dns.setDefaultResultOrder('ipv4first');
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -17,7 +19,7 @@ const withMDX = require('@next/mdx')({
   },
 });
 
-// Next configuration with support for rewrting API to existing common services
+// Next configuration with support for rewriting API to existing common services
 const nextConfig = {
   reactStrictMode: true,
   images: {
@@ -38,13 +40,9 @@ const nextConfig = {
       moduleIdStrategy: 'deterministic',
     },
   },
-  //i18n: {
-  //  locales: ['en-US'],
-  //  defaultLocale: 'en-US',
-  //},
   pageExtensions: ['mdx', 'md', 'jsx', 'js', 'tsx', 'ts'],
   transpilePackages: ['@gen3/frontend'],
-  basePath: process.env.BASE_PATH || '',
+  basePath: basePath,
   webpack: (config) => {
     config.infrastructureLogging = {
       level: 'error',
@@ -65,7 +63,6 @@ const nextConfig = {
       },
     ];
   },
-
 };
 
 module.exports = withMDX(nextConfig);

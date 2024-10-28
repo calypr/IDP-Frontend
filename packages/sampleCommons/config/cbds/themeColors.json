@@ -214,7 +214,7 @@
     "lightest": "#111111",
     "max": "#111111"
   },
-  "cbds":{
+  "cbds": {
     "DEFAULT": "#585C94",
     "primary": "#585C94",
     "monoprimary": "#7377AC",

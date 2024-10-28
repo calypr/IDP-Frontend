@@ -13,8 +13,6 @@ import {
   RegisteredIcons,
   Fonts,
   SessionConfiguration,
-  registerCohortDiscoveryApp,
-  registerCohortDiversityApp,
   registerCohortBuilderDefaultPreviewRenderers,
   registerExplorerDefaultCellRenderers,
 } from '@gen3/frontend';
@@ -26,25 +24,26 @@ import '../styles/globals.css';
 import '@fontsource/montserrat';
 import '@fontsource/source-sans-pro';
 import '@fontsource/poppins';
-import '@fontsource/lato';
 
 import { GEN3_COMMONS_NAME, setDRSHostnames } from '@gen3/core';
 import drsHostnames from '../../config/drsHostnames.json';
 
 if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
   const ReactDOM = require('react-dom');
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
   const axe = require('@axe-core/react');
   axe(React, ReactDOM, 1000);
 }
+
+// TODO fix app registration
 
 interface Gen3AppProps {
   colors: Record<string, TenStringArray>;
   icons: RegisteredIcons;
   themeFonts: Fonts;
   modalsConfig: ModalsConfig;
-  sessionConfig: SessionConfig;
+  sessionConfig: SessionConfiguration;
 }
 
 const Gen3App = ({
@@ -69,10 +68,7 @@ const Gen3App = ({
     //   process.env.NEXT_PUBLIC_FARO_APP_ENVIRONMENT != "local" &&
     //   !faroRef.current
     // ) {
-
     if (!faroRef.current) faroRef.current = initGrafanaFaro();
-    registerCohortDiscoveryApp();
-    registerCohortDiversityApp();
     registerExplorerDefaultCellRenderers();
     registerCohortBuilderDefaultPreviewRenderers();
     registerCohortTableCustomCellRenderers();
@@ -95,7 +91,6 @@ const Gen3App = ({
   );
 };
 
-// TODO: replace with page router
 Gen3App.getInitialProps = async (
   context: AppContext,
 ): Promise<Gen3AppProps & AppInitialProps> => {
@@ -108,20 +103,20 @@ Gen3App.getInitialProps = async (
     const session = await ContentSource.get(
       `config/${GEN3_COMMONS_NAME}/session.json`,
     );
-
     const fonts = await ContentSource.get(
       `config/${GEN3_COMMONS_NAME}/themeFonts.json`,
     );
-
     const themeColors = await ContentSource.get(
       `config/${GEN3_COMMONS_NAME}/themeColors.json`,
     );
 
-    const colors = Object.fromEntries(
-      Object.entries(themeColors).map(([key, values]) => [
-        key,
-        Object.values(values as string) as TenStringArray,
-      ]),
+    const colors: Record<string, TenStringArray> = Object.fromEntries(
+      Object.entries(themeColors as Record<string, Record<string, string>>).map(
+        ([key, values]) => {
+          const colorArray = Object.values(values);
+          return [key, colorArray as TenStringArray];
+        },
+      ),
     );
 
     const icons = await ContentSource.get('config/icons/gen3.json');
@@ -136,7 +131,8 @@ Gen3App.getInitialProps = async (
   } catch (error: any) {
     console.error('Provider Wrapper error loading config', error.toString());
   }
-  // return default
+
+  // Return default values in case of an error
   return {
     ...ctx,
     colors: {},

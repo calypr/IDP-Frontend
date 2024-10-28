@@ -26,7 +26,6 @@ module.exports = {
     'no-underscore-dangle': 'off',
     'import/prefer-default-export': 'off',
     'linebreak-style': ['error', 'unix'],
-    '@typescript-eslint/quotes': ['warn', 'single'],
     quotes: ['warn', 'single'],
     'jsx-quotes': ['warn', 'prefer-double'],
     semi: ['error', 'always'],

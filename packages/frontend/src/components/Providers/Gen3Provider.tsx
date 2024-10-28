@@ -12,14 +12,14 @@ import { type RegisteredIcons, type Fonts } from '../../lib/content/types';
 import { ModalsProvider } from '@mantine/modals';
 import { Notifications } from '@mantine/notifications';
 import { addCollection } from '@iconify/react';
-import { SessionConfig } from '../../lib/session/types';
+import { SessionConfiguration } from '../../lib/session/types';
 import { Gen3ModalsProvider, type ModalsConfig } from '../Modals';
 
 interface Gen3ProviderProps {
   colors: Record<string, TenStringArray>;
   icons: RegisteredIcons;
   fonts: Fonts;
-  sessionConfig: SessionConfig;
+  sessionConfig: SessionConfiguration;
   modalsConfig: ModalsConfig;
   children?: ReactNode | undefined;
 }
@@ -66,6 +66,15 @@ const createMantineTheme = (
       md: '62.5em',
       lg: '80em',
       xl: '112.5em',
+    },
+    components: {
+      Modal: {
+        defaultProps: {
+          classNames: {
+            title: 'font-bold',
+          },
+        },
+      },
     },
   });
 
