@@ -29,15 +29,15 @@ const textColor = {
 };
 
 const icon = {
-  INFO: <InfoIcon className='text-utility-contrast-info' title='Info icon.' />,
+  INFO: <InfoIcon className="text-utility-contrast-info" title="Info icon." />,
   WARNING: (
     <WarningIcon
-      className='text-utility-contrast-warning'
-      title='Warning icon.'
+      className="text-utility-contrast-warning"
+      title="Warning icon."
     />
   ),
   ERROR: (
-    <ErrorIcon className='text-utility-contrast-error' title='Error icon.' />
+    <ErrorIcon className="text-utility-contrast-error" title="Error icon." />
   ),
 };
 
@@ -53,16 +53,16 @@ export const Banner: React.FC<BannerProps> = ({
     <div
       className={`w-full p-1 flex justify-between ${backgroundColor[level]}`}
     >
-      <div className='flex items-center m-auto'>
+      <div className="flex items-center m-auto">
         {icon[level]}
         <span className={`pl-4 ${textColor[level]}`}>
           <Markdown
             components={{
               // eslint-disable-next-line react/prop-types
               a: ({ children, ...props }) => (
-                <a className='underline' {...props} target={linkTarget} rel='noreferrer'>
+                <a className="underline" {...props} target={linkTarget} rel="noreferrer">
                   {children}
-                  {isExternalLink && <FaExternalLinkAlt className='pl-1 inline-block' title='External Link'/>}
+                  {isExternalLink && <FaExternalLinkAlt className="pl-1 inline-block" title="External Link"/>}
                 </a>
               ),
             }}

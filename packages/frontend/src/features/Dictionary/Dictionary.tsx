@@ -31,7 +31,7 @@ const Dictionary = () => {
   );
 
   return (
-    <>
+    <React.Fragment>
       <div className="w-1/4 overflow-auto p-4">
         <div className="h-full">
           {config?.showGraph ? (
@@ -65,7 +65,7 @@ const Dictionary = () => {
             ))}
         </div>
       </div>
-    </>
+    </React.Fragment>
   );
 };
 

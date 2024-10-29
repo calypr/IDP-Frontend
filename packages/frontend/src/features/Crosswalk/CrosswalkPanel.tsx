@@ -97,13 +97,13 @@ const CrosswalkPanel = ({
 
   return (
     <Group
-      wrap='nowrap'
+      wrap="nowrap"
       className="w-full items-start justify-start bg-base-lightest"
       align="stretch"
     >
       <Stack align="stretch" justify="flex-start" className="p-2 w-1/4">
         <Group
-          wrap='nowrap'>
+          wrap="nowrap">
           <Button
             size="md"
             color="secondary.4"

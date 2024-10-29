@@ -190,7 +190,7 @@ const TableSearch = ({ selectItem }: TableSearchProps): ReactElement => {
   };
 
   return (
-    <>
+    <React.Fragment>
       <Stack justify="flex-start" className="mt-2">
         <Autocomplete
           // TODO: replace for v7
@@ -264,7 +264,7 @@ const TableSearch = ({ selectItem }: TableSearchProps): ReactElement => {
           <React.Fragment></React.Fragment>
         )}
       </Stack>
-    </>
+    </React.Fragment>
   );
 };
 

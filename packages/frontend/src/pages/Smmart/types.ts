@@ -13,7 +13,7 @@ interface SmmartConfig {
 }
 
 export interface SmmartProps {
-  smmartConfig: SmmartConfig;
+  smmartConfig?: SmmartConfig;
 }
 
 export type SmmartLandingPageProps = NavPageLayoutProps & SmmartProps;

@@ -70,7 +70,9 @@ const ExplorerTable = ({ index, tableConfig }: ExplorerTableProps) => {
 
   const [sorting, setSorting] = useState<MRT_SortingState>([]);
   const [rowSelection, setRowSelection] = useState<MRT_RowSelectionState>({});
-
+  const [selectedRow, setSelectedRow] = useState<
+    MRT_Row<Record<string, any>> | undefined
+  >(undefined);
   const DetailsPanel = useMemo(
     () =>
       ExplorerTableDetailsPanelFactory().getRenderer(
@@ -137,6 +139,32 @@ const ExplorerTable = ({ index, tableConfig }: ExplorerTableProps) => {
 
   const cohortFilters = useCoreSelector((state: CoreState) =>
     selectIndexFilters(state, index),
+  );
+
+  // Returns a value in the selected table row
+  const getFieldValue = useCallback(
+    (
+      tableConfig: SummaryTable,
+      rowSelection: MRT_RowSelectionState,
+      data: JSONObject[],
+      field: string,
+    ): string => {
+      const { detailsConfig } = tableConfig || {};
+      const idField: string | undefined = detailsConfig?.idField;
+      const selectedRowId = Object.keys(rowSelection).at(0);
+      if (!selectedRowId || !data) {
+        return 'Default Placeholder';
+      }
+      const selectedRow = data.find(
+        (row) => row[idField ?? ''] === selectedRowId,
+      );
+
+      if (selectedRow && field in selectedRow) {
+        return selectedRow[field] as string;
+      }
+      return 'Default Placeholder';
+    },
+    [],
   );
 
   const { data, isLoading, isError, isFetching } =
@@ -213,7 +241,7 @@ const ExplorerTable = ({ index, tableConfig }: ExplorerTableProps) => {
     mantineTableHeadCellProps: {
       style: {
         '--mrt-base-background-color': 'var(--mantine-color-table-1)',
-        color: `var(--mantine-color-table-contrast-5')`,
+        color: "var(--mantine-color-table-contrast-5')",
       },
       // sx: (theme) => {
       //   return {
@@ -241,8 +269,10 @@ const ExplorerTable = ({ index, tableConfig }: ExplorerTableProps) => {
             onClick: () => {
               if (Object.keys(rowSelection).includes(row.id)) {
                 setRowSelection({});
+                setSelectedRow(undefined);
               } else {
                 setRowSelection({ [row.id as string]: true });
+                setSelectedRow(row as MRT_Row<Record<string, any>>);
               }
             },
             sx: {
@@ -255,13 +285,24 @@ const ExplorerTable = ({ index, tableConfig }: ExplorerTableProps) => {
     <React.Fragment>
       {Object.keys(rowSelection).length > 0 ? (
         <DetailsComponent
-          title={tableConfig?.detailsConfig?.title}
+          title={`${String(tableConfig?.detailsConfig?.nodeType).charAt(0).toUpperCase() + String(tableConfig?.detailsConfig?.nodeType).slice(1)} / ${getFieldValue(
+            tableConfig,
+            rowSelection,
+            data?.data?.[index] ?? [],
+            'project_id',
+          )} / ${getFieldValue(
+            tableConfig,
+            rowSelection,
+            data?.data?.[index] ?? [],
+            tableConfig?.detailsConfig?.title as string,
+          )}`}
           id={
             Object.keys(rowSelection).length > 0
               ? Object.keys(rowSelection).at(0)
               : undefined
           }
           onClose={() => setRowSelection({})}
+          row={selectedRow}
           panel={DetailsPanel}
           classNames={tableConfig?.detailsConfig?.classNames}
           panelProps={{

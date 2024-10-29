@@ -6,10 +6,10 @@
       "navigationPanel": "bg-base-max text-primary"
     },
     "logo": {
-      "src": "/icons/cbds.png",
+      "src": "/icons/cbds.svg",
       "width": 200,
       "height": 60,
-      "href": "/cbdsLandingPage"
+      "href": "/"
     },
     "items": [
       {

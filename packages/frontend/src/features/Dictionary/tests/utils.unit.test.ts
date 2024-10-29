@@ -24,7 +24,7 @@ it('get total number of properties in data dictionary', () => {
 });
 
 describe('SnakeCaseToLabel function', () => {
-  test("should return 'undefined' when input is not a string or is empty", () => {
+  test('should return \'undefined\' when input is not a string or is empty', () => {
     expect(snakeCaseToLabel(undefined)).toBe('undefined');
     expect(snakeCaseToLabel(123 as unknown as string)).toBe('undefined');
     expect(snakeCaseToLabel('')).toBe('undefined');

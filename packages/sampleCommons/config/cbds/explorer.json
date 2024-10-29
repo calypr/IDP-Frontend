@@ -1,252 +1,296 @@
 [
-    {
-        "tabTitle": "Specimen",
-        "charts": {
-            "processing": {
-                "chartType": "fullPie",
-                "title": "Processing Method"
-            }
-        },
-        "filters": {
-            "tabs": [
-                {
-                    "fields": [
-                        "project_id",
-                        "biopsy_anatomical_location",
-                        "processing",
-                        "treatments",
-                        "tissue_type",
-                        "histology",
-                        "allocated_for_site"
-                    ]
-                }
-            ]
-        },
-        "table": {
-            "enabled": true,
-            "columns": {
-                "identifier":
-                {
-                  "title": "BEMS ID"
-                },
-                "processing": {
-                    "title": "Processing Method"
-                },
-                "collection": {
-                    "title": "Collection Concept"
-                }
-            },
-            "fields": [
-                "identifier",
-                "indexed_collection_date_days",
-                "biopsy_anatomical_location",
-                "processing",
-                "collection",
-                "treatments",
-                "tissue_type",
-                "histology",
-                "allocated_for_site",
-                "pathology_record_number",
-                "package_recipient",
-                "clinical_event",
-                "biopsy_procedure_type",
-                "alias",
-                "library_id",
-                "biopsy_specimens_bems_id",
-                "project_id",
-                "patient_id",
-                "id"
-            ],
-            "detailsConfig": {
-                "panel": "resourceDetails",
-                "mode": "click",
-                "idField": "id",
-                "filterField": "specimen_id",
-                "title": "Files Associated with a Given Specimen",
-                "nodeType": "file",
-                "nodeFields": [
-                    "title",
-                    "contentType",
-                    "size",
-                    "md5",
-                    "source_path",
-                    "date",
-                    "project_id",
-                    "creation",
-                    "specimen_id",
-                    "id",
-                    "identifier",
-                    "protocol_library_type",
-                    "product_notes_sequencing_site",
-                    "product_notes_sequencer",
-                    "product_notes_end_type",
-                    "product_notes_read_length",
-                    "protocol_library_construction",
-                    "protocol_hybrid_capture_bait_set"
-                ]
-            }
-        },
-        "dropdowns": {},
-        "guppyConfig": {
-            "dataType": "specimen",
-            "fieldMapping": [],
-            "nodeCountTitle": "Specimens",
-            "manifestMapping": {
-                "resourceIndexType": "Specimen",
-                "resourceIdField": "_id",
-                "referenceIdFieldInResourceIndex": "object_id",
-                "referenceIdFieldInDataIndex": "object_id"
-            },
-            "accessibleFieldCheckList": [
-                "project_id"
-            ],
-            "accessibleValidationField": "project_id"
-        }
+  {
+    "tabTitle": "Specimen",
+    "charts": {
+      "processing": {
+        "chartType": "fullPie",
+        "title": "Processing Method"
+      }
     },
-    {
-        "tabTitle": "Research Subject",
-        "filters": {
-            "tabs": [
-                {
-                    "fields": [
-                        "project_id"
-                    ]
-                }
-            ]
-        },
-        "table": {
-            "enabled": true,
-            "columns" : {
-                "project_id": {
-                    "title": "Clinical Trial"
-                },
-                "identifier": {
-                    "title": "Research Subject ID"
-                },
-                "subject_id": {
-                    "title": "Patient ID"
-                }
-            },
-            "fields": [
-                "project_id",
-                "identifier",
-                "subject_id"
-            ]
-        },
-        "dropdowns": {},
-        "guppyConfig": {
-            "dataType": "researchsubject",
-            "nodeCountTitle": "Research Subjects",
-            "fieldMapping": []
+    "filters": {
+      "tabs": [
+        {
+          "fields": [
+            "project_id",
+            "biopsy_anatomical_location",
+            "processing",
+            "treatments",
+            "tissue_type",
+            "histology",
+            "allocated_for_site"
+          ]
         }
+      ]
     },
-    {
-        "tabTitle": "File",
-        "charts": {
-            "protocol_library_type": {
-                "chartType": "fullPie",
-                "title": "Protocol Library Type"
-            }
+    "table": {
+      "enabled": true,
+      "columns": {
+        "identifier": {
+          "title": "BEMS ID"
         },
-        "filters": {
-            "tabs": [
-                {
-                    "fields": [
-                        "project_id",
-                        "contentType",
-                        "protocol_library_type",
-                        "protocol_library_construction", 
-                        "protocol_hybrid_capture_bait_set"
-                    ]
-                }
-            ]
+        "processing": {
+          "title": "Processing Method"
         },
-        "table": {
-            "enabled": true,
-            "fields": [
-                "title",
-                "contentType",
-                "size",
-                "md5",
-                "source_path",
-                "date",
-                "project_id",
-                "creation",
-                "specimen_id",
-                "id",
-                "identifier",
-                "protocol_library_type",
-                "product_notes_sequencing_site",
-                "product_notes_sequencer",
-                "product_notes_end_type",
-                "product_notes_read_length",
-                "protocol_library_construction",
-                "protocol_hybrid_capture_bait_set"
-            ],
-            "detailsConfig": {
-                "panel": "fileDetails",
-                "mode": "click",
-                "idField": "id",
-                "nodeType": "file",
-                "title": "File Details"
-            }
-        },
-        "dropdowns": {},
-        "guppyConfig": {
-            "dataType": "file",
-            "fieldMapping": [
-                {
-                    "field": "object_id",
-                    "name": "Download ID"
-                },
-                {
-                    "field": "file_name",
-                    "name": "Name"
-                },
-                {
-                    "field": "data_type",
-                    "name": "Type"
-                },
-                {
-                    "field": "data_format",
-                    "name": "Format"
-                }
-            ],
-            "nodeCountTitle": "Files",
-            "manifestMapping": {
-                "resourceIndexType": "Observation",
-                "resourceIdField": "_patient_id",
-                "referenceIdFieldInResourceIndex": "id",
-                "referenceIdFieldInDataIndex": "id"
-            },
-            "accessibleFieldCheckList": [
-                "project_id"
-            ],
-            "accessibleValidationField": "project_id",
-            "downloadAccessor": "id"
-        },
-        "buttons": [
-            {
-                "enabled": true,
-                "type": "manifest",
-                "action": "manifest",
-                "title": "Download Manifest",
-                "leftIcon": "gen3:datafile",
-                "rightIcon": "gen3:download",
-                "fileName": "manifest.json",
-                "actionArgs": {
-                    "resourceIndexType": "file",
-                    "resourceIdField": "id",
-                    "referenceIdFieldInDataIndex": "id",
-                    "referenceIdFieldInResourceIndex": "id",
-                    "fileFields": [
-                        "id",
-                        "md5",
-                        "title",
-                        "size"
-                    ]
-                }
-            }
-        ]
+        "collection": {
+          "title": "Collection Concept"
+        }
+      },
+      "fields": [
+        "identifier",
+        "indexed_collection_date_days",
+        "sample_family_id",
+        "biopsy_anatomical_location",
+        "processing",
+        "collection",
+        "treatments",
+        "tissue_type",
+        "histology",
+        "allocated_for_site",
+        "pathology_record_number",
+        "package_recipient",
+        "clinical_event",
+        "biopsy_procedure_type",
+        "alias",
+        "library_id",
+        "biopsy_specimens_bems_id",
+        "project_id",
+        "patient_id",
+        "id"
+      ],
+      "detailsConfig": {
+        "panel": "resourceDetails",
+        "mode": "click",
+        "idField": "id",
+        "filterField": "specimen_id",
+        "title": "identifier",
+        "nodeType": "file",
+        "nodeFields": {
+          "Title": "title",
+          "Content_Type": "contentType",
+          "File_Size": "size",
+          "Md5sum": "md5",
+          "Source_Path": "source_path",
+          "Date": "date",
+          "Project_Id": "project_id",
+          "Creation_Date": "creation",
+          "Specimen_Id": "specimen_id",
+          "File_Download": "id",
+          "Identifier": "identifier",
+          "Library_Type": "protocol_library_type",
+          "Sequencing_Site": "product_notes_sequencing_site",
+          "Sequencer": "product_notes_sequencer",
+          "End_Type": "product_notes_end_type",
+          "Notes_Read_Length": "product_notes_read_length",
+          "Library_Construction": "protocol_library_construction",
+          "Capture_Bait_Set": "protocol_hybrid_capture_bait_set"
+        }
+      }
+    },
+    "dropdowns": {},
+    "guppyConfig": {
+      "dataType": "specimen",
+      "fieldMapping": [],
+      "nodeCountTitle": "Specimens",
+      "manifestMapping": {
+        "resourceIndexType": "Specimen",
+        "resourceIdField": "_id",
+        "referenceIdFieldInResourceIndex": "object_id",
+        "referenceIdFieldInDataIndex": "object_id"
+      },
+      "accessibleFieldCheckList": ["project_id"],
+      "accessibleValidationField": "project_id"
     }
+  },
+  {
+    "tabTitle": "Research Subject",
+    "filters": {
+      "tabs": [
+        {
+          "fields": ["project_id", "condition_Diagnosis"]
+        }
+      ]
+    },
+    "table": {
+      "enabled": true,
+      "columns": {
+        "project_id": {
+          "title": "Clinical Trial"
+        },
+        "identifier": {
+          "title": "Research Subject ID"
+        },
+        "patient_id": {
+          "title": "Patient ID"
+        }
+      },
+      "fields": [
+        "project_id",
+        "identifier",
+        "condition_Diagnosis",
+        "patient_id",
+        "id"
+      ],
+      "detailsConfig": {
+        "panel": "researchSubject",
+        "mode": "click",
+        "idField": "patient_id",
+        "filterField": "patient_id",
+        "title": "identifier",
+        "nodeType": "specimen",
+        "nodeFields": {
+          "Collection_Site": "collection",
+          "Indexd_Collection_Date_Days": "indexed_collection_date_days",
+          "Sample_Family_Id": "sample_family_id",
+          "Histology": "histology",
+          "Tumor_Purity": "percent_tumor",
+          "Procedure": "biopsy_procedure_type",
+          "Processing": "processing",
+          "Sample_Type": "sample_type",
+          "Library": "library_id",
+          "Identifier": "identifier"
+        }
+      }
+    },
+    "dropdowns": {},
+    "guppyConfig": {
+      "dataType": "researchsubject",
+      "nodeCountTitle": "Research Subjects",
+      "fieldMapping": []
+    }
+  },
+  {
+    "tabTitle": "File",
+    "charts": {
+      "protocol_library_type": {
+        "chartType": "fullPie",
+        "title": "Protocol Library Type"
+      }
+    },
+    "filters": {
+      "tabs": [
+        {
+          "fields": [
+            "project_id",
+            "contentType",
+            "protocol_library_type",
+            "protocol_library_construction",
+            "protocol_hybrid_capture_bait_set"
+          ]
+        }
+      ]
+    },
+    "table": {
+      "enabled": true,
+      "fields": [
+        "title",
+        "contentType",
+        "size",
+        "md5",
+        "source_path",
+        "date",
+        "project_id",
+        "creation",
+        "specimen_id",
+        "id",
+        "identifier",
+        "protocol_library_type",
+        "product_notes_sequencing_site",
+        "product_notes_sequencer",
+        "product_notes_end_type",
+        "product_notes_read_length",
+        "protocol_library_construction",
+        "protocol_hybrid_capture_bait_set"
+      ],
+      "columns": {
+        "id": {
+          "title": "View Image",
+          "type": "link",
+          "accessortPath": "id",
+          "cellRenderFunction": "DiacomLink",
+          "width": "32px",
+          "params": {
+            "baseURL": "/image-viewer/view"
+          }
+        }
+      },
+      "detailsConfig": {
+        "panel": "resourceDetails",
+        "mode": "click",
+        "idField": "id",
+        "filterField": "id",
+        "nodeType": "file",
+        "title": "title",
+        "nodeFields": {
+          "Title": "title",
+          "Content_Type": "contentType",
+          "File_Size": "size",
+          "Md5sum": "md5",
+          "Source_Path": "source_path",
+          "Date": "date",
+          "Project_Id": "project_id",
+          "Creation_Date": "creation",
+          "Specimen_Id": "specimen_id",
+          "File_Download": "id",
+          "Identifier": "identifier",
+          "Library_Type": "protocol_library_type",
+          "Sequencing_Site": "product_notes_sequencing_site",
+          "Sequencer": "product_notes_sequencer",
+          "End_Type": "product_notes_end_type",
+          "Notes_Read_Length": "product_notes_read_length",
+          "Library_Construction": "protocol_library_construction",
+          "Capture_Bait_Set": "protocol_hybrid_capture_bait_set"
+        }
+      }
+    },
+    "dropdowns": {},
+    "guppyConfig": {
+      "dataType": "file",
+      "fieldMapping": [
+        {
+          "field": "object_id",
+          "name": "Download ID"
+        },
+        {
+          "field": "file_name",
+          "name": "Name"
+        },
+        {
+          "field": "data_type",
+          "name": "Type"
+        },
+        {
+          "field": "data_format",
+          "name": "Format"
+        }
+      ],
+      "nodeCountTitle": "Files",
+      "manifestMapping": {
+        "resourceIndexType": "Observation",
+        "resourceIdField": "_patient_id",
+        "referenceIdFieldInResourceIndex": "id",
+        "referenceIdFieldInDataIndex": "id"
+      },
+      "accessibleFieldCheckList": ["project_id"],
+      "accessibleValidationField": "project_id",
+      "downloadAccessor": "id"
+    },
+    "buttons": [
+      {
+        "enabled": true,
+        "type": "manifest",
+        "action": "manifest",
+        "title": "Download Manifest",
+        "leftIcon": "gen3:datafile",
+        "rightIcon": "gen3:download",
+        "fileName": "manifest.json",
+        "actionArgs": {
+          "resourceIndexType": "file",
+          "resourceIdField": "id",
+          "referenceIdFieldInDataIndex": "id",
+          "referenceIdFieldInResourceIndex": "id",
+          "fileFields": ["id", "md5", "title", "size"]
+        }
+      }
+    ]
+  }
 ]

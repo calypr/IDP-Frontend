@@ -1,0 +1,9 @@
+[
+  {
+    "message": "hello",
+    "level": "INFO",
+    "dismissible": true,
+    "isExternalLink": true,
+    "id": 1
+  }
+]

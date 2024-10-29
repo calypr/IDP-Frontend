@@ -63,7 +63,7 @@ const DownloadLinksPanel = ({
                   }
                   const id = entry[downloadLinkFields.idField];
                   return (
-                    <Group key={id} gap='md'>
+                    <Group key={id} gap="md">
                       <Text>{entry['titleField'] || ''}</Text>
                       <Button leftSection={<DownloadIcon />} disabled={!id}>Download File</Button>
                     </Group>

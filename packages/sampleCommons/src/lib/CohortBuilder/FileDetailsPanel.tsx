@@ -116,7 +116,7 @@ export const FileDetailsPanel = ({
         {field === 'id' ? (
           <div className="flex">
             <div className="px-2">
-              <FiDownload title="download" className='float-start' size={16} />
+              <FiDownload title="download" className="float-start" size={16} />
             </div>
             <Anchor
               c="accent.1"

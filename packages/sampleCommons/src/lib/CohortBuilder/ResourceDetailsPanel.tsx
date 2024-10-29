@@ -21,7 +21,6 @@ import {
   MdContentCopy as IconCopy,
   MdCheck as IconCheck,
 } from 'react-icons/md';
-import { table } from 'console';
 import { useState } from 'react';
 import { FiDownload } from 'react-icons/fi';
 
@@ -68,10 +67,15 @@ export const ResourceDetailsPanel = ({
   const nodeType = tableConfig.detailsConfig?.nodeType;
   const nodeFields = tableConfig.detailsConfig?.nodeFields;
   const filterField = tableConfig.detailsConfig?.filterField;
+
+  const ProcessedNodeFields = Object.entries(nodeFields ?? {})
+    .map(([alias, field]) => `${alias}: ${field}`)
+    .join('\n');
+
   const { data, isLoading, isError } = useGeneralGQLQuery({
     query: `query ($filter: JSON) {
         ${nodeType} (filter: $filter,  accessibility: all) {
-        ${nodeFields}
+        ${ProcessedNodeFields}
         }
       }`,
     variables: {
@@ -102,33 +106,36 @@ export const ResourceDetailsPanel = ({
   const currentFileData = queryData[currentFileIndex] || {};
 
   // Render rows for the current file index
-  const rows = Object.entries(currentFileData).map(([field, value]) => (
-    <Table.Tr key={`${currentFileIndex}-${field}`}>
-      <Table.Td>
-        <Text fw={500}>{field}</Text>
-      </Table.Td>
-      <Table.Td>
-        {field === 'id' ? (
-          <div className="flex">
-            <div className="px-2">
-              <FiDownload title="download" size={16} />
+  const rows = Object.entries(currentFileData).map(([RawField, value]) => {
+    const field = RawField.replace(/_/g, ' ');
+    return (
+      <Table.Tr key={`${currentFileIndex}-${field}`}>
+        <Table.Td>
+          <Text fw={500}>{field}</Text>
+        </Table.Td>
+        <Table.Td>
+          {field === 'File Download' ? (
+            <div className="flex">
+              <div className="px-2">
+                <FiDownload title="download" size={16} />
+              </div>
+              <Anchor
+                c="accent.1"
+                href={`${GEN3_FENCE_API}/user/data/download/${
+                  value ? (value as string) : ''
+                }?redirect=true`}
+                target="_blank"
+              >
+                {value ? (value as string) : ''}
+              </Anchor>
             </div>
-            <Anchor
-              c="accent.1"
-              href={`${GEN3_FENCE_API}/user/data/download/${
-                value ? (value as string) : ''
-              }?redirect=true`}
-              target="_blank"
-            >
-              {value ? (value as string) : ''}
-            </Anchor>
-          </div>
-        ) : (
-          <Text>{value ? (value as string) : ''}</Text>
-        )}
-      </Table.Td>
-    </Table.Tr>
-  ));
+          ) : (
+            <Text>{value ? (value as string) : ''}</Text>
+          )}
+        </Table.Td>
+      </Table.Tr>
+    );
+  });
 
   // Handle previous file index
   const handlePrevFile = () => {
@@ -144,71 +151,64 @@ export const ResourceDetailsPanel = ({
     }
   };
 
-  return (
-      totalFiles > 0 ? (
-        <Stack>
-          <LoadingOverlay visible={isLoading} />
-          <ScrollArea.Autosize maw={1200} mx="auto" >
-            <Table withTableBorder withColumnBorders>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Field</Table.Th>
-                  <Table.Th>Value</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>{rows}</Table.Tbody>
-            </Table>
-          </ScrollArea.Autosize>
-          <div className="py-3">
-            <Group justify="right">
-              <Button
-                onClick={handlePrevFile}
-                disabled={currentFileIndex === 0}
-              >
-                Previous
-              </Button>
-              <Text>{`${currentFileIndex + 1} / ${totalFiles}`}</Text>
-              <Button
-                onClick={handleNextFile}
-                disabled={currentFileIndex === totalFiles - 1}
-              >
-                Next
-              </Button>
-            </Group>
-          </div>
+  return totalFiles > 0 ? (
+    <Stack>
+      <LoadingOverlay visible={isLoading} />
+      <ScrollArea.Autosize maw={1200} mx="auto">
+        <Table withTableBorder withColumnBorders>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>Field</Table.Th>
+              <Table.Th>Value</Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>{rows}</Table.Tbody>
+        </Table>
+      </ScrollArea.Autosize>
+      {totalFiles > 1 ? (
+        <div className="py-3">
           <Group justify="right">
-            <CopyButton
-              value={JSON.stringify(queryData[currentFileIndex])}
-              timeout={2000}
+            <Button onClick={handlePrevFile} disabled={currentFileIndex === 0}>
+              Previous
+            </Button>
+            <Text>{`${currentFileIndex + 1} / ${totalFiles}`}</Text>
+            <Button
+              onClick={handleNextFile}
+              disabled={currentFileIndex === totalFiles - 1}
             >
-              {({ copied, copy }) => (
-                <Tooltip
-                  label={copied ? 'Copied' : 'Copy'}
-                  withArrow
-                  position="right"
-                >
-                  <ActionIcon
-                    color={copied ? 'accent.4' : 'gray'}
-                    onClick={copy}
-                  >
-                    {copied ? (
-                      <IconCheck size="1rem" />
-                    ) : (
-                      <IconCopy size="1rem" />
-                    )}
-                  </ActionIcon>
-                </Tooltip>
-              )}
-            </CopyButton>
-
-            <Button onClick={() => onClose && onClose(id)}>Close</Button>
+              Next
+            </Button>
           </Group>
-        </Stack>
-      ) : (
-        <div className="px-6">
-          <Text> No {nodeType}s found for {idField} {id}</Text>
         </div>
-      )
+      ) : null}
+      <Group justify="right">
+        <CopyButton
+          value={JSON.stringify(queryData[currentFileIndex])}
+          timeout={2000}
+        >
+          {({ copied, copy }) => (
+            <Tooltip
+              label={copied ? 'Copied' : 'Copy'}
+              withArrow
+              position="right"
+            >
+              <ActionIcon color={copied ? 'accent.4' : 'gray'} onClick={copy}>
+                {copied ? <IconCheck size="1rem" /> : <IconCopy size="1rem" />}
+              </ActionIcon>
+            </Tooltip>
+          )}
+        </CopyButton>
+
+        <Button onClick={() => onClose && onClose(id)}>Close</Button>
+      </Group>
+    </Stack>
+  ) : (
+    <div className="px-6">
+      <Text>
+        {' '}
+        No {nodeType}s found for {idField} {id}
+      </Text>
+    </div>
   );
 };
 

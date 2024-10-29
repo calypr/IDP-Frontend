@@ -17,7 +17,7 @@ export interface TableDetailsPanelProps extends DetailsPanelComponentProps {
  * @property {Record<string, string>} [classNames] - Additional CSS class names for the Explorer modal | drawer.
  * @property {string} [idField] - The field used as an identifier for the Explorer details.
  * @property {string} [nodeType] - The node type used to index on
-   @property {string[]} [nodeFields] - The fields to query the node type on
+   @property {Record<string, string>} [nodeFields] - The fields to query the node type on
    @property {string} [filterField] The field that is filtered on when selecting a specific Row ID
  */
 export interface ExplorerDetailsConfig {
@@ -28,6 +28,6 @@ export interface ExplorerDetailsConfig {
   classNames?: Record<string, string>;
   idField?: string;
   nodeType?: string;
-  nodeFields?: string[];
+  nodeFields?: Record<string, string>;
   filterField?: string;
 }

@@ -5,7 +5,7 @@ import {
 import ResultList from './ResultList';
 import { useState } from 'react';
 import { MatchingSearchResult } from './types';
-
+import React from 'react';
 const MAX_UNEXPANDED_ITEMS = 4;
 
 interface ResultCardProps {
@@ -60,7 +60,7 @@ const ResultCard = ({ term, matches, selectItem }: ResultCardProps) => {
           )}
         </div>
       ) : (
-        <></>
+        <React.Fragment></React.Fragment>
       )}
     </div>
   );

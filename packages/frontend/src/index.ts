@@ -13,7 +13,7 @@ export * from './utils/';
 
 import { getNavPageLayoutPropsFromConfig } from './lib/common/staticProps';
 import ContentSource from './lib/content';
-import { type SessionConfiguration } from './lib/session/types';
+import { SessionConfig, type SessionConfiguration } from './lib/session/types';
 import { type Fonts, type RegisteredIcons } from './lib/content/types';
 import ErrorCard from './components/ErrorCard';
 import '@gen3/core';
@@ -32,6 +32,7 @@ import LandingPage from './pages/Landing/Landing';
 import { LandingPageGetStaticProps } from './pages/Landing/data';
 
 import ExplorerPage from './pages/Explorer/Explorer';
+import { type ExplorerPageProps } from './pages/Explorer/types';
 import { ExplorerPageGetServerSideProps } from './pages/Explorer/data';
 
 import ColorThemePage from './pages/Theme/Colors';
@@ -74,6 +75,7 @@ export {
   type Fonts,
   type RegisteredIcons,
   type SessionConfiguration,
+  type ExplorerPageProps,
   ErrorCard,
   DiscoveryPage,
   DiscoveryPageGetServerSideProps,

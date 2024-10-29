@@ -1,12 +1,14 @@
 import { RenderFactoryTypedInstance } from '../../../../utils/RendererFactory';
 import { TableDetailsPanelProps } from './types';
-import TableDetailsPanel from './TableDetailsPanel';
+import QueryRowDetailsPanel from './QueryRowDetailsPanel';
+import RowTableDetailsPanel from './RowDetailsPanel';
 
 let instance: RenderFactoryTypedInstance<TableDetailsPanelProps>;
 
 const DefaultRendererCatalog = {
   tableDetails: {
-    default: TableDetailsPanel,
+    default: RowTableDetailsPanel,
+    queryRowDetails: QueryRowDetailsPanel,
   },
 };
 

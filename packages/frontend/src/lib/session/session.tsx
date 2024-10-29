@@ -5,7 +5,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { useRouter, NextRouter } from 'next/router';
+import { useRouter } from 'next/router';
 import { Session, SessionProviderProps } from './types';
 import { isUserOnPage } from './utils';
 import {
@@ -224,7 +224,7 @@ export const SessionProvider = ({
         });
       })
       .finally(() => {
-        router.push(`/cbdsLandingPage`); // TODO replace with config option
+        router.push(`${GEN3_REDIRECT_URL}`); // TODO replace with config option
       });
   };
   /**
