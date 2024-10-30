@@ -161,9 +161,9 @@ const UPDATE_SESSION_LIMIT = MinutesToMilliseconds(5);
 export const SessionProvider = ({
   children,
   session,
-  updateSessionTime = 5,
-  inactiveTimeLimit = 20,
-  workspaceInactivityTimeLimit = 0,
+  updateSessionTime = 1440,
+  inactiveTimeLimit = 1440,
+  workspaceInactivityTimeLimit = 1440,
   logoutInactiveUsers = true,
 }: SessionProviderProps) => {
   const router = useRouter();
