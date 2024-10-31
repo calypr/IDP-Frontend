@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import dynamic from 'next/dynamic';
 const Plot = dynamic(() => import('react-plotly.js'), { ssr: false });
-import { Center, Title, Text, LoadingOverlay } from '@mantine/core';
+import { Text, LoadingOverlay } from '@mantine/core';
 import {
   NavPageLayout,
   NavPageLayoutProps,
@@ -18,8 +18,8 @@ const Heatmap = ({ data, copyNumberData }) => {
   console.log('copyNumberData', copyNumberData);
   console.log('DATA', data);
 
-  //const totalData = list1.concat(list2);
-  const geneDict = [...new Set(data.map((x) => x.gene))]
+  const totalData = data.concat(copyNumberData);
+  const geneDict = [...new Set(totalData.map((x) => x.gene))]
     .reverse()
     .reduce((acc, gene, index) => {
       acc[gene] = index;
@@ -35,7 +35,15 @@ const Heatmap = ({ data, copyNumberData }) => {
   for (const [index, value] of data.entries()) {
     array[geneDict[value.gene]][index] = 1;
   }
-  console.log('ARRAY: ', array);
+
+  const xArr = Array(copyNumberData.length).fill(0);
+  const yArr = Array(copyNumberData.length).fill(0);
+  for (const [index, value] of copyNumberData.entries()) {
+    if (geneDict[value.gene] !== undefined) {
+      yArr[index] = geneDict[value.gene]; // Gene index for the y-axis
+      xArr[index] = index; // Use the index for the x-axis (or modify as needed)
+    }
+  }
 
   const colorscale = [
     [0, 'rgb(255, 255, 255)'], // Color for 0s
@@ -60,20 +68,13 @@ const Heatmap = ({ data, copyNumberData }) => {
             },
           },
           {
-            x: [4, 2],
-            y: [39, 39],
+            x: xArr,
+            y: yArr,
             textposition: 'top center',
             mode: 'markers+text',
             marker: {
-              symbol: 'line-ns-open',
+              symbol: 'circle',
               size: 10,
-            },
-            error_y: {
-              type: 'data',
-              symmetric: true,
-              array: [1, 1, 1],
-              width: 1,
-              thickness: 5,
             },
           },
         ]}
@@ -89,12 +90,11 @@ const Heatmap = ({ data, copyNumberData }) => {
               font: { size: 24 },
             },
             automargin: true,
-            tickvals: Array.from({ length: data.length }, (_, i) => i),
-            ticktext: data.map(
+            tickvals: Array.from({ length: totalData.length }, (_, i) => i),
+            ticktext: totalData.map(
               (x) => `${x.patient_identifier}-${x.index_date_run_days}`,
             ),
           },
-          autotickangles: 'auto',
           yaxis: {
             title: {
               text: 'Genes',
@@ -106,7 +106,7 @@ const Heatmap = ({ data, copyNumberData }) => {
             ticktext: Object.keys(geneDict),
           },
         }}
-        style={{ width: '100%', height: '800px', margin: '10px' }}
+        style={{ width: '100%', height: '1200px', margin: '10px' }}
       />
     </div>
   );
