@@ -14,41 +14,61 @@ import {
   extractData,
 } from '../lib/CohortBuilder/ResearchSubjectModal/tools';
 
-const Heatmap = ({ data, copyNumberData }) => {
-  console.log('copyNumberData', copyNumberData);
+const Heatmap = ({ data }) => {
   console.log('DATA', data);
+  const groupedData = data.reduce((acc, item) => {
+    if (!acc[item.patient_identifier]) {
+      acc[item.patient_identifier] = [];
+    }
+    acc[item.patient_identifier].push(item);
+    return acc;
+  }, {});
 
-  const totalData = data.concat(copyNumberData);
-  const geneDict = [...new Set(totalData.map((x) => x.gene))]
+  // Create `geneDict` and `patientDict` dictionaries
+  const geneDict = [...new Set(data.map((x) => x.gene))]
     .reverse()
     .reduce((acc, gene, index) => {
       acc[gene] = index;
       return acc;
     }, {});
 
-  // Initialize a 2D array (genes x samples) with zeros
+  const patientDict = Object.keys(groupedData).reduce((acc, patient, index) => {
+    acc[patient] = index;
+    return acc;
+  }, {});
+
+  // Initialize a 2D `z` array (genes x unique patients) with zeros
   const array = Array(Object.keys(geneDict).length)
     .fill()
-    .map(() => Array(data.length).fill(0));
+    .map(() => Array(Object.keys(patientDict).length).fill(0));
 
-  // Fill the array with 1s based on the data mapping
-  for (const [index, value] of data.entries()) {
-    array[geneDict[value.gene]][index] = 1;
-  }
-
-  const xArr = Array(copyNumberData.length).fill(0);
-  const yArr = Array(copyNumberData.length).fill(0);
-  for (const [index, value] of copyNumberData.entries()) {
-    if (geneDict[value.gene] !== undefined) {
-      yArr[index] = geneDict[value.gene]; // Gene index for the y-axis
-      xArr[index] = index; // Use the index for the x-axis (or modify as needed)
+  // Fill the `z` array based on consolidated data
+  for (const [patient, entries] of Object.entries(groupedData)) {
+    const patientIndex = patientDict[patient];
+    for (const entry of entries) {
+      const geneIndex = geneDict[entry.gene];
+      if (entry.copy_number_result === 'GAIN') {
+        array[geneIndex][patientIndex] = 1;
+      } else if (entry.copy_number_result === 'LOSS') {
+        array[geneIndex][patientIndex] = 0.66;
+      } else {
+        array[geneIndex][patientIndex] = 0.33;
+      }
     }
   }
 
   const colorscale = [
-    [0, 'rgb(255, 255, 255)'], // Color for 0s
-    [1, 'rgb(50, 205, 50)'], // Color for 1s
+    [0, 'rgb(255, 255, 255)'],
+    [0.33, 'rgb(0, 12, 255)'],
+    [0.66, 'rgb(255, 0, 12)'],
+    [1, 'rgb(12, 255, 0)'],
   ];
+
+  // Generate `ticktext` based on the merged unique patient data
+  const ticktext = Object.keys(groupedData).map((patient) => {
+    const firstEntry = groupedData[patient][0]; // Use the first entry's `index_date_run_days`
+    return `${patient}-${firstEntry.index_date_run_days}`;
+  });
 
   return (
     <div>
@@ -60,21 +80,15 @@ const Heatmap = ({ data, copyNumberData }) => {
             colorscale: colorscale,
             zmin: 0,
             zmax: 1,
-            showscale: false,
+            showscale: true,
             colorbar: {
-              title: 'Values / Categories',
-              tickvals: [0, 1],
-              ticktext: ['0', '1'],
-            },
-          },
-          {
-            x: xArr,
-            y: yArr,
-            textposition: 'top center',
-            mode: 'markers+text',
-            marker: {
-              symbol: 'circle',
-              size: 10,
+              tickvals: [0, 0.33, 0.66, 1],
+              ticktext: [
+                'No variation',
+                'DNA sequence variation',
+                'Copy Number LOSS',
+                'Copy Number GAIN',
+              ],
             },
           },
         ]}
@@ -90,10 +104,11 @@ const Heatmap = ({ data, copyNumberData }) => {
               font: { size: 24 },
             },
             automargin: true,
-            tickvals: Array.from({ length: totalData.length }, (_, i) => i),
-            ticktext: totalData.map(
-              (x) => `${x.patient_identifier}-${x.index_date_run_days}`,
+            tickvals: Array.from(
+              { length: Object.keys(patientDict).length },
+              (_, i) => i,
             ),
+            ticktext: ticktext,
           },
           yaxis: {
             title: {
@@ -116,9 +131,11 @@ export const useSeqVarQuery = () => {
   const { data, isLoading, isError } = useGeneralGQLQuery({
     query: `query ($filter: JSON) {
               specimen (filter: $filter, accessibility: all, first: 10000,
-                sort: [{ gene: "desc"}]) {
+                sort: [{gene: "desc"},{patient_identifier: "desc"}]) {
+                  observation_code
                   patient_identifier
                   index_date_run_days
+                  copy_number_result
                   gene
               }
             }`,
@@ -129,6 +146,7 @@ export const useSeqVarQuery = () => {
             IN: {
               ['observation_code']: [
                 'DNA analysis discrete sequence variation panel',
+                'Copy number variation analysis in Blood or Tissue by Sequencing',
               ],
             },
           },
@@ -150,53 +168,9 @@ export const useSeqVarQuery = () => {
   return { resData: cachedData, isLoading, isError };
 };
 
-export const useCopyNumberQuery = () => {
-  const { data, isLoading, isError } = useGeneralGQLQuery({
-    query: `query ($filter: JSON) {
-              specimen (filter: $filter, accessibility: all, first: 10000,
-                sort: [{ gene: "desc"}]) {
-                  patient_identifier
-                  index_date_run_days
-                  gene
-              }
-            }`,
-    variables: {
-      filter: {
-        AND: [
-          {
-            IN: {
-              ['observation_code']: [
-                'Copy number variation analysis in Blood or Tissue by Sequencing',
-              ],
-            },
-          },
-        ],
-      },
-    },
-  });
-
-  const cachedData = useMemo(() => {
-    if (data) {
-      const extractedData = isQueryResponse(data)
-        ? extractData(data, 'specimen', '')
-        : [];
-      return extractedData;
-    }
-    return [];
-  }, [data]);
-
-  return {
-    copyNumberData: cachedData,
-    copyNumberLoading: isLoading,
-    copyNumberError: isError,
-  };
-};
-
 const SamplePage = ({ headerProps, footerProps }: NavPageLayoutProps) => {
   const { resData, isLoading, isError } = useSeqVarQuery();
-  const { copyNumberData, copyNumberLoading, copyNumberError } =
-    useCopyNumberQuery();
-  if (isError || copyNumberError) {
+  if (isError) {
     return <Text> Error occurred while fetching file metadata </Text>;
   }
   return (
@@ -209,8 +183,8 @@ const SamplePage = ({ headerProps, footerProps }: NavPageLayoutProps) => {
       }}
     >
       <div className="w-full h-full">
-        <LoadingOverlay visible={isLoading || copyNumberLoading} />
-        <Heatmap data={resData} copyNumberData={copyNumberData} />
+        <LoadingOverlay visible={isLoading} />
+        <Heatmap data={resData} />
       </div>
     </NavPageLayout>
   );

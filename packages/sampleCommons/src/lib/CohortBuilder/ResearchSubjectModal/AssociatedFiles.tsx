@@ -16,6 +16,7 @@ import { isQueryResponse, extractData } from './tools';
 import React, { useMemo, useState } from 'react';
 
 export const useFilesQuery = (identifiers: string[]) => {
+  const val = 'reported';
   const { data, isLoading, isError } = useGeneralGQLQuery({
     query: `query ($filter: JSON) {
               file (filter: $filter, accessibility: all, first: 10000) {
@@ -33,7 +34,7 @@ export const useFilesQuery = (identifiers: string[]) => {
         AND: [
           {
             IN: {
-              specimen_identifier: identifiers,
+              reported: identifiers,
             },
           },
         ],
@@ -134,7 +135,7 @@ export const AssociatedAssaysTable = ({
               <Table.Tr>
                 <Table.Th>File Name</Table.Th>
                 <Table.Th>Assay</Table.Th>
-                <Table.Th>Indexd Days</Table.Th>
+                <Table.Th>Indexed Days</Table.Th>
                 <Table.Th> Sample Family Id </Table.Th>
               </Table.Tr>
             </Table.Thead>
