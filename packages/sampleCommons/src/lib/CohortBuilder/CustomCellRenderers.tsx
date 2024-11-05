@@ -7,12 +7,23 @@ import React from 'react';
 import { FaExternalLinkAlt } from 'react-icons/fa';
 import { labelEnd } from 'micromark-core-commonmark';
 
-const RenderDiacomLink = ({ cell }: CellRendererFunctionProps) => {
-  if (!cell?.getValue() || cell?.getValue() === '') {
+const RenderDiacomLink = (
+  { cell, row }: CellRendererFunctionProps,
+  ...args: Array<Record<string, unknown>>
+) => {
+  if (
+    !cell?.getValue() ||
+    cell?.getValue() === '' ||
+    !row.getValue('source_path').endsWith('.tiff')
+  ) {
     return <span></span>;
   } else
     return (
-      <a href={`${cell.getValue()}`} target="_blank" rel="noreferrer">
+      <a
+        href={`${args[0].baseURL}/${cell.getValue()}`}
+        target="_blank"
+        rel="noreferrer"
+      >
         <ActionIcon color="accent.5" size="md" variant="filled">
           <FaExternalLinkAlt />
         </ActionIcon>
