@@ -38,11 +38,19 @@ export interface HeaderData {
   key: string;
 }
 
+/**
+ * Sitewide props that can be passed to Pages
+ */
+interface CommonsData {
+  contactEmail?: string;
+}
+
 export interface HeaderProps {
   top: TopBarProps;
   navigation: NavigationProps;
   banners?: Array<BannerProps>;
   type?: 'horizontal' | 'vertical' | 'original';
+  readonly siteProps?: CommonsData;
 }
 
 export interface MainContentProps {

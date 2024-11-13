@@ -121,10 +121,8 @@ const TopBar = ({
             items,
             loginButtonVisibility != LoginButtonVisibility.LogoutOnly,
           )}
-          {loginButtonVisibility != LoginButtonVisibility.Visible ? (
-            <div className="border-r-2 border-primary-contrast">
-              <LoginAccountButton />
-            </div>
+          {loginButtonVisibility != LoginButtonVisibility.Hidden ? (
+            <LoginAccountButton />
           ) : null}
           {loginButtonVisibility != LoginButtonVisibility.Hidden ? (
             <LoginButton visibility={loginButtonVisibility} />
