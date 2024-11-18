@@ -25,7 +25,9 @@ export const loadContent = async () => {
   const colors = Object.fromEntries(
     Object.entries(themeColors).map(([key, values]) => [
       key,
-      Object.values(values) as TenStringArray,
+      Object.values(
+        values as Record<string, string | undefined>,
+      ) as TenStringArray,
     ]),
   );
 

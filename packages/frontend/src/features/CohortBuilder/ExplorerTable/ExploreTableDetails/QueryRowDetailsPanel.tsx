@@ -1,11 +1,6 @@
 import { LoadingOverlay, Stack, Table, Text } from '@mantine/core';
-<<<<<<< HEAD
-import { JSONObject, useGeneralGQLQuery } from '@gen3/core';
-import ErrorCard from '../../../../components/ErrorCard';
-=======
 import { useGeneralGQLQuery } from '@gen3/core';
 import ErrorCard from '../../../../components/MessageCards/ErrorCard';
->>>>>>> 44b52412 (PXP-11265: workspaces api (#189))
 import { TableDetailsPanelProps } from './types';
 
 interface QueryResponse {
