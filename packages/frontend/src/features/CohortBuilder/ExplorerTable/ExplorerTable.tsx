@@ -272,7 +272,7 @@ const ExplorerTable = ({ index, tableConfig }: ExplorerTableProps) => {
                 setSelectedRow(undefined);
               } else {
                 setRowSelection({ [row.id as string]: true });
-                setSelectedRow(row as MRT_Row<Record<string, any>>);
+                setSelectedRow(row as any); // TODO: fix this typecast
               }
             },
             sx: {
