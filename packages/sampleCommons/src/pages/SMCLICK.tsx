@@ -195,7 +195,7 @@ const SummaryCounts = (countsProperty: string) => {
   );
 };
 
-const ChartFromField = (resourceType: string, countsProperty: string) => {
+const ChartFromField = (resourceType: string, countsProperty: string, title: string) => {
   const { data, isLoading, isError } = useGeneralGQLQuery(
     countsQuery(resourceType, countsProperty),
   );
@@ -214,7 +214,7 @@ const ChartFromField = (resourceType: string, countsProperty: string) => {
   // setup echart configs
   const option = {
     title: {
-      text: fieldNameToTitle(countsProperty),
+      text: title || fieldNameToTitle(countsProperty),
       right: 50,
     },
     yAxis: {
@@ -260,8 +260,9 @@ const HorizontalBarChart = ({ headerProps, footerProps }: SamplePageProps) => {
   const router = useRouter();
 
   // TODO: refactor out into a config
-  const chartResourceType = ['file', 'specimen'];
-  const chartFields = ['protocol_library_type', 'biopsy_anatomical_location'];
+  const chartResourceType = ['file', 'researchsubject'];
+  const chartFields = ['experimental_strategy', 'condition_Diagnosis'];
+  const chartTitles = ['Assay', 'Diagnosis']
   const numChartCols = chartFields.length <= 3 ? chartFields.length : 3;
   const countsFields = ['patient_id', 'specimen_identifier', 'specimen_collection_concept', 'clinical_trials'];
   const countsTitles = ['Patients', 'Specimens', 'Cancers', 'Clinical Trials'];
@@ -306,7 +307,7 @@ const HorizontalBarChart = ({ headerProps, footerProps }: SamplePageProps) => {
                 </Button>
               </div>
               <div className={`col-span-${numChartCols} grid grid-cols-${numChartCols} gap-2`}>
-                {chartResourceType.map((resourceType, i) => ChartFromField(resourceType, chartFields[i]))}
+                {chartResourceType.map((resourceType, i) => ChartFromField(resourceType, chartFields[i], chartTitles[i]))}
               </div>
             </div>
             <div className="text-center mx-auto bg-gray-200 py-5">

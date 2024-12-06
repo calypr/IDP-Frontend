@@ -14,7 +14,8 @@ const RenderDiacomLink = (
   if (
     !cell?.getValue() ||
     cell?.getValue() === '' ||
-    !row.getValue('source_path').endsWith('.tiff')
+    (!(row.getValue('source_path') as string).endsWith('.tiff') &&
+      !(row.getValue('source_path') as string).endsWith('.tif'))
   ) {
     return <span></span>;
   } else
@@ -29,6 +30,21 @@ const RenderDiacomLink = (
         </ActionIcon>
       </a>
     );
+};
+
+const RenderHumanReadableString = (
+  { cell, row }: CellRendererFunctionProps,
+  ...args: Array<Record<string, unknown>>
+) => {
+  if (!cell?.getValue() || cell?.getValue() === '') {
+    return <span></span>;
+  }
+  const bytes = row.getValue('size') as number;
+  if (bytes === 0) return '0 B';
+  const humanReadable = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  const round = bytes / Math.pow(1024, i);
+  return `${round.toFixed(2)} ${humanReadable[i]}`;
 };
 
 const JoinFields = (
@@ -57,6 +73,11 @@ export const registerCohortTableCustomCellRenderers = () => {
     'link',
     'DiacomLink',
     RenderDiacomLink,
+  );
+  ExplorerTableCellRendererFactory().registerRenderer(
+    'string',
+    'HumanReadableString',
+    RenderHumanReadableString,
   );
   ExplorerTableCellRendererFactory().registerRenderer(
     'string',

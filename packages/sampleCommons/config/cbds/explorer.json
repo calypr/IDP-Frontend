@@ -1,112 +1,15 @@
 [
   {
-    "tabTitle": "Specimen",
-    "charts": {
-      "processing": {
-        "chartType": "fullPie",
-        "title": "Processing Method"
-      }
-    },
-    "filters": {
-      "tabs": [
-        {
-          "fields": [
-            "project_id",
-            "biopsy_anatomical_location",
-            "processing",
-            "treatments",
-            "tissue_type",
-            "histology",
-            "allocated_for_site"
-          ]
-        }
-      ]
-    },
-    "table": {
-      "enabled": true,
-      "columns": {
-        "identifier": {
-          "title": "BEMS ID"
-        },
-        "processing": {
-          "title": "Processing Method"
-        },
-        "collection": {
-          "title": "Collection Concept"
-        }
-      },
-      "fields": [
-        "identifier",
-        "indexed_collection_date_days",
-        "sample_family_id",
-        "biopsy_anatomical_location",
-        "processing",
-        "collection",
-        "treatments",
-        "tissue_type",
-        "histology",
-        "allocated_for_site",
-        "pathology_record_number",
-        "package_recipient",
-        "clinical_event",
-        "biopsy_procedure_type",
-        "alias",
-        "library_id",
-        "biopsy_specimens_bems_id",
-        "project_id",
-        "patient_id",
-        "id"
-      ],
-      "detailsConfig": {
-        "panel": "resourceDetails",
-        "mode": "click",
-        "idField": "id",
-        "filterField": "specimen_id",
-        "title": "identifier",
-        "nodeType": "file",
-        "nodeFields": {
-          "Title": "title",
-          "Content_Type": "contentType",
-          "File_Size": "size",
-          "Md5sum": "md5",
-          "Source_Path": "source_path",
-          "Date": "date",
-          "Project_Id": "project_id",
-          "Creation_Date": "creation",
-          "Specimen_Id": "specimen_id",
-          "File_Download": "id",
-          "Identifier": "identifier",
-          "Library_Type": "protocol_library_type",
-          "Sequencing_Site": "product_notes_sequencing_site",
-          "Sequencer": "product_notes_sequencer",
-          "End_Type": "product_notes_end_type",
-          "Notes_Read_Length": "product_notes_read_length",
-          "Library_Construction": "protocol_library_construction",
-          "Capture_Bait_Set": "protocol_hybrid_capture_bait_set"
-        }
-      }
-    },
-    "dropdowns": {},
-    "guppyConfig": {
-      "dataType": "specimen",
-      "fieldMapping": [],
-      "nodeCountTitle": "Specimens",
-      "manifestMapping": {
-        "resourceIndexType": "Specimen",
-        "resourceIdField": "_id",
-        "referenceIdFieldInResourceIndex": "object_id",
-        "referenceIdFieldInDataIndex": "object_id"
-      },
-      "accessibleFieldCheckList": ["project_id"],
-      "accessibleValidationField": "project_id"
-    }
-  },
-  {
     "tabTitle": "Research Subject",
     "filters": {
       "tabs": [
         {
-          "fields": ["project_id", "condition_Diagnosis"]
+          "fields": ["project_id", "condition_Diagnosis"],
+          "fieldsConfig": {
+            "condition_Diagnosis": {
+              "label": "Enrollment Diagnosis"
+            }
+          }
         }
       ]
     },
@@ -121,6 +24,9 @@
         },
         "patient_id": {
           "title": "Patient ID"
+        },
+        "condition_Diagnosis": {
+          "title": "Enrollment Diagnosis"
         }
       },
       "fields": [
@@ -146,7 +52,6 @@
           "Procedure": "biopsy_procedure_type",
           "Processing": "processing",
           "Sample_Type": "sample_type",
-          "Library": "library_id",
           "Identifier": "identifier"
         }
       }
@@ -159,11 +64,11 @@
     }
   },
   {
-    "tabTitle": "File",
+    "tabTitle": "Specimen",
     "charts": {
-      "protocol_library_type": {
+      "processing": {
         "chartType": "fullPie",
-        "title": "Protocol Library Type"
+        "title": "Processing Method"
       }
     },
     "filters": {
@@ -171,11 +76,134 @@
         {
           "fields": [
             "project_id",
+            "processing",
+            "treatments",
+            "tissue_type",
+            "histology",
+            "allocated_for_site"
+          ],
+          "fieldsConfig": {
+            "allocated_for_site": {
+              "label": "Site"
+            }
+          }
+        }
+      ]
+    },
+    "table": {
+      "enabled": true,
+      "columns": {
+        "identifier": {
+          "title": "BEMS ID"
+        },
+        "processing": {
+          "title": "Processing Method"
+        },
+        "collection": {
+          "title": "Collection Concept"
+        },
+        "indexed_collection_date_days": {
+          "title": "Collection Date"
+        },
+        "allocated_for_site": {
+          "title": "Site"
+        },
+        "biopsy_event_tag": {
+          "title": "Biopsy Event"
+        }
+      },
+      "fields": [
+        "identifier",
+        "indexed_collection_date_days",
+        "sample_type" ,
+        "histology",
+        "tissue_type",
+        "percent_tumor",
+        "pathology_record_number",
+        "treatments",
+        "sample_family_id",
+        "treatments",
+        "tissue_type",
+        "allocated_for_site",
+        "package_recipient",
+        "biopsy_event_tag",
+        "biopsy_procedure_type",
+        "patient_id",
+        "project_id",
+        "id",
+        "pathology_record_number",
+        "clinical_event",
+        "processing",
+        "collection",
+        "alias"
+      ],
+      "detailsConfig": {
+        "panel": "resourceDetails",
+        "mode": "click",
+        "idField": "id",
+        "filterField": "specimen_id",
+        "title": "identifier",
+        "nodeType": "file",
+        "nodeFields": {
+          "Title": "title",
+          "Content_Type": "contentType",
+          "File_Size": "size",
+          "Md5sum": "md5",
+          "Source_Path": "source_path",
+          "Date": "date",
+          "Project_Id": "project_id",
+          "Creation_Date": "creation",
+          "Specimen BEMS Identifier": "specimen_identifier",
+          "File_Download": "id",
+          "Identifier": "identifier"
+        }
+      }
+    },
+    "dropdowns": {},
+    "guppyConfig": {
+      "dataType": "specimen",
+      "fieldMapping": [],
+      "nodeCountTitle": "Specimens",
+      "manifestMapping": {
+        "resourceIndexType": "Specimen",
+        "resourceIdField": "_id",
+        "referenceIdFieldInResourceIndex": "object_id",
+        "referenceIdFieldInDataIndex": "object_id"
+      },
+      "accessibleFieldCheckList": ["project_id"],
+      "accessibleValidationField": "project_id"
+    }
+  },
+  {
+    "tabTitle": "File",
+    "filters": {
+      "tabs": [
+        {
+          "fields": [
+            "project_id",
             "contentType",
-            "protocol_library_type",
-            "protocol_library_construction",
-            "protocol_hybrid_capture_bait_set"
-          ]
+            "specimen_identifier",
+            "experimental_strategy",
+            "enrollment_diagnosis",
+            "allocated_for_site",
+            "level",
+            "tissue_type",
+            "molecule_type"
+          ],
+          "fieldsConfig": {
+            "contentType": {
+              "label": "Content Type"
+            },
+            "allocated_for_site": {
+              "label": "Site"
+            },
+            "experimental_strategy": {
+              "label": "Assay"
+            },
+            "specimen_identifier": {
+              "label": "BEMS ID"
+            }
+          }
         }
       ]
     },
@@ -186,31 +214,50 @@
         "contentType",
         "size",
         "md5",
-        "source_path",
         "date",
+        "source_path",
+        "specimen_identifier",
+        "platform",
+        "allocated_for_site",
+        "experimental_strategy",
+        "level",
+        "tissue_type",
+        "enrollment_diagnosis",
+        "molecule_type",
+        "data_category",
         "project_id",
         "creation",
         "specimen_id",
         "id",
-        "identifier",
-        "protocol_library_type",
-        "product_notes_sequencing_site",
-        "product_notes_sequencer",
-        "product_notes_end_type",
-        "product_notes_read_length",
-        "protocol_library_construction",
-        "protocol_hybrid_capture_bait_set"
+        "identifier"
       ],
       "columns": {
         "id": {
           "title": "View Image",
           "type": "link",
-          "accessortPath": "id",
+          "accessorPath": "id",
           "cellRenderFunction": "DiacomLink",
           "width": "32px",
           "params": {
             "baseURL": "/image-viewer/view"
           }
+        },
+        "size": {
+          "title": "File Size",
+          "type": "string",
+          "accessorPath": "size",
+          "cellRenderFunction": "HumanReadableString",
+          "width": "32px",
+          "params": {}
+        },
+        "specimen_identifier": {
+          "title": "BEMS ID"
+        },
+        "allocated_for_site": {
+          "title": "Site"
+        },
+        "experimental_strategy": {
+          "title": "Assay"
         }
       },
       "detailsConfig": {
@@ -227,18 +274,17 @@
           "Md5sum": "md5",
           "Source_Path": "source_path",
           "Date": "date",
-          "Project_Id": "project_id",
+          "Project_ID": "project_id",
           "Creation_Date": "creation",
-          "Specimen_Id": "specimen_id",
+          "BEMS_ID": "specimen_identifier",
+          "Instrument": "platform",
+          "Site": "allocated_for_site",
+          "Assay": "experimental_strategy",
+          "Level": "level",
+          "Molecule_Type": "molecule_type",
+          "Data_Category": "data_category",
           "File_Download": "id",
-          "Identifier": "identifier",
-          "Library_Type": "protocol_library_type",
-          "Sequencing_Site": "product_notes_sequencing_site",
-          "Sequencer": "product_notes_sequencer",
-          "End_Type": "product_notes_end_type",
-          "Notes_Read_Length": "product_notes_read_length",
-          "Library_Construction": "protocol_library_construction",
-          "Capture_Bait_Set": "protocol_hybrid_capture_bait_set"
+          "Identifier": "identifier"
         }
       }
     },

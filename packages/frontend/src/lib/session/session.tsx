@@ -162,7 +162,7 @@ export const SessionProvider = ({
   children,
   session,
   updateSessionTime = 5,
-  inactiveTimeLimit = 20,
+  inactiveTimeLimit = 1440,
   workspaceInactivityTimeLimit = 0,
   logoutInactiveUsers = true,
 }: SessionProviderProps) => {

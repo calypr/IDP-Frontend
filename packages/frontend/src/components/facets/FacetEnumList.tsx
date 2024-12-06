@@ -51,8 +51,8 @@ const FacetEnumList: React.FC<FacetEnumListProps> = ({
     {},
   );
   const [sortType, setSortType] = useState<SortType>({
-    type: 'alpha',
-    direction: 'asc',
+    type: 'value',
+    direction: 'dsc',
   });
 
   useEffect(() => {
