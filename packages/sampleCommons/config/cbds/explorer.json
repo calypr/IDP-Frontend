@@ -20,7 +20,7 @@
           "title": "Clinical Trial"
         },
         "identifier": {
-          "title": "Research Subject ID"
+          "title": "Participant ID"
         },
         "patient_id": {
           "title": "Patient ID"
@@ -44,7 +44,7 @@
         "title": "identifier",
         "nodeType": "specimen",
         "nodeFields": {
-          "Collection_Site": "collection",
+          "Metastasis_Site": "collection",
           "Indexd_Collection_Date_Days": "indexed_collection_date_days",
           "Sample_Family_Id": "sample_family_id",
           "Histology": "histology",
@@ -66,9 +66,13 @@
   {
     "tabTitle": "Specimen",
     "charts": {
-      "processing": {
+      "histology": {
         "chartType": "fullPie",
-        "title": "Processing Method"
+        "title": "Histology"
+      },
+      "collection": {
+        "chartType": "fullPie",
+        "title": "Metastasis Site"
       }
     },
     "filters": {
@@ -76,15 +80,27 @@
         {
           "fields": [
             "project_id",
-            "processing",
-            "treatments",
-            "tissue_type",
+            "identifier",
             "histology",
-            "allocated_for_site"
+            "collection",
+            "sample_type",
+            "tissue_type",
+            "biopsy_event_tag",
+            "anatomical_location",
+            "allocated_for_site",
+            "package_recipient",
+            "clinical_event",
+            "treatments"
           ],
           "fieldsConfig": {
-            "allocated_for_site": {
-              "label": "Site"
+            "identifier": {
+              "label": "BEMS ID"
+            },
+            "collection": {
+              "label": "Metastasis Site"
+            },
+            "biopsy_event_tag": {
+              "label": "Biopsy Event"
             }
           }
         }
@@ -100,42 +116,40 @@
           "title": "Processing Method"
         },
         "collection": {
-          "title": "Collection Concept"
+          "title": "Metastasis Site"
         },
         "indexed_collection_date_days": {
           "title": "Collection Date"
         },
-        "allocated_for_site": {
-          "title": "Site"
-        },
         "biopsy_event_tag": {
           "title": "Biopsy Event"
+        },
+        "patient_identifier": {
+          "title": "Participant ID"
         }
       },
       "fields": [
-        "identifier",
+        "patient_identifier",
         "indexed_collection_date_days",
-        "sample_type" ,
+        "identifier",
+        "biopsy_event_tag",
+        "sample_family_id",
+        "collection",
         "histology",
+        "sample_type" ,
         "tissue_type",
         "percent_tumor",
+        "biopsy_procedure_type",
+        "anatomical_location",
         "pathology_record_number",
         "treatments",
-        "sample_family_id",
-        "treatments",
-        "tissue_type",
+        "clinical_event",
+        "alias",
         "allocated_for_site",
         "package_recipient",
-        "biopsy_event_tag",
-        "biopsy_procedure_type",
         "patient_id",
         "project_id",
-        "id",
-        "pathology_record_number",
-        "clinical_event",
-        "processing",
-        "collection",
-        "alias"
+        "id"
       ],
       "detailsConfig": {
         "panel": "resourceDetails",
@@ -181,20 +195,21 @@
         {
           "fields": [
             "project_id",
+            "molecule_type",
+            "data_category",
+            "experimental_strategy",
+            "level",
+            "platform",
+            "sequencing_site",
             "contentType",
             "specimen_identifier",
-            "experimental_strategy",
-            "enrollment_diagnosis",
-            "allocated_for_site",
-            "level",
-            "tissue_type",
-            "molecule_type"
+            "enrollment_diagnosis"
           ],
           "fieldsConfig": {
             "contentType": {
               "label": "Content Type"
             },
-            "allocated_for_site": {
+            "sequencing_site": {
               "label": "Site"
             },
             "experimental_strategy": {
@@ -202,6 +217,9 @@
             },
             "specimen_identifier": {
               "label": "BEMS ID"
+            },
+            "platform": {
+              "label": "Instrument"
             }
           }
         }
@@ -211,25 +229,24 @@
       "enabled": true,
       "fields": [
         "title",
-        "contentType",
         "size",
-        "md5",
-        "date",
-        "source_path",
+        "contentType",
         "specimen_identifier",
-        "platform",
-        "allocated_for_site",
+        "parent_bems_id",
         "experimental_strategy",
         "level",
-        "tissue_type",
-        "enrollment_diagnosis",
         "molecule_type",
         "data_category",
-        "project_id",
+        "platform",
+        "sequencing_site",
+        "enrollment_diagnosis",
+        "md5",
+        "source_path",
+        "date",
         "creation",
+        "project_id",
         "specimen_id",
-        "id",
-        "identifier"
+        "id"
       ],
       "columns": {
         "id": {
@@ -258,6 +275,12 @@
         },
         "experimental_strategy": {
           "title": "Assay"
+        },
+        "platform": {
+          "title": "Instrument"
+        },
+        "title": {
+          "title": "Filename"
         }
       },
       "detailsConfig": {
@@ -268,7 +291,7 @@
         "nodeType": "file",
         "title": "title",
         "nodeFields": {
-          "Title": "title",
+          "File_Name": "title",
           "Content_Type": "contentType",
           "File_Size": "size",
           "Md5sum": "md5",
