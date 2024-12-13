@@ -20,7 +20,6 @@ import {
 } from '@gen3/frontend';
 
 import { fieldNameToTitle, useGeneralGQLQuery } from '@gen3/core';
-import { title } from 'process';
 
 ////////////////
 // INTERFACES //
@@ -38,17 +37,12 @@ interface HistogramData {
 interface Observation {
   [key: string]: {
     histogram: HistogramData[];
-    file?: File;
-    _cardinalityCount?: number;
+    _totalCount?: number;
   };
 }
 
-interface File {
-  _totalCount: number;
-}
-
 interface QueryResponse {
-  data?: Record<string, Observation[]>;
+  data?: Record<string, Observation | Observation[]>;
   countsProperty?: string;
 }
 
@@ -62,13 +56,14 @@ const isQueryResponse = (obj: any): obj is QueryResponse => {
   );
 };
 
-const extractData = (
+const extractHistogramData = (
   data: QueryResponse,
-  countsProperty: string,
-  returnType: 'histogram' | 'totalCounts',
-): HistogramData[] | number => {
+  countsProperty: string
+): HistogramData[] | Number => {
+  // extract histogram data from query
+  
   if (!data || !data.data || !data.data._aggregation || !countsProperty) {
-    return returnType === 'histogram' ? [] : 0;
+    return [];
   }
 
   const allObservations = Object.values(data.data._aggregation).flat();
@@ -77,31 +72,22 @@ const extractData = (
   );
 
   if (!targetObservation) {
-    return returnType === 'histogram' ? [] : 0;
+    return [];
   }
 
-  if (returnType === 'histogram') {
-    return Array.isArray(targetObservation[countsProperty].histogram)
-      ? targetObservation[countsProperty].histogram.slice(0, 20)
-      : [];
-  } else if (targetObservation && targetObservation[countsProperty]) {
-    const cardinalityCount =
-      targetObservation[countsProperty]!._cardinalityCount;
-    if (typeof cardinalityCount === 'number') {
-      return cardinalityCount;
-    }
-  }
-  return 0;
+  return Array.isArray(targetObservation[countsProperty].histogram)
+    ? targetObservation[countsProperty].histogram.slice(0, 20)
+    : [];
 };
 
-const summaryCountsQuery = (resourceType: string, countsProperty: string) => {
+const summaryCountsQuery = (resourceType: string) => {
+  // get summary counts for a given index (resource)
+  
     const summary_counts_query = {
       query: `query ($filter: JSON){
       _aggregation {
         ${resourceType}(filter: $filter, accessibility: all) {
-          ${countsProperty} {
-            _cardinalityCount
-            }
+            _totalCount
           }
         }
       }`,
@@ -149,35 +135,13 @@ const countsQuery = (resourceType: string, countsProperty: string) => {
   return props_query;
 };
 
-const useCountsFromField = (resourceType: string, countsProperty: string) => {
+const useCountsFromField = (resourceType: string) => {
   const { data, isLoading, isError } = useGeneralGQLQuery(
-    summaryCountsQuery(resourceType, countsProperty),
+    summaryCountsQuery(resourceType),
   );
+  console.log("data:", resourceType, data)
   const totalCountsData = isQueryResponse(data)
-    ? extractData(data, countsProperty, 'totalCounts')
-    : 0;
-  if (isError) {
-    return <ErrorCard message={'Error occurred while fetching data'} />;
-  }
-  return isLoading ? (
-    <div>loading...</div>
-  ) : (
-    <div className="text-2xl font-bold">
-      {typeof totalCountsData === 'number' ? (
-        totalCountsData
-      ) : (
-        <React.Fragment>{'missing data'}</React.Fragment>
-      )}
-    </div>
-  );
-};
-
-const SummaryCounts = (countsProperty: string) => {
-  const { data, isLoading, isError } = useGeneralGQLQuery(
-    summaryCountsQuery('Observation', countsProperty),
-  );
-  const totalCountsData = isQueryResponse(data)
-    ? extractData(data, countsProperty, 'totalCounts')
+    ? (data?.data?._aggregation as Observation)[resourceType]._totalCount
     : 0;
   if (isError) {
     return <ErrorCard message={'Error occurred while fetching data'} />;
@@ -200,7 +164,7 @@ const ChartFromField = (resourceType: string, countsProperty: string, title: str
     countsQuery(resourceType, countsProperty),
   );
   const queryData = isQueryResponse(data)
-    ? extractData(data, countsProperty, 'histogram')
+    ? extractHistogramData(data, countsProperty)
     : [];
   if (isError) {
     return <ErrorCard message={'Error occurred while fetching data'} />;
@@ -313,15 +277,15 @@ const HorizontalBarChart = ({ headerProps, footerProps }: SamplePageProps) => {
             <div className="text-center mx-auto bg-gray-200 py-5">
               <div className="flex justify-center space-x-8">
                 <div className="text-center">
-                  {useCountsFromField('specimen', 'id')}
+                  {useCountsFromField('specimen')}
                   <div className="text-sm">Specimens</div>
                 </div>
                 <div className="text-center">
-                  {useCountsFromField('file', 'id')}
+                  {useCountsFromField('file')}
                   <div className="text-sm">Files</div>
                 </div>
                 <div className="text-center">
-                  {useCountsFromField('researchsubject', 'id')}
+                  {useCountsFromField('researchsubject')}
                   <div className="text-sm">Research Subjects</div>
                 </div>
               {/* {countsFields.map((field, i) => {

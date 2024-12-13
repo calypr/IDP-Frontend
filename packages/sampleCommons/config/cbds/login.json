@@ -1,7 +1,7 @@
 {
   "topContent": [
     {
-      "text": "ACED",
+      "text": "CBDS",
       "className": "text-center text-3xl font-bold"
     },
     {
@@ -9,14 +9,8 @@
       "className": "text-center text-xl font-medium"
     },
     {
-      "text": "We are uniting world leading researchers to tackle the biggest challenges in early detection, an important area of unmet clinical need. Scientists in the Alliance are working together at the forefront of technological innovation to translate research into realistic ways to improve cancer diagnosis, which can be implemented into health systems and meaningfully benefit people with cancer.",
+      "text": "We are uniting world leading researchers to tackle the biggest challenges in early detection, an important area of unmet clinical need. We are working together at the forefront of technological innovation to translate research into realistic ways to improve cancer diagnosis, which can be implemented into health systems and meaningfully benefit people with cancer.",
       "className": "text-center text-xl font-medium"
-    }
-  ],
-  "bottomContent": [
-    {
-      "text": "If you have any questions about access or the registration process, please visit aced-idp.slack.com",
-      "className": "text-center text-sm"
     }
   ],
   "showCredentialsLogin": false
