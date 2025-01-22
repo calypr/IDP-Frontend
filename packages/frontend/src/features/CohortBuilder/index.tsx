@@ -1,6 +1,7 @@
 import { CohortBuilder } from './CohortBuilder';
 import { type CohortBuilderConfiguration } from './types';
 
+import type { SummaryTableColumn } from './ExplorerTable';
 import {
   ExplorerTableCellRendererFactory,
   registerExplorerDefaultCellRenderers,
@@ -13,6 +14,7 @@ import {
 export {
   CohortBuilder,
   type CohortBuilderConfiguration,
+  type SummaryTableColumn,
   type TableDetailsPanelProps,
   type CellRendererFunctionProps,
   ExplorerTableCellRendererFactory,

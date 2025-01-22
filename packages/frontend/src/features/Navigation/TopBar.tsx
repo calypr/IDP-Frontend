@@ -77,7 +77,13 @@ const processTopBarItems = (
     (acc: ReactElement[], item: TopIconButtonProps, index: number) => {
       const needsBorder = !(index === items.length - 1 && !showLogin);
       acc.push(
-        <a className="flex" href={item.href} key={`${item.href}_${item.name}`}>
+        <a
+          className="flex"
+          href={item.href}
+          target="_blank"
+          rel="noopener noreferrer"
+          key={`${item.href}_${item.name}`}
+        >
           {' '}
           <TopIconButton
             name={item.name}

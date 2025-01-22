@@ -1,0 +1,30 @@
+{
+  "config": {
+    "title": {
+      "title": "Title",
+      "field": "title"
+    },
+    "size": {
+      "cellRenderFunction": "HumanReadableString",
+      "type": "string",
+      "title": "File Size",
+      "field": "size"
+    },
+    "source_path": {
+      "title": "Source Path",
+      "field": "source_path"
+    }
+  },
+  "binslicePoints": [
+    0,
+    1048576,
+    524288000,
+    1073741824,
+    107374182400,
+    9007199254740991
+  ],
+  "barChartColor": "#e9724d",
+  "defaultProject": "gdc-esca",
+  "idField": "id",
+  "index": "file"
+}

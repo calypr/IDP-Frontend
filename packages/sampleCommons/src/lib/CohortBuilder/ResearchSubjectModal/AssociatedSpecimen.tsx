@@ -1,13 +1,15 @@
 import { useGeneralGQLQuery } from '@gen3/core';
 import { isQueryResponse, extractData } from './tools';
 import { ErrorCard, PieChart } from '@gen3/frontend';
-import { Stack, LoadingOverlay, Text } from '@mantine/core';
+import { Stack, LoadingOverlay, Title } from '@mantine/core';
 
 export const SpecimenAggregationCountsChart = ({
   aggField,
+  title,
   identifiers,
 }: {
   aggField: string;
+  title: string;
   identifiers: string[];
 }) => {
   const { data, isLoading, isError } = useGeneralGQLQuery({
@@ -44,9 +46,19 @@ export const SpecimenAggregationCountsChart = ({
     : [];
   // Not sure what the total arg is doing
   return (
-    <Stack>
-      <LoadingOverlay visible={isLoading} />
-      {resData && <PieChart total={1} data={resData} />}
-    </Stack>
+    resData &&
+    resData.length !== 0 && (
+      <div className="flex flex-col">
+        <Title order={4} className="text-center pt-5">
+          {title}
+        </Title>
+        <div className="flex-grow">
+          <Stack>
+            <LoadingOverlay visible={isLoading} />
+            <PieChart total={1} data={resData} />
+          </Stack>
+        </div>
+      </div>
+    )
   );
 };

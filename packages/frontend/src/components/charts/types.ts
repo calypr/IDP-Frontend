@@ -11,3 +11,8 @@ export interface ChartProps {
   total: number;
   valueType?: 'count' | 'percent';
 }
+
+export interface CustomChartProps extends ChartProps {
+  onClick?: (projectName: string) => void;
+  colors?: string[];
+}

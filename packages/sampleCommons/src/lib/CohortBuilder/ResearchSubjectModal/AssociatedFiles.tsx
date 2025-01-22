@@ -1,17 +1,7 @@
-import {
-  Stack,
-  Table,
-  Anchor,
-  LoadingOverlay,
-  Title,
-  Text,
-  Button,
-  Checkbox,
-} from '@mantine/core';
+import { Stack, Table, LoadingOverlay, Text, Checkbox } from '@mantine/core';
 
 import { ErrorCard } from '@gen3/frontend';
-import { useGeneralGQLQuery, GEN3_FENCE_API, JSONObject } from '@gen3/core';
-import { FiDownload } from 'react-icons/fi';
+import { useGeneralGQLQuery, JSONObject } from '@gen3/core';
 import { isQueryResponse, extractData } from './tools';
 import React, { useMemo, useState } from 'react';
 
@@ -24,7 +14,6 @@ export const useFilesQuery = (identifiers: string[]) => {
                 data_category
                 experimental_strategy
                 specimen_indexed_collection_date_days
-                product_notes_sequencing_site
                 specimen_sample_family_id
               }
             }`,
@@ -124,9 +113,12 @@ export const AssociatedAssaysTable = ({
   return (
     <Stack>
       <LoadingOverlay visible={isLoading} />
-      <Button onClick={() => setshowTable(!showTable)}>
-        Toggle File / Assay
-      </Button>
+      <div className="pt-2">
+        <Checkbox
+          label="Toggle File / Assay"
+          onChange={() => setshowTable(!showTable)}
+        ></Checkbox>
+      </div>
       {resData.length > 0 && showTable ? (
         <div className="text-primary">
           <Table>

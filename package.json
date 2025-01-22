@@ -44,8 +44,11 @@
     "dom-to-svg": "^0.12.2",
     "echarts-for-react": "^3.0.2",
     "isomorphic-fetch": "^3.0.0",
+    "plotly.js": "^2.35.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-plotly.js": "^2.6.0",
+    "react-plotlyjs": "^0.4.4",
     "react-responsive-carousel": "^3.2.23",
     "url-join": "^5.0.0",
     "victory-chart": "^37.3.0"
@@ -63,6 +66,7 @@
     "@types/jest": "^29.5.13",
     "@types/node": "22.7.2",
     "@types/react": "^18.2.21",
+    "@types/react-plotly.js": "^2.6.3",
     "@typescript-eslint/eslint-plugin": "^8.7.0",
     "@typescript-eslint/parser": "^8.7.0",
     "autoprefixer": "^10.4.20",
@@ -102,5 +106,10 @@
     "rollup-plugin-copy": {
       "globby": "^11.0.0"
     }
+  },
+  "optionalDependencies": {
+    "@nx/nx-darwin-arm64": "^20.3.0",
+    "@nx/nx-linux-arm64-gnu": "^20.3.0",
+    "@nx/nx-linux-x64-gnu": "^20.3.0"
   }
 }

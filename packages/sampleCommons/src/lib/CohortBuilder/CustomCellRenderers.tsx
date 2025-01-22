@@ -14,8 +14,8 @@ const RenderDiacomLink = (
   if (
     !cell?.getValue() ||
     cell?.getValue() === '' ||
-    (!(row.getValue('source_path') as string).endsWith('.tiff') &&
-      !(row.getValue('source_path') as string).endsWith('.tif'))
+    (!(row.getValue('source_path') as string)?.endsWith('.tiff') &&
+      !(row.getValue('source_path') as string)?.endsWith('.tif'))
   ) {
     return <span></span>;
   } else

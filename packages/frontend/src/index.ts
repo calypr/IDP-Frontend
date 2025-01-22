@@ -10,6 +10,7 @@ export * from './features/CohortBuilder';
 export * from './features/Query';
 export * from './features/Workspace';
 export * from './utils/';
+export * from './features/MatchingTable';
 
 import { getNavPageLayoutPropsFromConfig } from './lib/common/staticProps';
 import ContentSource from './lib/content';
@@ -19,6 +20,9 @@ import ErrorCard from './components/ErrorCard';
 import '@gen3/core';
 import SmmartPage from './pages/Smmart/Smmart';
 import { SmmartPageGetServerSideProps } from './pages/Smmart';
+
+import FileSummaryPage from './pages/FileSummary/FileSummary';
+import { FileSummaryPageGetServerSideProps } from './pages/FileSummary';
 
 // export Gen3 data UI standard pages
 import Gen3Provider from './components/Providers/Gen3Provider';
@@ -69,6 +73,7 @@ import sessionToken from './api/auth/sessionToken';
 import sessionLogout from './api/auth/sessionLogout';
 import credentialsLogin from './api/auth/credentialsLogin';
 import credentialsLogout from './api/auth/credentialsLogout';
+import { features } from 'process';
 
 export {
   ContentSource,
@@ -83,6 +88,8 @@ export {
   QueryPageGetServerSideProps,
   SmmartPage,
   SmmartPageGetServerSideProps,
+  FileSummaryPage,
+  FileSummaryPageGetServerSideProps,
   LandingPage,
   LandingPageGetStaticProps,
   ColorThemePage,

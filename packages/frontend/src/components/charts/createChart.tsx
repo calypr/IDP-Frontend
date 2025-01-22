@@ -1,5 +1,5 @@
 import React from 'react';
-import { ChartProps } from './types';
+import { CustomChartProps } from './types';
 import ChartRendererFactory from './ChartRendererFactory';
 
 /** createChart selects which type of chart element to create depending on the
@@ -7,7 +7,7 @@ import ChartRendererFactory from './ChartRendererFactory';
  */
 export const createChart = (
   type: string,
-  chartProps: ChartProps,
+  chartProps: CustomChartProps,
   parameters?: Record<string, any>,
 ): React.ReactNode => {
   // TODO: add default chart chart for missing chart type
