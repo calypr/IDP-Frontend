@@ -4,7 +4,10 @@
     "filters": {
       "tabs": [
         {
-          "fields": ["project_id", "condition_Diagnosis"],
+          "fields": [
+            "project_id",
+            "condition_Diagnosis"
+          ],
           "fieldsConfig": {
             "condition_Diagnosis": {
               "label": "Enrollment Diagnosis"
@@ -136,7 +139,7 @@
         "sample_family_id",
         "collection",
         "histology",
-        "sample_type" ,
+        "sample_type",
         "tissue_type",
         "percent_tumor",
         "biopsy_procedure_type",
@@ -164,7 +167,6 @@
           "File_Size": "size",
           "Md5sum": "md5",
           "Source_Path": "source_path",
-          "Date": "date",
           "Project_Id": "project_id",
           "Creation_Date": "creation",
           "Specimen BEMS Identifier": "specimen_identifier",
@@ -184,7 +186,70 @@
         "referenceIdFieldInResourceIndex": "object_id",
         "referenceIdFieldInDataIndex": "object_id"
       },
-      "accessibleFieldCheckList": ["project_id"],
+      "accessibleFieldCheckList": [
+        "project_id"
+      ],
+      "accessibleValidationField": "project_id"
+    }
+  },
+  {
+    "tabTitle": "PatientMedication",
+    "filters": {
+      "tabs": [
+        {
+          "fields": [
+            "medication",
+            "dosage",
+            "reason",
+            "statusReason"
+          ]
+        }
+      ]
+    },
+    "table": {
+      "enabled": true,
+      "fields": [
+        "patient_identifier",
+        "medication",
+        "dosage",
+        "reason",
+        "regimen_id",
+        "index_date_start_days",
+        "index_date_end_days",
+        "statusReason",
+        "status",
+        "patient_id",
+        "project_id"
+      ],
+      "detailsConfig": {
+        "panel": "medicationAdministration",
+        "mode": "click",
+        "idField": "patient_id",
+        "filterField": "patient_id",
+        "title": "patient_identifier",
+        "nodeType": "medicationadministration",
+        "nodeFields": {
+          "Medication": "medication",
+          "Dosage": "dosage",
+          "Index_Date_Start_Days": "index_date_start_days",
+          "Index_Date_End_Days": "index_date_end_days"
+        }
+      }
+    },
+    "dropdowns": {},
+    "guppyConfig": {
+      "dataType": "medicationadministration",
+      "fieldMapping": [],
+      "nodeCountTitle": "MedicationAdministration",
+      "manifestMapping": {
+        "resourceIndexType": "MedicationAdministration",
+        "resourceIdField": "_id",
+        "referenceIdFieldInResourceIndex": "object_id",
+        "referenceIdFieldInDataIndex": "object_id"
+      },
+      "accessibleFieldCheckList": [
+        "project_id"
+      ],
       "accessibleValidationField": "project_id"
     }
   },
@@ -242,7 +307,6 @@
         "enrollment_diagnosis",
         "md5",
         "source_path",
-        "date",
         "creation",
         "project_id",
         "specimen_id",
@@ -296,7 +360,6 @@
           "File_Size": "size",
           "Md5sum": "md5",
           "Source_Path": "source_path",
-          "Date": "date",
           "Project_ID": "project_id",
           "Creation_Date": "creation",
           "BEMS_ID": "specimen_identifier",
@@ -339,7 +402,9 @@
         "referenceIdFieldInResourceIndex": "id",
         "referenceIdFieldInDataIndex": "id"
       },
-      "accessibleFieldCheckList": ["project_id"],
+      "accessibleFieldCheckList": [
+        "project_id"
+      ],
       "accessibleValidationField": "project_id",
       "downloadAccessor": "id"
     },
@@ -357,7 +422,11 @@
           "resourceIdField": "id",
           "referenceIdFieldInDataIndex": "id",
           "referenceIdFieldInResourceIndex": "id",
-          "fileFields": ["id", "md5", "title", "size"]
+          "fileFields": [
+            "id",
+            "title",
+            "size"
+          ]
         }
       }
     ]

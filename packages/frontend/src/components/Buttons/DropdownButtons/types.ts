@@ -1,7 +1,7 @@
 import { StylingOverride } from '../../../types/styling';
 
 export interface DownloadButtonProps {
-  enabled?:boolean;
+  enabled?: boolean;
   type?: string;
   title: string;
   actionTitle?: string; // string to show when action is in progress
@@ -13,6 +13,7 @@ export interface DownloadButtonProps {
   classNames?: StylingOverride;
 }
 
-export interface DropdownButtonProps extends Omit<DownloadButtonProps, 'action' |'actionArgs'> {
+export interface DropdownButtonProps
+  extends Omit<DownloadButtonProps, 'action' | 'actionArgs'> {
   dropdownItems: ReadonlyArray<Partial<DownloadButtonProps>>;
 }

@@ -16,7 +16,9 @@ export const createFacetCard = (
   facetName?: string,
   width?: string,
 ): React.ReactNode => {
-  const { field, type, description } = facetDefinition;
+  const { field, type } = facetDefinition;
+  // bit of a band aid fix but removes unwanted hover text completely.
+  const description = '';
   return (
     <div key={`${idPrefix}-enum-${field}`}>
       {

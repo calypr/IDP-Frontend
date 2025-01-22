@@ -13,7 +13,7 @@ export const TimeSeriesAssaySummaryModal = ({
   const [openModal, setOpenModal] = useState(false); // Track modal state
 
   return (
-    <React.Fragment>
+    <div className="flex-shrink">
       <Button onClick={() => setOpenModal(true)}>Open Assay Summary</Button>
       <BaseModal
         title={
@@ -40,6 +40,6 @@ export const TimeSeriesAssaySummaryModal = ({
           asoc_val={'specimen_indexed_collection_date_days'}
         />
       </BaseModal>
-    </React.Fragment>
+    </div>
   );
 };

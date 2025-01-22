@@ -112,11 +112,7 @@ export const ResearchSubjectDetailPanel = ({
       <LoadingOverlay visible={isLoading} />
       <ScrollArea.Autosize maw={'80vw'} mx="auto">
         <div className="flex pb-5">
-          <div className="flex-shrink">
-            <TimeSeriesAssaySummaryModal
-              identifiers={querySpecimenIdentifiers}
-            />
-          </div>
+          <TimeSeriesAssaySummaryModal identifiers={querySpecimenIdentifiers} />
           <div className="flex-grow text-center">
             <Title order={3}> Subject Summary </Title>
           </div>
@@ -153,29 +149,16 @@ export const ResearchSubjectDetailPanel = ({
         </div>
         <Divider size="md" color="#2c2c54" />
         <div className="grid grid-cols-2">
-          <div className="flex flex-col">
-            <Title order={4} className="text-center pt-5">
-              File Counts by Data Category
-            </Title>
-            <div className="flex-grow">
-              <SpecimenAggregationCountsChart
-                identifiers={querySpecimenIdentifiers}
-                aggField={'data_category'}
-              />
-            </div>
-          </div>
-
-          <div className="flex flex-col">
-            <Title order={4} className="text-center pt-5">
-              File Counts by Experimental Strategy
-            </Title>
-            <div className="flex-grow">
-              <SpecimenAggregationCountsChart
-                identifiers={querySpecimenIdentifiers}
-                aggField={'experimental_strategy'}
-              />
-            </div>
-          </div>
+          <SpecimenAggregationCountsChart
+            identifiers={querySpecimenIdentifiers}
+            title={'File Counts by Data Category'}
+            aggField={'data_category'}
+          />
+          <SpecimenAggregationCountsChart
+            identifiers={querySpecimenIdentifiers}
+            aggField={'experimental_strategy'}
+            title={'File Counts by Experimental Strategy'}
+          />
         </div>
         <Divider size="md" color="#2c2c54" />
         <div className="text-center p-5">

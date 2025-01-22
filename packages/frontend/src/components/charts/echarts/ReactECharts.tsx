@@ -10,6 +10,7 @@ export interface ReactEChartsProps {
   settings?: SetOptionOpts;
   loading?: boolean;
   theme?: 'light' | 'dark';
+  onClick?: (params: any) => void; // Add onClick handler to props
 }
 
 const ReactECharts = ({
@@ -18,6 +19,7 @@ const ReactECharts = ({
   settings,
   loading,
   theme,
+  onClick,
 }: ReactEChartsProps): JSX.Element => {
   const chartRef = useRef<HTMLDivElement>(null);
 
@@ -58,6 +60,20 @@ const ReactECharts = ({
       loading === true ? chart?.showLoading() : chart?.hideLoading();
     }
   }, [loading]);
+
+  useDeepCompareEffect(() => {
+    // Add click event listener to chart
+    if (chartRef.current !== null) {
+      const chart = getInstanceByDom(chartRef.current);
+      if (onClick) {
+        chart?.on('click', onClick);
+      }
+
+      return () => {
+        chart?.off('click', onClick);
+      };
+    }
+  }, [onClick]);
 
   return (
     <div ref={chartRef} style={{ width: '100%', height: '100%', ...style }} />

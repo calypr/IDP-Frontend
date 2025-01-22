@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { processLabel, truncateString } from '../utils';
-import { ChartProps } from '../types';
+import { CustomChartProps } from '../types';
 import ReactECharts, { ReactEChartsProps } from './ReactECharts';
 import { HistogramDataArray } from '@gen3/core';
 import type { EChartsOption } from 'echarts';
@@ -24,7 +24,7 @@ const processChartData = (
 
   const results = data.slice(0, maxBins).map((d: any) => ({
     value: d.count,
-    name: truncateString(processLabel(d.key), 35),
+    name: truncateString(processLabel(d.key), 100),
   }));
   return results;
 };
@@ -33,7 +33,7 @@ const processAxis = (facetData: HistogramDataArray, maxBins = 100) => {
   const data = filterMissing(facetData);
   const categories = data
     .slice(0, maxBins)
-    .map((d: any) => truncateString(processLabel(d.key), 35));
+    .map((d: any) => truncateString(processLabel(d.key), 100));
   return {
     yAxis: [
       {
@@ -49,11 +49,11 @@ const processAxis = (facetData: HistogramDataArray, maxBins = 100) => {
   } as EChartsOption;
 };
 
-const BarChart = ({ data }: ChartProps) => {
+const BarChart = ({ data, onClick, colors }: CustomChartProps) => {
   const chartDefinition = useMemo((): ReactEChartsProps['option'] => {
     return {
+      color: colors,
       grid: [
-        //TODO: make this configurable
         {
           show: false,
           left: '1%',
@@ -71,9 +71,15 @@ const BarChart = ({ data }: ChartProps) => {
     };
   }, [data]);
 
+  const handleClick = (params: any) => {
+    if (onClick) {
+      onClick(params.name);
+    }
+  };
+
   return (
     <div className="w-full h-64">
-      <ReactECharts option={chartDefinition} />
+      <ReactECharts option={chartDefinition} onClick={handleClick} />
     </div>
   );
 };

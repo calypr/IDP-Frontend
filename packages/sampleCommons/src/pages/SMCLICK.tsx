@@ -58,10 +58,10 @@ const isQueryResponse = (obj: any): obj is QueryResponse => {
 
 const extractHistogramData = (
   data: QueryResponse,
-  countsProperty: string
-): HistogramData[] | Number => {
+  countsProperty: string,
+): HistogramData[] | number => {
   // extract histogram data from query
-  
+
   if (!data || !data.data || !data.data._aggregation || !countsProperty) {
     return [];
   }
@@ -82,29 +82,29 @@ const extractHistogramData = (
 
 const summaryCountsQuery = (resourceType: string) => {
   // get summary counts for a given index (resource)
-  
-    const summary_counts_query = {
-      query: `query ($filter: JSON){
+
+  const summary_counts_query = {
+    query: `query ($filter: JSON){
       _aggregation {
         ${resourceType}(filter: $filter, accessibility: all) {
             _totalCount
           }
         }
       }`,
-      variables: {
-        filter: {
-          AND: [
-            {
-              IN: {
-                project_id: ['cbds-smmart_labkey_demo'],
-              },
+    variables: {
+      filter: {
+        AND: [
+          {
+            IN: {
+              project_id: ['cbds-smmart_labkey_demo'],
             },
-          ],
-        },
+          },
+        ],
       },
-    };
-    return summary_counts_query;
+    },
   };
+  return summary_counts_query;
+};
 
 const countsQuery = (resourceType: string, countsProperty: string) => {
   const props_query = {
@@ -139,7 +139,7 @@ const useCountsFromField = (resourceType: string) => {
   const { data, isLoading, isError } = useGeneralGQLQuery(
     summaryCountsQuery(resourceType),
   );
-  console.log("data:", resourceType, data)
+  console.log('data:', resourceType, data);
   const totalCountsData = isQueryResponse(data)
     ? (data?.data?._aggregation as Observation)[resourceType]._totalCount
     : 0;
@@ -159,7 +159,11 @@ const useCountsFromField = (resourceType: string) => {
   );
 };
 
-const ChartFromField = (resourceType: string, countsProperty: string, title: string) => {
+const ChartFromField = (
+  resourceType: string,
+  countsProperty: string,
+  title: string,
+) => {
   const { data, isLoading, isError } = useGeneralGQLQuery(
     countsQuery(resourceType, countsProperty),
   );
@@ -169,9 +173,9 @@ const ChartFromField = (resourceType: string, countsProperty: string, title: str
   if (isError) {
     return <ErrorCard message={'Error occurred while fetching data'} />;
   }
-  
+
   // sort by counts descending
-  if (Array.isArray(queryData)){
+  if (Array.isArray(queryData)) {
     queryData.sort((a, b) => a.count - b.count);
   }
 
@@ -216,7 +220,6 @@ const ChartFromField = (resourceType: string, countsProperty: string, title: str
   return chart;
 };
 
-
 ///////////////
 // COMPONENT //
 ///////////////
@@ -226,68 +229,77 @@ const HorizontalBarChart = ({ headerProps, footerProps }: SamplePageProps) => {
   // TODO: refactor out into a config
   const chartResourceType = ['file', 'researchsubject'];
   const chartFields = ['experimental_strategy', 'condition_Diagnosis'];
-  const chartTitles = ['Assay', 'Diagnosis']
+  const chartTitles = ['Assay', 'Diagnosis'];
   const numChartCols = chartFields.length <= 3 ? chartFields.length : 3;
-  const countsFields = ['patient_id', 'specimen_identifier', 'specimen_collection_concept', 'clinical_trials'];
+  const countsFields = [
+    'patient_id',
+    'specimen_identifier',
+    'specimen_collection_concept',
+    'clinical_trials',
+  ];
   const countsTitles = ['Patients', 'Specimens', 'Cancers', 'Clinical Trials'];
 
-
   return (
-      <NavPageLayout
-        {...{ headerProps, footerProps }}
-        headerData={{
-          title: 'SMMART Report Page',
-          content: 'SMMART Report Page',
+    <NavPageLayout
+      {...{ headerProps, footerProps }}
+      headerData={{
+        title: 'SMMART Report Page',
+        content: 'SMMART Report Page',
         key: 'smmart-report-page',
-        }}>
-        <MantineProvider>
-          <div className="pt-5">
-            <div className="bg-cbds-primary pt-[1.5%] pb-[1.5%]">
-              <Container className="bg-cbds-monoprimary text-center">
-                <span className="flex items-center space-x-4">
-                  <div className="p-5 flex-shrink-0">
-                    <Image src={'/icons/SMMART.svg'} alt={'logo'} />
-                  </div>
-                  <Text className="whitespace-nowrap text-center text-white text-5xl font-bold">
-                    SMMART Clinical Trials Platform
-                  </Text>
-                </span>
-              </Container>
-            </div>
+      }}
+    >
+      <MantineProvider>
+        <div className="pt-5">
+          <div className="bg-cbds-primary pt-[1.5%] pb-[1.5%]">
+            <Container className="bg-cbds-monoprimary text-center">
+              <span className="flex items-center space-x-4">
+                <div className="p-5 flex-shrink-0">
+                  <Image src={'/icons/SMMART.svg'} alt={'logo'} />
+                </div>
+                <Text className="whitespace-nowrap text-center text-white text-5xl font-bold">
+                  SMMART Clinical Trials Platform
+                </Text>
+              </span>
+            </Container>
+          </div>
 
-            <div className="grid grid-cols-3 gap-4 mt-10">
-              <div className="p-10">
-                <h1 className="prose sm:prose-base 2xl:prose-lg mb-5 !mt-0">
-                  Overview of SMMART and datasets, what can be found in this
-                  project
-                </h1>
-                <Button
-                  onClick={() => {
-                    router.push('/Explorer');
-                  }}
-                  className="bg-cbds-monoprimary text-white py-2 px-4 rounded"
-                >
-                  Explore
-                </Button>
-              </div>
-              <div className={`col-span-${numChartCols} grid grid-cols-${numChartCols} gap-2`}>
-                {chartResourceType.map((resourceType, i) => ChartFromField(resourceType, chartFields[i], chartTitles[i]))}
-              </div>
+          <div className="grid grid-cols-3 gap-4 mt-10">
+            <div className="p-10">
+              <h1 className="prose sm:prose-base 2xl:prose-lg mb-5 !mt-0">
+                Overview of SMMART and datasets, what can be found in this
+                project
+              </h1>
+              <Button
+                onClick={() => {
+                  router.push('/Explorer');
+                }}
+                className="bg-cbds-monoprimary text-white py-2 px-4 rounded"
+              >
+                Explore
+              </Button>
             </div>
-            <div className="text-center mx-auto bg-gray-200 py-5">
-              <div className="flex justify-center space-x-8">
-                <div className="text-center">
-                  {useCountsFromField('specimen')}
-                  <div className="text-sm">Specimens</div>
-                </div>
-                <div className="text-center">
-                  {useCountsFromField('file')}
-                  <div className="text-sm">Files</div>
-                </div>
-                <div className="text-center">
-                  {useCountsFromField('researchsubject')}
-                  <div className="text-sm">Research Subjects</div>
-                </div>
+            <div
+              className={`col-span-${numChartCols} grid grid-cols-${numChartCols} gap-2`}
+            >
+              {chartResourceType.map((resourceType, i) =>
+                ChartFromField(resourceType, chartFields[i], chartTitles[i]),
+              )}
+            </div>
+          </div>
+          <div className="text-center mx-auto bg-gray-200 py-5">
+            <div className="flex justify-center space-x-8">
+              <div className="text-center">
+                {useCountsFromField('specimen')}
+                <div className="text-sm">Specimens</div>
+              </div>
+              <div className="text-center">
+                {useCountsFromField('file')}
+                <div className="text-sm">Files</div>
+              </div>
+              <div className="text-center">
+                {useCountsFromField('researchsubject')}
+                <div className="text-sm">Research Subjects</div>
+              </div>
               {/* {countsFields.map((field, i) => {
                 return (
                   <div className="text-center">
@@ -296,11 +308,11 @@ const HorizontalBarChart = ({ headerProps, footerProps }: SamplePageProps) => {
                   </div>
                 )
               })} */}
-              </div>
             </div>
           </div>
-        </MantineProvider>
-      </NavPageLayout>
+        </div>
+      </MantineProvider>
+    </NavPageLayout>
   );
 };
 

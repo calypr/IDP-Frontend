@@ -220,6 +220,7 @@ const ExplorerTable = ({ index, tableConfig }: ExplorerTableProps) => {
   const table = useMantineReactTable<JSONObject>({
     columns: cols as any[], //TODO: fix this
     data: data?.data?.[index] ?? [],
+    enableColumnFilters: false,
     manualSorting: true,
     manualPagination: true,
     enableStickyHeader: true,

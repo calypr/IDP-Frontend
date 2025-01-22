@@ -7,7 +7,7 @@ interface QueryResponse {
   data?: Record<string, Array<any>>;
 }
 
-function isQueryResponse(obj: any): obj is QueryResponse {
+export function isQueryResponse(obj: any): obj is QueryResponse {
   // Considering that the data property can be optional
   return (
     typeof obj === 'object' &&
