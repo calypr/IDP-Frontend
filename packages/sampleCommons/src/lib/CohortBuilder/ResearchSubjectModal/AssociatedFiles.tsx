@@ -9,6 +9,11 @@ import { MatchingTable } from '@gen3/frontend';
 export const useFilesQuery = (identifiers: string[], table: boolean) => {
   const { data, isLoading, isError } = useGeneralGQLQuery({
     query: `query ($filter: JSON) {
+           	  _aggregation{
+                file(filter: $filter){
+                  _totalCount
+                }
+              }
               file (filter: $filter, accessibility: all, first: 10000) {
                 id
                 title
@@ -30,14 +35,15 @@ export const useFilesQuery = (identifiers: string[], table: boolean) => {
       },
     },
   });
-  const cachedData = useMemo<JSONObject[]>(() => {
+  const cachedData = useMemo(() => {
     if (data && !table) {
       const extractedData = isQueryResponse(data)
         ? (extractData(data, 'file', '') as JSONObject[])
         : [];
       return extractedData;
+    } else if (data && table) {
+      return data as JSONObject;
     }
-    return Array.isArray(data) ? (data as JSONObject[]) : [];
   }, [data, table]);
 
   return { resData: cachedData, isLoading, isError };
@@ -56,7 +62,7 @@ export const UniqueAssociatedValsForSpecimen = ({
   }
   if (!isLoading) {
     const ResourceList = [
-      ...new Set(resData?.map((val) => val[asoc_val])),
+      ...new Set((resData as JSONObject[])?.map((val) => val[asoc_val])),
     ].join(', ');
     return ResourceList;
   }
@@ -64,10 +70,8 @@ export const UniqueAssociatedValsForSpecimen = ({
 
 export const AssociatedFilesText = ({
   identifiers,
-  asoc_val,
 }: {
   identifiers: string[];
-  asoc_val: string;
 }) => {
   const { resData, isLoading, isError } = useFilesQuery(identifiers, false);
   // Return the length, loading, and error status
@@ -79,7 +83,7 @@ export const AssociatedFilesText = ({
     <div>
       <LoadingOverlay visible={isLoading} />
       <Text>{identifiers.length} Annotations</Text>
-      <Text>{resData?.length} Files</Text>
+      <Text>{(resData as JSONObject[])?.length} Files</Text>
     </div>
   );
 };
@@ -104,13 +108,7 @@ export const AssociatedAssaysTable = ({
     return <ErrorCard message={'Error occurred while fetching data'} />;
   }
 
-  const filteredResources = resData.toSorted((a: JSONObject, b: JSONObject) => {
-    const left = a[asoc_val] as number;
-    const right = b[asoc_val] as number;
-    return left - right;
-  });
-
-  const filteredResourcesTwo = resDataTwo.toSorted(
+  const filteredResourcesTwo = (resDataTwo as JSONObject[])?.toSorted(
     (a: JSONObject, b: JSONObject) => {
       const left = a[asoc_val] as number;
       const right = b[asoc_val] as number;
@@ -137,9 +135,6 @@ export const AssociatedAssaysTable = ({
     },
   };
 
-  // Headers : File Name, Assay, Indexd Days, Sample Family Id
-  // Guppy: experimental_strategy, specimen_indexed_collection_date_days, specimen_sample_family_id
-  //
   return (
     <Stack>
       <LoadingOverlay visible={isLoading || isLoadingTwo} />
@@ -147,7 +142,7 @@ export const AssociatedAssaysTable = ({
         <Checkbox
           label="Toggle File / Assay"
           onChange={() => setshowTable(!showTable)}
-        ></Checkbox>
+        />
       </div>
       {showTable ? (
         <div className="text-primary">
@@ -155,9 +150,9 @@ export const AssociatedAssaysTable = ({
             <MatchingTable
               isLoading={isLoading}
               columns={asocFileConfig}
-              index={'file'}
-              idField={'id'}
-              data={filteredResources}
+              index="file"
+              idField="id"
+              data={resData}
             />
           </div>
         </div>

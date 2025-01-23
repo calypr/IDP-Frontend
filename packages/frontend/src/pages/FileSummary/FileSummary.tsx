@@ -170,7 +170,7 @@ export const FileSummaryPage = ({
 }: FileSummaryPageProps) => {
   const { data, isLoading, isError } = useProjectsQuery();
   const [selectedProject, setSelectedProject] = useState<string>(
-    filesummaryConfig?.defaultProject ?? 'gdc-esca',
+    filesummaryConfig?.defaultProject ?? '',
   );
   const [selectedRange, setSelectedRange] = useState<number[]>(
     filesummaryConfig?.binslicePoints.slice(0, 2) ?? [],

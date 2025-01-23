@@ -76,7 +76,6 @@ export const ResearchSubjectDetailPanel = ({
   const querySpecimenIdentifiers: string[] = isQueryResponse(data)
     ? Array.isArray(data.data[nodeType ?? 'researchsubject'])
       ? data.data[nodeType ?? 'researchsubject'].map((item: any) => {
-          console.log('ITEM HERE', item);
           return item.Identifier;
         })
       : []

@@ -51,6 +51,7 @@ const MatchingTable = ({
   index,
   idField,
 }: MatchingTableProps) => {
+  console.log('DATA? : ', data);
   const fields: string[] = Object.values(columns).map((col) => col.field);
   const cols = useDeepCompareMemo(() => {
     return fields.map((field) => {

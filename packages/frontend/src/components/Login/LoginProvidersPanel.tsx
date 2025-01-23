@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Box, Button, LoadingOverlay, Select, Stack } from '@mantine/core';
 import {
   type Gen3LoginProvider,
@@ -15,10 +15,12 @@ const LoginProviderMultipleItems = ({
   provider,
   handleLoginSelected,
 }: LoginProviderItemProps) => {
-
   const [value, setValue] = useState<string | null>(null);
   return (
-    <div className="flex flex-col w-full font-medium hover:text-accent-light hover:font-bold" key={`${provider.name}-login-item`}>
+    <div
+      className="flex flex-col w-full font-medium hover:text-accent-light hover:font-bold"
+      key={`${provider.name}-login-item`}
+    >
       <Select
         data={provider.urls.map((item: NameUrl) => ({
           value: item.url,
