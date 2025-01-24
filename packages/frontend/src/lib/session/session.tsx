@@ -91,7 +91,7 @@ export const useSession = (
       if (typeof window === 'undefined')
         // route not available on SSR
         return session;
-      router.push('Login');
+      router.push('/');
     }
   }
   return session;
@@ -250,7 +250,7 @@ export const SessionProvider = ({
   useInterval(
     () => {
       if (sessionInfo.status != 'issued') return; // no need to update session if user is not logged in
-      if (isUserOnPage('Login') /* || this.popupShown */) return;
+      if (isUserOnPage('/') /* || this.popupShown */) return;
 
       const timeSinceLastActivity = Date.now() - mostRecentActivityTimestamp;
 

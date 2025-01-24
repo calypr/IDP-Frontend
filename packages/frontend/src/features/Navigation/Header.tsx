@@ -6,7 +6,6 @@ import { HeaderProps } from './types';
 import HorizontalNavigationBar from './HorizontalClean/HorizontalNavigationBar';
 import { useGetCSRFQuery } from '@gen3/core';
 
-
 /**
  * Header component.
  *
@@ -46,17 +45,12 @@ const Header = ({
   ) : (
     <div className="w-100">
       <TopBar
+        logo={navigation.logo}
         items={top.items}
         loginButtonVisibility={top?.loginButtonVisibility}
         classNames={{ ...top.classNames }}
       />
       {banners?.map((banner) => <Banner {...banner} key={banner.id} />)}
-      <NavigationBar
-        logo={navigation.logo}
-        title={navigation.title}
-        items={navigation.items}
-        classNames={navigation?.classNames}
-      />
     </div>
   );
 };

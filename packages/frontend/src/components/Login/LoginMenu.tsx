@@ -1,15 +1,22 @@
 import { useCallback } from 'react';
 import { useRouter } from 'next/router';
 import { showNotification } from '@mantine/notifications';
+import UserNavigationMenu from '../../components/Profile/UserNavigationMenu';
 import LoginProvidersMenuPanel from './LoginProvidersMenuPanel';
 import { GEN3_REDIRECT_URL } from '@gen3/core';
+import {
+  type CoreState,
+  selectUserAuthStatus,
+  useCoreSelector,
+  isAuthenticated,
+} from '@gen3/core';
 
 const filterRedirect = (redirect: string | string[] | undefined) => {
   let redirectPath = '';
   if (Array.isArray(redirect)) {
     redirectPath = redirect[0];
   } else {
-    redirectPath = redirect ?? '/Explorer';
+    redirectPath = redirect ?? '/DashBoard';
   }
   return GEN3_REDIRECT_URL
     ? `${GEN3_REDIRECT_URL}/${redirectPath}`
@@ -35,10 +42,20 @@ const LoginMenu = () => {
     },
     [referer, router],
   );
+  const userStatus = useCoreSelector((state: CoreState) =>
+    selectUserAuthStatus(state),
+  );
+  const authenticated = isAuthenticated(userStatus);
 
   return (
     <div className="grid grid-cols-6 w-full">
-      <LoginProvidersMenuPanel handleLoginSelected={handleFenceLoginSelected} />
+      {!authenticated ? (
+        <LoginProvidersMenuPanel
+          handleLoginSelected={handleFenceLoginSelected}
+        />
+      ) : (
+        <UserNavigationMenu />
+      )}
     </div>
   );
 };

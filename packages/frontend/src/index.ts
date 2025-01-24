@@ -27,6 +27,8 @@ import { CaliperPageGetServerSideProps } from './pages/Caliper';
 import FileSummaryPage from './pages/FileSummary/FileSummary';
 import { FileSummaryPageGetServerSideProps } from './pages/FileSummary';
 
+import DashBoardPage from './pages/DashBoard/DashBoard';
+import { DashBoardPageGetServerSideProps } from './pages/DashBoard';
 // export Gen3 data UI standard pages
 import Gen3Provider from './components/Providers/Gen3Provider';
 import DiscoveryPage from './pages/Discovery/Discovery';
@@ -94,6 +96,8 @@ export {
   CaliperPageGetServerSideProps,
   FileSummaryPage,
   FileSummaryPageGetServerSideProps,
+  DashBoardPage,
+  DashBoardPageGetServerSideProps,
   LandingPage,
   LandingPageGetStaticProps,
   ColorThemePage,

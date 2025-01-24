@@ -1,4 +1,4 @@
-import { LoadingOverlay, Menu, Button } from '@mantine/core';
+import { LoadingOverlay, Menu, UnstyledButton } from '@mantine/core';
 import {
   type Gen3LoginProvider,
   type NameUrl,
@@ -16,9 +16,11 @@ const LoginProviderMultipleItemsMenu = ({
   return (
     <Menu shadow="md" width={200}>
       <Menu.Target>
-        <Button className="py-2 px-4 bg-blue-500 text-white rounded hover:bg-blue-600">
-          Login
-        </Button>
+        <UnstyledButton className="py-2 px-4 rounded hover:bg-blue-600">
+          <div className="flex flex-nowrap items-center text-black align-middle border-b-2 hover:border-accent border-transparent">
+            Login
+          </div>
+        </UnstyledButton>
       </Menu.Target>
       <Menu.Dropdown>
         <Menu.Label>Provider Options</Menu.Label>

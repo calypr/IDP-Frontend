@@ -1,11 +1,12 @@
-import React, { ReactElement } from 'react';
+import { ReactElement } from 'react';
 import { Icon } from '@iconify/react';
 import { mergeDefaultTailwindClassnames } from '../../utils/mergeDefaultTailwindClassnames';
-import LoginButton from '../../components/Login/LoginButton';
-import LoginAccountButton from '../../components/Login/LoginAccountButton';
+import LoginMenu from '../../components/Login/LoginMenu';
 import { extractClassName } from './utils';
 import { LoginButtonVisibility } from '../../components/Login/types';
 import { StylingOverrideWithMergeControl } from '../../types';
+import NavigationLogo from './NavigationLogo';
+import { NavigationBarLogo } from './types';
 
 export interface NameAndIcon {
   readonly name: string;
@@ -35,6 +36,7 @@ const TopIconButton = ({
       'flex flex-nowrap items-center align-middle border-b-2 hover:border-accent border-transparent',
     leftIcon: 'text-secondary-contrast-lighter pr-1',
     label: 'font-content text-secondary-contrast-lighter block',
+    logoAndTitlePanel: 'flex justify-center items-center align-middle',
     rightIcon: 'text-secondary-contrast-lighter pl-1',
   };
   const mergedClassnames = mergeDefaultTailwindClassnames(
@@ -101,16 +103,13 @@ const processTopBarItems = (
 };
 
 export interface TopBarProps {
+  readonly logo?: NavigationBarLogo;
   readonly items: TopIconButtonProps[];
   readonly loginButtonVisibility?: LoginButtonVisibility;
   readonly classNames?: StylingOverrideWithMergeControl;
 }
 
-const TopBar = ({
-  items,
-  loginButtonVisibility = LoginButtonVisibility.Hidden,
-  classNames = {},
-}: TopBarProps) => {
+const TopBar = ({ items, classNames, logo = {} }: TopBarProps) => {
   const classNamesDefaults = {
     root: 'flex justify-end items-center align-middle w-100 bg-primary',
   };
@@ -122,19 +121,16 @@ const TopBar = ({
   return (
     <div>
       <header className={extractClassName('root', mergedClassnames)}>
-        <nav className="flex items-center align-middle">
-          {processTopBarItems(
-            items,
-            loginButtonVisibility != LoginButtonVisibility.LogoutOnly,
-          )}
-          {loginButtonVisibility != LoginButtonVisibility.Visible ? (
-            <div className="border-r-2 border-primary-contrast">
-              <LoginAccountButton />
-            </div>
-          ) : null}
-          {loginButtonVisibility != LoginButtonVisibility.Hidden ? (
-            <LoginButton visibility={loginButtonVisibility} />
-          ) : null}
+        <div
+          className={extractClassName('logoAndTitlePanel', mergedClassnames)}
+        >
+          {logo && <NavigationLogo {...{ ...logo }} />}
+        </div>
+        <nav className="flex items-center align-middle justify-end w-full">
+          {processTopBarItems(items, true)}
+          <div className="border-r-2 border-primary-contrast">
+            <LoginMenu />
+          </div>
         </nav>
       </header>
     </div>
