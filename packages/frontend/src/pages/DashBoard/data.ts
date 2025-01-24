@@ -9,13 +9,13 @@ export const DashBoardPageGetServerSideProps: GetServerSideProps<
   NavPageLayoutProps
 > = async () => {
   try {
-    const dashboardProps: DashBoardProps = await ContentSource.get(
+    const dashboardPageProps: DashBoardProps = await ContentSource.get(
       `config/${GEN3_COMMONS_NAME}/dashboardPage.json`,
     );
     return {
       props: {
         ...(await getNavPageLayoutPropsFromConfig()),
-        dashboardProps: dashboardProps ? dashboardProps : null,
+        dashboardConfig: dashboardPageProps,
       },
     };
   } catch (err) {
@@ -23,7 +23,7 @@ export const DashBoardPageGetServerSideProps: GetServerSideProps<
     return {
       props: {
         ...(await getNavPageLayoutPropsFromConfig()),
-        dashboardProps: undefined,
+        dashboardConfig: undefined,
       },
     };
   }

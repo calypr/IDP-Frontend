@@ -7,7 +7,7 @@ interface DashBoardConfig {
 }
 
 export interface DashBoardProps {
-  dashboardProps?: DashBoardConfig;
+  dashboardConfig?: DashBoardConfig;
 }
 
 export type DashBoardPageProps = NavPageLayoutProps & DashBoardProps;

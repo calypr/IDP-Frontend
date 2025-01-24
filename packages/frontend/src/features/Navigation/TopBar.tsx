@@ -109,14 +109,14 @@ export interface TopBarProps {
   readonly classNames?: StylingOverrideWithMergeControl;
 }
 
-const TopBar = ({ items, classNames, logo = {} }: TopBarProps) => {
+const TopBar = ({ items, classNames, logo }: TopBarProps) => {
   const classNamesDefaults = {
     root: 'flex justify-end items-center align-middle w-100 bg-primary',
   };
 
   const mergedClassnames = mergeDefaultTailwindClassnames(
     classNamesDefaults,
-    classNames,
+    classNames || {},
   );
   return (
     <div>
