@@ -16,7 +16,7 @@ const filterRedirect = (redirect: string | string[] | undefined) => {
   if (Array.isArray(redirect)) {
     redirectPath = redirect[0];
   } else {
-    redirectPath = redirect ?? '/DashBoard';
+    redirectPath = redirect ?? '/Apps';
   }
   return GEN3_REDIRECT_URL
     ? `${GEN3_REDIRECT_URL}/${redirectPath}`
