@@ -48,7 +48,7 @@ const LoginMenu = () => {
   const authenticated = isAuthenticated(userStatus);
 
   return (
-    <div className="grid grid-cols-6 w-full">
+    <div>
       {!authenticated ? (
         <LoginProvidersMenuPanel
           handleLoginSelected={handleFenceLoginSelected}

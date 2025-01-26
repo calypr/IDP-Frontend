@@ -6,8 +6,8 @@
       "navigationPanel": "bg-base-max text-primary"
     },
     "logo": {
-      "src": "/icons/cbds.svg",
-      "width": 200,
+      "src": "/icons/ohsu.svg",
+      "width": 75,
       "height": 60,
       "href": "/Apps"
     },

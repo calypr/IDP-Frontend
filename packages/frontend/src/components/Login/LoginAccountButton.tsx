@@ -26,7 +26,7 @@ const LoginAccountButton = () => {
   if (userStatus && isAuthenticated(userStatus)) {
     return (
       <UnstyledButton className="mx-2" onClick={() => handleSelected()}>
-        <div className="flex flex-nowrap items-center text-black align-middle border-b-2 hover:border-accent border-transparent">
+        <div className="flex flex-nowrap items-center align-middle border-b-2 hover:border-accent border-transparent">
           {userInfo?.username}
         </div>
       </UnstyledButton>

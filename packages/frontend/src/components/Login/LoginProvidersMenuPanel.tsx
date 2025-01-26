@@ -17,7 +17,7 @@ const LoginProviderMultipleItemsMenu = ({
     <Menu shadow="md" width={200}>
       <Menu.Target>
         <UnstyledButton className="py-2 px-4 rounded hover:bg-blue-600">
-          <div className="flex flex-nowrap items-center text-black align-middle border-b-2 hover:border-accent border-transparent">
+          <div className="flex flex-nowrap items-center align-middle border-b-2 hover:border-accent border-transparent">
             Login
           </div>
         </UnstyledButton>

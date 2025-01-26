@@ -19,7 +19,7 @@ const UserNavigationMenu = () => {
     <Menu shadow="md" width={200}>
       <Menu.Target>
         <UnstyledButton className="mx-2">
-          <div className="flex flex-nowrap items-center text-black align-middle border-b-2 hover:border-accent border-transparent">
+          <div className="flex flex-nowrap items-center text-white align-middle border-b-2 hover:border-accent border-transparent">
             {userInfo?.username}
           </div>
         </UnstyledButton>

@@ -1,20 +1,12 @@
 import React from 'react';
 import { GetServerSideProps } from 'next';
 import { useRouter } from 'next/router';
-import {
-  MantineProvider,
-  Container,
-  Text,
-  Image,
-  LoadingOverlay,
-  Button,
-} from '@mantine/core';
+import { MantineProvider, Text, LoadingOverlay, Button } from '@mantine/core';
 import ReactECharts from 'echarts-for-react';
 
 import {
   NavPageLayout,
   NavPageLayoutProps,
-  ProtectedContent,
   ErrorCard,
   getNavPageLayoutPropsFromConfig,
 } from '@gen3/frontend';
@@ -250,18 +242,9 @@ const HorizontalBarChart = ({ headerProps, footerProps }: SamplePageProps) => {
     >
       <MantineProvider>
         <div className="pt-5">
-          <div className="bg-cbds-primary pt-[1.5%] pb-[1.5%]">
-            <Container className="bg-cbds-monoprimary text-center">
-              <span className="flex items-center space-x-4">
-                <div className="p-5 flex-shrink-0">
-                  <Image src={'/icons/SMMART.svg'} alt={'logo'} />
-                </div>
-                <Text className="whitespace-nowrap text-center text-white text-5xl font-bold">
-                  SMMART Clinical Trials Platform
-                </Text>
-              </span>
-            </Container>
-          </div>
+          <Text className="whitespace-nowrap text-center text-black text-3xl font-bold">
+            SMMART Clinical Trials Platform
+          </Text>
 
           <div className="grid grid-cols-3 gap-4 mt-10">
             <div className="p-10">

@@ -32,11 +32,11 @@ const TopIconButton = ({
     root: `flex items-center align-middle px-2 ${
       drawBorder && 'border-r-2 border-accent'
     } my-2`,
+    logoAndTitlePanel: 'flex justify-center items-center align-middle',
     button:
       'flex flex-nowrap items-center align-middle border-b-2 hover:border-accent border-transparent',
     leftIcon: 'text-secondary-contrast-lighter pr-1',
     label: 'font-content text-secondary-contrast-lighter block',
-    logoAndTitlePanel: 'flex justify-center items-center align-middle',
     rightIcon: 'text-secondary-contrast-lighter pl-1',
   };
   const mergedClassnames = mergeDefaultTailwindClassnames(
@@ -82,9 +82,9 @@ const processTopBarItems = (
         <a
           className="flex"
           href={item.href}
+          key={`${item.href}_${item.name}`}
           target="_blank"
           rel="noopener noreferrer"
-          key={`${item.href}_${item.name}`}
         >
           {' '}
           <TopIconButton
