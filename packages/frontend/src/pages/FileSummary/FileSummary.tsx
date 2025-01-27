@@ -4,6 +4,7 @@ import { MatchingTable } from '../../features/MatchingTable';
 import { DonutSumChart, BarChart } from '../../components/charts';
 import { NavPageLayout } from '../../features/Navigation';
 import { SummaryTableColumn } from '../../features/CohortBuilder';
+import ProtectedContent from '../../components/Protected/ProtectedContent';
 
 import { useGeneralGQLQuery } from '@gen3/core';
 import { isQueryResponse } from '../../features/CohortBuilder/ExplorerTable/ExploreTableDetails/QueryRowDetailsPanel';
@@ -223,54 +224,56 @@ export const FileSummaryPage = ({
           <Loader size={30} />
         </div>
       ) : (
-        <div className="grid grid-cols-2 p-10">
-          <div className="flex flex-col items-center p-4 bg-white shadow-lg rounded-lg">
-            <Text>
-              Total data stored:
-              {' ' +
-                formatBytes(
-                  data.reduce(
-                    (sum: number, project: any) => sum + project.sum,
-                    0,
-                  ),
-                )}
-            </Text>
-            <DonutSumChart
-              total={1}
-              data={data}
-              onClick={handleProjectSelection}
-            />
-          </div>
-          <div className="flex flex-col items-center p-4 bg-white shadow-lg rounded-lg">
-            <Text> File Size Histogram for {selectedProject}</Text>
-            <BarChart
-              total={1}
-              data={fdata}
-              onClick={handleRangeSelection}
-              colors={[filesummaryConfig.barChartColor]}
-            />
-          </div>
-          <div className="col-span-2 m-6">
-            <Text>
-              Files from {'  '}
-              {formatBytes(selectedRange[0], 2)} -
-              {formatBytes(selectedRange[1], 2)}
-              {'  '}
-              for {selectedProject}
-            </Text>
-            <div className="inline-block overflow-x-scroll">
-              <div className="grid">
-                <MatchingTable
-                  isLoading={fbinisLoading}
-                  columns={filesummaryConfig?.config ?? {}}
-                  index={filesummaryConfig?.index ?? ''}
-                  idField={filesummaryConfig?.idField ?? ''}
-                  data={fbindata}
-                />
+        <ProtectedContent>
+          <div className="grid grid-cols-2 p-10">
+            <div className="flex flex-col items-center p-4 bg-white shadow-lg rounded-lg">
+              <Text>
+                Total data stored:
+                {' ' +
+                  formatBytes(
+                    data.reduce(
+                      (sum: number, project: any) => sum + project.sum,
+                      0,
+                    ),
+                  )}
+              </Text>
+              <DonutSumChart
+                total={1}
+                data={data}
+                onClick={handleProjectSelection}
+              />
+            </div>
+            <div className="flex flex-col items-center p-4 bg-white shadow-lg rounded-lg">
+              <Text> File Size Histogram for {selectedProject}</Text>
+              <BarChart
+                total={1}
+                data={fdata}
+                onClick={handleRangeSelection}
+                colors={[filesummaryConfig.barChartColor]}
+              />
+            </div>
+            <div className="col-span-2 m-6">
+              <Text>
+                Files from {'  '}
+                {formatBytes(selectedRange[0], 2)} -
+                {formatBytes(selectedRange[1], 2)}
+                {'  '}
+                for {selectedProject}
+              </Text>
+              <div className="inline-block overflow-x-scroll">
+                <div className="grid">
+                  <MatchingTable
+                    isLoading={fbinisLoading}
+                    columns={filesummaryConfig?.config ?? {}}
+                    index={filesummaryConfig?.index ?? ''}
+                    idField={filesummaryConfig?.idField ?? ''}
+                    data={fbindata}
+                  />
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        </ProtectedContent>
       )}
     </NavPageLayout>
   );

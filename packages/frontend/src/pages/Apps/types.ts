@@ -6,6 +6,7 @@ export interface AppsConfig {
     readonly description: string;
     readonly icon: string;
     readonly href: string;
+    readonly perms: string;
   }>;
 }
 
