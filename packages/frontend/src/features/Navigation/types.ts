@@ -39,6 +39,7 @@ export interface HeaderData {
 }
 
 export interface HeaderProps {
+  children?: React.ReactNode;
   top: TopBarProps;
   navigation: NavigationProps;
   banners?: Array<BannerProps>;

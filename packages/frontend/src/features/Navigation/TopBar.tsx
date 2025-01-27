@@ -38,6 +38,7 @@ const TopIconButton = ({
     leftIcon: 'text-secondary-contrast-lighter pr-1',
     label: 'font-content text-secondary-contrast-lighter block',
     rightIcon: 'text-secondary-contrast-lighter pl-1',
+    loginMenu: 'border-r-2 border-primary-contrast',
   };
   const mergedClassnames = mergeDefaultTailwindClassnames(
     classNamesDefaults,
@@ -103,21 +104,34 @@ const processTopBarItems = (
 };
 
 export interface TopBarProps {
+  readonly title?: string;
   readonly logo?: NavigationBarLogo;
   readonly items: TopIconButtonProps[];
   readonly loginButtonVisibility?: LoginButtonVisibility;
   readonly classNames?: StylingOverrideWithMergeControl;
 }
 
-const TopBar = ({ items, classNames, logo }: TopBarProps) => {
-  const classNamesDefaults = {
-    root: 'flex justify-end items-center align-middle w-100 bg-primary',
+const TopBar = ({ title, items, classNames, logo }: TopBarProps) => {
+  const defaultClassNames = {
+    root:
+      title === 'Gen3 Landing Page'
+        ? 'flex justify-end items-center align-middle px-2 border-r-2 my-2 border-black bg-white'
+        : 'flex justify-end items-center align-middle px-2 border-r-2 my-2 border-white bg-primary',
+    label:
+      title === 'Gen3 Landing Page'
+        ? 'font-content text-black block'
+        : 'font-content text-white block',
+    button:
+      title === 'Gen3 Landing Page'
+        ? 'flex flex-nowrap items-center align-middle border-b-2 px-2 hover:border-black'
+        : 'flex flex-nowrap items-center align-middle border-b-2 px-2 hover:border-white border-transparent',
   };
 
   const mergedClassnames = mergeDefaultTailwindClassnames(
-    classNamesDefaults,
+    defaultClassNames,
     classNames || {},
   );
+
   return (
     <div>
       <header className={extractClassName('root', mergedClassnames)}>
@@ -127,9 +141,25 @@ const TopBar = ({ items, classNames, logo }: TopBarProps) => {
           {logo && <NavigationLogo {...{ ...logo }} />}
         </div>
         <nav className="flex items-center align-middle justify-end w-full">
-          {processTopBarItems(items, true)}
-          <div className="border-r-2 border-primary-contrast">
-            <LoginMenu />
+          {processTopBarItems(
+            title === 'Gen3 Landing Page'
+              ? [
+                  {
+                    ...items[0],
+                    classNames: {
+                      ...items[0].classNames,
+                      root: defaultClassNames.root,
+                      label: defaultClassNames.label,
+                      button: defaultClassNames.button,
+                    },
+                  },
+                  ...items.slice(1),
+                ]
+              : items,
+            true,
+          )}
+          <div className={extractClassName('loginMenu', mergedClassnames)}>
+            <LoginMenu classNames={defaultClassNames} />
           </div>
         </nav>
       </header>

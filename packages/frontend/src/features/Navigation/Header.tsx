@@ -2,7 +2,7 @@ import React from 'react';
 import TopBar from './TopBar';
 import NavigationBar from './NavigationBar';
 import { Banner } from './Banner';
-import { HeaderProps } from './types';
+import { HeaderProps, HeaderData } from './types';
 import HorizontalNavigationBar from './HorizontalClean/HorizontalNavigationBar';
 import { useGetCSRFQuery } from '@gen3/core';
 
@@ -20,7 +20,8 @@ const Header = ({
   navigation,
   banners,
   type = 'original',
-}: HeaderProps) => {
+  title,
+}: HeaderProps & Pick<HeaderData, 'title'>) => {
   return type === 'horizontal' ? (
     <div className="w-full">
       {banners?.map((banner) => <Banner {...banner} key={banner.id} />)}
@@ -45,6 +46,7 @@ const Header = ({
   ) : (
     <div className="w-100">
       <TopBar
+        title={title}
         logo={navigation.logo}
         items={top.items}
         loginButtonVisibility={top?.loginButtonVisibility}

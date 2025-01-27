@@ -39,6 +39,7 @@ const AppsPage = ({ headerProps, footerProps, appsConfig }: AppsPageProps) => {
                 description={project.description}
                 icon={project.icon}
                 href={project.href}
+                perms={project.perms}
               />
             </Grid.Col>
           ))}

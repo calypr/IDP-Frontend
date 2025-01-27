@@ -33,7 +33,7 @@ const NavPageLayout = ({
           key={headerData.key}
         />
       </Head>
-      <Header {...headerProps}>
+      <Header {...headerProps} title={headerData.title}>
         <title>{headerData.title}</title>
         <meta
           property="og:title"

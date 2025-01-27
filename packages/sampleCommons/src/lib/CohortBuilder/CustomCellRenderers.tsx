@@ -5,7 +5,6 @@ import {
 import { ActionIcon, Text } from '@mantine/core';
 import React from 'react';
 import { FaExternalLinkAlt } from 'react-icons/fa';
-import { labelEnd } from 'micromark-core-commonmark';
 
 const RenderDiacomLink = (
   { cell, row }: CellRendererFunctionProps,

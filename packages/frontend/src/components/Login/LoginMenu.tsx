@@ -3,6 +3,8 @@ import { useRouter } from 'next/router';
 import { showNotification } from '@mantine/notifications';
 import UserNavigationMenu from '../../components/Profile/UserNavigationMenu';
 import LoginProvidersMenuPanel from './LoginProvidersMenuPanel';
+import { StylingOverrideWithMergeControl } from '../../types';
+
 import { GEN3_REDIRECT_URL } from '@gen3/core';
 import {
   type CoreState,
@@ -23,7 +25,11 @@ const filterRedirect = (redirect: string | string[] | undefined) => {
     : redirectPath;
 };
 
-const LoginMenu = () => {
+const LoginMenu = ({
+  classNames,
+}: {
+  classNames: StylingOverrideWithMergeControl;
+}) => {
   const router = useRouter();
   const {
     query: { referer },
@@ -51,10 +57,11 @@ const LoginMenu = () => {
     <div>
       {!authenticated ? (
         <LoginProvidersMenuPanel
+          classNames={classNames}
           handleLoginSelected={handleFenceLoginSelected}
         />
       ) : (
-        <UserNavigationMenu />
+        <UserNavigationMenu classNames={classNames} />
       )}
     </div>
   );

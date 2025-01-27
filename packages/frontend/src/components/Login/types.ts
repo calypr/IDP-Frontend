@@ -1,4 +1,5 @@
 import { TextContentProps } from '../Content/TextContent';
+import { StylingOverrideWithMergeControl } from '../../types';
 
 export interface Gen3LoginPanelConfig {
   title: string;
@@ -26,6 +27,7 @@ export interface LoginConfig extends Partial<Gen3LoginPanelConfig> {
 
 export interface LoginSelectedProps {
   readonly handleLoginSelected: (_url: string) => void;
+  classNames?: StylingOverrideWithMergeControl;
 }
 
 export enum LoginButtonVisibility {

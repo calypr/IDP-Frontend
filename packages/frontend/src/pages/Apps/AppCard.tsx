@@ -16,7 +16,7 @@ const AppCard = ({ title, description, icon, href }: AppCardProps) => {
       </div>
 
       <div className="flex justify-center">
-        <Image src={icon} alt={`${title} logo`} width={200} height={200} />
+        <Image src={icon} alt={`${title} logo`} width={150} height={150} />
       </div>
       <Text className="p-5 text-left">{description}</Text>
     </Card>

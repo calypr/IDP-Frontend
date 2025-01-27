@@ -5,21 +5,22 @@ import {
   useGetLoginProvidersQuery,
 } from '@gen3/core';
 import { LoginSelectedProps } from './types';
+import { StylingOverrideWithMergeControl } from '../../types';
 
 const LoginProviderMultipleItemsMenu = ({
+  classNames,
   providers,
   handleLoginSelected,
 }: {
+  classNames: StylingOverrideWithMergeControl;
   providers: Gen3LoginProvider[];
   handleLoginSelected: (url: string) => void;
 }) => {
   return (
     <Menu shadow="md" width={200}>
       <Menu.Target>
-        <UnstyledButton className="py-2 px-4 rounded hover:bg-blue-600">
-          <div className="flex flex-nowrap items-center align-middle border-b-2 hover:border-accent border-transparent">
-            Login
-          </div>
+        <UnstyledButton className={classNames.button}>
+          <div className={classNames.label}>Login</div>
         </UnstyledButton>
       </Menu.Target>
       <Menu.Dropdown>
@@ -29,7 +30,7 @@ const LoginProviderMultipleItemsMenu = ({
             <Menu.Item
               key={`${provider.name}-${item.url}`}
               onClick={() => handleLoginSelected(item.url)}
-              className="hover:text-accent-light"
+              className={classNames.button}
             >
               {`${provider.name}`}
             </Menu.Item>
@@ -40,8 +41,10 @@ const LoginProviderMultipleItemsMenu = ({
     </Menu>
   );
 };
+
 const LoginProvidersMenuPanel = ({
   handleLoginSelected,
+  classNames,
 }: LoginSelectedProps) => {
   const { data, isSuccess } = useGetLoginProvidersQuery();
 
@@ -52,6 +55,7 @@ const LoginProvidersMenuPanel = ({
   return (
     <div className="flex justify-center">
       <LoginProviderMultipleItemsMenu
+        classNames={classNames ?? {}}
         providers={data?.providers}
         handleLoginSelected={handleLoginSelected}
       />
