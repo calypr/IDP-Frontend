@@ -27,8 +27,10 @@ const filterRedirect = (redirect: string | string[] | undefined) => {
 
 const LoginMenu = ({
   classNames,
+  children,
 }: {
   classNames: StylingOverrideWithMergeControl;
+  children?: React.ReactNode;
 }) => {
   const router = useRouter();
   const {

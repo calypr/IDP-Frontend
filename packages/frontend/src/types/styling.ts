@@ -1,3 +1,5 @@
+import { ReactNode } from 'react';
+
 export type StylingOverride = Record<string, Record<string, string> | string>;
 
 export type StylingMergeMode = 'merge' | 'replace';
