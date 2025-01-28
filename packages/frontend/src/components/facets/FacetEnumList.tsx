@@ -359,7 +359,7 @@ const FacetEnumList: React.FC<FacetEnumListProps> = ({
                                 data-testid={`checkbox-${value}`}
                                 value={value}
                                 size="xs"
-                                color="accent.4"
+                                color="primary.0"
                                 onChange={(e) =>
                                   handleChange(
                                     e.currentTarget.value,
@@ -368,7 +368,7 @@ const FacetEnumList: React.FC<FacetEnumListProps> = ({
                                 }
                                 aria-label={`${value}`}
                                 classNames={{
-                                  input: 'hover:bg-accent-darker',
+                                  input: 'hover:bg-primary',
                                   label: 'text-xs font-normal font-content',
                                 }}
                                 checked={

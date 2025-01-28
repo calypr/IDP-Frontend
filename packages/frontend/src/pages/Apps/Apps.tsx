@@ -33,7 +33,7 @@ const AppsPage = ({ headerProps, footerProps, appsConfig }: AppsPageProps) => {
               ),
           )
           .map((project, index) => (
-            <Grid.Col key={index} span={4}>
+            <Grid.Col key={index} span={3}>
               <AppCard
                 title={project.title}
                 description={project.description}

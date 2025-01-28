@@ -204,7 +204,7 @@ const IncludeExcludeQueryElement = ({
                   key={`query-rep-${field}-${value}-${i}`}
                   data-testid={`query-rep-${field}-${value}-${i}`}
                   variant="filled"
-                  color="accent.5"
+                  color="primary.0"
                   size="md"
                   pr={0}
                   className="normal-case items-center max-w-[162px] cursor-pointer pl-0 pr-0 hover:bg-accent-darker"
@@ -386,7 +386,7 @@ export const QueryElement = ({
       </button>
       -- */}
       <button
-        className="bg-accent-vivid p-0 m-0 h-full rounded-r-sm text-white hover:bg-accent-darker"
+        className="bg-primary p-0 m-0 h-full rounded-r-sm text-white hover:bg-accent-darker"
         onClick={handleRemoveFilter}
         aria-label={`remove ${fieldNameToTitle(field)}`}
       >

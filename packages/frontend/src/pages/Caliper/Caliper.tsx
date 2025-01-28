@@ -1,6 +1,5 @@
 import {
   BackgroundImage,
-  Card,
   Anchor,
   Text,
   Button,
@@ -177,7 +176,7 @@ const CaliperPage = ({ headerProps, footerProps }: Props) => {
           </div>
         </div>
 
-        <div className="bg-gray-50 sm:px-6 px-4 py-12 font-sans">
+        <div className="bg-gray-50 sm:px-6 px-4 py-12">
           <div className="max-w-7xl mx-auto">
             <div className="text-left">
               <Text className="text-3xl font-extrabold text-gray-800 inline-block">
