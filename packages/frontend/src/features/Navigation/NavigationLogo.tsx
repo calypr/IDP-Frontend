@@ -15,6 +15,7 @@ const NavigationLogo = ({
   basePath = '',
   classNames = {},
   href,
+  basepage,
 }: NavigationBarLogo) => {
   const classNamesDefaults = {
     root: 'relative flex py-2 justify-start items-center align-middle font-heading font-bold tracking-wide text-xl ml-[5px] mr-[20px]',
@@ -23,8 +24,11 @@ const NavigationLogo = ({
     title: 'border-solid border-base-darker ml-1 mr-3',
     divider:
       'border-solid border-gen3-smoke border-l-1 ml-[2px] mr-[7px] h-[64px] w-1',
+
     titleLink:
-      'font-heading text-md pt-2 text-ink-dark hover:text-ink-darkest hover:border-accent hover:border-b-3',
+      basepage === true
+        ? 'font-heading text-md pt-2 text-black hover:text-black hover:border-black hover:border-b-3'
+        : 'font-heading text-md pt-2 text-white hover:text-white hover:border-white hover:border-b-3',
   };
 
   const mergedClassnames = mergeDefaultTailwindClassnames(

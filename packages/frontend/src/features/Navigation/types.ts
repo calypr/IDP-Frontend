@@ -22,6 +22,7 @@ export interface NavigationBarLogo {
   readonly divider?: boolean;
   readonly classNames?: StylingOverrideWithMergeControl;
   readonly href: string;
+  basepage?: boolean;
 }
 
 export interface NavigationProps {

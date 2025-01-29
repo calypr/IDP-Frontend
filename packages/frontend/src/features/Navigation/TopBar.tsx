@@ -112,6 +112,10 @@ export interface TopBarProps {
 }
 
 const TopBar = ({ title, items, classNames, logo }: TopBarProps) => {
+  title === 'Gen3 Landing Page'
+    ? (logo!.basepage = true)
+    : (logo!.basepage = false);
+
   const defaultClassNames = {
     root:
       title === 'Gen3 Landing Page'

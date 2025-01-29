@@ -70,8 +70,10 @@ export const UniqueAssociatedValsForSpecimen = ({
 
 export const AssociatedFilesText = ({
   identifiers,
+  asoc_val,
 }: {
   identifiers: string[];
+  asoc_val: string;
 }) => {
   const { resData, isLoading, isError } = useFilesQuery(identifiers, false);
   // Return the length, loading, and error status
