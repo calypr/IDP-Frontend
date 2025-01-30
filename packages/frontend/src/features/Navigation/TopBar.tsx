@@ -163,7 +163,7 @@ const TopBar = ({ title, items, classNames, logo }: TopBarProps) => {
             true,
           )}
           <div className={extractClassName('loginMenu', mergedClassnames)}>
-            <LoginMenu classNames={defaultClassNames} />
+            <LoginMenu frontBanner={false} classNames={defaultClassNames} />
           </div>
         </nav>
       </header>

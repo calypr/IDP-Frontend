@@ -4,10 +4,11 @@ import {
   ProtectedContent,
   getNavPageLayoutPropsFromConfig,
   NavPageLayoutProps,
-  MatchingTable,
 } from '@gen3/frontend';
 
 import { GetServerSideProps } from 'next';
+
+import { Card, Text } from '@mantine/core';
 
 const discoverytableConfig = {
   Project: {
@@ -41,43 +42,78 @@ const discoveryData = {
     },
     discovery: [
       {
-        Project: 'SMMART',
-        PI: 'Gordon Mills',
-        Stakeholders: 'Allison Creason',
-        Location: 'Internal',
-        Description: 'Support for SMMART precision oncology',
+        project: 'SMMART',
+        pi: 'Gordon Mills',
+        stakeholders: 'Allison Creason',
+        location: 'Internal',
+        description: 'Support for SMMART precision oncology',
       },
       {
-        Project: 'TCGA-LUAD',
-        PI: 'Kyle Ellrott',
-        Stakeholders: 'Kyle Ellrott, Elisabeth Goldman',
-        Location: 'Internal',
-        Description: 'Discovery dataset for lung cancer health disparities',
+        project: 'TCGA-LUAD',
+        pi: 'Kyle Ellrott',
+        stakeholders: 'Kyle Ellrott, Elisabeth Goldman',
+        location: 'Internal',
+        description: 'Discovery dataset for lung cancer health disparities',
       },
       {
-        Project: 'TCGA-ESCA',
-        PI: 'Kyle Ellrott',
-        Location: 'Internal',
-        Stakeholders: 'Kyle Ellrott, Elisabeth Goldman',
+        project: 'TCGA-ESCA',
+        pi: 'Kyle Ellrott',
+        location: 'Internal',
+        stakeholders: 'Kyle Ellrott, Elisabeth Goldman',
       },
       {
-        Project: 'GDAN-MILD',
-        PI: 'Kyle Ellrott',
-        Location: 'Internal',
-        Stakeholders: 'Kyle Ellrott, Jordan Lee',
+        project: 'GDAN-MILD',
+        pi: 'Kyle Ellrott',
+        location: 'Internal',
+        stakeholders: 'Kyle Ellrott, Jordan Lee',
       },
       {
-        Project: 'Prostate-CEDAR',
-        PI: 'Ece Eksi',
-        Location: 'Internal',
+        project: 'Prostate-CEDAR',
+        pi: 'Ece Eksi',
+        location: 'Internal',
       },
       {
-        Project: 'PDAC-HTAN',
-        Location: 'Internal/External',
-        PI: 'Rosie Sears',
+        project: 'PDAC-HTAN',
+        location: 'Internal/External',
+        pi: 'Rosie Sears',
       },
     ],
   },
+};
+
+interface discoveryElem {
+  project?: string;
+  pi?: string;
+  location?: string;
+  stakeholders?: string;
+  description?: string;
+}
+
+const DiscoveryBannerCard = ({
+  project,
+  pi,
+  location,
+  stakeholders,
+  description,
+}: discoveryElem) => {
+  return (
+    <Card shadow="md" className="flex flex-col rounded-lg bg-white">
+      <div className="flex flex-col space-y-4">
+        <Text className="text-xl font-semibold text-gray-800">{project}</Text>
+        {Object.entries({
+          PI: pi,
+          Location: location,
+          Stakeholders: stakeholders,
+          Description: description,
+        }).map(([key, value]) => (
+          <div key={key} className="flex justify-between">
+            <Text className="font-semibold text-gray-600">{key}:</Text>
+            <Text className="text-gray-800">{value}</Text>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
 };
 const DiscoveryPage = ({ headerProps, footerProps }: NavPageLayoutProps) => {
   return (
@@ -90,20 +126,16 @@ const DiscoveryPage = ({ headerProps, footerProps }: NavPageLayoutProps) => {
       }}
     >
       <ProtectedContent>
-        <div className="flex justify-center w-screen">
-          <div className="col-span-2 m-6">
-            <div className="pt-10 pb-3 text-3xl font-bold text-black">
-              Discover New Projects
-            </div>
-            <div className="grid">
-              <MatchingTable
-                isLoading={false}
-                columns={discoverytableConfig ?? {}}
-                index={'discovery'}
-                idField={''}
-                data={discoveryData}
-              />
-            </div>
+        <div className="flex flex-col justify-center">
+          <div className="pt-10 pb-3 text-3xl font-bold text-black">
+            Discover New Projects
+          </div>
+          <div className="flex flex-col justify-center gap-6 p-6">
+            {discoveryData?.data.discovery.map(
+              (disc: discoveryElem, index: number) => (
+                <DiscoveryBannerCard key={index} {...disc} />
+              ),
+            )}
           </div>
         </div>
       </ProtectedContent>

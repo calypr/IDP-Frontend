@@ -48,7 +48,9 @@ const CaliperPage = ({ headerProps, footerProps }: Props) => {
                 Integrated data system tracking OHSU Knight Cancer research
                 datasets
               </div>
-              <LoginMenu classNames={defaultClassNames}>Login</LoginMenu>
+              <LoginMenu frontBanner={true} classNames={defaultClassNames}>
+                Login
+              </LoginMenu>
             </div>
           </div>
 

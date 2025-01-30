@@ -12,6 +12,7 @@ import {
   useCoreSelector,
   isAuthenticated,
 } from '@gen3/core';
+import { UnstyledButton } from '@mantine/core';
 
 const filterRedirect = (redirect: string | string[] | undefined) => {
   let redirectPath = '';
@@ -26,9 +27,11 @@ const filterRedirect = (redirect: string | string[] | undefined) => {
 };
 
 const LoginMenu = ({
+  frontBanner,
   classNames,
   children,
 }: {
+  frontBanner: boolean;
   classNames: StylingOverrideWithMergeControl;
   children?: React.ReactNode;
 }) => {
@@ -62,6 +65,10 @@ const LoginMenu = ({
           classNames={classNames}
           handleLoginSelected={handleFenceLoginSelected}
         />
+      ) : frontBanner ? (
+        <UnstyledButton className="mx-2" onClick={() => router.push('/Apps')}>
+          <div className={classNames.label}> To Apps Page </div>
+        </UnstyledButton>
       ) : (
         <UserNavigationMenu classNames={classNames} />
       )}
