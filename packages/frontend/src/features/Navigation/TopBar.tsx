@@ -34,10 +34,10 @@ const TopIconButton = ({
     } my-2`,
     logoAndTitlePanel: 'flex justify-center items-center align-middle',
     button:
-      'flex flex-nowrap items-center align-middle border-b-2 hover:border-accent border-transparent',
-    leftIcon: 'text-secondary-contrast-lighter pr-1',
-    label: 'font-content text-secondary-contrast-lighter block',
-    rightIcon: 'text-secondary-contrast-lighter pl-1',
+      'flex items-center align-middle border-b-2 hover:border-accent border-transparent h-full',
+    leftIcon: 'text-secondary-contrast-lighter pr-1 flex-shrink-0',
+    label: 'font-content text-secondary-contrast-lighter block leading-none',
+    rightIcon: 'text-secondary-contrast-lighter pl-1 flex-shrink-0',
     loginMenu: 'border-r-2 border-primary-contrast',
   };
   const mergedClassnames = mergeDefaultTailwindClassnames(
@@ -123,7 +123,7 @@ const TopBar = ({ title, items, classNames, logo }: TopBarProps) => {
         : 'flex justify-end items-center align-middle px-2 border-r-2 my-2 border-white bg-primary',
     label:
       title === 'Gen3 Landing Page'
-        ? 'font-content text-black block'
+        ? 'font-content text-black block align-middle'
         : 'font-content text-white block',
     button:
       title === 'Gen3 Landing Page'
@@ -144,7 +144,7 @@ const TopBar = ({ title, items, classNames, logo }: TopBarProps) => {
         >
           {logo && <NavigationLogo {...{ ...logo }} />}
         </div>
-        <nav className="flex items-center align-middle justify-end w-full">
+        <nav className="flex items-center align-middle justify-end w-full my-2">
           {processTopBarItems(
             title === 'Gen3 Landing Page'
               ? [

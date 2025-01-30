@@ -47,7 +47,7 @@ const Credentials = () => {
       <div className="flex flex-col w-full p-2 relative">
         <div className="flex mb-2">
           <Button
-            color="accent.4"
+            color="secondary.0"
             onClick={async () => {
               if (csrfToken) {
                 await addNewCredential(csrfToken.csrfToken)

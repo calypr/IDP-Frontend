@@ -50,7 +50,9 @@ const NavigationLogo = ({
           width={width ?? undefined}
           height={height ?? undefined}
           fill={!width && !height}
-          src={`${basePath}${src}`}
+          src={
+            !basepage ? `${basePath}/icons/ohsu_white.svg` : `${basePath}${src}`
+          }
           alt={description ?? title ?? 'link back to homepage'}
         />
       </HoverLink>

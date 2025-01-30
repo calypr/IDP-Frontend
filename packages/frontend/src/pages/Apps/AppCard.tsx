@@ -7,8 +7,8 @@ const AppCard = ({ title, description, icon, href }: AppCardProps) => {
   const router = useRouter();
 
   return (
-    <Card
-      className="shadow-lg text-left cursor-pointer flex flex-col h-full m-[5%]"
+    <div
+      className="shadow-lg text-left cursor-pointer flex flex-col"
       onClick={() => router.push(href)}
     >
       <div className="flex items-left space-x-4 p-3">
@@ -19,7 +19,7 @@ const AppCard = ({ title, description, icon, href }: AppCardProps) => {
         <Image src={icon} alt={`${title} logo`} width={150} height={150} />
       </div>
       <Text className="p-5 text-left">{description}</Text>
-    </Card>
+    </div>
   );
 };
 

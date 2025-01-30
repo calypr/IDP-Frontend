@@ -60,7 +60,7 @@ const AppsPage = ({ headerProps, footerProps, appsConfig }: AppsPageProps) => {
           <div className="text-3xl text-center font-semibold">Apps</div>
         </Alert>
       </div>
-      <div className="grid grid-cols-4 pt-2 pb-12">
+      <div className="grid grid-cols-4 gap-12 p-8 auto-rows-auto">
         {appsConfig?.appCards
           ?.filter(
             (proj) =>
