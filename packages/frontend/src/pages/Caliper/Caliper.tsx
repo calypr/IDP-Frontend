@@ -17,7 +17,7 @@ interface Props extends CaliperLandingPageProps {
 
 const defaultClassNames = {
   label:
-    'font-content text-white block hover:text-black hover:border-white hover:bg-white rounded-lg py-3 px-6',
+    'font-content text-white block hover:text-black hover:border-white hover:bg-white rounded-lg py-3 px-6 active:scale-95',
   button:
     'flex flex-nowrap items-center align-middle border-b-2 px-2 border-white border-transparent',
 };

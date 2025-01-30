@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Text, Loader, Center } from '@mantine/core';
+import { Text, Loader, Center, UnstyledButton } from '@mantine/core';
 import { MatchingTable } from '../../features/MatchingTable';
 import { DonutSumChart, BarChart } from '../../components/charts';
 import { NavPageLayout } from '../../features/Navigation';
@@ -53,11 +53,70 @@ export const useFileAggsQuery = (
   return { fdata: cachedfileData, fisLoading: isLoading, fisError: isError };
 };
 
+export const useFileTypesHistogramQuery = (project: string) => {
+  const { data, isLoading, isError } = useGeneralGQLQuery({
+    query: `query($filter:JSON){
+  		_aggregation{
+        file(filter: $filter){
+          contentType{
+            histogram{
+              key
+              count
+            }
+          }
+        }
+      }
+    }`,
+    variables: {
+      filter: {
+        AND: [
+          {
+            IN: {
+              project_id: [project],
+            },
+          },
+        ],
+      },
+    },
+  });
+
+  const cachedfileData = useMemo(() => {
+    if (data) {
+      return isQueryResponse(data)
+        ? extractData(data, 'file', 'contentType')
+        : [];
+    }
+    return [];
+  }, [data]);
+
+  return { ftdata: cachedfileData, ftisLoading: isLoading, ftisError: isError };
+};
+
 export const useFilesFromBinQuery = (
   project: string,
   file_range: number[],
   config: Record<string, SummaryTableColumn>,
+  category: string,
 ) => {
+  const filters = [
+    {
+      EQ: { project_id: project },
+    },
+  ];
+
+  if (category != '') {
+    filters.push({
+      EQ: {
+        contentType:
+          String(category).charAt(0).toLowerCase() + String(category).slice(1),
+      },
+    });
+  } else {
+    filters.push({
+      AND: [{ GTE: { size: file_range[0] } }, { LT: { size: file_range[1] } }],
+    });
+  }
+
   const { data, isLoading, isError } = useGeneralGQLQuery({
     query: `query($filter:JSON){
   		_aggregation{
@@ -69,31 +128,7 @@ export const useFilesFromBinQuery = (
         ${Object.keys(config).join('\n')}
       }
     }`,
-    variables: {
-      filter: {
-        AND: [
-          {
-            EQ: {
-              project_id: project,
-            },
-          },
-          {
-            AND: [
-              {
-                GTE: {
-                  size: file_range[0],
-                },
-              },
-              {
-                LT: {
-                  size: file_range[1],
-                },
-              },
-            ],
-          },
-        ],
-      },
-    },
+    variables: { filter: { AND: filters } },
   });
 
   const cachedfileData = useMemo(() => {
@@ -169,6 +204,8 @@ export const FileSummaryPage = ({
   footerProps,
   filesummaryConfig,
 }: FileSummaryPageProps) => {
+  const [barChartToggle, setbarChartToggle] = useState<boolean>(false);
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
   const { data, isLoading, isError } = useProjectsQuery();
   const [selectedProject, setSelectedProject] = useState<string>(
     filesummaryConfig?.defaultProject ?? '',
@@ -185,9 +222,13 @@ export const FileSummaryPage = ({
     selectedProject,
     selectedRange,
     filesummaryConfig?.config ?? {},
+    selectedCategory,
   );
 
-  if (isError || fisError || fbinisError) {
+  const { ftdata, ftisLoading, ftisError } =
+    useFileTypesHistogramQuery(selectedProject);
+
+  if (isError || fisError || fbinisError || ftisError) {
     return <Text> Error occurred while fetching file metadata </Text>;
   }
 
@@ -201,6 +242,11 @@ export const FileSummaryPage = ({
   const handleRangeSelection = (selectedRange: string) => {
     type ValidRange = keyof typeof rangeMapping;
     setSelectedRange(rangeMapping[selectedRange as ValidRange]);
+    setSelectedCategory('');
+  };
+
+  const handleCategorySelection = (selectedCategory: string) => {
+    setSelectedCategory(selectedCategory);
   };
 
   if (filesummaryConfig === undefined) {
@@ -219,7 +265,7 @@ export const FileSummaryPage = ({
         key: 'gen3-file-summary',
       }}
     >
-      {fisLoading || isLoading || fbinisLoading ? (
+      {fisLoading || isLoading || fbinisLoading || ftisLoading ? (
         <div className="fixed inset-0 flex justify-center items-center bg-gray-700 bg-opacity-50 z-50">
           <Loader size={30} />
         </div>
@@ -243,21 +289,45 @@ export const FileSummaryPage = ({
                 onClick={handleProjectSelection}
               />
             </div>
-            <div className="flex flex-col items-center p-4 bg-white shadow-lg rounded-lg">
-              <Text> File Size Histogram for {selectedProject}</Text>
-              <BarChart
-                total={1}
-                data={fdata}
-                onClick={handleRangeSelection}
-                colors={[filesummaryConfig.barChartColor]}
-              />
+            <div className="flex flex-col p-4 bg-white shadow-lg rounded-lg">
+              <div className="flex justify-between items-center w-full">
+                <Text>
+                  {barChartToggle ? 'File Size' : 'File Type'} Histogram for{' '}
+                  {selectedProject}
+                </Text>
+                <UnstyledButton
+                  className="mx-2 active:scale-95"
+                  onClick={() => setbarChartToggle(!barChartToggle)}
+                >
+                  <div className="font-content text-black bg-secondary block hover:text-white hover:border-white rounded-lg py-3 px-6">
+                    Toggle Chart
+                  </div>
+                </UnstyledButton>
+              </div>
+
+              {barChartToggle ? (
+                <BarChart
+                  total={1}
+                  data={fdata}
+                  onClick={handleRangeSelection}
+                  colors={[filesummaryConfig.barChartColor]}
+                />
+              ) : (
+                <BarChart
+                  total={1}
+                  data={ftdata}
+                  onClick={handleCategorySelection}
+                  colors={[filesummaryConfig.barChartColor]}
+                />
+              )}
             </div>
             <div className="col-span-2 m-6">
               <Text>
-                Files from {'  '}
-                {formatBytes(selectedRange[0], 2)} -
-                {formatBytes(selectedRange[1], 2)}
-                {'  '}
+                {selectedCategory === ''
+                  ? `Files from
+                    ${formatBytes(selectedRange[0], 2)} -
+                    ${formatBytes(selectedRange[1], 2)} `
+                  : `Files of type ${selectedCategory} `}
                 for {selectedProject}
               </Text>
               <div className="inline-block overflow-x-scroll">
