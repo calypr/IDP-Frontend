@@ -5,27 +5,32 @@ import {
   getNavPageLayoutPropsFromConfig,
   NavPageLayoutProps,
   MatchingTable,
+  type SummaryTableColumn,
 } from '@gen3/frontend';
 import { Text } from '@mantine/core';
+import { GetServerSideProps } from 'next';
 
 import { useGeneralGQLQuery } from '@gen3/core';
 
 export const useFileTypesFiles = () => {
   const { data, isLoading, isError } = useGeneralGQLQuery({
     query: `query($filter:JSON){
-      file(filter: $filter, accessibility: all, first: 10000, sort: [{size: "desc"}]){
+      file(filter: $filter, first: 10000){
         id
-        title
+        source_path
         size
+        project_id
       }
     }`,
     variables: {
       filter: {
-        AND: {
-          EQ: {
-            contentType: 'image/tiff',
+        AND: [
+          {
+            EQ: {
+              contentType: 'image/tiff',
+            },
           },
-        },
+        ],
       },
     },
   });
@@ -46,29 +51,33 @@ const AvailableImagesPage = ({
   footerProps,
 }: NavPageLayoutProps) => {
   const { data, isLoading, isError } = useFileTypesFiles();
-  const imageViewerTableConfig = {
+
+  const imageViewerTableConfig: Record<string, SummaryTableColumn> = {
     id: {
       title: 'View Image',
+      field: 'id',
       type: 'link',
       accessorPath: 'id',
       cellRenderFunction: 'DiacomLink',
-      width: '32px',
+      width: 32,
       params: {
         baseURL: '/image-viewer/view',
       },
-      field: 'id',
     },
     project_id: {
       title: 'Project Id',
       field: 'project_id',
     },
-    title: {
-      title: 'Title',
-      field: 'title',
+    source_path: {
+      title: 'Source Path',
+      field: 'source_path',
     },
     size: {
       title: 'File Size',
       field: 'size',
+      accessorPath: 'size',
+      cellRenderFunction: 'HumanReadableString',
+      type: 'string',
     },
   };
 
@@ -80,9 +89,9 @@ const AvailableImagesPage = ({
     <NavPageLayout
       {...{ headerProps, footerProps }}
       headerData={{
-        title: 'Discovery Page',
-        content: 'Discovery Page',
-        key: 'discovery-page',
+        title: 'Available Images Page',
+        content: 'Available Images Page',
+        key: 'available-images-page',
       }}
     >
       <ProtectedContent>

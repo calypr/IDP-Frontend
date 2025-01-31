@@ -49,7 +49,7 @@ const LoginProvidersMenuPanel = ({
   const { data, isSuccess } = useGetLoginProvidersQuery();
 
   if (!isSuccess) {
-    return <Loader visible={!isSuccess} />;
+    return <Loader />;
   }
 
   return (

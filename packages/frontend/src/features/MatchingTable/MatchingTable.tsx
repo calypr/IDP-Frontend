@@ -18,8 +18,7 @@ import {
   ExplorerTableCellRendererFactory,
 } from '../CohortBuilder/ExplorerTable/ExplorerTableCellRenderers';
 
-interface ExplorerColumn {
-  field: string;
+interface ExplorerColumn extends SummaryTableColumn {
   accessorKey: never;
   header: string;
   accessorFn?: (originalRow: ExplorerColumn) => any;
@@ -51,7 +50,6 @@ const MatchingTable = ({
   index,
   idField,
 }: MatchingTableProps) => {
-  console.log('DATA? : ', data);
   const fields: string[] = Object.values(columns).map((col) => col.field);
   const cols = useDeepCompareMemo(() => {
     return fields.map((field) => {
