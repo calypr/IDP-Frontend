@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Text, Loader, Center, UnstyledButton } from '@mantine/core';
+import { Text, Loader, Center, Switch } from '@mantine/core';
 import { MatchingTable } from '../../features/MatchingTable';
 import { DonutSumChart, BarChart } from '../../components/charts';
 import { NavPageLayout } from '../../features/Navigation';
@@ -295,14 +295,22 @@ export const FileSummaryPage = ({
                   {barChartToggle ? 'File Size' : 'File Type'} Histogram for{' '}
                   {selectedProject}
                 </Text>
-                <UnstyledButton
-                  className="mx-2 active:scale-95"
-                  onClick={() => setbarChartToggle(!barChartToggle)}
-                >
-                  <div className="font-content text-black bg-secondary block hover:text-white hover:border-white rounded-lg py-3 px-6">
-                    Toggle Chart
-                  </div>
-                </UnstyledButton>
+
+                <div className="flex justify-between align-middle px-2">
+                  <Text fw={500} className="mr-2">
+                    {barChartToggle ? 'Sizes' : 'Types'}
+                  </Text>
+
+                  <Switch
+                    classNames={{
+                      track: `border border-black rounded-full h-8 w-12 ${barChartToggle ? 'bg-secondary' : 'bg-white'}`,
+                      thumb: `transform h-6 w-6 bg-black border-black ${barChartToggle ? '-translate-x-[50%]' : 'translate-x-[0%]'}`,
+                      label: 'font-content text-black',
+                    }}
+                    onChange={() => setbarChartToggle(!barChartToggle)}
+                    checked={barChartToggle}
+                  />
+                </div>
               </div>
 
               {barChartToggle ? (

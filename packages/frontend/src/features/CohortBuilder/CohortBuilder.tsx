@@ -22,7 +22,7 @@ export const CohortBuilder = ({
     <ProtectedContent>
       <div className="w-full">
         <Tabs
-          color="primary.4"
+          color="secondary.0"
           keepMounted={false}
           defaultValue={explorerConfig[0].tabTitle}
         >

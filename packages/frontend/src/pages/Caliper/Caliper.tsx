@@ -57,7 +57,7 @@ const CaliperPage = ({ headerProps, footerProps }: Props) => {
           <div className="relative w-full h-[350px]">
             <BackgroundImage
               className="absolute inset-0 bg-cover bg-center"
-              src="./images/landing/data_explore.png"
+              src="./images/landing/open_access_explorer.png"
             >
               <div className="absolute inset-0 bg-black opacity-60 z-10"></div>
             </BackgroundImage>

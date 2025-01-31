@@ -1,4 +1,4 @@
-import { LoadingOverlay, Menu, UnstyledButton } from '@mantine/core';
+import { Loader, Menu, UnstyledButton } from '@mantine/core';
 import {
   type Gen3LoginProvider,
   type NameUrl,
@@ -49,7 +49,7 @@ const LoginProvidersMenuPanel = ({
   const { data, isSuccess } = useGetLoginProvidersQuery();
 
   if (!isSuccess) {
-    return <LoadingOverlay visible={!isSuccess} />;
+    return <Loader visible={!isSuccess} />;
   }
 
   return (
