@@ -30,15 +30,14 @@ const TopIconButton = ({
 }: NameAndIcon) => {
   const classNamesDefaults = {
     root: `flex items-center align-middle px-2 ${
-      drawBorder && 'border-r-2 border-accent'
+      drawBorder && 'border-r-2'
     } my-2`,
     logoAndTitlePanel: 'flex justify-center items-center align-middle',
-    button:
-      'flex items-center align-middle border-b-2 hover:border-accent border-transparent h-full',
-    leftIcon: 'text-secondary-contrast-lighter pr-1 flex-shrink-0',
+    button: 'flex items-center align-middle border-b-2 h-full',
+    leftIcon: 'text-white pr-1 flex-shrink-0',
     label: 'font-content text-secondary-contrast-lighter block leading-none',
     rightIcon: 'text-secondary-contrast-lighter pl-1 flex-shrink-0',
-    loginMenu: 'border-r-2 border-primary-contrast',
+    loginMenu: 'border-r-2',
   };
   const mergedClassnames = mergeDefaultTailwindClassnames(
     classNamesDefaults,
@@ -119,16 +118,16 @@ const TopBar = ({ title, items, classNames, logo }: TopBarProps) => {
   const defaultClassNames = {
     root:
       title === 'Gen3 Landing Page'
-        ? 'flex justify-end items-center align-middle px-2 border-r-2 my-2 border-black bg-white'
-        : 'flex justify-end items-center align-middle px-2 border-r-2 my-2 border-white bg-primary',
+        ? 'flex justify-end items-center align-middle px-2 border-r-2 my-2 bg-white border-black  hover:border-black'
+        : 'flex justify-end items-center align-middle px-2 border-r-2 my-2 bg-primary border-primary hover:border-white',
     label:
       title === 'Gen3 Landing Page'
-        ? 'font-content text-black block align-middle'
+        ? 'font-content text-black block align-middle border-white'
         : 'font-content text-white block',
     button:
       title === 'Gen3 Landing Page'
-        ? 'flex flex-nowrap items-center align-middle border-b-2 px-2 hover:border-black'
-        : 'flex flex-nowrap items-center align-middle border-b-2 px-2 hover:border-white border-transparent',
+        ? 'flex flex-nowrap items-center align-middle border-b-2 px-2 border-white hover:border-black'
+        : 'flex flex-nowrap items-center align-middle border-b-2 px-2 hover:border-white',
   };
 
   const mergedClassnames = mergeDefaultTailwindClassnames(

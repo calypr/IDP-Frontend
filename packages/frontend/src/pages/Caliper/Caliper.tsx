@@ -17,11 +17,34 @@ interface Props extends CaliperLandingPageProps {
 
 const defaultClassNames = {
   label:
-    'font-content text-white block hover:text-black hover:border-white hover:bg-white rounded-lg py-3 px-6 active:scale-95',
+    'bg-primary font-content text-white block hover:text-white hover:border-secondary hover:bg-secondary rounded-lg py-3 px-6 active:scale-95',
   button:
     'flex flex-nowrap items-center align-middle border-b-2 px-2 border-white border-transparent',
 };
-
+const BannerPanel = ({
+  title,
+  text,
+  imagePath,
+}: {
+  title: string;
+  text: string;
+  imagePath: string;
+}) => {
+  return (
+    <div className="relative w-full h-[350px]">
+      <BackgroundImage
+        className="absolute inset-0 bg-cover bg-center"
+        src={imagePath}
+      >
+        <div className="absolute inset-0 bg-black opacity-60 z-10"></div>
+      </BackgroundImage>
+      <div className="relative z-20 flex flex-col justify-center items-center text-white p-4 pt-28">
+        <div className="text-4xl font-bold pb-7">{title}</div>
+        <div className="text-xl font-semibold pb-10">{text}</div>
+      </div>
+    </div>
+  );
+};
 const CaliperPage = ({ headerProps, footerProps }: Props) => {
   return (
     <NavPageLayout
@@ -45,8 +68,8 @@ const CaliperPage = ({ headerProps, footerProps }: Props) => {
             <div className="relative z-20 flex flex-col justify-center items-center text-white p-4 pt-20">
               <div className="text-4xl font-bold pb-7">CALIPER</div>
               <div className="text-xl font-semibold pb-10">
-                Integrated data system tracking OHSU Knight Cancer research
-                datasets
+                Integrated data system tracking OHSU Knight Cancer Institute
+                research datasets
               </div>
               <LoginMenu frontBanner={true} classNames={defaultClassNames}>
                 Login
@@ -54,124 +77,101 @@ const CaliperPage = ({ headerProps, footerProps }: Props) => {
             </div>
           </div>
 
-          <div className="relative w-full h-[350px]">
-            <BackgroundImage
-              className="absolute inset-0 bg-cover bg-center"
-              src="./images/landing/open_access_explorer.png"
-            >
-              <div className="absolute inset-0 bg-black opacity-60 z-10"></div>
-            </BackgroundImage>
+          <BannerPanel
+            title={'Find New Datasets'}
+            text={'Find data to power your research project'}
+            imagePath="./images/landing/open_access_explorer.png"
+          />
 
-            <div className="relative z-20 flex flex-col justify-center items-center text-white p-4 pt-28">
-              <div className="text-4xl font-bold pb-7">Find New Datasets</div>
-              <div className="text-xl font-semibold pb-10">
-                Find data to power your research project
-              </div>
-            </div>
-          </div>
+          <BannerPanel
+            title={'Visualize'}
+            text={'Integrated image viewers'}
+            imagePath="./images/landing/image_viewer.png"
+          />
 
-          <div className="relative w-full h-[350px]">
-            <BackgroundImage
-              className="absolute inset-0 bg-cover bg-center"
-              src="./images/landing/image_viewer.png"
-            >
-              <div className="absolute inset-0 bg-black opacity-60 z-10"></div>
-            </BackgroundImage>
-
-            <div className="relative z-20 flex flex-col justify-center items-center text-white p-4 pt-28">
-              <div className="text-4xl font-bold pb-7">Visualize</div>
-              <div className="text-xl font-semibold pb-10">
-                Integrated image viewers
-              </div>
-            </div>
-          </div>
-
-          <div className="relative w-full h-[350px]">
-            <BackgroundImage
-              className="absolute inset-0 bg-cover bg-center"
-              src="./images/landing/data_analysis.png"
-            >
-              <div className="absolute inset-0 bg-black opacity-60 z-10"></div>
-            </BackgroundImage>
-
-            <div className="relative z-20 flex flex-col justify-center items-center text-white p-4 pt-28">
-              <div className="text-4xl font-bold pb-7">Analyze Data</div>
-              <div className="text-xl font-semibold pb-10">
-                Tools for rapid data science
-              </div>
-            </div>
-          </div>
+          <BannerPanel
+            title={'Analyze Data'}
+            text={'Tools for rapid data science'}
+            imagePath="./images/landing/data_analysis.png"
+          />
         </div>
 
-        <div className="bg-gray-100 md:px-10 px-4 py-12">
-          <div className="max-w-5xl max-lg:max-w-3xl max-sm:max-w-sm mx-auto">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 max-sm:gap-8">
-              <div className="bg-white rounded">
-                <Image
-                  src="./images/landing/smmart-circle-diagram.png"
-                  alt="Precision Oncology"
-                  className="w-full h-52 object-cover rounded-t-md"
-                />
-                <div className="p-6">
-                  <div className="text-lg font-bold text-gray-800 mb-3">
-                    Precision Oncology
+        <div className="bg-gray-100 md:px-10 px-4 py-10">
+          <div className="max-w-7xl mx-auto">
+            <div className="text-left pb-8">
+              <Text className="text-3xl font-extrabold text-gray-800 inline-block">
+                Areas of Focus
+              </Text>
+            </div>
+            <div className="max-w-5xl max-lg:max-w-3xl max-sm:max-w-sm mx-auto">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 max-sm:gap-8">
+                <div className="bg-white rounded">
+                  <Image
+                    src="./images/landing/smmart-circle-diagram.png"
+                    alt="Precision Oncology"
+                    className="w-full h-52 object-cover rounded-t-md"
+                  />
+                  <div className="p-6">
+                    <div className="text-lg font-bold text-gray-800 mb-3">
+                      Precision Oncology
+                    </div>
+                    <div className="text-gray-500 text-sm">SMMART</div>
+                    <Button
+                      component="a"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      href="https://www.ohsu.edu/knight-cancer-institute/smmart-clinical-trials-research"
+                      className="mt-4 inline-block px-4 py-2 rounded tracking-wider bg-orange-500 hover:bg-orange-600 text-white text-[13px]"
+                    >
+                      Read More
+                    </Button>
                   </div>
-                  <div className="text-gray-500 text-sm">SMMART</div>
-                  <Button
-                    component="a"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    href="https://www.ohsu.edu/knight-cancer-institute/smmart-clinical-trials-research"
-                    className="mt-4 inline-block px-4 py-2 rounded tracking-wider bg-orange-500 hover:bg-orange-600 text-white text-[13px]"
-                  >
-                    Read More
-                  </Button>
                 </div>
-              </div>
 
-              <div className="bg-white rounded">
-                <Image
-                  src="./images/landing/CEDAR_People_0.png"
-                  alt="Blog Post 2"
-                  className="w-full h-52 object-cover"
-                />
-                <div className="p-6">
-                  <div className="text-lg font-bold text-gray-800 mb-3">
-                    Early Dectection
+                <div className="bg-white rounded">
+                  <Image
+                    src="./images/landing/CEDAR_People_0.png"
+                    alt="Blog Post 2"
+                    className="w-full h-52 object-cover"
+                  />
+                  <div className="p-6">
+                    <div className="text-lg font-bold text-gray-800 mb-3">
+                      Early Dectection
+                    </div>
+                    <div className="text-gray-500 text-sm">CEDAR</div>
+                    <Button
+                      component="a"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      href="https://www.ohsu.edu/knight-cancer-institute/cedar"
+                      className="mt-4 inline-block px-4 py-2 rounded tracking-wider bg-orange-500 hover:bg-orange-600 text-white text-[13px]"
+                    >
+                      Read More
+                    </Button>
                   </div>
-                  <div className="text-gray-500 text-sm">CEDAR</div>
-                  <Button
-                    component="a"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    href="https://www.ohsu.edu/knight-cancer-institute/cedar"
-                    className="mt-4 inline-block px-4 py-2 rounded tracking-wider bg-orange-500 hover:bg-orange-600 text-white text-[13px]"
-                  >
-                    Read More
-                  </Button>
                 </div>
-              </div>
 
-              <div className="bg-white rounded">
-                <Image
-                  src="./images/landing/ARC-all.jpg"
-                  alt="Precision Oncology"
-                  className="w-full h-52 object-cover rounded-t-md"
-                />
-                <div className="p-6">
-                  <div className="text-lg font-bold text-gray-800 mb-3">
-                    Data Science
+                <div className="bg-white rounded">
+                  <Image
+                    src="./images/landing/ARC-all.jpg"
+                    alt="Precision Oncology"
+                    className="w-full h-52 object-cover rounded-t-md"
+                  />
+                  <div className="p-6">
+                    <div className="text-lg font-bold text-gray-800 mb-3">
+                      Data Science
+                    </div>
+                    <div className="text-gray-500 text-sm">CBDS</div>
+                    <Button
+                      component="a"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      href="https://www.ohsu.edu/knight-cancer-institute/center-biomedical-data-science"
+                      className="mt-4 inline-block px-4 py-2 rounded tracking-wider bg-orange-500 hover:bg-orange-600 text-white text-[13px]"
+                    >
+                      Read More
+                    </Button>
                   </div>
-                  <div className="text-gray-500 text-sm">CBDS</div>
-                  <Button
-                    component="a"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    href="https://www.ohsu.edu/knight-cancer-institute/center-biomedical-data-science"
-                    className="mt-4 inline-block px-4 py-2 rounded tracking-wider bg-orange-500 hover:bg-orange-600 text-white text-[13px]"
-                  >
-                    Read More
-                  </Button>
                 </div>
               </div>
             </div>

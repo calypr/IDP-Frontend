@@ -32,9 +32,10 @@ export function SummaryStatsBanner(authz: any) {
     <Alert className="bg-secondary" variant="filled">
       <div className="flex justify-between items-center">
         <Text>
-          Welcome to Caliper! You have access to {len_access_projects} project
-          {len_access_projects > 1 ? 's' : ''} and{' '}
-          {!isLoading ? data + ' ' : 0 + ' '} files
+          Welcome to CALIPER! You have access to {len_access_projects} project
+          {len_access_projects == 1 ? '' : 's'} and{' '}
+          {!isLoading ? data + ' ' : 0 + ' '} file
+          {len_access_projects == 1 ? '' : 's'}
         </Text>
         <CloseButton
           className="bg-base-max"

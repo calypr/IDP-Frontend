@@ -69,13 +69,13 @@
   {
     "tabTitle": "Specimen",
     "charts": {
-      "histology": {
+      "type": {
         "chartType": "fullPie",
-        "title": "Histology"
+        "title": "Specimen Type"
       },
-      "collection": {
+      "spectrophotometer_method": {
         "chartType": "fullPie",
-        "title": "Metastasis Site"
+        "title": "Spectrophotometer_method"
       }
     },
     "filters": {
@@ -93,7 +93,9 @@
             "allocated_for_site",
             "package_recipient",
             "clinical_event",
-            "treatments"
+            "treatments",
+            "spectrophotometer_method",
+            "type"
           ],
           "fieldsConfig": {
             "identifier": {
@@ -152,7 +154,9 @@
         "package_recipient",
         "patient_id",
         "project_id",
-        "id"
+        "id",
+        "spectrophotometer_method",
+        "type"
       ],
       "detailsConfig": {
         "panel": "resourceDetails",

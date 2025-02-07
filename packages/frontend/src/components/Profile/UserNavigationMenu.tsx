@@ -29,18 +29,18 @@ const UserNavigationMenu = ({
       </Menu.Target>
       <Menu.Dropdown>
         <Menu.Item
-          key={'profile'}
+          key={'Profile'}
           onClick={() => router.push('/Profile')}
           className={classNames.button}
         >
-          {'profile'}
+          {'Profile'}
         </Menu.Item>
         <Menu.Item
-          key={'logout'}
+          key={'Logout'}
           onClick={() => endSession && endSession() && router.push('/')}
           className={classNames.button}
         >
-          {'logout'}
+          {'Logout'}
         </Menu.Item>
       </Menu.Dropdown>
     </Menu>

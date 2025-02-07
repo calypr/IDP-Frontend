@@ -25,6 +25,8 @@ const LoginProviderMultipleItemsMenu = ({
       </Menu.Target>
       <Menu.Dropdown>
         <Menu.Label>Provider Options</Menu.Label>
+        <Menu.Divider />
+
         {providers.map((provider: Gen3LoginProvider) =>
           provider.urls.map((item: NameUrl) => (
             <Menu.Item
@@ -36,7 +38,6 @@ const LoginProviderMultipleItemsMenu = ({
             </Menu.Item>
           )),
         )}
-        <Menu.Divider />
       </Menu.Dropdown>
     </Menu>
   );

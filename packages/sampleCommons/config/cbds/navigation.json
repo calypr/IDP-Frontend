@@ -33,9 +33,9 @@
         "href": "https://www.ohsu.edu/knight-cancer-institute",
         "name": "CBDS",
         "classNames": {
-          "root": "border-base-light",
-          "label": "text-primary-contrast",
-          "button": "hover:border-primary-contrast"
+          "root": "",
+          "label": "border-primary text-white",
+          "button": "border-primary hover:border-white"
         }
       }
     ],
