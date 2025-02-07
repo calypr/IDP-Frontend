@@ -1,0 +1,26 @@
+import { Text, Card } from '@mantine/core';
+import { AppCardProps } from './types';
+import Image from 'next/image';
+import { useRouter } from 'next/router';
+
+const AppCard = ({ title, description, icon, href }: AppCardProps) => {
+  const router = useRouter();
+
+  return (
+    <div
+      className="shadow-lg text-left cursor-pointer flex flex-col"
+      onClick={() => router.push(href)}
+    >
+      <div className="flex items-left space-x-4 p-3">
+        <Text className="text-2xl text-left font-bold">{title}</Text>
+      </div>
+
+      <div className="flex justify-center">
+        <Image src={icon} alt={`${title} logo`} width={150} height={150} />
+      </div>
+      <Text className="p-5 text-left">{description}</Text>
+    </div>
+  );
+};
+
+export default AppCard;

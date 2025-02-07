@@ -12,6 +12,7 @@ import {
   Divider,
 } from '@mantine/core';
 import { useGeneralGQLQuery } from '@gen3/core';
+import { MatchingTable } from '@gen3/frontend';
 import {
   ErrorCard,
   type TableDetailsPanelProps,
@@ -25,7 +26,7 @@ import React from 'react';
 import { AssociatedFilesText } from './ResearchSubjectModal/AssociatedFiles';
 import { SpecimenAggregationCountsChart } from './ResearchSubjectModal/AssociatedSpecimen';
 import { TimeSeriesAssaySummaryModal } from './ResearchSubjectModal/TimeSeriesModal';
-import { isQueryResponse, extractData } from './ResearchSubjectModal/tools';
+import { isQueryResponse } from './ResearchSubjectModal/tools';
 
 export const ResearchSubjectDetailPanel = ({
   id, // The table value corresponding to the column name 'idField'
@@ -71,43 +72,29 @@ export const ResearchSubjectDetailPanel = ({
   if (isError) {
     return <ErrorCard message={'Error occurred while fetching data'} />;
   }
-  const queryData = isQueryResponse(data)
-    ? extractData(data, nodeType ?? '', '') || []
+
+  const querySpecimenIdentifiers: string[] = isQueryResponse(data)
+    ? Array.isArray(data.data[nodeType ?? 'researchsubject'])
+      ? data.data[nodeType ?? 'researchsubject'].map((item: any) => {
+          return item.Identifier;
+        })
+      : []
     : [];
 
-  const querySpecimenIdentifiers = queryData.map(
-    (queryData) => queryData.Identifier,
-  );
-  const totalFiles = queryData.length;
+  const modelTableConfig = nodeFields
+    ? Object.entries(nodeFields).reduce(
+        (acc, [key, value]) => {
+          acc[key] = {
+            title: value, // Use the value of the key-value pair
+            field: key, // Use the key as the field
+          };
+          return acc;
+        },
+        {} as Record<string, { title: string; field: string }>,
+      )
+    : {};
 
-  const specimen_headers = Array.from(
-    new Set(queryData.flatMap((dict) => Object.keys(dict))),
-  )
-    .sort()
-    .map((key) => {
-      const field = key.replace(/_/g, ' ');
-      return (
-        <Table.Th key={field} className="text-sm">
-          {field}
-        </Table.Th>
-      );
-    });
-
-  const specimen_rows = queryData.map((fileData, fileIndex) => (
-    <Table.Tr key={fileIndex}>
-      {Object.entries(fileData)
-        .sort()
-        .map(([RawField, value]) => {
-          return (
-            <Table.Td className="text-sm" key={RawField}>
-              {value ? (value as string) : ''}
-            </Table.Td>
-          );
-        })}
-    </Table.Tr>
-  ));
-
-  return totalFiles > 0 ? (
+  return !isLoading ? (
     <React.Fragment>
       <LoadingOverlay visible={isLoading} />
       <ScrollArea.Autosize maw={'80vw'} mx="auto">
@@ -164,24 +151,24 @@ export const ResearchSubjectDetailPanel = ({
         <div className="text-center p-5">
           <Title order={3}>Specimen Information Table</Title>
         </div>
-        <Table
-          withTableBorder
-          withColumnBorders
-          verticalSpacing="xs"
-          horizontalSpacing="xs"
-          className="text-sm"
-        >
-          <Table.Thead>
-            <Table.Tr>{specimen_headers}</Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>{specimen_rows}</Table.Tbody>
-        </Table>
+        <div>
+          <div className="grid">
+            <MatchingTable
+              isLoading={isLoading}
+              columns={modelTableConfig}
+              index={nodeType ?? 'file'}
+              idField={idField}
+              data={data}
+            />
+          </div>
+        </div>
+
         <div className="pt-5">
           <Group justify="right">
-            <CopyButton value={JSON.stringify(queryData)} timeout={2000}>
+            <CopyButton value={JSON.stringify(data)} timeout={2000}>
               {({ copied, copy }) => (
                 <Tooltip
-                  label={copied ? 'Copied' : 'Copy raw JSON data”'}
+                  label={copied ? 'Copied' : 'Copy raw JSON data'}
                   withArrow
                   position="right"
                 >
@@ -199,7 +186,9 @@ export const ResearchSubjectDetailPanel = ({
               )}
             </CopyButton>
 
-            <Button onClick={() => onClose && onClose(id)}>Close</Button>
+            <Button color="primary.0" onClick={() => onClose && onClose(id)}>
+              Close
+            </Button>
           </Group>
         </div>
       </ScrollArea.Autosize>

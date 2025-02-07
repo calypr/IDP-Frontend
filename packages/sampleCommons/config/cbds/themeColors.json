@@ -1,7 +1,7 @@
 {
   "primary": {
-    "DEFAULT": "#2C2C54",
-    "vivid": "#26265a",
+    "DEFAULT": "#0057b7",
+    "vivid": "#5d98ca",
     "min": "#040408",
     "darkest": "#0e0e1b",
     "darker": "#18182e",
@@ -24,7 +24,7 @@
     "max": "#111111"
   },
   "secondary": {
-    "DEFAULT": "#AAABB8",
+    "DEFAULT": "#4698cA",
     "vivid": "#a2a4c0",
     "min": "#111112",
     "darkest": "#37383c",
@@ -48,7 +48,7 @@
     "max": "#111111"
   },
   "accent": {
-    "DEFAULT": "#b75113",
+    "DEFAULT": "#4698CA",
     "vivid": "#3d3d91",
     "min": "#07070d",
     "darkest": "#17172c",

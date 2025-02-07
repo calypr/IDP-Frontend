@@ -6,10 +6,11 @@
       "navigationPanel": "bg-base-max text-primary"
     },
     "logo": {
-      "src": "/icons/cbds.svg",
-      "width": 200,
+      "src": "/icons/ohsu.svg",
+      "width": 75,
       "height": 60,
-      "href": "/"
+      "href": "/Apps",
+      "title": "CALIPER"
     },
     "items": [
       {
@@ -32,9 +33,9 @@
         "href": "https://www.ohsu.edu/knight-cancer-institute",
         "name": "CBDS",
         "classNames": {
-          "root": "border-base-light",
-          "label": "text-primary-contrast",
-          "button": "hover:border-primary-contrast"
+          "root": "",
+          "label": "border-primary text-white hover:border-white",
+          "button": "border-primary hover:border-white"
         }
       }
     ],

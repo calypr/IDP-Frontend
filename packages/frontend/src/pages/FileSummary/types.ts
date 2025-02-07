@@ -14,4 +14,18 @@ export interface FilesummaryConfig {
   index: string;
 }
 
+export interface ProjectFilter {
+  EQ: { project_id: string };
+}
+
+export interface ContentTypeFilter {
+  EQ: { contentType: string };
+}
+
+export interface RangeFilter {
+  AND: [{ GTE: { size: number } }, { LT: { size: number } }];
+}
+
+export type Filter = ProjectFilter | ContentTypeFilter | RangeFilter;
+
 export type FileSummaryPageProps = NavPageLayoutProps & FileSummaryProps;

@@ -14,16 +14,21 @@ export * from './features/MatchingTable';
 
 import { getNavPageLayoutPropsFromConfig } from './lib/common/staticProps';
 import ContentSource from './lib/content';
-import { SessionConfig, type SessionConfiguration } from './lib/session/types';
+import { type SessionConfiguration } from './lib/session/types';
 import { type Fonts, type RegisteredIcons } from './lib/content/types';
 import ErrorCard from './components/ErrorCard';
 import '@gen3/core';
 import SmmartPage from './pages/Smmart/Smmart';
+import CaliperPage from './pages/Caliper/Caliper';
+
 import { SmmartPageGetServerSideProps } from './pages/Smmart';
+import { CaliperPageGetServerSideProps } from './pages/Caliper';
 
 import FileSummaryPage from './pages/FileSummary/FileSummary';
 import { FileSummaryPageGetServerSideProps } from './pages/FileSummary';
 
+import AppsPage from './pages/Apps/Apps';
+import { AppsPageGetServerSideProps } from './pages/Apps';
 // export Gen3 data UI standard pages
 import Gen3Provider from './components/Providers/Gen3Provider';
 import DiscoveryPage from './pages/Discovery/Discovery';
@@ -73,7 +78,6 @@ import sessionToken from './api/auth/sessionToken';
 import sessionLogout from './api/auth/sessionLogout';
 import credentialsLogin from './api/auth/credentialsLogin';
 import credentialsLogout from './api/auth/credentialsLogout';
-import { features } from 'process';
 
 export {
   ContentSource,
@@ -88,8 +92,12 @@ export {
   QueryPageGetServerSideProps,
   SmmartPage,
   SmmartPageGetServerSideProps,
+  CaliperPage,
+  CaliperPageGetServerSideProps,
   FileSummaryPage,
   FileSummaryPageGetServerSideProps,
+  AppsPage,
+  AppsPageGetServerSideProps,
   LandingPage,
   LandingPageGetStaticProps,
   ColorThemePage,

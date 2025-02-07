@@ -1,11 +1,12 @@
-import React, { ReactElement } from 'react';
+import { ReactElement } from 'react';
 import { Icon } from '@iconify/react';
 import { mergeDefaultTailwindClassnames } from '../../utils/mergeDefaultTailwindClassnames';
-import LoginButton from '../../components/Login/LoginButton';
-import LoginAccountButton from '../../components/Login/LoginAccountButton';
+import LoginMenu from '../../components/Login/LoginMenu';
 import { extractClassName } from './utils';
 import { LoginButtonVisibility } from '../../components/Login/types';
 import { StylingOverrideWithMergeControl } from '../../types';
+import NavigationLogo from './NavigationLogo';
+import { NavigationBarLogo } from './types';
 
 export interface NameAndIcon {
   readonly name: string;
@@ -29,13 +30,14 @@ const TopIconButton = ({
 }: NameAndIcon) => {
   const classNamesDefaults = {
     root: `flex items-center align-middle px-2 ${
-      drawBorder && 'border-r-2 border-accent'
+      drawBorder && 'border-r-2'
     } my-2`,
-    button:
-      'flex flex-nowrap items-center align-middle border-b-2 hover:border-accent border-transparent',
-    leftIcon: 'text-secondary-contrast-lighter pr-1',
-    label: 'font-content text-secondary-contrast-lighter block',
-    rightIcon: 'text-secondary-contrast-lighter pl-1',
+    logoAndTitlePanel: 'flex justify-center items-center align-middle',
+    button: 'flex items-center align-middle border-b-2 h-full',
+    leftIcon: 'text-white pr-1 flex-shrink-0',
+    label: 'font-content text-secondary-contrast-lighter block leading-none',
+    rightIcon: 'text-secondary-contrast-lighter pl-1 flex-shrink-0',
+    loginMenu: 'border-r-2',
   };
   const mergedClassnames = mergeDefaultTailwindClassnames(
     classNamesDefaults,
@@ -80,9 +82,9 @@ const processTopBarItems = (
         <a
           className="flex"
           href={item.href}
+          key={`${item.href}_${item.name}`}
           target="_blank"
           rel="noopener noreferrer"
-          key={`${item.href}_${item.name}`}
         >
           {' '}
           <TopIconButton
@@ -101,40 +103,71 @@ const processTopBarItems = (
 };
 
 export interface TopBarProps {
+  readonly title?: string;
+  readonly logo?: NavigationBarLogo;
   readonly items: TopIconButtonProps[];
   readonly loginButtonVisibility?: LoginButtonVisibility;
   readonly classNames?: StylingOverrideWithMergeControl;
 }
 
-const TopBar = ({
-  items,
-  loginButtonVisibility = LoginButtonVisibility.Hidden,
-  classNames = {},
-}: TopBarProps) => {
-  const classNamesDefaults = {
-    root: 'flex justify-end items-center align-middle w-100 bg-primary',
+const TopBar = ({ title, items, classNames, logo }: TopBarProps) => {
+  title === 'Gen3 Landing Page'
+    ? (logo!.basepage = true)
+    : (logo!.basepage = false);
+
+  const defaultClassNames = {
+    root:
+      title === 'Gen3 Landing Page'
+        ? 'flex justify-end items-center align-middle px-2 border-r-2 my-2 bg-white border-black'
+        : 'flex justify-end items-center align-middle px-2 border-r-2 my-2 bg-primary border-primary',
+    label:
+      title === 'Gen3 Landing Page'
+        ? 'font-content text-black block align-middle'
+        : 'font-content text-white block align middle',
+    button:
+      title === 'Gen3 Landing Page'
+        ? 'flex flex-nowrap items-center align-middle border-b-2 border-white hover:border-black'
+        : 'flex flex-nowrap items-center align-middle border-b-2 px-2 hover:border-white',
+    loginMenu:
+      title === 'Gen3 Landing Page'
+        ? 'mx-2 text-black border border-transparent hover:border-black py-1'
+        : 'mx-2 text-white border border-transparent hover:border-white py-1',
   };
 
   const mergedClassnames = mergeDefaultTailwindClassnames(
-    classNamesDefaults,
-    classNames,
+    defaultClassNames,
+    classNames || {},
   );
+
   return (
     <div>
       <header className={extractClassName('root', mergedClassnames)}>
-        <nav className="flex items-center align-middle">
+        <div
+          className={extractClassName('logoAndTitlePanel', mergedClassnames)}
+        >
+          {logo && <NavigationLogo {...{ ...logo }} />}
+        </div>
+        <nav className="flex items-center align-middle justify-end w-full my-2">
           {processTopBarItems(
-            items,
-            loginButtonVisibility != LoginButtonVisibility.LogoutOnly,
+            title === 'Gen3 Landing Page'
+              ? [
+                  {
+                    ...items[0],
+                    classNames: {
+                      ...items[0].classNames,
+                      root: defaultClassNames.root,
+                      label: defaultClassNames.label,
+                      button: defaultClassNames.button,
+                    },
+                  },
+                  ...items.slice(1),
+                ]
+              : items,
+            true,
           )}
-          {loginButtonVisibility != LoginButtonVisibility.Visible ? (
-            <div className="border-r-2 border-primary-contrast">
-              <LoginAccountButton />
-            </div>
-          ) : null}
-          {loginButtonVisibility != LoginButtonVisibility.Hidden ? (
-            <LoginButton visibility={loginButtonVisibility} />
-          ) : null}
+          <div className={extractClassName('loginMenu', mergedClassnames)}>
+            <LoginMenu frontBanner={false} classNames={defaultClassNames} />
+          </div>
         </nav>
       </header>
     </div>

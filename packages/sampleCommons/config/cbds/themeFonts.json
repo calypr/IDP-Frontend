@@ -1,5 +1,11 @@
 {
-  "heading": ["Lato", "sans-serif"],
-  "content": ["Lato", "sans-serif"],
+  "heading": [
+    "Lato",
+    "sans-serif"
+  ],
+  "content": [
+    "Noto Serif",
+    "sans-serif"
+  ],
   "fontFamily": "Lato"
 }

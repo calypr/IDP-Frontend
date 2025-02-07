@@ -1,7 +1,7 @@
 import {
-  SmmartPage,
-  SmmartPageGetServerSideProps as getStaticProps,
+  CaliperPage,
+  CaliperPageGetServerSideProps as getStaticProps,
 } from '@gen3/frontend';
 
-export default SmmartPage;
+export default CaliperPage;
 export { getStaticProps };

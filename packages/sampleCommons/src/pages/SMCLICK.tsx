@@ -1,22 +1,15 @@
 import React from 'react';
 import { GetServerSideProps } from 'next';
 import { useRouter } from 'next/router';
-import {
-  MantineProvider,
-  Container,
-  Text,
-  Image,
-  LoadingOverlay,
-  Button,
-} from '@mantine/core';
+import { MantineProvider, Text, LoadingOverlay, Button } from '@mantine/core';
 import ReactECharts from 'echarts-for-react';
 
 import {
   NavPageLayout,
   NavPageLayoutProps,
-  ProtectedContent,
   ErrorCard,
   getNavPageLayoutPropsFromConfig,
+  ProtectedContent,
 } from '@gen3/frontend';
 
 import { fieldNameToTitle, useGeneralGQLQuery } from '@gen3/core';
@@ -248,59 +241,51 @@ const HorizontalBarChart = ({ headerProps, footerProps }: SamplePageProps) => {
         key: 'smmart-report-page',
       }}
     >
-      <MantineProvider>
-        <div className="pt-5">
-          <div className="bg-cbds-primary pt-[1.5%] pb-[1.5%]">
-            <Container className="bg-cbds-monoprimary text-center">
-              <span className="flex items-center space-x-4">
-                <div className="p-5 flex-shrink-0">
-                  <Image src={'/icons/SMMART.svg'} alt={'logo'} />
-                </div>
-                <Text className="whitespace-nowrap text-center text-white text-5xl font-bold">
-                  SMMART Clinical Trials Platform
-                </Text>
-              </span>
-            </Container>
-          </div>
+      <ProtectedContent>
+        <MantineProvider>
+          <div className="pt-5">
+            <Text className="whitespace-nowrap text-center text-black text-3xl font-bold">
+              SMMART Clinical Trials Platform
+            </Text>
 
-          <div className="grid grid-cols-3 gap-4 mt-10">
-            <div className="p-10">
-              <h1 className="prose sm:prose-base 2xl:prose-lg mb-5 !mt-0">
-                Overview of SMMART and datasets, what can be found in this
-                project
-              </h1>
-              <Button
-                onClick={() => {
-                  router.push('/Explorer');
-                }}
-                className="bg-cbds-monoprimary text-white py-2 px-4 rounded"
+            <div className="grid grid-cols-3 gap-4 mt-10">
+              <div className="p-10">
+                <h1 className="prose sm:prose-base 2xl:prose-lg mb-5 !mt-0">
+                  Overview of SMMART and datasets, what can be found in this
+                  project
+                </h1>
+                <Button
+                  onClick={() => {
+                    router.push('/Explorer');
+                  }}
+                  className="bg-primary text-white py-2 px-4 rounded"
+                >
+                  Explore
+                </Button>
+              </div>
+              <div
+                className={`col-span-${numChartCols} grid grid-cols-${numChartCols} gap-2`}
               >
-                Explore
-              </Button>
+                {chartResourceType.map((resourceType, i) =>
+                  ChartFromField(resourceType, chartFields[i], chartTitles[i]),
+                )}
+              </div>
             </div>
-            <div
-              className={`col-span-${numChartCols} grid grid-cols-${numChartCols} gap-2`}
-            >
-              {chartResourceType.map((resourceType, i) =>
-                ChartFromField(resourceType, chartFields[i], chartTitles[i]),
-              )}
-            </div>
-          </div>
-          <div className="text-center mx-auto bg-gray-200 py-5">
-            <div className="flex justify-center space-x-8">
-              <div className="text-center">
-                {useCountsFromField('specimen')}
-                <div className="text-sm">Specimens</div>
-              </div>
-              <div className="text-center">
-                {useCountsFromField('file')}
-                <div className="text-sm">Files</div>
-              </div>
-              <div className="text-center">
-                {useCountsFromField('researchsubject')}
-                <div className="text-sm">Research Subjects</div>
-              </div>
-              {/* {countsFields.map((field, i) => {
+            <div className="text-center mx-auto bg-gray-200 py-5">
+              <div className="flex justify-center space-x-8">
+                <div className="text-center">
+                  {useCountsFromField('specimen')}
+                  <div className="text-sm">Specimens</div>
+                </div>
+                <div className="text-center">
+                  {useCountsFromField('file')}
+                  <div className="text-sm">Files</div>
+                </div>
+                <div className="text-center">
+                  {useCountsFromField('researchsubject')}
+                  <div className="text-sm">Research Subjects</div>
+                </div>
+                {/* {countsFields.map((field, i) => {
                 return (
                   <div className="text-center">
                     {countsFromField(field)}
@@ -308,10 +293,11 @@ const HorizontalBarChart = ({ headerProps, footerProps }: SamplePageProps) => {
                   </div>
                 )
               })} */}
+              </div>
             </div>
           </div>
-        </div>
-      </MantineProvider>
+        </MantineProvider>
+      </ProtectedContent>
     </NavPageLayout>
   );
 };
