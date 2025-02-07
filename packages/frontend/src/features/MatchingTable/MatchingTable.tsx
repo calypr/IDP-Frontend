@@ -18,8 +18,7 @@ import {
   ExplorerTableCellRendererFactory,
 } from '../CohortBuilder/ExplorerTable/ExplorerTableCellRenderers';
 
-interface ExplorerColumn {
-  field: string;
+interface ExplorerColumn extends SummaryTableColumn {
   accessorKey: never;
   header: string;
   accessorFn?: (originalRow: ExplorerColumn) => any;
@@ -116,7 +115,7 @@ const MatchingTable = ({
    * @see https://www.mantine-react-table.com/docs/api/table-options
    * @param columns - column options table config
    *   @see https://www.mantine-react-table.com/docs/api/column-options
-   * @param data - data array, from useGetRawDataAndTotalCountsQuery()
+   * @param data - The raw data array from doing a basic guppy query.
    * @param manualSorting - If this is true, you will be expected to sort your data before it is passed to the table.
    * @param manualPagination - If this is true, you will be expected to manually paginate the rows before passing them to the table
 0.

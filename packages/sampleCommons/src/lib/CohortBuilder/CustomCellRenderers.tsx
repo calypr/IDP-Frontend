@@ -5,7 +5,6 @@ import {
 import { ActionIcon, Text } from '@mantine/core';
 import React from 'react';
 import { FaExternalLinkAlt } from 'react-icons/fa';
-import { labelEnd } from 'micromark-core-commonmark';
 
 const RenderDiacomLink = (
   { cell, row }: CellRendererFunctionProps,
@@ -25,7 +24,7 @@ const RenderDiacomLink = (
         target="_blank"
         rel="noreferrer"
       >
-        <ActionIcon color="accent.5" size="md" variant="filled">
+        <ActionIcon color="primary.0" size="md" variant="filled">
           <FaExternalLinkAlt />
         </ActionIcon>
       </a>

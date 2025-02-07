@@ -136,6 +136,7 @@ const FacetControlsHeader = ({
                 size="1.45em"
                 className={header.iconStyle}
                 aria-hidden="true"
+                color="white"
               />
             </FacetIconButton>
           </Tooltip>
@@ -154,6 +155,7 @@ const FacetControlsHeader = ({
                 size="1.45em"
                 className={header.iconStyle}
                 aria-hidden="true"
+                color="white"
               />
             </FacetIconButton>
           </Tooltip>
@@ -168,6 +170,7 @@ const FacetControlsHeader = ({
                 size="1.0em"
                 className={header.iconStyle}
                 aria-hidden="true"
+                color="white"
               />
             </FacetIconButton>
           </Tooltip>

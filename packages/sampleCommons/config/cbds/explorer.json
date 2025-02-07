@@ -155,6 +155,7 @@
         "id"
       ],
       "detailsConfig": {
+        "classNames": "px-5",
         "panel": "resourceDetails",
         "mode": "click",
         "idField": "id",

@@ -8,12 +8,11 @@ interface ProtectedContentProps {
   referer?: string;
 }
 
-
 const ProtectedContent = ({ children, referer }: ProtectedContentProps) => {
   const router = useRouter();
 
   let redirect = referer;
-  if (!referer  && typeof window !== 'undefined') {
+  if (!referer && typeof window !== 'undefined') {
     // route not available on SSR
     redirect = router.asPath;
   }
@@ -22,7 +21,7 @@ const ProtectedContent = ({ children, referer }: ProtectedContentProps) => {
     if (typeof window !== 'undefined')
       // route not available on SSR
       router.push({
-        pathname: '/Login',
+        pathname: '/',
         query: { referer: redirect },
       });
   };
@@ -33,7 +32,7 @@ const ProtectedContent = ({ children, referer }: ProtectedContentProps) => {
     if (pending) return <LoadingOverlay visible={pending} />;
     else
       return (
-       <div className="w-full h-full relative">
+        <div className="w-full h-full relative">
           <LoadingOverlay visible={pending} />
           <Center>
             <Paper shadow="md" p="md">

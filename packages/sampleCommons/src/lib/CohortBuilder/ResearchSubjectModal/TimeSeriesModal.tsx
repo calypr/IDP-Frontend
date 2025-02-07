@@ -14,7 +14,9 @@ export const TimeSeriesAssaySummaryModal = ({
 
   return (
     <div className="flex-shrink">
-      <Button onClick={() => setOpenModal(true)}>Open Assay Summary</Button>
+      <Button onClick={() => setOpenModal(true)} color="primary.0">
+        Open Assay Summary
+      </Button>
       <BaseModal
         title={
           <Text size="lg" className="font-medium font-heading">

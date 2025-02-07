@@ -4,10 +4,16 @@ import { ErrorCard } from '@gen3/frontend';
 import { useGeneralGQLQuery, JSONObject } from '@gen3/core';
 import { isQueryResponse, extractData } from './tools';
 import React, { useMemo, useState } from 'react';
+import { MatchingTable } from '@gen3/frontend';
 
-export const useFilesQuery = (identifiers: string[]) => {
+export const useFilesQuery = (identifiers: string[], table: boolean) => {
   const { data, isLoading, isError } = useGeneralGQLQuery({
     query: `query ($filter: JSON) {
+           	  _aggregation{
+                file(filter: $filter){
+                  _totalCount
+                }
+              }
               file (filter: $filter, accessibility: all, first: 10000) {
                 id
                 title
@@ -29,16 +35,16 @@ export const useFilesQuery = (identifiers: string[]) => {
       },
     },
   });
-
   const cachedData = useMemo(() => {
-    if (data) {
+    if (data && !table) {
       const extractedData = isQueryResponse(data)
-        ? extractData(data, 'file', '')
+        ? (extractData(data, 'file', '') as JSONObject[])
         : [];
       return extractedData;
+    } else if (data && table) {
+      return data as JSONObject;
     }
-    return [];
-  }, [data]);
+  }, [data, table]);
 
   return { resData: cachedData, isLoading, isError };
 };
@@ -50,14 +56,14 @@ export const UniqueAssociatedValsForSpecimen = ({
   identifiers: string[];
   asoc_val: string;
 }) => {
-  const { resData, isLoading, isError } = useFilesQuery(identifiers);
+  const { resData, isLoading, isError } = useFilesQuery(identifiers, false);
   if (isError) {
     return <Text> Error occurred while fetching file metadata </Text>;
   }
   if (!isLoading) {
-    const ResourceList = [...new Set(resData.map((val) => val[asoc_val]))].join(
-      ', ',
-    );
+    const ResourceList = [
+      ...new Set((resData as JSONObject[])?.map((val) => val[asoc_val])),
+    ].join(', ');
     return ResourceList;
   }
 };
@@ -69,23 +75,17 @@ export const AssociatedFilesText = ({
   identifiers: string[];
   asoc_val: string;
 }) => {
-  const { resData, isLoading, isError } = useFilesQuery(identifiers);
+  const { resData, isLoading, isError } = useFilesQuery(identifiers, false);
   // Return the length, loading, and error status
   if (isError) {
     return <Text> Error occurred while fetching data </Text>;
   }
-  const vals = UniqueAssociatedValsForSpecimen({
-    identifiers: identifiers,
-    asoc_val: asoc_val,
-  });
 
   return (
     <div>
       <LoadingOverlay visible={isLoading} />
-      <Text>
-        {identifiers.length} Annotations, {resData.length} Files From
-      </Text>
-      <Text>{vals}</Text>
+      <Text>{identifiers.length} Annotations</Text>
+      <Text>{(resData as JSONObject[])?.length} Files</Text>
     </div>
   );
 };
@@ -97,57 +97,67 @@ export const AssociatedAssaysTable = ({
   identifiers: string[];
   asoc_val: string;
 }) => {
-  const { resData, isLoading, isError } = useFilesQuery(identifiers);
+  const { resData, isLoading, isError } = useFilesQuery(identifiers, true);
+  const {
+    resData: resDataTwo,
+    isLoading: isLoadingTwo,
+    isError: isErrorTwo,
+  } = useFilesQuery(identifiers, false);
+
   const [showTable, setshowTable] = useState(false);
 
-  if (isError) {
+  if (isError || isErrorTwo) {
     return <ErrorCard message={'Error occurred while fetching data'} />;
   }
 
-  const filteredResources = resData.toSorted((a: JSONObject, b: JSONObject) => {
-    const left = a[asoc_val] as number;
-    const right = b[asoc_val] as number;
-    return left - right;
-  });
+  const filteredResourcesTwo = (resDataTwo as JSONObject[])?.toSorted(
+    (a: JSONObject, b: JSONObject) => {
+      const left = a[asoc_val] as number;
+      const right = b[asoc_val] as number;
+      return left - right;
+    },
+  );
+
+  const asocFileConfig = {
+    title: {
+      title: 'File Name',
+      field: 'title',
+    },
+    experimental_strategy: {
+      title: 'Assay',
+      field: 'experimental_strategy',
+    },
+    specimen_indexed_collection_date_days: {
+      title: 'Indexd Days',
+      field: 'specimen_indexed_collection_date_days',
+    },
+    specimen_sample_family_id: {
+      title: 'Sample Family Id',
+      field: 'specimen_sample_family_id',
+    },
+  };
 
   return (
     <Stack>
-      <LoadingOverlay visible={isLoading} />
+      <LoadingOverlay visible={isLoading || isLoadingTwo} />
       <div className="pt-2">
         <Checkbox
           label="Toggle File / Assay"
           onChange={() => setshowTable(!showTable)}
-        ></Checkbox>
+        />
       </div>
-      {resData.length > 0 && showTable ? (
-        <div className="text-primary">
-          <Table>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>File Name</Table.Th>
-                <Table.Th>Assay</Table.Th>
-                <Table.Th>Indexd Days</Table.Th>
-                <Table.Th> Sample Family Id </Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {filteredResources.map((element) => (
-                <Table.Tr
-                  key={`${element.experimental_strategy}-${element.title}`}
-                >
-                  <Table.Td>{element.title}</Table.Td>
-                  <Table.Td>{element.experimental_strategy}</Table.Td>
-                  <Table.Td>
-                    {element.specimen_indexed_collection_date_days}
-                  </Table.Td>
-                  <Table.Td>{element.specimen_sample_family_id}</Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
+      {showTable ? (
+        <div className="grid">
+          <MatchingTable
+            isLoading={isLoading}
+            columns={asocFileConfig}
+            index="file"
+            idField="id"
+            data={resData}
+          />
         </div>
       ) : (
-        <AssayCheckboxChart data={filteredResources} />
+        <AssayCheckboxChart data={filteredResourcesTwo} />
       )}
     </Stack>
   );

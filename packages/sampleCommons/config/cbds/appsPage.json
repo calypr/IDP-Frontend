@@ -1,0 +1,39 @@
+{
+    "appCards": [
+        {
+            "title": "Data Explorer",
+            "description": "Explore all data in the CALIPER system",
+            "icon": "/icons/binoculars.svg",
+            "href": "/Explorer",
+            "perms": null
+        },
+        {
+            "title": "File Report",
+            "description": "Overview of file system useage",
+            "icon": "/icons/file.svg",
+            "href": "/Filesummary",
+            "perms": null
+        },
+        {
+            "title": "SMMART Report",
+            "description": "A clinical research study measuring tumor evolution and its resistance to therapy to deliver better cancer treatment. Overview of SMMART data processing",
+            "icon": "/icons/chart-bar.svg",
+            "href": "/SMCLICK",
+            "perms": "cbds-smmart_labkey_demo"
+        },
+        {
+            "title": "Project Discovery",
+            "description": "Explore project summaries of every project in CALIPER",
+            "icon": "/icons/compass.svg",
+            "href": "/Discovery",
+            "perms": null
+        },
+        {
+            "title": "Image Viewer",
+            "description": "View available .ome.tif images using Avivator",
+            "icon": "/icons/layers-intersect.svg",
+            "href": "/AvailableImages",
+            "perms": null
+        }
+    ]
+}

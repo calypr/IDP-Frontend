@@ -69,6 +69,7 @@ const CredentialsTable = () => {
           <div className="flex items-center">
             {row.original.actions === 'delete' ? (
               <ActionIcon
+                color="secondary.0"
                 onClick={() =>
                   removeCredential({
                     csrfToken: csrfToken?.csrfToken,

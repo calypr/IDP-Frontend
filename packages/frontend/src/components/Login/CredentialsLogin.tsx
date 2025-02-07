@@ -12,13 +12,11 @@ import { notifications } from '@mantine/notifications';
 import { MdClose as CloseIcon } from 'react-icons/md';
 import { SessionContext } from '../../lib/session/session';
 
-
 interface CredentialsLoginProps {
   handleLogin: () => void;
 }
 
-const CredentialsLogin = ({ handleLogin } : CredentialsLoginProps) => {
-
+const CredentialsLogin = ({ handleLogin }: CredentialsLoginProps) => {
   const sessionContext = useContext(SessionContext);
   const [credentials, setCredentials] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -33,27 +31,29 @@ const CredentialsLogin = ({ handleLogin } : CredentialsLoginProps) => {
     }
   }, [file]);
 
-  const handleCredentialsLogin = useCallback( async (credentials: string) => {
-    const updateSession = sessionContext?.updateSession ?? (() => null);
-    try {
-      const json = await JSON.parse(credentials);
-      await fetch('/api/auth/credentialsLogin', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(json),
-      });
-      updateSession();
-      handleLogin();
-
-    } catch (e) {
-      notifications.show({
-        title: 'Format Error',
-        message: 'JSON is not valid',
-      });
-    }
-  }, [handleLogin, sessionContext?.updateSession]);
+  const handleCredentialsLogin = useCallback(
+    async (credentials: string) => {
+      const updateSession = sessionContext?.updateSession ?? (() => null);
+      try {
+        const json = await JSON.parse(credentials);
+        await fetch('/api/auth/credentialsLogin', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(json),
+        });
+        updateSession();
+        handleLogin();
+      } catch (e) {
+        notifications.show({
+          title: 'Format Error',
+          message: 'JSON is not valid',
+        });
+      }
+    },
+    [handleLogin, sessionContext?.updateSession],
+  );
 
   return (
     <Box className="flex flex-col items-center justify-center my-2">
@@ -61,9 +61,7 @@ const CredentialsLogin = ({ handleLogin } : CredentialsLoginProps) => {
         color="black"
         size="md"
         className="w-1/3"
-        label={
-            <Text size="md">Authorize with credentials</Text>
-        }
+        label={<Text size="md">Authorize with credentials</Text>}
         labelPosition="center"
       />
       <Group>
@@ -77,17 +75,15 @@ const CredentialsLogin = ({ handleLogin } : CredentialsLoginProps) => {
           }}
           size="sm"
           rightSection={
-            (
-              credentials &&
-              credentials?.length > 0 && (
-                <CloseIcon
-                  onClick={() => {
-                    setCredentials('');
-                  }}
-                  className="cursor-pointer"
-                  data-testid="search-input-clear-search"
-                />
-              )
+            credentials &&
+            credentials?.length > 0 && (
+              <CloseIcon
+                onClick={() => {
+                  setCredentials('');
+                }}
+                className="cursor-pointer"
+                data-testid="search-input-clear-search"
+              />
             )
           }
         ></Textarea>

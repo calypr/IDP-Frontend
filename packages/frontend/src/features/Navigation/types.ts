@@ -22,6 +22,7 @@ export interface NavigationBarLogo {
   readonly divider?: boolean;
   readonly classNames?: StylingOverrideWithMergeControl;
   readonly href: string;
+  basepage?: boolean;
 }
 
 export interface NavigationProps {
@@ -39,6 +40,7 @@ export interface HeaderData {
 }
 
 export interface HeaderProps {
+  children?: React.ReactNode;
   top: TopBarProps;
   navigation: NavigationProps;
   banners?: Array<BannerProps>;
