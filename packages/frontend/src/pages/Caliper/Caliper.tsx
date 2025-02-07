@@ -19,7 +19,7 @@ const defaultClassNames = {
   label:
     'bg-primary font-content text-white block hover:text-white hover:border-secondary hover:bg-secondary rounded-lg py-3 px-6 active:scale-95',
   button:
-    'flex flex-nowrap items-center align-middle border-b-2 px-2 border-white border-transparent',
+    'flex flex-nowrap items-center align-middle border-b-2 border-white border-transparent',
 };
 const BannerPanel = ({
   title,

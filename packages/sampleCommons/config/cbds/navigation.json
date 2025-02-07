@@ -34,7 +34,7 @@
         "name": "CBDS",
         "classNames": {
           "root": "",
-          "label": "border-primary text-white",
+          "label": "border-primary text-white hover:border-white",
           "button": "border-primary hover:border-white"
         }
       }

@@ -10,29 +10,6 @@ import { GetServerSideProps } from 'next';
 
 import { Card, Text } from '@mantine/core';
 
-const discoverytableConfig = {
-  Project: {
-    title: 'Project',
-    field: 'Project',
-  },
-  PI: {
-    title: 'Principal Investigator',
-    field: 'PI',
-  },
-  Stakeholders: {
-    title: 'Stakeholders',
-    field: 'Stakeholders',
-  },
-  Location: {
-    title: 'Location',
-    field: 'Location',
-  },
-  Description: {
-    title: 'Description',
-    field: 'Description',
-  },
-};
-
 const discoveryData = {
   data: {
     _aggregation: {

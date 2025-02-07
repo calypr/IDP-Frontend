@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import React, { useCallback } from 'react';
 import { useRouter } from 'next/router';
 import { showNotification } from '@mantine/notifications';
 import UserNavigationMenu from '../../components/Profile/UserNavigationMenu';
@@ -59,7 +59,7 @@ const LoginMenu = ({
   const authenticated = isAuthenticated(userStatus);
 
   return (
-    <div>
+    <React.Fragment>
       {!authenticated ? (
         <LoginProvidersMenuPanel
           classNames={classNames}
@@ -72,7 +72,7 @@ const LoginMenu = ({
       ) : (
         <UserNavigationMenu classNames={classNames} />
       )}
-    </div>
+    </React.Fragment>
   );
 };
 

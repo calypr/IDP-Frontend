@@ -118,16 +118,20 @@ const TopBar = ({ title, items, classNames, logo }: TopBarProps) => {
   const defaultClassNames = {
     root:
       title === 'Gen3 Landing Page'
-        ? 'flex justify-end items-center align-middle px-2 border-r-2 my-2 bg-white border-black  hover:border-black'
-        : 'flex justify-end items-center align-middle px-2 border-r-2 my-2 bg-primary border-primary hover:border-white',
+        ? 'flex justify-end items-center align-middle px-2 border-r-2 my-2 bg-white border-black'
+        : 'flex justify-end items-center align-middle px-2 border-r-2 my-2 bg-primary border-primary',
     label:
       title === 'Gen3 Landing Page'
-        ? 'font-content text-black block align-middle border-white'
-        : 'font-content text-white block',
+        ? 'font-content text-black block align-middle'
+        : 'font-content text-white block align middle',
     button:
       title === 'Gen3 Landing Page'
-        ? 'flex flex-nowrap items-center align-middle border-b-2 px-2 border-white hover:border-black'
+        ? 'flex flex-nowrap items-center align-middle border-b-2 border-white hover:border-black'
         : 'flex flex-nowrap items-center align-middle border-b-2 px-2 hover:border-white',
+    loginMenu:
+      title === 'Gen3 Landing Page'
+        ? 'mx-2 text-black border border-transparent hover:border-black py-1'
+        : 'mx-2 text-white border border-transparent hover:border-white py-1',
   };
 
   const mergedClassnames = mergeDefaultTailwindClassnames(

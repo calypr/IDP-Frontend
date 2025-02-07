@@ -23,10 +23,11 @@ const UserNavigationMenu = ({
   return (
     <Menu shadow="md" width={200}>
       <Menu.Target>
-        <UnstyledButton className="mx-2">
-          <div className={classNames.label}>{userInfo?.username}</div>
+        <UnstyledButton className={classNames.loginMenu}>
+          {userInfo?.username}
         </UnstyledButton>
       </Menu.Target>
+
       <Menu.Dropdown>
         <Menu.Item
           key={'Profile'}

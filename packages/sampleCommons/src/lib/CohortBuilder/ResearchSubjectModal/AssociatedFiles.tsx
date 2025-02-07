@@ -147,16 +147,14 @@ export const AssociatedAssaysTable = ({
         />
       </div>
       {showTable ? (
-        <div className="text-primary">
-          <div className="grid">
-            <MatchingTable
-              isLoading={isLoading}
-              columns={asocFileConfig}
-              index="file"
-              idField="id"
-              data={resData}
-            />
-          </div>
+        <div className="grid">
+          <MatchingTable
+            isLoading={isLoading}
+            columns={asocFileConfig}
+            index="file"
+            idField="id"
+            data={resData}
+          />
         </div>
       ) : (
         <AssayCheckboxChart data={filteredResourcesTwo} />

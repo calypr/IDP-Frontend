@@ -258,7 +258,7 @@ const HorizontalBarChart = ({ headerProps, footerProps }: SamplePageProps) => {
                   onClick={() => {
                     router.push('/Explorer');
                   }}
-                  className="bg-cbds-monoprimary text-white py-2 px-4 rounded"
+                  className="bg-primary text-white py-2 px-4 rounded"
                 >
                   Explore
                 </Button>
