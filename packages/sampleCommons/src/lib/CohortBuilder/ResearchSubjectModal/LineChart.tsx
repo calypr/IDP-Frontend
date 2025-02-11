@@ -16,11 +16,11 @@ export const VicLineChart = ({
     .filter(
       (obj) =>
         'specimen_indexed_collection_date_days' in obj &&
-        'experimental_strategy' in obj,
+        'assay' in obj,
     )
     .map(
-      ({ specimen_indexed_collection_date_days, experimental_strategy }) => ({
-        y: experimental_strategy,
+      ({ specimen_indexed_collection_date_days, assay }) => ({
+        y: assay,
         x: specimen_indexed_collection_date_days,
       }),
     );

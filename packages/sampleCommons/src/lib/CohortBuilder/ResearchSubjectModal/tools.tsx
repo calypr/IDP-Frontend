@@ -1,3 +1,4 @@
+import { useGeneralGQLQuery } from '@gen3/core';
 import { QueryResponse } from '../types';
 
 /**
@@ -37,4 +38,33 @@ export function extractData(
   return Array.isArray(response.data[index]) && response.data[index].length > 0
     ? response.data[index]
     : [];
+}
+
+export function useGroupIdsFromMemberIds(ids: Array<string>) {
+  // get all group ids 
+  const { data: groupData, isLoading: groupIsLoading, isError: groupIsError } = useGeneralGQLQuery({
+    query: `query($filter: JSON) {
+              groupmember (filter: $filter, first: 10000) {
+                group_id,
+                member_id
+              }
+            }`,
+    variables: {
+      filter: {
+        AND: [
+          {
+            IN: {
+              member_id: ids,
+            },
+          },
+        ],
+      },
+    },
+  });
+
+  const groupIds = isQueryResponse(groupData)
+    ? extractData(groupData, 'groupmember', '')
+    : []; 
+
+  return groupIds;
 }

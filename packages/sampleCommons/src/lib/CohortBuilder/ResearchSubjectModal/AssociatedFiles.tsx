@@ -2,12 +2,16 @@ import { Stack, Table, LoadingOverlay, Text, Checkbox } from '@mantine/core';
 
 import { ErrorCard } from '@gen3/frontend';
 import { useGeneralGQLQuery, JSONObject } from '@gen3/core';
-import { isQueryResponse, extractData } from './tools';
+import { isQueryResponse, extractData, useGroupIdsFromMemberIds } from './tools';
 import React, { useMemo, useState } from 'react';
 import { MatchingTable } from '@gen3/frontend';
 
-export const useFilesQuery = (identifiers: string[], table: boolean) => {
+export const useFilesQuery = (ids: string[], table: boolean) => {
+  // get all group ids containing a list of specimen ids
+  const groupIds = useGroupIdsFromMemberIds(ids);
+  
   const { data, isLoading, isError } = useGeneralGQLQuery({
+    // FIXME: remove indexed_collection_date_days and sample_family_id with new data update
     query: `query ($filter: JSON) {
            	  _aggregation{
                 file(filter: $filter){
@@ -18,24 +22,40 @@ export const useFilesQuery = (identifiers: string[], table: boolean) => {
                 id
                 title
                 data_category
-                experimental_strategy
+                assay
                 specimen_indexed_collection_date_days
                 specimen_sample_family_id
+                indexed_collection_date_days
+                sample_family_id
+                specimen_id
               }
             }`,
     variables: {
       filter: {
+        // check if DocRef subject is either specimen or group ID
         AND: [
           {
-            IN: {
-              specimen_identifier: identifiers,
-            },
-          },
-        ],
+            OR: [
+              {
+                IN: {
+                  specimen_id: ids
+                }
+              },
+              {
+                IN: {
+                  group_id: groupIds
+                }
+              }
+            ]
+          }
+        ]
       },
     },
   });
+
+  // cache results
   const cachedData = useMemo(() => {
+    // for non-table use case, return nested list of docrefs from raw guppy query result
     if (data && !table) {
       const extractedData = isQueryResponse(data)
         ? (extractData(data, 'file', '') as JSONObject[])
@@ -50,13 +70,13 @@ export const useFilesQuery = (identifiers: string[], table: boolean) => {
 };
 
 export const UniqueAssociatedValsForSpecimen = ({
-  identifiers,
+  ids,
   asoc_val,
 }: {
-  identifiers: string[];
+  ids: string[];
   asoc_val: string;
 }) => {
-  const { resData, isLoading, isError } = useFilesQuery(identifiers, false);
+  const { resData, isLoading, isError } = useFilesQuery(ids, false);
   if (isError) {
     return <Text> Error occurred while fetching file metadata </Text>;
   }
@@ -69,13 +89,11 @@ export const UniqueAssociatedValsForSpecimen = ({
 };
 
 export const AssociatedFilesText = ({
-  identifiers,
-  asoc_val,
+  ids
 }: {
-  identifiers: string[];
-  asoc_val: string;
+  ids: string[];
 }) => {
-  const { resData, isLoading, isError } = useFilesQuery(identifiers, false);
+  const { resData, isLoading, isError } = useFilesQuery(ids, false); 
   // Return the length, loading, and error status
   if (isError) {
     return <Text> Error occurred while fetching data </Text>;
@@ -84,25 +102,25 @@ export const AssociatedFilesText = ({
   return (
     <div>
       <LoadingOverlay visible={isLoading} />
-      <Text>{identifiers.length} Annotations</Text>
+      <Text>{ids.length} Annotations</Text>
       <Text>{(resData as JSONObject[])?.length} Files</Text>
     </div>
   );
 };
 
 export const AssociatedAssaysTable = ({
-  identifiers,
+  ids,
   asoc_val,
 }: {
-  identifiers: string[];
+  ids: string[];
   asoc_val: string;
 }) => {
-  const { resData, isLoading, isError } = useFilesQuery(identifiers, true);
+  const { resData, isLoading, isError } = useFilesQuery(ids, true);
   const {
     resData: resDataTwo,
     isLoading: isLoadingTwo,
     isError: isErrorTwo,
-  } = useFilesQuery(identifiers, false);
+  } = useFilesQuery(ids, false);
 
   const [showTable, setshowTable] = useState(false);
 
@@ -123,18 +141,20 @@ export const AssociatedAssaysTable = ({
       title: 'File Name',
       field: 'title',
     },
-    experimental_strategy: {
+    assay: {
       title: 'Assay',
-      field: 'experimental_strategy',
+      field: 'assay',
     },
-    specimen_indexed_collection_date_days: {
-      title: 'Indexd Days',
-      field: 'specimen_indexed_collection_date_days',
+    // TKEDTE-351: Revert to specimen_indexed_collection_date_days rather than indexed_collection_date_days later
+    indexed_collection_date_days: {
+      title: 'Indexed Days',
+      field: 'indexed_collection_date_days',
     },
-    specimen_sample_family_id: {
-      title: 'Sample Family Id',
-      field: 'specimen_sample_family_id',
-    },
+    // TKEDTE-351: Revert to specimen_indexed_collection_date_days rather than indexed_collection_date_days later
+    sample_family_id: {
+      title: 'Sample Family ID',
+      field: 'sample_family_id',
+    }
   };
 
   return (
@@ -169,8 +189,9 @@ export const AssayCheckboxChart = ({
   data: Array<Record<string, any>>;
 }) => {
   const resData = data.map((obj) => ({
-    family_id: obj.specimen_sample_family_id,
-    assay: obj.experimental_strategy,
+    // FIXME: change back to obj.specimen_sample_family_id with new data update
+    family_id: obj.specimen_sample_family_id ? obj.specimen_sample_family_id : obj.sample_family_id,
+    assay: obj.assay,
   }));
 
   const uniqueAssays = [...new Set(resData.map((val) => val['assay']))].map(

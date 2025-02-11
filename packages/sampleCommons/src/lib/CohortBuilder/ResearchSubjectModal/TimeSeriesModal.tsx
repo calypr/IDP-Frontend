@@ -4,10 +4,10 @@ import { Button, Text } from '@mantine/core';
 import { AssociatedAssaysTable } from './AssociatedFiles';
 
 export const TimeSeriesAssaySummaryModal = ({
-  identifiers,
+  ids,
   //IdentifierIndexdDaysMap,
 }: {
-  identifiers: string[];
+  ids: string[];
   //IdentifierIndexdDaysMap: Record<string, any>;
 }): JSX.Element => {
   const [openModal, setOpenModal] = useState(false); // Track modal state
@@ -38,7 +38,7 @@ export const TimeSeriesAssaySummaryModal = ({
         closeOnClickOutside={true}
       >
         <AssociatedAssaysTable
-          identifiers={identifiers}
+          ids={ids}
           asoc_val={'specimen_indexed_collection_date_days'}
         />
       </BaseModal>
