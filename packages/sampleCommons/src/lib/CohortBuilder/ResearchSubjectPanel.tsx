@@ -11,7 +11,7 @@ import {
   ScrollArea,
   Divider,
 } from '@mantine/core';
-import { useGeneralGQLQuery } from '@gen3/core';
+import { JSONObject, useGeneralGQLQuery } from '@gen3/core';
 import { MatchingTable } from '@gen3/frontend';
 import {
   ErrorCard,
@@ -73,13 +73,13 @@ export const ResearchSubjectDetailPanel = ({
     return <ErrorCard message={'Error occurred while fetching data'} />;
   }
 
-  const querySpecimenIdentifiers: string[] = isQueryResponse(data)
-    ? Array.isArray(data.data[nodeType ?? 'researchsubject'])
+  const querySpecimenIds: string[] = isQueryResponse(data)
+  ? Array.isArray(data.data[nodeType ?? 'researchsubject'])
       ? data.data[nodeType ?? 'researchsubject'].map((item: any) => {
-          return item.Identifier;
-        })
-      : []
-    : [];
+          return item.Id;
+      })
+    : []
+  : [];
 
   const modelTableConfig = nodeFields
     ? Object.entries(nodeFields).reduce(
@@ -99,14 +99,13 @@ export const ResearchSubjectDetailPanel = ({
       <LoadingOverlay visible={isLoading} />
       <ScrollArea.Autosize maw={'80vw'} mx="auto">
         <div className="flex pb-5">
-          <TimeSeriesAssaySummaryModal identifiers={querySpecimenIdentifiers} />
+          <TimeSeriesAssaySummaryModal ids={querySpecimenIds} />
           <div className="flex-grow text-center">
             <Title order={3}> Subject Summary </Title>
           </div>
           <div className="ml-auto flex-shrink-0">
             <AssociatedFilesText
-              identifiers={querySpecimenIdentifiers}
-              asoc_val="product_notes_sequencing_site"
+              ids={querySpecimenIds}
             />
           </div>
         </div>
@@ -137,14 +136,14 @@ export const ResearchSubjectDetailPanel = ({
         <Divider size="md" color="#2c2c54" />
         <div className="grid grid-cols-2">
           <SpecimenAggregationCountsChart
-            identifiers={querySpecimenIdentifiers}
+            ids={querySpecimenIds}
             title={'File Counts by Data Category'}
             aggField={'data_category'}
           />
           <SpecimenAggregationCountsChart
-            identifiers={querySpecimenIdentifiers}
-            aggField={'experimental_strategy'}
-            title={'File Counts by Experimental Strategy'}
+            ids={querySpecimenIds}
+            aggField={'assay'}
+            title={'File Counts by Assay'}
           />
         </div>
         <Divider size="md" color="#2c2c54" />

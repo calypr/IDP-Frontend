@@ -55,7 +55,8 @@
           "Procedure": "biopsy_procedure_type",
           "Processing": "processing",
           "Sample_Type": "sample_type",
-          "Identifier": "identifier"
+          "Identifier": "identifier",
+          "Id": "id"
         }
       }
     },
@@ -170,7 +171,7 @@
           "Source_Path": "source_path",
           "Project_Id": "project_id",
           "Creation_Date": "creation",
-          "Specimen BEMS Identifier": "specimen_identifier",
+          "Specimen_BEMS_Identifier": "specimen_identifier",
           "File_Download": "id",
           "Identifier": "identifier"
         }
@@ -263,9 +264,9 @@
             "project_id",
             "molecule_type",
             "data_category",
-            "experimental_strategy",
+            "assay",
             "level",
-            "platform",
+            "instrument",
             "sequencing_site",
             "contentType",
             "specimen_identifier",
@@ -278,14 +279,8 @@
             "sequencing_site": {
               "label": "Site"
             },
-            "experimental_strategy": {
-              "label": "Assay"
-            },
             "specimen_identifier": {
               "label": "BEMS ID"
-            },
-            "platform": {
-              "label": "Instrument"
             }
           }
         }
@@ -299,11 +294,11 @@
         "contentType",
         "specimen_identifier",
         "parent_bems_id",
-        "experimental_strategy",
+        "assay",
         "level",
         "molecule_type",
         "data_category",
-        "platform",
+        "instrument",
         "sequencing_site",
         "enrollment_diagnosis",
         "md5",
@@ -338,12 +333,6 @@
         "allocated_for_site": {
           "title": "Site"
         },
-        "experimental_strategy": {
-          "title": "Assay"
-        },
-        "platform": {
-          "title": "Instrument"
-        },
         "title": {
           "title": "Filename"
         }
@@ -364,9 +353,9 @@
           "Project_ID": "project_id",
           "Creation_Date": "creation",
           "BEMS_ID": "specimen_identifier",
-          "Instrument": "platform",
+          "Instrument": "instrument",
           "Site": "allocated_for_site",
-          "Assay": "experimental_strategy",
+          "Assay": "assay",
           "Level": "level",
           "Molecule_Type": "molecule_type",
           "Data_Category": "data_category",

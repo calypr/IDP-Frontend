@@ -38,8 +38,8 @@ export const trimFirstFieldNameToTitle = (
 
 /**
  * Converts a filter name to a title,
- * For example files.input.experimental_strategy will get converted to Experimental Strategy
- * if sections == 2 then the output would be Input Experimental Strategy
+ * For example files.input.assay will get converted to Assay
+ * if sections == 2 then the output would be Input Assay
  * @param fieldName input filter expected to be: string.firstpart_secondpart
  * @param sections number of "sections" string.string.string to got back from the end of the field
  */

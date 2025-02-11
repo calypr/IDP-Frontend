@@ -221,16 +221,9 @@ const HorizontalBarChart = ({ headerProps, footerProps }: SamplePageProps) => {
 
   // TODO: refactor out into a config
   const chartResourceType = ['file', 'researchsubject'];
-  const chartFields = ['experimental_strategy', 'condition_Diagnosis'];
+  const chartFields = ['assay', 'condition_Diagnosis'];
   const chartTitles = ['Assay', 'Diagnosis'];
   const numChartCols = chartFields.length <= 3 ? chartFields.length : 3;
-  const countsFields = [
-    'patient_id',
-    'specimen_identifier',
-    'specimen_collection_concept',
-    'clinical_trials',
-  ];
-  const countsTitles = ['Patients', 'Specimens', 'Cancers', 'Clinical Trials'];
 
   return (
     <NavPageLayout
