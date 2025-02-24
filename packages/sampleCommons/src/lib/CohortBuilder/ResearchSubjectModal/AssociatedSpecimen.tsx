@@ -1,5 +1,5 @@
 import { useGeneralGQLQuery } from '@gen3/core';
-import { isQueryResponse, extractData, useGroupIdsFromMemberIds } from './tools';
+import { isQueryResponse, extractData, useGroupToSpecimenMapping } from './tools';
 import { ErrorCard, PieChart } from '@gen3/frontend';
 import { Stack, LoadingOverlay, Title } from '@mantine/core';
 
@@ -14,10 +14,11 @@ export const SpecimenAggregationCountsChart = ({
 }) => {
 
   // get all group ids containing a list of specimen ids
-  const groupIds = useGroupIdsFromMemberIds(ids);
+  const {data: groupData, isLoading: groupIsLoading, isError: groupIsError} = useGroupToSpecimenMapping(ids);
+  const groupIds = Object.keys(groupData);
   
   // get all files associated with the patient's specimen ids + group ids
-  // for syntax, see Guppy docs below
+  // for syntax, see Guppy docs
   // https://github.com/uc-cdis/guppy/blob/master/doc/queries.md#combine-into-advanced-filters
   const { data, isLoading, isError } = useGeneralGQLQuery({
     query: `query ($filter: JSON) {

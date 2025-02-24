@@ -47,16 +47,16 @@
         "title": "identifier",
         "nodeType": "specimen",
         "nodeFields": {
-          "Metastasis_Site": "collection",
-          "Indexd_Collection_Date_Days": "indexed_collection_date_days",
-          "Sample_Family_Id": "sample_family_id",
-          "Histology": "histology",
-          "Tumor_Purity": "percent_tumor",
-          "Procedure": "biopsy_procedure_type",
-          "Processing": "processing",
-          "Sample_Type": "sample_type",
-          "Identifier": "identifier",
-          "Id": "id"
+          "identifier": "identifier",
+          "sample_type": "sample_type",
+          "collection": "Metastasis Site",
+          "indexed_collection_date_days": "indexed_collection_date_days",
+          "sample_family_id": "Sample Family ID",
+          "histology": "histology",
+          "percent_tumor": "percent_tumor",
+          "biopsy_procedure_type": "biopsy_procedure_type",
+          "processing": "processing",
+          "id": "ID"
         }
       }
     },
@@ -92,9 +92,9 @@
             "biopsy_event_tag",
             "anatomical_location",
             "allocated_for_site",
-            "package_recipient",
             "clinical_event",
-            "treatments"
+            "treatments",
+            "patient_identifier"
           ],
           "fieldsConfig": {
             "identifier": {
@@ -130,6 +130,9 @@
         },
         "patient_identifier": {
           "title": "Participant ID"
+        },
+        "sample_family_id": {
+          "title": "Sample Family ID"
         }
       },
       "fields": [
@@ -150,7 +153,6 @@
         "clinical_event",
         "alias",
         "allocated_for_site",
-        "package_recipient",
         "patient_id",
         "project_id",
         "id"

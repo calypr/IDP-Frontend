@@ -134,7 +134,7 @@ const MatchingTable = ({
   const table = useMantineReactTable<JSONObject>({
     columns: cols as any[], //TODO: fix this
     data: data?.data?.[index] ?? [],
-    enableColumnFilters: false,
+    enableColumnFilters: true,
     manualSorting: false,
     manualPagination: false,
     enableStickyHeader: true,

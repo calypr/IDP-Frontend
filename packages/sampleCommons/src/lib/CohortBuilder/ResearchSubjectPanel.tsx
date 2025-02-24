@@ -11,7 +11,7 @@ import {
   ScrollArea,
   Divider,
 } from '@mantine/core';
-import { JSONObject, useGeneralGQLQuery } from '@gen3/core';
+import { fieldNameToTitle, useGeneralGQLQuery } from '@gen3/core';
 import { MatchingTable } from '@gen3/frontend';
 import {
   ErrorCard,
@@ -22,11 +22,12 @@ import {
   MdContentCopy as IconCopy,
   MdCheck as IconCheck,
 } from 'react-icons/md';
-import React from 'react';
 import { AssociatedFilesText } from './ResearchSubjectModal/AssociatedFiles';
 import { SpecimenAggregationCountsChart } from './ResearchSubjectModal/AssociatedSpecimen';
 import { TimeSeriesAssaySummaryModal } from './ResearchSubjectModal/TimeSeriesModal';
-import { isQueryResponse } from './ResearchSubjectModal/tools';
+import { extractData, isQueryResponse, useFilteredGroupMembers } from './ResearchSubjectModal/tools';
+import { QueryContent, ResourceDict } from './types';
+import React from 'react';
 
 export const ResearchSubjectDetailPanel = ({
   id, // The table value corresponding to the column name 'idField'
@@ -39,10 +40,20 @@ export const ResearchSubjectDetailPanel = ({
   const nodeFields = tableConfig.detailsConfig?.nodeFields;
   const filterField = tableConfig.detailsConfig?.filterField;
 
-  const processedNodeFields = Object.entries(nodeFields ?? {})
-    .map(([alias, field]) => `${alias}: ${field}`)
-    .join('\n');
+  const processedNodeFields = Object.keys(nodeFields ?? {}).join('\n');
 
+  // get any Groups this Patient is associated with
+  const { data: groupMemberData, isLoading: groupIsLoading, isError: groupIsError } = useFilteredGroupMembers([`${id}`]);
+
+
+  const groupIds: string[] = isQueryResponse(groupMemberData)
+    ? (extractData(groupMemberData, 'groupmember', '') as QueryContent)
+      .map((groupMember => groupMember.group_id))
+    : [];
+
+  // get resources of type nodeType associated with patient
+  // for syntax, see Guppy docs
+  // https://github.com/uc-cdis/guppy/blob/master/doc/queries.md#combine-into-advanced-filters
   // The filters in this query assume that the patient ID is unique across all other projects.
   const { data, isLoading, isError } = useGeneralGQLQuery({
     query: `query ($filter: JSON) {
@@ -54,11 +65,20 @@ export const ResearchSubjectDetailPanel = ({
       filter: {
         AND: [
           {
-            IN: {
-              [filterField ?? 0]: [`${id}`],
-            },
-          },
-        ],
+            OR: [
+              {
+                IN: {
+                  [filterField ?? 0]: ([`${id}`]),
+                }
+              },
+              {
+                IN: {
+                  group_id: groupIds
+                }
+              }
+            ]
+          }
+        ]
       },
     },
   });
@@ -75,8 +95,8 @@ export const ResearchSubjectDetailPanel = ({
 
   const querySpecimenIds: string[] = isQueryResponse(data)
   ? Array.isArray(data.data[nodeType ?? 'researchsubject'])
-      ? data.data[nodeType ?? 'researchsubject'].map((item: any) => {
-          return item.Id;
+      ? data.data[nodeType ?? 'researchsubject'].map((item: ResourceDict) => {
+          return item.id;
       })
     : []
   : [];
@@ -85,7 +105,7 @@ export const ResearchSubjectDetailPanel = ({
     ? Object.entries(nodeFields).reduce(
         (acc, [key, value]) => {
           acc[key] = {
-            title: value, // Use the value of the key-value pair
+            title: fieldNameToTitle(value), // Use the value of the key-value pair
             field: key, // Use the key as the field
           };
           return acc;
@@ -105,7 +125,7 @@ export const ResearchSubjectDetailPanel = ({
           </div>
           <div className="ml-auto flex-shrink-0">
             <AssociatedFilesText
-              ids={querySpecimenIds}
+              specimenIds={querySpecimenIds}
             />
           </div>
         </div>

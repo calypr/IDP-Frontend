@@ -103,11 +103,11 @@ const DiscoveryPage = ({ headerProps, footerProps }: NavPageLayoutProps) => {
       }}
     >
       <ProtectedContent>
-        <div className="flex flex-col justify-center">
+        <div className="flex flex-col justify-center p-6">
           <div className="pt-10 pb-3 text-3xl font-bold text-black">
             Discover New Projects
           </div>
-          <div className="flex flex-col justify-center gap-6 p-6">
+          <div className="flex flex-col justify-center gap-6">
             {discoveryData?.data.discovery.map(
               (disc: discoveryElem, index: number) => (
                 <DiscoveryBannerCard key={index} {...disc} />

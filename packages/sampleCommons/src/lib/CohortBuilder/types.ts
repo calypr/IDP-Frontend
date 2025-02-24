@@ -16,3 +16,14 @@ export interface QueryResponse {
     [key: string]: Record<string, any>; // Allow other keys in 'data' with any type
   };
 }
+// self-defined for processed queries
+
+export type ResourceDict = Record<string, any>;
+
+export type QueryContent = Array<ResourceDict>;
+
+export interface QueryHookResponse {
+  data: QueryResponse | QueryContent | Record<string, QueryContent>;
+  isLoading: boolean;
+  isError: boolean;
+}

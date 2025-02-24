@@ -136,7 +136,7 @@ const CaliperPage = ({ headerProps, footerProps }: Props) => {
                   />
                   <div className="p-6">
                     <div className="text-lg font-bold text-gray-800 mb-3">
-                      Early Dectection
+                      Early Detection
                     </div>
                     <div className="text-gray-500 text-sm">CEDAR</div>
                     <Button

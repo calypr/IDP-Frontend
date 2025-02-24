@@ -9,7 +9,7 @@
         "rows": [
           {
             "Icon": {
-              "logo": "/icons/knight.png",
+              "logo": "/icons/knight.svg",
               "width": 150,
               "height": 70,
               "description": "Knight Cancer Institute"

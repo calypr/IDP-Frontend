@@ -1,10 +1,10 @@
 import { BAD_DATA_MESSAGE, DEFAULT_VISIBLE_ITEMS } from './constants';
-import { ActionIcon, Checkbox, LoadingOverlay, TextInput } from '@mantine/core';
+import { ActionIcon, Checkbox, LoadingOverlay, TextInput, Tooltip } from '@mantine/core';
 import { MdClose as CloseIcon } from 'react-icons/md';
 import FacetSortPanel from './FacetSortPanel';
 import { fieldNameToTitle } from '@gen3/core';
 import OverflowTooltippedLabel from '../OverflowTooltippedLabel';
-import FacetExpander from './FacetExpander';
+import FacetExpander, { ExpanderLabel } from './FacetExpander';
 import { EnumFacetChart } from '../charts';
 import React, { useEffect, useRef, useState } from 'react';
 import { EnumFacetHooks } from './EnumFacet';
@@ -283,7 +283,7 @@ const FacetEnumList: React.FC<FacetEnumListProps> = ({
       {isSuccess && error ? (
         <div className="m-4 font-content pb-2">{BAD_DATA_MESSAGE}</div>
       ) : (
-        <>
+        <React.Fragment>
           {isSearching && (
             <TextInput
               value={searchTerm}
@@ -427,13 +427,25 @@ const FacetEnumList: React.FC<FacetEnumListProps> = ({
                   )}
                 </div>
               </div>
-              {facetChartData.remainingValues > 0 ? (
+              {facetChartData.remainingValues > 0  && facetChartData.filteredData.length < 1000 ? (
                 <FacetExpander
                   remainingValues={facetChartData.remainingValues}
                   isGroupExpanded={isGroupExpanded}
                   onShowChanged={setIsGroupExpanded}
                 />
               ) : null}
+              {facetChartData.remainingValues > 0  && facetChartData.filteredData.length >= 1000
+                ? <div
+                  className={'mt-3 flex flex-row justify-end border-t-2 p-1.5'}
+                >
+                  <Tooltip label="click the magnifying glass icon to search for more values">
+                    <ExpanderLabel>
+                      {facetChartData.filteredData.length} values
+                    </ExpanderLabel>
+                  </Tooltip>
+                </div>
+                : null
+              }
             </div>
             <div
               className={`card-face card-back rounded-b-md bg-base-max h-full pb-1 ${
@@ -458,7 +470,7 @@ const FacetEnumList: React.FC<FacetEnumListProps> = ({
               )}
             </div>
           </div>
-        </>
+        </React.Fragment>
       )}
     </div>
   );
