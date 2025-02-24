@@ -7,6 +7,7 @@ import {
   Image,
 } from '@mantine/core';
 import { CaliperLandingPageProps } from './types';
+import {Products} from './Products';
 import { LandingPageProps } from '../../components/Content/LandingPageContent';
 import { NavPageLayout } from '../../features/Navigation';
 import LoginMenu from '../../components/Login/LoginMenu';
@@ -95,6 +96,8 @@ const CaliperPage = ({ headerProps, footerProps }: Props) => {
             imagePath="./images/landing/data_analysis.png"
           />
         </div>
+
+        <Products />
 
         <div className="bg-gray-100 md:px-10 px-4 py-10">
           <div className="max-w-7xl mx-auto">
