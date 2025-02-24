@@ -73,7 +73,7 @@ export const useFilesQuery = (specimenIds: string[], isRawQueryResponse: boolean
   // cache results
   const cachedData = useMemo(() => {
     // for non-table use case, return nested list of docrefs from raw guppy query result
-    if (fileData) {
+    if (fileData && groupSpecimensMap) {
       const fileDicts = isQueryResponse(fileData)
         ? (extractData(fileData, 'file', '') as JSONObject[])
         : [];
@@ -84,7 +84,7 @@ export const useFilesQuery = (specimenIds: string[], isRawQueryResponse: boolean
           const specimens = (groupSpecimensMap as Record<string, QueryContent>)[String(fileDict.group_id)];
           
           // expand out so that each specimen points to each row
-          const imputedSpecimens : QueryContent = specimens.map((specimen: ResourceDict) => ({
+          const imputedSpecimens : QueryContent = specimens?.map((specimen: ResourceDict) => ({
             ...fileDict,
             specimen_id: specimen.member_id,
             specimen_indexed_collection_date_days: specimen.indexed_collection_date_days,
@@ -103,6 +103,7 @@ export const useFilesQuery = (specimenIds: string[], isRawQueryResponse: boolean
         // flatten a single file's multiple specimen values into a single row
         const flatFileDicts = NestedFileDictsArray.map((specimens: QueryContent) => {
           // return if only specimen
+          if (!specimens) return {};
           if (specimens.length === 1) return specimens[0];
           
           // otherwise concatenate specimen values
