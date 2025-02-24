@@ -38,7 +38,7 @@ const RenderHumanReadableString = (
   if (!cell?.getValue() || cell?.getValue() === '') {
     return <span></span>;
   }
-  const bytes = row.getValue('size') as number;
+  const bytes = Number(row.getValue('size'));
   if (bytes === 0) return '0 B';
   const humanReadable = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
   const i = Math.floor(Math.log(bytes) / Math.log(1024));

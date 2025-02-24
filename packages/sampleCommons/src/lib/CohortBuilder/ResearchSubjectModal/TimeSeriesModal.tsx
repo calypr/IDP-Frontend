@@ -5,10 +5,8 @@ import { AssociatedAssaysTable } from './AssociatedFiles';
 
 export const TimeSeriesAssaySummaryModal = ({
   ids,
-  //IdentifierIndexdDaysMap,
 }: {
   ids: string[];
-  //IdentifierIndexdDaysMap: Record<string, any>;
 }): JSX.Element => {
   const [openModal, setOpenModal] = useState(false); // Track modal state
 

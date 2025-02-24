@@ -34,6 +34,13 @@
             "icon": "/icons/layers-intersect.svg",
             "href": "/AvailableImages",
             "perms": null
+        },
+        {
+            "title": "My Projects",
+            "description": "Identify the list of projects in which you have access",
+            "icon": "/icons/key.svg",
+            "href": "/MyProjects",
+            "perms": null
         }
     ]
 }
