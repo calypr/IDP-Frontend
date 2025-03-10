@@ -171,7 +171,7 @@ export const useProjectsQuery = () => {
             return (
               fieldSum +
               field.terms.reduce((termSum: number, term: any) => {
-                const key = parseFloat(term.key); // Convert key to number
+                const key = term.key ? parseFloat(term.key) : 0; // Convert key to number
                 return termSum + key * term.count;
               }, 0)
             );
@@ -181,6 +181,7 @@ export const useProjectsQuery = () => {
 
         return { key: project.key, sum: totalSum };
       });
+
       return result;
     }
     return [];
