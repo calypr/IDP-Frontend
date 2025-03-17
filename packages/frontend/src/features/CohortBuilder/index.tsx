@@ -1,7 +1,16 @@
 import { CohortBuilder } from './CohortBuilder';
-import { type CohortBuilderConfiguration } from './types';
+import {
+  type CohortBuilderConfiguration,
+  type CohortPanelConfig,
+  type FacetType,
+  type TabsConfig,
+} from './types';
 
-import type { SummaryTableColumn } from './ExplorerTable';
+import type {
+  SummaryTableColumn,
+  SummaryTable,
+  SummaryTableColumnType,
+} from './ExplorerTable';
 import {
   ExplorerTableCellRendererFactory,
   registerExplorerDefaultCellRenderers,
@@ -21,4 +30,9 @@ export {
   ExplorerTableDetailsPanelFactory,
   registerExplorerDefaultCellRenderers,
   registerCohortBuilderDefaultPreviewRenderers,
+  type CohortPanelConfig,
+  type SummaryTable,
+  type TabsConfig,
+  type FacetType,
+  type SummaryTableColumnType,
 };

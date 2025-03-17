@@ -2,7 +2,9 @@ import ExplorerTable from './ExplorerTable';
 import {
   type ColumnDefinition,
   type SummaryTableColumn,
+  type SummaryTable,
   type CellRendererFunctionProps,
+  type SummaryTableColumnType,
 } from './types';
 import {
   ExplorerTableCellRendererFactory,
@@ -18,4 +20,6 @@ export {
   registerExplorerDefaultCellRenderers,
   type ColumnDefinition,
   type CellRendererFunctionProps,
+  type SummaryTable,
+  type SummaryTableColumnType,
 };
