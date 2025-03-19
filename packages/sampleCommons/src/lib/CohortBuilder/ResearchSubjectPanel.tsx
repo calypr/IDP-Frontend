@@ -157,13 +157,15 @@ export const ResearchSubjectDetailPanel = ({
         <div className="grid grid-cols-2">
           <SpecimenAggregationCountsChart
             ids={querySpecimenIds}
-            title={'File Counts by Data Category'}
+            title={'Sample Family IDs by Category'}
             aggField={'data_category'}
+            countField={'sample_family_id'}
           />
           <SpecimenAggregationCountsChart
             ids={querySpecimenIds}
             aggField={'assay'}
-            title={'File Counts by Assay'}
+            title={'Sample Family IDs by Assay'}
+            countField={'sample_family_id'}
           />
         </div>
         <Divider size="md" color="#2c2c54" />
