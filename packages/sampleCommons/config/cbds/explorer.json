@@ -6,9 +6,13 @@
         {
           "fields": [
             "project_id",
+            "identifier",
             "condition_Diagnosis"
           ],
           "fieldsConfig": {
+            "identifier": {
+              "label": "Participant ID"
+            },
             "condition_Diagnosis": {
               "label": "Enrollment Diagnosis"
             }

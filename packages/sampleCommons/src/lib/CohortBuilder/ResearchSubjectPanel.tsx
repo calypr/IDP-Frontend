@@ -135,7 +135,8 @@ export const ResearchSubjectDetailPanel = ({
               <Table.Tr>
                 <Table.Th>Clinical Trial </Table.Th>
                 <Table.Th>Condition Diagnosis</Table.Th>
-                <Table.Th> Patient Id </Table.Th>
+                <Table.Th>Participant ID</Table.Th>
+                <Table.Th> Patient ID </Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
@@ -145,6 +146,9 @@ export const ResearchSubjectDetailPanel = ({
                 </Table.Td>
                 <Table.Td>
                   <Text>{row?._valuesCache.condition_Diagnosis}</Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text>{row?._valuesCache.identifier}</Text>
                 </Table.Td>
                 <Table.Td>
                   <Text>{row?._valuesCache.patient_id}</Text>
