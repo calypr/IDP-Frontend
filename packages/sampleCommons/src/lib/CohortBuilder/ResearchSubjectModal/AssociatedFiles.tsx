@@ -45,6 +45,7 @@ export const useFilesQuery = (specimenIds: string[], isRawQueryResponse: boolean
                 specimen_sample_family_id
                 specimen_id
                 group_id
+                level
               }
             }`,
     variables: {
@@ -143,10 +144,10 @@ export const useFilesQuery = (specimenIds: string[], isRawQueryResponse: boolean
 
 export const UniqueAssociatedValsForSpecimen = ({
   ids,
-  asoc_val,
+  asocVal,
 }: {
   ids: string[];
-  asoc_val: string;
+  asocVal: string;
 }) => {
   const { data: resData, isLoading, isError } = useFilesQuery(ids, false);
   if (isError) {
@@ -154,7 +155,7 @@ export const UniqueAssociatedValsForSpecimen = ({
   }
   if (!isLoading) {
     const ResourceList = [
-      ...new Set((resData as JSONObject[])?.map((val) => val[asoc_val])),
+      ...new Set((resData as JSONObject[])?.map((val) => val[asocVal])),
     ].join(', ');
     return ResourceList;
   }
@@ -181,7 +182,7 @@ export const AssociatedFilesText = ({
   return (
     <div>
       <LoadingOverlay visible={isLoading} />
-      <Text>{specimenIds.length} Annotations</Text>
+      <Text>{specimenIds.length} Specimens</Text>
       <Text>
         {numFiles} Files
       </Text>
@@ -233,6 +234,10 @@ export const AssociatedAssaysTable = ({
     specimen_sample_family_id: {
       title: 'Sample Family IDs',
       field: 'specimen_sample_family_id',
+    },
+    level: {
+      title: 'Level',
+      field: 'level',
     }
   };
 
@@ -270,7 +275,7 @@ export const AssociatedAssaysTable = ({
 export const AssayCheckboxChart = ({
   data,
 }: {
-  data: Array<Record<string, any>>;
+  data: QueryContent;
 }) => {
   const resData = data.map((obj) => ({
     family_id: obj.specimen_sample_family_id,
@@ -284,7 +289,7 @@ export const AssayCheckboxChart = ({
   );
 
   const simplifyList = () => {
-    const grouped: Record<string, any> = {};
+    const grouped: ResourceDict = {};
     resData.forEach(({ family_id, assay }) => {
       if (!grouped[family_id]) {
         grouped[family_id] = [];
@@ -300,7 +305,7 @@ export const AssayCheckboxChart = ({
         {uniqueAssays.map((header, index) => {
           return assays.some((assay: string) => assay === header.key) ? (
             <Table.Td>
-              <Checkbox key={index} checked={true} color="#32CD32" size="lg" />
+              <Checkbox key={index} checked={true} readOnly color="#32CD32" size="lg" />
             </Table.Td>
           ) : (
             <Table.Td></Table.Td>
@@ -315,7 +320,7 @@ export const AssayCheckboxChart = ({
       <Table>
         <Table.Thead>
           <Table.Tr>
-            <Table.Th>Sample Family Id</Table.Th>
+            <Table.Th>Sample Family ID</Table.Th>
             {uniqueAssays}
           </Table.Tr>
         </Table.Thead>

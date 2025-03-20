@@ -1,93 +1,48 @@
-import { useGeneralGQLQuery } from '@gen3/core';
-import { isQueryResponse, extractData, useGroupToSpecimenMapping } from './tools';
 import { ErrorCard, PieChart } from '@gen3/frontend';
 import { Stack, LoadingOverlay, Title } from '@mantine/core';
 import { useMemo } from 'react';
+import { useFilesQuery } from './AssociatedFiles';
+import { QueryContent, ResourceDict } from '../types';
 
 export const SpecimenAggregationCountsChart = ({
   aggField, // top-level file count aggregation
   countField, // file count sub-aggregation
   title,
-  ids,
+  specimenIds,
 }: {
   aggField: string;
   countField: string;
   title: string;
-  ids: string[];
+  specimenIds: string[];
 }) => {
+  // retrieve files associated with specimen ids (+ any groups with that specimen in it)
+  const {data, isLoading, isError} = useFilesQuery(specimenIds, false);
 
-  // get all group ids containing a list of specimen ids
-  const {data: groupData, isLoading: groupIsLoading, isError: groupIsError} = useGroupToSpecimenMapping(ids);
-  const groupIds = Object.keys(groupData);
-  
-  // get a count of files such that
-  // 1) counts are grouped by `aggField`
-  // 2) and sub-aggregated by `countField`
-  // 3) aggregate files associated with the patient's specimen ids + group ids
-  // eg get file counts by sample family id (countField) grouped by assay (aggField)
-  // see Guppy docs
-  // https://github.com/uc-cdis/guppy/blob/master/doc/queries.md#5-sub-aggregations
-  // https://github.com/uc-cdis/guppy/blob/master/doc/queries.md#combine-into-advanced-filters
-  const { data, isLoading, isError } = useGeneralGQLQuery({
-    query: `query ($nestedAggFields: JSON $filter: JSON) {
-              _aggregation {
-                file (nestedAggFields: $nestedAggFields, filter: $filter, accessibility: all) {
-                  ${aggField}{
-                    histogram {
-                      key
-                      termsFields {
-                        field
-                        terms {
-                          key
-                          count
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }`,
-    variables: {
-      filter: {
-        AND: [
-        {
-          OR: [
-            {
-              IN: {
-                specimen_id: ids
-              }
-            },
-            {
-              IN: {
-                group_id: groupIds
-              }
-            }
-          ]
-        }
-        ],
-      },
-      nestedAggFields: {
-        termsFields: [
-          countField
-        ]
-      },
-    },
-  });
-  
   // convert Guppy response into format needed for PieChart component
+  // ie get file counts by `countField` (eg sample family ID) grouped by `aggField` (eg assay)
   const pieChartData = useMemo(() => {
     if (!data) return [];
+    
+    // for each file-specimen JSON, get 
+    const aggregatedMap = (data as QueryContent).reduce((countsMap: Record<string, Set<string>>, d: ResourceDict) => {
+      const aggValue = d[aggField];
+      if (aggValue in countsMap) {
+        countsMap[aggValue].add(d[countField]);
+      }
+      else {
+        countsMap[aggValue] = new Set([d[countField]]);
+      }
+      return countsMap;
+    }, {});
 
-    const resData = isQueryResponse(data)
-    ? extractData(data, 'file', aggField)
-    : [];
-
-    return resData.map(d => ({
-      'key': d.key,
-      'count': d.termsFields[0].terms.length,
+    // convert into pie chart data format
+    return Object.keys(aggregatedMap).map(key => ({
+      'key': key,
+      'count': aggregatedMap[key].size,
     }));
-  }, [data, aggField]);
+  }, [data, aggField, countField]);
 
+  // render component with data if successfully loaded
   if (isError) {
     return <ErrorCard message={'Error occurred while fetching data'} />;
   }

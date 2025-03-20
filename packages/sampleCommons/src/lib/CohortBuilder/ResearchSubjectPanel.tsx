@@ -39,7 +39,7 @@ export const ResearchSubjectDetailPanel = ({
   const nodeType = tableConfig.detailsConfig?.nodeType;
   const nodeFields = tableConfig.detailsConfig?.nodeFields;
   const filterField = tableConfig.detailsConfig?.filterField;
-
+  
   const processedNodeFields = Object.keys(nodeFields ?? {}).join('\n');
 
   // get any Groups this Patient is associated with
@@ -160,16 +160,16 @@ export const ResearchSubjectDetailPanel = ({
         <Divider size="md" color="#2c2c54" />
         <div className="grid grid-cols-2">
           <SpecimenAggregationCountsChart
-            ids={querySpecimenIds}
-            title={'Sample Family IDs by Category'}
+            specimenIds={querySpecimenIds}
+            title={'Number of Sample Family IDs by Category'}
             aggField={'data_category'}
-            countField={'sample_family_id'}
+            countField={'specimen_sample_family_id'}
           />
           <SpecimenAggregationCountsChart
-            ids={querySpecimenIds}
+            specimenIds={querySpecimenIds}
             aggField={'assay'}
-            title={'Sample Family IDs by Assay'}
-            countField={'sample_family_id'}
+            title={'Number of Sample Family IDs by Assay'}
+            countField={'specimen_sample_family_id'}
           />
         </div>
         <Divider size="md" color="#2c2c54" />
