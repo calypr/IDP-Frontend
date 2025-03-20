@@ -305,7 +305,12 @@ export const AssayCheckboxChart = ({
         {uniqueAssays.map((header, index) => {
           return assays.some((assay: string) => assay === header.key) ? (
             <Table.Td>
-              <Checkbox key={index} checked={true} readOnly color="#32CD32" size="lg" />
+              <Checkbox
+                key={index}
+                defaultChecked
+                color="#32CD32"
+                size="lg"
+              />
             </Table.Td>
           ) : (
             <Table.Td></Table.Td>
