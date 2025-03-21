@@ -307,6 +307,7 @@ export const AssayCheckboxChart = ({
             <Table.Td>
               <Checkbox
                 key={index}
+                checked={true}
                 defaultChecked
                 color="#32CD32"
                 size="lg"
