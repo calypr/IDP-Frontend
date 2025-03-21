@@ -6,9 +6,13 @@
         {
           "fields": [
             "project_id",
+            "identifier",
             "condition_Diagnosis"
           ],
           "fieldsConfig": {
+            "identifier": {
+              "label": "Participant ID"
+            },
             "condition_Diagnosis": {
               "label": "Enrollment Diagnosis"
             }
@@ -47,15 +51,13 @@
         "title": "identifier",
         "nodeType": "specimen",
         "nodeFields": {
-          "identifier": "identifier",
-          "sample_type": "sample_type",
-          "collection": "Metastasis Site",
-          "indexed_collection_date_days": "indexed_collection_date_days",
+          "indexed_collection_date_days": "Collection Date",
+          "identifier": "BEMS ID",
           "sample_family_id": "Sample Family ID",
-          "histology": "histology",
+          "collection": "Metastasis Site",
+          "sample_type": "sample_type",
+          "tissue_type": "tissue_type",
           "percent_tumor": "percent_tumor",
-          "biopsy_procedure_type": "biopsy_procedure_type",
-          "processing": "processing",
           "id": "ID"
         }
       }
@@ -65,6 +67,12 @@
       "dataType": "researchsubject",
       "nodeCountTitle": "Research Subjects",
       "fieldMapping": []
+    },
+    "charts": {
+      "condition_Diagnosis": {
+        "chartType": "fullPie",
+        "title": "Enrollment Diagnosis"
+      }
     }
   },
   {

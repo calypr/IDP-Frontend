@@ -39,7 +39,7 @@ export const ResearchSubjectDetailPanel = ({
   const nodeType = tableConfig.detailsConfig?.nodeType;
   const nodeFields = tableConfig.detailsConfig?.nodeFields;
   const filterField = tableConfig.detailsConfig?.filterField;
-
+  
   const processedNodeFields = Object.keys(nodeFields ?? {}).join('\n');
 
   // get any Groups this Patient is associated with
@@ -135,7 +135,8 @@ export const ResearchSubjectDetailPanel = ({
               <Table.Tr>
                 <Table.Th>Clinical Trial </Table.Th>
                 <Table.Th>Condition Diagnosis</Table.Th>
-                <Table.Th> Patient Id </Table.Th>
+                <Table.Th>Participant ID</Table.Th>
+                <Table.Th> Patient ID </Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
@@ -147,6 +148,9 @@ export const ResearchSubjectDetailPanel = ({
                   <Text>{row?._valuesCache.condition_Diagnosis}</Text>
                 </Table.Td>
                 <Table.Td>
+                  <Text>{row?._valuesCache.identifier}</Text>
+                </Table.Td>
+                <Table.Td>
                   <Text>{row?._valuesCache.patient_id}</Text>
                 </Table.Td>
               </Table.Tr>
@@ -156,14 +160,16 @@ export const ResearchSubjectDetailPanel = ({
         <Divider size="md" color="#2c2c54" />
         <div className="grid grid-cols-2">
           <SpecimenAggregationCountsChart
-            ids={querySpecimenIds}
-            title={'File Counts by Data Category'}
+            specimenIds={querySpecimenIds}
+            title={'Biopsies by Category'}
             aggField={'data_category'}
+            countField={'specimen_sample_family_id'}
           />
           <SpecimenAggregationCountsChart
-            ids={querySpecimenIds}
+            specimenIds={querySpecimenIds}
             aggField={'assay'}
-            title={'File Counts by Assay'}
+            title={'Biopsies by Assay'}
+            countField={'specimen_sample_family_id'}
           />
         </div>
         <Divider size="md" color="#2c2c54" />
