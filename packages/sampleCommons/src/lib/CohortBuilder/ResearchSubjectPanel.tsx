@@ -1,7 +1,6 @@
 import {
   Group,
   LoadingOverlay,
-  Table,
   Text,
   Title,
   CopyButton,
@@ -28,8 +27,9 @@ import { TimeSeriesAssaySummaryModal } from './ResearchSubjectModal/TimeSeriesMo
 import { extractData, isQueryResponse, useFilteredGroupMembers } from './ResearchSubjectModal/tools';
 import { QueryContent, ResourceDict } from './types';
 import React from 'react';
+import SimpleTable from '../../../../frontend/src/features/SimpleTable/SimpleTable';
 
-export const ResearchSubjectDetailPanel = ({
+export const ResearchSubjectDetailsPanel = ({
   id, // The table value corresponding to the column name 'idField'
   row,
   tableConfig,
@@ -114,6 +114,13 @@ export const ResearchSubjectDetailPanel = ({
       )
     : {};
 
+  const subjectTableData = {
+    'Clinical Trial': row?._valuesCache.project_id as string,
+    'Condition Diagnosis': row?._valuesCache.condition_Diagnosis as string,
+    'Participant ID': row?._valuesCache.identifier as string,
+    'Patient ID': row?._valuesCache.patient_id as string
+  };
+
   return !isLoading ? (
     <React.Fragment>
       <LoadingOverlay visible={isLoading} />
@@ -130,34 +137,9 @@ export const ResearchSubjectDetailPanel = ({
           </div>
         </div>
         <div className="pb-5">
-          <Table withTableBorder withColumnBorders>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Clinical Trial </Table.Th>
-                <Table.Th>Condition Diagnosis</Table.Th>
-                <Table.Th>Participant ID</Table.Th>
-                <Table.Th> Patient ID </Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              <Table.Tr key={`${row?._valuesCache.id}`}>
-                <Table.Td>
-                  <Text fw={500}>{row?._valuesCache.project_id}</Text>
-                </Table.Td>
-                <Table.Td>
-                  <Text>{row?._valuesCache.condition_Diagnosis}</Text>
-                </Table.Td>
-                <Table.Td>
-                  <Text>{row?._valuesCache.identifier}</Text>
-                </Table.Td>
-                <Table.Td>
-                  <Text>{row?._valuesCache.patient_id}</Text>
-                </Table.Td>
-              </Table.Tr>
-            </Table.Tbody>
-          </Table>
+          <SimpleTable data={subjectTableData} />
         </div>
-        <Divider size="md" color="#2c2c54" />
+        <Divider size="md" color="black" />
         <div className="grid grid-cols-2">
           <SpecimenAggregationCountsChart
             specimenIds={querySpecimenIds}
@@ -172,7 +154,7 @@ export const ResearchSubjectDetailPanel = ({
             countField={'specimen_sample_family_id'}
           />
         </div>
-        <Divider size="md" color="#2c2c54" />
+        <Divider size="md" color="black" />
         <div className="text-center p-5">
           <Title order={3}>Specimen Information Table</Title>
         </div>
@@ -231,6 +213,6 @@ export const ResearchSubjectDetailPanel = ({
 export const registerCustomExplorerResearchSubjectDetailsPanels = () => {
   ExplorerTableDetailsPanelFactory().registerRendererCatalog({
     // NOTE: The catalog name must be tableDetails
-    tableDetails: { researchSubject: ResearchSubjectDetailPanel }, // TODO: add simpler registration function that ensures the catalog name is tableDetails
+    tableDetails: { researchSubject: ResearchSubjectDetailsPanel }, // TODO: add simpler registration function that ensures the catalog name is tableDetails
   });
 };

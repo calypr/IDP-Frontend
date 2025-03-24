@@ -167,23 +167,20 @@
       ],
       "detailsConfig": {
         "classNames": "px-5",
-        "panel": "resourceDetails",
+        "panel": "specimenDetails",
         "mode": "click",
         "idField": "id",
         "filterField": "specimen_id",
         "title": "identifier",
         "nodeType": "file",
         "nodeFields": {
-          "Title": "title",
-          "Content_Type": "contentType",
-          "File_Size": "size",
-          "Md5sum": "md5",
-          "Source_Path": "source_path",
-          "Project_Id": "project_id",
-          "Creation_Date": "creation",
-          "Specimen_BEMS_Identifier": "specimen_identifier",
-          "File_Download": "id",
-          "Identifier": "identifier"
+          "title": "File Name",
+          "size": "size",
+          "contentType": "File Format",
+          "assay": "Assay",
+          "level": "Level",
+          "molecule_type": "Molecule Type",
+          "data_category": "Data Category"
         }
       }
     },
@@ -205,7 +202,7 @@
     }
   },
   {
-    "tabTitle": "PatientMedication",
+    "tabTitle": "Patient Medication",
     "filters": {
       "tabs": [
         {
@@ -337,6 +334,9 @@
           "width": "32px",
           "params": {}
         },
+        "contentType": {
+          "title": "Content Type"
+        },
         "specimen_identifier": {
           "title": "BEMS ID"
         },
@@ -345,6 +345,12 @@
         },
         "title": {
           "title": "Filename"
+        },
+        "parent_bems_id": {
+          "title": "Parent BEMS ID"
+        },
+        "md5": {
+          "title": "MD5"
         }
       },
       "detailsConfig": {

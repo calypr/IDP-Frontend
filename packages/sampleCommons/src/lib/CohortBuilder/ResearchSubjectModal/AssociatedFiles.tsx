@@ -308,7 +308,7 @@ export const AssayCheckboxChart = ({
               <Checkbox
                 key={index}
                 checked={true}
-                defaultChecked
+                readOnly
                 color="#32CD32"
                 size="lg"
               />
