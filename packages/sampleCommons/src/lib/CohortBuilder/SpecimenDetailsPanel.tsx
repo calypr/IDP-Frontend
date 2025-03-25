@@ -4,6 +4,7 @@ import {
   Title,
   ScrollArea,
   Divider,
+  Box,
 } from '@mantine/core';
 import { fieldNameToTitle, useGeneralGQLQuery } from '@gen3/core';
 import { MatchingTable } from '@gen3/frontend';
@@ -17,6 +18,7 @@ import React from 'react';
 import SimpleTable from '../../../../frontend/src/features/SimpleTable/SimpleTable';
 import { useFilesQuery } from './ResearchSubjectModal/AssociatedFiles';
 import { useGroupToSpecimenMapping } from './ResearchSubjectModal/tools';
+import SpecimenTree from './SpecimenModal/SpecimenTree';
 
 export const SpecimenDetailsPanel = ({
   id, // The table value corresponding to the column name 'idField'
@@ -120,21 +122,40 @@ export const SpecimenDetailsPanel = ({
       <ScrollArea.Autosize maw={'80vw'} mx="auto">
         <div className="text-center">
         <div className="pb-5">
-          <Title className="pb-3 text-center" order={3}> Subject Summary </Title>
+          <Title className="pb-3 text-center" order={3}>
+            Subject Summary
+          </Title>
           <SimpleTable data={subjectTableData} />
         </div>
         <Divider className="pb-5" size="md" color="black" />
         <div className="pb-5">
-          <Title className="pb-3 text-center" order={3}> Specimen Summary </Title>
+          <Title className="pb-3 text-center" order={3}>
+            Specimen Summary
+          </Title>
           <SimpleTable data={specimenTableData} />
         </div>
         <Divider className="pb-5" size="md" color="black" />
         <div className="pb-5">
-          <Title className="pb-3" order={3}> Related Specimens by Sample Family ID: {row?._valuesCache.sample_family_id}</Title>
+          <Title className="pb-3" order={3}>
+            Related Specimens by Sample Family ID: {row?._valuesCache.sample_family_id}
+          </Title>
+          <Box
+            style={{
+              maxHeight: 200,
+              overflowY: 'auto',
+            }}
+          >
+            <SpecimenTree
+              sampleFamilyId={row?._valuesCache.sample_family_id as string}
+              specimenId={id as string}
+            />
+          </Box>
         </div>
         <Divider className="pb-5" size="md" color="black" />
         <div>
-          <Title className="pb-3 text-center" order={3}> File Information Table </Title>
+          <Title className="pb-3 text-center" order={3}>
+            File Information Table
+          </Title>
           <div className="grid">
             <MatchingTable
               isLoading={fileIsLoading}
@@ -151,7 +172,6 @@ export const SpecimenDetailsPanel = ({
   ) : (
       <div className="px-6">
         <Text>
-          {' '}
           Could not load specimen details
         </Text>
       </div>

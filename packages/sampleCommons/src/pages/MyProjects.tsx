@@ -168,7 +168,7 @@ export const ProgramProjectsDisplay = ({ headerProps, footerProps }: NavPageLayo
             {!isAuthZLoading && <TreeView demoData={demoData} />}
           </Container>
         </div>
-        </ProtectedContent>
+      </ProtectedContent>
     </NavPageLayout>
   );
 };
