@@ -142,7 +142,6 @@ export const SpecimenDetailsPanel = ({
     <React.Fragment>
       <LoadingOverlay visible={fileIsLoading} />
       <ScrollArea.Autosize maw={'80vw'} mx="auto">
-        {/* <div className="text-center"> */}
         <div className="flex">
           <Title className="flex-grow pb-3 text-center" order={3}>
             Subject Summary
@@ -169,6 +168,7 @@ export const SpecimenDetailsPanel = ({
             Related Specimens by Sample Family ID: {row?._valuesCache.sample_family_id}
           </Title>
           <SpecimenTree
+            projectId={row?._valuesCache.project_id as string}
             sampleFamilyId={row?._valuesCache.sample_family_id as string}
             specimenId={id as string}
           />
@@ -188,7 +188,6 @@ export const SpecimenDetailsPanel = ({
             />
           </div>
         </div>
-        {/* </div> */}
       </ScrollArea.Autosize>
     </React.Fragment>
   ) : (

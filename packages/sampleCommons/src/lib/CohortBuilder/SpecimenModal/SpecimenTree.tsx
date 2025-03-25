@@ -1,15 +1,16 @@
-import { useGeneralGQLQuery } from "@gen3/core";
-import { UncontrolledTreeEnvironment, Tree, StaticTreeDataProvider, ControlledTreeEnvironment, TreeItem, TreeItemIndex } from 'react-complex-tree';
-import "react-complex-tree/lib/style-modern.css";
-import { extractData, isQueryResponse } from "../ResearchSubjectModal/tools";
-import { QueryContent, ResourceDict } from "../types";
-import { edgesToNestedTree, readTemplate, replaceIdsWithIdentifiers } from "./SpecimenTreeAlgo";
-import { useState } from "react";
+import { useGeneralGQLQuery } from '@gen3/core';
+import { UncontrolledTreeEnvironment, Tree, StaticTreeDataProvider } from 'react-complex-tree';
+import 'react-complex-tree/lib/style-modern.css';
+import { extractData, isQueryResponse } from '../ResearchSubjectModal/tools';
+import { QueryContent, ResourceDict } from '../types';
+import { edgesToNestedTree, readTemplate, replaceIdsWithIdentifiers } from './SpecimenTreeAlgo';
 
 const SpecimenTree = ({
+    projectId, // required in case the same sample family ids is used across projects
     sampleFamilyId, // The table value corresponding to the column name 'idField'
     specimenId,
   }: {
+    projectId: string;
     sampleFamilyId: string;
     specimenId: string;
   }) => {
@@ -27,7 +28,12 @@ const SpecimenTree = ({
           AND: [
             {
               EQ: {
-                  sample_family_id: `${sampleFamilyId}`,
+                project_id: `${projectId}`,
+              }
+            },
+            {
+              EQ: {
+                sample_family_id: `${sampleFamilyId}`,
               }
             }
           ]
@@ -54,20 +60,14 @@ const SpecimenTree = ({
     const identifierTree = replaceIdsWithIdentifiers(idToIdentifierMap, nestedTree);
     const treeWithRoot = {
       root: identifierTree
-      // root: {
-      //   [sampleFamilyId]: Object.keys(identifierTree).length == 0
-      //     ? null
-      //     : identifierTree
-      // }
     };
-    console.log("treeWithRoot:", treeWithRoot);
+
     const formattedTree = readTemplate(treeWithRoot);
-    console.log("tree:", formattedTree);
 
     const focus = idToIdentifierMap[specimenId];
     const dataProvider = new StaticTreeDataProvider(formattedTree.items, (item, data) => ({ ...item, data }));
     
-    // convert tree into 
+    // render tree using react complex tree
     return !familyIsLoading ? (
     <UncontrolledTreeEnvironment
       dataProvider={dataProvider}
