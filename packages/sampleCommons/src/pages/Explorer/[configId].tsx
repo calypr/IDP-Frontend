@@ -1,22 +1,21 @@
 import {
-  ContentSource,
   getNavPageLayoutPropsFromConfig,
   NavPageLayout,
   NavPageLayoutProps,
 } from '@gen3/frontend';
-
 import React from 'react';
 import { CohortBuilder, ExplorerPageProps } from '@gen3/frontend';
 import { Center } from '@mantine/core';
 import { GetServerSideProps } from 'next';
-import { GEN3_COMMONS_NAME } from '@gen3/core';
+import { GEN3_API } from '@gen3/core';
 
 const CohortBuilderPage = ({
   headerProps,
   footerProps,
   explorerConfig,
 }: ExplorerPageProps): JSX.Element => {
-  if (explorerConfig === undefined) {
+  if (explorerConfig === null) {
+    // Changed from undefined to null
     return (
       <Center maw={400} h={100} mx="auto">
         <div>Cohort config is not defined. Page disabled</div>
@@ -42,24 +41,37 @@ export const getServerSideProps: GetServerSideProps<
   NavPageLayoutProps
 > = async (context) => {
   const configId = context.query.configId as string;
+  const baseUrl = `${GEN3_API}/ExplorerConfig`;
+  const configUrl = `${baseUrl}/${configId}`;
+  console.log('CONFIG URL: ', configUrl);
 
   try {
-    const config: any = await ContentSource.get(
-      `config/${GEN3_COMMONS_NAME}/explorer/${configId}.json`,
-    );
+    const response = await fetch(configUrl, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch config: ${response.status}`);
+    }
+
+    const config = await response.json();
+    console.log('RESP: ', config);
 
     return {
       props: {
         ...(await getNavPageLayoutPropsFromConfig()),
-        explorerConfig: config,
+        explorerConfig: config['content'],
       },
     };
   } catch (err) {
-    console.error(err);
+    console.error('Error fetching explorer config:', err);
     return {
       props: {
         ...(await getNavPageLayoutPropsFromConfig()),
-        explorerConfig: undefined,
+        explorerConfig: null, // Changed from undefined to null
       },
     };
   }

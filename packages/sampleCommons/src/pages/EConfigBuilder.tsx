@@ -16,7 +16,11 @@ import {
   Autocomplete,
   Text,
   Loader,
+  Modal,
+  Group,
+  Alert,
 } from '@mantine/core';
+import { useDisclosure } from '@mantine/hooks';
 import {
   NavPageLayout,
   NavPageLayoutProps,
@@ -26,12 +30,12 @@ import {
   type CohortPanelConfig,
   type SummaryChart,
   type SummaryTableColumn,
-  type SummaryTableColumnType,
 } from '@gen3/frontend';
 import {
   useGeneralGQLQuery,
   type FacetDefinition,
   FacetType,
+  GEN3_API,
 } from '@gen3/core';
 import { GetServerSideProps } from 'next';
 import {
@@ -99,6 +103,7 @@ const GraphQLAutocomplete = ({
       onChange={onChange}
       placeholder={placeholder}
       data={suggestions}
+      color="secondary.0"
     />
   );
 };
@@ -219,10 +224,9 @@ type FlexibleColumns = {
   col2: (ChartItem | TableItem)[];
   col3: (ChartItem | TableItem)[];
   col4: (ChartItem | TableItem)[];
-  col5: (ChartItem | TableItem)[];
 };
 
-type ColumnKey = 'col1' | 'col2' | 'col3' | 'col4' | 'col5';
+type ColumnKey = 'col1' | 'col2' | 'col3' | 'col4';
 
 type FilterUnitProps<T extends 'table' | 'filters' | 'charts'> = {
   tabId: string | number;
@@ -248,17 +252,26 @@ const FilterUnit = <T extends 'table' | 'filters' | 'charts'>({
   const [fieldName, setFieldName] = useState('');
   const [labelName, setLabelName] = useState('');
   const [chartType, setChartType] = useState('');
-  const [lastInsertColumn, setLastInsertColumn] = useState<ColumnKey>('col5');
+  const [lastInsertColumn, setLastInsertColumn] = useState<ColumnKey>('col4');
+
+  const distributeItems = (items: any[]) => {
+    const columns: FlexibleColumns = {
+      col1: [],
+      col2: [],
+      col3: [],
+      col4: [],
+    };
+    items.forEach((item, i) => {
+      const colKey = `col${(i % 4) + 1}` as keyof FlexibleColumns;
+      columns[colKey].push(item);
+    });
+    return columns;
+  };
 
   const submitData = () => {
     if (!fieldName || !labelName || (type === 'charts' && !chartType)) {
       return;
     }
-
-    const columnOrder = ['col1', 'col2', 'col3', 'col4', 'col5'];
-    const currentIndex = columnOrder.indexOf(lastInsertColumn);
-    const nextIndex = (currentIndex + 1) % 5;
-    const targetColumn = columnOrder[nextIndex] as ColumnKey;
 
     const newEntry = { id: Date.now() } as T extends 'charts'
       ? ChartItem
@@ -272,22 +285,27 @@ const FilterUnit = <T extends 'table' | 'filters' | 'charts'>({
       (newEntry as TableItem).label = labelName;
     }
 
-    const newColumns: FlexibleColumns = {
-      ...columns,
-      [targetColumn as keyof FlexibleColumns]: [
-        ...(columns[targetColumn] || []),
-        newEntry,
-      ],
-    };
+    const currentItems = [
+      ...columns.col1,
+      ...columns.col2,
+      ...columns.col3,
+      ...columns.col4,
+    ];
+
+    const updatedItems = [...currentItems, newEntry];
+    const newColumns = distributeItems(updatedItems);
+
     setColumns(newColumns);
-    setLastInsertColumn(targetColumn);
+    setLastInsertColumn(
+      `col${((updatedItems.length - 1) % 4) + 1}` as ColumnKey,
+    );
     setFieldName('');
     setLabelName('');
     setChartType('');
   };
 
   const removeData = (tabId: string | number, entryId: number) => {
-    const columnOrder = ['col1', 'col2', 'col3', 'col4', 'col5'] as const;
+    const columnOrder = ['col1', 'col2', 'col3', 'col4'] as const;
     const flatItems: (TableItem | ChartItem)[] = [];
     let removedColId: keyof FlexibleColumns | null = null;
 
@@ -313,10 +331,9 @@ const FilterUnit = <T extends 'table' | 'filters' | 'charts'>({
         col2: [],
         col3: [],
         col4: [],
-        col5: [],
       };
       flatItems.forEach((item, index) => {
-        const colIndex = index % 5;
+        const colIndex = index % 4;
         const colId = columnOrder[colIndex] as keyof FlexibleColumns;
         newColumns[colId].push(item);
       });
@@ -331,7 +348,7 @@ const FilterUnit = <T extends 'table' | 'filters' | 'charts'>({
     const [, sourceColId] = source.droppableId.split('-');
     const [, destColId] = destination.droppableId.split('-');
 
-    const columnOrder = ['col1', 'col2', 'col3', 'col4', 'col5'];
+    const columnOrder = ['col1', 'col2', 'col3', 'col4'];
     const flatItems: (TableItem | ChartItem)[] = [];
     const maxLength = Math.max(
       ...Object.values(columns).map((col) => col.length),
@@ -356,10 +373,9 @@ const FilterUnit = <T extends 'table' | 'filters' | 'charts'>({
       col2: [],
       col3: [],
       col4: [],
-      col5: [],
     };
     flatItems.forEach((item, index) => {
-      const colIndex = index % 5;
+      const colIndex = index % 4;
       const colId = columnOrder[colIndex] as keyof FlexibleColumns;
       newColumns[colId].push(item);
     });
@@ -430,10 +446,34 @@ const FilterUnit = <T extends 'table' | 'filters' | 'charts'>({
 const EConfigBuilder = ({ headerProps, footerProps }: NavPageLayoutProps) => {
   const { sdata, sisLoading } = useGetSchemaQuery();
   const [tabs, setTabs] = useState<Tab[]>([]);
+  const [allTabsTitle, setAllTabsTitle] = useState('');
   const [activeTab, setActiveTab] = useState('');
   const [newTabName, setNewTabName] = useState('');
   const [newTabType, setNewTabType] = useState(''); // State for Tab Type
   const [, setError] = useState('');
+  const [opened, { open, close }] = useDisclosure(false);
+  const [configName, setConfigName] = useState('');
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [postStatus, setPostStatus] = useState<{
+    success: boolean;
+    message: string;
+  } | null>(null);
+  const handlePostConfig = async () => {
+    setPostStatus(null); // Clear previous status
+    const result = await postConfigContent(allTabsTitle, allTabsConfig); // Replace 'config-name' as needed
+    if (result.success) {
+      setPostStatus({
+        success: true,
+        message: 'Configuration posted successfully!',
+      });
+    } else {
+      setPostStatus({
+        success: false,
+        message: result.error || 'Failed to post config',
+      });
+    }
+    setTimeout(() => setPostStatus(null), 3000);
+  };
 
   const addTab = () => {
     if (!newTabName.trim()) {
@@ -450,17 +490,17 @@ const EConfigBuilder = ({ headerProps, footerProps }: NavPageLayoutProps) => {
         {
           title: 'Table Column Names',
           type: 'table' as const,
-          columns: { col1: [], col2: [], col3: [], col4: [], col5: [] },
+          columns: { col1: [], col2: [], col3: [], col4: [] },
         },
         {
           title: 'Filters',
           type: 'filters' as const,
-          columns: { col1: [], col2: [], col3: [], col4: [], col5: [] },
+          columns: { col1: [], col2: [], col3: [], col4: [] },
         },
         {
           title: 'Charts',
           type: 'charts' as const,
-          columns: { col1: [], col2: [], col3: [], col4: [], col5: [] },
+          columns: { col1: [], col2: [], col3: [], col4: [] },
         },
       ],
     };
@@ -489,6 +529,7 @@ const EConfigBuilder = ({ headerProps, footerProps }: NavPageLayoutProps) => {
     setActiveTab('');
     setNewTabName('');
     setNewTabType('');
+    setAllTabsTitle('');
     setError('');
   };
 
@@ -505,98 +546,248 @@ const EConfigBuilder = ({ headerProps, footerProps }: NavPageLayoutProps) => {
     tabType: string;
     filterUnits: FilterUnitType<'table' | 'filters' | 'charts'>[];
   };
+  interface ApiResponse {
+    success: boolean;
+    error?: string;
+  }
 
-  const copyAllContent = () => {
-    const allTabsConfig: CohortPanelConfig[] = tabs.map((tab: Tab) => {
-      const columnOrder = ['col1', 'col2', 'col3', 'col4', 'col5'] as const;
-      const tableItems: TableItem[] = [];
-      const filterItems: TableItem[] = [];
-      const chartItems: ChartItem[] = [];
+  const fetchConfigContent = async (
+    name: string,
+  ): Promise<{ success: boolean; data?: any; error?: string }> => {
+    try {
+      const url = `${GEN3_API}/ExplorerConfig/${name}`;
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
 
-      tab.filterUnits.forEach(
-        (unit: FilterUnitType<'table' | 'filters' | 'charts'>) => {
-          const flatItems: (TableItem | ChartItem)[] = [];
-          const maxLength = Math.max(
-            ...Object.values(unit.columns).map((col) => col.length),
+      if (!response.ok) {
+        throw new Error(`Failed to fetch config: ${response.status}`);
+      }
+
+      const config = await response.json();
+      return { success: true, data: config };
+    } catch (err) {
+      console.error('Error fetching explorer config:', err);
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'Unknown error',
+      };
+    }
+  };
+
+  const postConfigContent = async (
+    name: string,
+    configData: CohortPanelConfig[],
+  ): Promise<ApiResponse> => {
+    try {
+      const url = `${GEN3_API}/ExplorerConfig/${name}`;
+      const response = await fetch(url, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(configData, null, 2),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to post config: ${response.status}`);
+      }
+
+      const config = await response.json();
+      console.log('CONFIG: ', config);
+      return { success: true };
+    } catch (err) {
+      console.error('Error posting explorer config:', err);
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'Unknown error',
+      };
+    }
+  };
+
+  const loadConfig = async () => {
+    if (!configName) {
+      setLoadError('Please enter a config name');
+      return;
+    }
+    setLoadError(null);
+    const result = await fetchConfigContent(configName);
+    if (result.success && result.data) {
+      const { Name, content } = result.data;
+      setAllTabsTitle(Name || '');
+
+      const loadedTabs = content.map(
+        (tabConfig: CohortPanelConfig, index: number) => {
+          const tableItems = Object.entries(tabConfig.table.columns || {}).map(
+            ([field, col]) => ({
+              id: Date.now() + Math.random(),
+              field,
+              label: col.title,
+            }),
           );
-          for (let i = 0; i < maxLength; i++) {
-            columnOrder.forEach((colId) => {
-              const key = colId as keyof ColumnProps<
-                'table' | 'filters' | 'charts'
-              >;
-              if (unit.columns[key as ColumnKey][i]) {
-                flatItems.push(unit.columns[key as ColumnKey][i]);
-              }
-            });
-          }
 
-          if (unit.type === 'table') {
-            tableItems.push(...(flatItems as TableItem[]));
-          } else if (unit.type === 'filters') {
-            filterItems.push(...(flatItems as TableItem[]));
-          } else if (unit.type === 'charts') {
-            chartItems.push(...(flatItems as ChartItem[]));
-          }
+          const filterItems = tabConfig.filters.tabs[0].fields.map(
+            (field: string, idx: number) => ({
+              id: Date.now() + Math.random() + idx,
+              field,
+              label:
+                tabConfig.filters.tabs[0].fieldsConfig[field]?.label || field,
+            }),
+          );
+
+          const chartItems = Object.entries(tabConfig.charts || {}).map(
+            ([field, chart]) => ({
+              id: Date.now() + Math.random(),
+              field,
+              title: chart.title,
+              chartType: chart.chartType,
+            }),
+          );
+
+          const distributeItems = (items: any[]) => {
+            const columns: FlexibleColumns = {
+              col1: [],
+              col2: [],
+              col3: [],
+              col4: [],
+            };
+            items.forEach((item, i) => {
+              const colKey = `col${(i % 4) + 1}` as keyof FlexibleColumns;
+              columns[colKey].push(item);
+            });
+            return columns;
+          };
+
+          return {
+            id: index + 1,
+            label: tabConfig.tabTitle,
+            tabType: tabConfig.guppyConfig.dataType,
+            filterUnits: [
+              {
+                title: 'Table Column Names',
+                type: 'table' as const,
+                columns: distributeItems(tableItems),
+              },
+              {
+                title: 'Filters',
+                type: 'filters' as const,
+                columns: distributeItems(filterItems),
+              },
+              {
+                title: 'Charts',
+                type: 'charts' as const,
+                columns: distributeItems(chartItems),
+              },
+            ],
+          };
         },
       );
 
-      return {
-        tabTitle: tab.label,
-        guppyConfig: {
-          dataType: tab.tabType,
-          nodeCountTitle: `${tab.tabType} Count`,
-          fieldMapping: [],
-        },
-        charts: chartItems.reduce((acc: Record<string, SummaryChart>, item) => {
-          acc[item.field] = {
-            chartType: item.chartType,
-            title: item.title,
-          };
-          return acc;
-        }, {}),
-        filters: {
-          tabs: [
-            {
-              title: 'Filters',
-              fields: filterItems.map(
-                (item) => item.field,
-              ) as readonly string[],
-              fieldsConfig: filterItems.reduce(
-                (acc: Record<string, FacetDefinition>, item) => {
-                  acc[item.field] = {
-                    field: item.field,
-                    dataField: '', // placeholder
-                    index: '', // placeholder
-                    label: item.label,
-                    type: 'enum' as FacetType, // can also be 'multiselect'
-                  };
-                  return acc;
-                },
-                {},
-              ),
-            },
-          ],
-        } as TabsConfig,
-        table: {
-          enabled: true,
-          fields: tableItems.map((item) => item.field) as readonly string[],
-          columns: tableItems.reduce(
-            (acc: Record<string, SummaryTableColumn>, item) => {
-              acc[item.field] = {
-                field: item.field,
-                title: item.label,
-              };
-              return acc;
-            },
-            {},
-          ),
-        } as SummaryTable,
-        dropdowns: {},
-        buttons: [],
-        loginForDownload: false,
-      };
-    });
+      setTabs(loadedTabs);
+      if (loadedTabs.length > 0) {
+        setActiveTab(loadedTabs[0].id.toString());
+      }
+      close(); // Close modal on success
+      setConfigName(''); // Reset input
+    } else {
+      setError(result.error || 'Failed to load config');
+      setLoadError(result.error || 'Failed to load config');
+      setTimeout(() => setError(''), 3000);
+    }
+  };
 
+  const allTabsConfig: CohortPanelConfig[] = tabs.map((tab: Tab) => {
+    const columnOrder = ['col1', 'col2', 'col3', 'col4'] as const;
+    const tableItems: TableItem[] = [];
+    const filterItems: TableItem[] = [];
+    const chartItems: ChartItem[] = [];
+
+    tab.filterUnits.forEach(
+      (unit: FilterUnitType<'table' | 'filters' | 'charts'>) => {
+        const flatItems: (TableItem | ChartItem)[] = [];
+        const maxLength = Math.max(
+          ...Object.values(unit.columns).map((col) => col.length),
+        );
+        for (let i = 0; i < maxLength; i++) {
+          columnOrder.forEach((colId) => {
+            const key = colId as keyof ColumnProps<
+              'table' | 'filters' | 'charts'
+            >;
+            if (unit.columns[key as ColumnKey][i]) {
+              flatItems.push(unit.columns[key as ColumnKey][i]);
+            }
+          });
+        }
+
+        if (unit.type === 'table') {
+          tableItems.push(...(flatItems as TableItem[]));
+        } else if (unit.type === 'filters') {
+          filterItems.push(...(flatItems as TableItem[]));
+        } else if (unit.type === 'charts') {
+          chartItems.push(...(flatItems as ChartItem[]));
+        }
+      },
+    );
+
+    return {
+      tabTitle: tab.label,
+      guppyConfig: {
+        dataType: tab.tabType,
+        nodeCountTitle: `${tab.tabType} Count`,
+        fieldMapping: [],
+      },
+      charts: chartItems.reduce((acc: Record<string, SummaryChart>, item) => {
+        acc[item.field] = {
+          chartType: item.chartType,
+          title: item.title,
+        };
+        return acc;
+      }, {}),
+      filters: {
+        tabs: [
+          {
+            title: 'Filters',
+            fields: filterItems.map((item) => item.field) as readonly string[],
+            fieldsConfig: filterItems.reduce(
+              (acc: Record<string, FacetDefinition>, item) => {
+                acc[item.field] = {
+                  field: item.field,
+                  dataField: '', // placeholder
+                  index: '', // placeholder
+                  label: item.label,
+                  type: 'enum' as FacetType, // can also be 'multiselect'
+                };
+                return acc;
+              },
+              {},
+            ),
+          },
+        ],
+      } as TabsConfig,
+      table: {
+        enabled: true,
+        fields: tableItems.map((item) => item.field) as readonly string[],
+        columns: tableItems.reduce(
+          (acc: Record<string, SummaryTableColumn>, item) => {
+            acc[item.field] = {
+              field: item.field,
+              title: item.label,
+            };
+            return acc;
+          },
+          {},
+        ),
+      } as SummaryTable,
+      dropdowns: {},
+      buttons: [],
+      loginForDownload: false,
+    };
+  });
+
+  const copyAllContent = () => {
     navigator.clipboard.writeText(JSON.stringify(allTabsConfig, null, 2));
   };
 
@@ -628,6 +819,66 @@ const EConfigBuilder = ({ headerProps, footerProps }: NavPageLayoutProps) => {
                     >
                       Copy Config
                     </Button>
+                    <Button
+                      onClick={handlePostConfig}
+                      variant="outline"
+                      color="primary.0"
+                      className="px-4 py-2"
+                      disabled={!tabs.length}
+                    >
+                      Post Config
+                    </Button>
+                    {postStatus && (
+                      <Alert
+                        color={postStatus.success ? 'green' : 'red'}
+                        title={postStatus.success ? 'Success' : 'Error'}
+                        mt="xs"
+                        withCloseButton
+                        onClose={() => setPostStatus(null)}
+                      >
+                        <Text size="sm">{postStatus.message}</Text>
+                      </Alert>
+                    )}
+
+                    <Button
+                      onClick={open}
+                      variant="outline"
+                      color="primary.0"
+                      className="px-4 py-2"
+                    >
+                      Load Config
+                    </Button>
+                    <Modal
+                      opened={opened}
+                      onClose={() => {
+                        close();
+                        setLoadError(null); // Clear error when closing
+                      }}
+                      title="Load Configuration"
+                      centered
+                    >
+                      <TextInput
+                        value={configName}
+                        onChange={(e) => setConfigName(e.target.value)}
+                        placeholder="Enter config name"
+                        label="Config Name"
+                        required
+                        error={loadError} // Display error below input
+                      />
+                      <Group justify="flex-end" mt="md">
+                        <Button onClick={close} variant="subtle" color="gray">
+                          Cancel
+                        </Button>
+                        <Button
+                          onClick={loadConfig}
+                          color="primary.0"
+                          disabled={!configName}
+                        >
+                          Load
+                        </Button>
+                      </Group>
+                    </Modal>
+
                     <Button
                       onClick={() => {
                         if (
@@ -679,6 +930,12 @@ const EConfigBuilder = ({ headerProps, footerProps }: NavPageLayoutProps) => {
                 ))}
               </Box>
               <Box className="flex items-center space-x-2 shrink-0 pb-2">
+                <TextInput
+                  value={allTabsTitle}
+                  onChange={(e) => setAllTabsTitle(e.target.value)}
+                  placeholder="Config Page Name"
+                  className="w-40 mx-2"
+                />
                 <TextInput
                   value={newTabName}
                   onChange={(e) => setNewTabName(e.target.value)}
