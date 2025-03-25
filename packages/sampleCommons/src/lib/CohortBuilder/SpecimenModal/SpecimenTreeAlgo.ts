@@ -1,14 +1,3 @@
-// Input edges list
-const edges = [
-    ['1', '2'],
-    ['2', '3'],
-    ['5', '4'],
-    ['7', '6'],
-    ['6', '5'],
-    ['6', '8'],
-    [null, '9'],
-] as Array<Array<string>>;
-
 // Main function to convert edges to nested tree
 // Build the children map
 export const edgesToNestedTree = (edges: Array<Array<string>>) => {
@@ -34,16 +23,20 @@ export const edgesToNestedTree = (edges: Array<Array<string>>) => {
 // Step 1: Build the initial dictionary of children
 const buildChildrenMap = (edges: Array<Array<string>>): Record<string,any> => {
     const tree = {} as Record<string,any>;
-    console.log("edges:", edges);
     for (const [parent, child] of edges) {
-        // handle specimens with no parent
-        if (!parent) {
-            tree[child] = [];
-            continue;
-        }
 
+        // initialize specimen with no parent if it's not already in the tree
+        // otherwise nothing needs to be added
+        if (!parent){
+          if (!(child in tree)){
+            tree[child] = [];
+          }
+          continue;
+        }
+        
+        // add parent if they're not in the tree
         if (!(parent in tree)) {
-            tree[parent] = [];
+          tree[parent] = [];
         }
         tree[parent].push(child);
     }
@@ -83,11 +76,6 @@ const findRootNodes = (tree: Record<string,any>) => {
     );
 };
 
-// Run the conversion and log the result
-const nestedTree = edgesToNestedTree(edges);
-
-console.log(JSON.stringify(nestedTree, null, 2));
-
 export const replaceIdsWithIdentifiers = (idMap: Record<string,string>, nestedDict: Record<string,any>): Record<string,any> => {
   if (Array.isArray(nestedDict)) {
     return nestedDict.map(item => replaceIdsWithIdentifiers(idMap, item));
@@ -105,9 +93,9 @@ export const replaceIdsWithIdentifiers = (idMap: Record<string,string>, nestedDi
   return nestedDict; // base case: primitive value
 };
 
-export const readTemplate = (template: any, data: any = { items: {} }) => {
+// read a nested tree of format {a: {b: {c: null}}, d} and convert it to react complex tree format
+export const readTemplate = (template: Record<string, any>, data: Record<string, any> = { items: {} }) => {
   for (const [key, value] of Object.entries(template)) {
-    console.log("templated data:", data)
     data.items[key] = {
       index: key,
       canMove: true,

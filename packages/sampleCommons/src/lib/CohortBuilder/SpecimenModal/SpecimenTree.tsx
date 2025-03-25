@@ -26,16 +26,14 @@ const SpecimenTree = ({
         filter: {
           AND: [
             {
-              IN: {
-                  sample_family_id: [`${sampleFamilyId}`],
+              EQ: {
+                  sample_family_id: `${sampleFamilyId}`,
               }
             }
           ]
         },
       },
     });
-
-    console.log("specimenFamilyData:", specimenFamilyData);
 
     // map specimen id to identifier
     const specimenDicts = isQueryResponse(specimenFamilyData)
@@ -49,48 +47,25 @@ const SpecimenTree = ({
 
     // convert to edge list from parent to child
     const edges = specimenDicts.map((specimen: ResourceDict) => [specimen.parent, specimen.id]);
-    console.log("edges:", edges);
 
     const nestedTree = edgesToNestedTree(edges);
 
     // format tree with identifiers
-    console.log("EHEJHE:",)
     const identifierTree = replaceIdsWithIdentifiers(idToIdentifierMap, nestedTree);
     const treeWithRoot = {
       root: identifierTree
       // root: {
-        // [sampleFamilyId]: Object.keys(identifierTree).length == 0
-        //   ? null
-        //   : identifierTree
+      //   [sampleFamilyId]: Object.keys(identifierTree).length == 0
+      //     ? null
+      //     : identifierTree
       // }
     };
     console.log("treeWithRoot:", treeWithRoot);
     const formattedTree = readTemplate(treeWithRoot);
     console.log("tree:", formattedTree);
 
-    // const identifierTree = replaceIdsWithIdentifiers(idToIdentifierMap, nestedTree);
-    // const formattedTree = readTemplate(identifierTree, specimenId);
-    // console.log("tree:", formattedTree);
-
-    // // add sample family ID as visible root
-    // const treeWithRoot = {
-    //   [sampleFamilyId]: {
-    //     index: sampleFamilyId,
-    //     isFolder: true,
-    //     children: formattedTree?.root?.children,
-    //     data: sampleFamilyId,
-    //   },
-    //   root: {
-    //     children: [sampleFamilyId],
-    //     ...formattedTree.root
-    //   },
-    //   ...formattedTree.items
-    // };
     const focus = idToIdentifierMap[specimenId];
     const dataProvider = new StaticTreeDataProvider(formattedTree.items, (item, data) => ({ ...item, data }));
-
-    const [expandedItems, setExpandedItems] = useState([] as TreeItemIndex[]);
-
     
     // convert tree into 
     return !familyIsLoading ? (
@@ -99,14 +74,13 @@ const SpecimenTree = ({
       getItemTitle={item => item.data}
       viewState={{
         ['specimen-tree']: {
-          expandedItems
-        }
-      }}
-      renderItemTitle={({ title }) => title !== focus ? title : <strong>{title}</strong>}
+          expandedItems: [sampleFamilyId],
+      }}}
+      renderItemTitle={({title}) => title !== focus ? title : (<strong>{title}</strong>)}
     >
       <Tree treeId="specimen-tree" rootItem="root" treeLabel="Tree Example" />
     </UncontrolledTreeEnvironment>)
-    : <div>Loading...</div>;
+    : <div>Loading Specimen Tree...</div>;
 }; 
 
 export default SpecimenTree;

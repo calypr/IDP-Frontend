@@ -17,14 +17,13 @@ import React from 'react';
   
 import SimpleTable from '../../../../frontend/src/features/SimpleTable/SimpleTable';
 import { useFilesQuery } from './ResearchSubjectModal/AssociatedFiles';
-import { useGroupToSpecimenMapping } from './ResearchSubjectModal/tools';
+import { extractData, isQueryResponse, useGroupToSpecimenMapping } from './ResearchSubjectModal/tools';
 import SpecimenTree from './SpecimenModal/SpecimenTree';
 
 export const SpecimenDetailsPanel = ({
   id, // The table value corresponding to the column name 'idField'
   row,
   tableConfig,
-  onClose,
 }: TableDetailsPanelProps) => {
   const idField = tableConfig.detailsConfig?.idField;
   const nodeType = tableConfig.detailsConfig?.nodeType;
@@ -61,14 +60,9 @@ export const SpecimenDetailsPanel = ({
     'Tissue Type': row?._valuesCache.tissue_type as string,
     'Percent Tumor': row?._valuesCache.percent_tumor as string,
   };
-
-  const { data: fileData, isLoading: fileIsLoading, isError: fileIsError } = useFilesQuery([`${id}`], true);
-  console.log("fileData:", fileData);
-  //The filters in this query assume that the patient ID is unique across all other projects.
-
-  const specimenIdArr = [`${id}`];
   
   // map group id to the patient's specimens
+  const specimenIdArr = [`${id}`];
   const {data: groupSpecimensMap, isLoading: groupIsLoading, isError: groupIsError} = useGroupToSpecimenMapping(specimenIdArr);
 
   // get files matching specimen or group ID
@@ -103,7 +97,35 @@ export const SpecimenDetailsPanel = ({
       },
     },
   });
-  console.log("data on files:", data);
+  
+  // get file counts
+  const { data: fileCountData, isLoading: fileIsLoading, isError: fileIsError } = useGeneralGQLQuery({
+    query: `query ($filter: JSON) {
+              _aggregation{
+                file(filter: $filter){
+                  _totalCount
+                }
+              }
+            }`,
+    variables: {
+      filter: {
+        AND: [
+          {
+            EQ: {
+                specimen_id: `${id}`,
+            }
+          }
+        ]
+      },
+    },
+  });
+  console.log("specimen", id);
+
+  console.log("fileCountData", fileCountData);
+
+  const numFiles = isQueryResponse(fileCountData)
+      ? extractData(fileCountData, 'file', '').length
+      : '';
 
   if (!idField || idField === null) {
     return (
@@ -120,11 +142,18 @@ export const SpecimenDetailsPanel = ({
     <React.Fragment>
       <LoadingOverlay visible={fileIsLoading} />
       <ScrollArea.Autosize maw={'80vw'} mx="auto">
-        <div className="text-center">
-        <div className="pb-5">
-          <Title className="pb-3 text-center" order={3}>
+        {/* <div className="text-center"> */}
+        <div className="flex">
+          <Title className="flex-grow pb-3 text-center" order={3}>
             Subject Summary
           </Title>
+          <div className="ml-auto flex-shrink-0 text-right">
+            <Text>
+              {numFiles} Files
+            </Text>
+          </div>
+        </div>
+        <div className="flex pb-5">
           <SimpleTable data={subjectTableData} />
         </div>
         <Divider className="pb-5" size="md" color="black" />
@@ -136,20 +165,13 @@ export const SpecimenDetailsPanel = ({
         </div>
         <Divider className="pb-5" size="md" color="black" />
         <div className="pb-5">
-          <Title className="pb-3" order={3}>
+          <Title className="pb-3 text-center" order={3}>
             Related Specimens by Sample Family ID: {row?._valuesCache.sample_family_id}
           </Title>
-          <Box
-            style={{
-              maxHeight: 200,
-              overflowY: 'auto',
-            }}
-          >
-            <SpecimenTree
-              sampleFamilyId={row?._valuesCache.sample_family_id as string}
-              specimenId={id as string}
-            />
-          </Box>
+          <SpecimenTree
+            sampleFamilyId={row?._valuesCache.sample_family_id as string}
+            specimenId={id as string}
+          />
         </div>
         <Divider className="pb-5" size="md" color="black" />
         <div>
@@ -166,7 +188,7 @@ export const SpecimenDetailsPanel = ({
             />
           </div>
         </div>
-        </div>
+        {/* </div> */}
       </ScrollArea.Autosize>
     </React.Fragment>
   ) : (
