@@ -621,7 +621,7 @@ const EConfigBuilder = ({ headerProps, footerProps }: NavPageLayoutProps) => {
 
       const loadedTabs = content.map(
         (tabConfig: CohortPanelConfig, index: number) => {
-          const tableItems = Object.entries(tabConfig.table.columns || {}).map(
+          const tableItems = Object.entries(tabConfig.table?.columns || {}).map(
             ([field, col]) => ({
               id: Date.now() + Math.random(),
               field,
@@ -629,12 +629,12 @@ const EConfigBuilder = ({ headerProps, footerProps }: NavPageLayoutProps) => {
             }),
           );
 
-          const filterItems = tabConfig.filters.tabs[0].fields.map(
+          const filterItems = tabConfig.filters?.tabs[0].fields.map(
             (field: string, idx: number) => ({
               id: Date.now() + Math.random() + idx,
               field,
               label:
-                tabConfig.filters.tabs[0].fieldsConfig[field]?.label || field,
+                tabConfig.filters?.tabs[0].fieldsConfig[field]?.label || field,
             }),
           );
 
@@ -674,7 +674,7 @@ const EConfigBuilder = ({ headerProps, footerProps }: NavPageLayoutProps) => {
               {
                 title: 'Filters',
                 type: 'filters' as const,
-                columns: distributeItems(filterItems),
+                columns: distributeItems(filterItems ?? []),
               },
               {
                 title: 'Charts',

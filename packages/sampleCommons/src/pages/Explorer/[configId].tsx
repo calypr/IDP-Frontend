@@ -43,7 +43,6 @@ export const getServerSideProps: GetServerSideProps<
   const configId = context.query.configId as string;
   const baseUrl = `${GEN3_API}/ExplorerConfig`;
   const configUrl = `${baseUrl}/${configId}`;
-  console.log('CONFIG URL: ', configUrl);
 
   try {
     const response = await fetch(configUrl, {
@@ -58,7 +57,6 @@ export const getServerSideProps: GetServerSideProps<
     }
 
     const config = await response.json();
-    console.log('RESP: ', config);
 
     return {
       props: {
