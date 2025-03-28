@@ -111,23 +111,23 @@ export interface TopBarProps {
 }
 
 const TopBar = ({ title, items, classNames, logo }: TopBarProps) => {
-  logo!.basepage = title === 'Gen3 Landing Page';
+  logo!.basepage = title === 'CALIPER Landing Page';
 
   const defaultClassNames = {
     root:
-      title === 'Gen3 Landing Page'
+      title === 'CALIPER Landing Page'
         ? 'flex justify-end items-center align-middle px-2 border-r-2 bg-white border-black'
         : 'flex justify-end items-center align-middle px-2 border-r-2 bg-primary border-primary',
     label:
-      title === 'Gen3 Landing Page'
+      title === 'CALIPER Landing Page'
         ? 'font-content text-black block align-middle'
         : 'font-content text-white block align middle',
     button:
-      title === 'Gen3 Landing Page'
+      title === 'CALIPER Landing Page'
         ? 'flex flex-nowrap items-center align-middle border-b-2 border-white hover:border-black'
         : 'flex flex-nowrap items-center align-middle border-b-2 px-2 hover:border-white',
     loginMenu:
-      title === 'Gen3 Landing Page'
+      title === 'CALIPER Landing Page'
         ? 'mx-2 text-black border-b-2 border-transparent hover:border-black'
         : 'mx-2 text-white border-b-2 border-transparent hover:border-white',
   };

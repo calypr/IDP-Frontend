@@ -97,7 +97,7 @@ const AppsPage = ({ headerProps, footerProps, appsConfig }: AppsPageProps) => {
     <NavPageLayout
       {...{ headerProps, footerProps }}
       headerData={{
-        title: 'Gen3 Apps Page',
+        title: 'CALIPER Homepage',
         content: 'Apps',
         key: 'gen3-apps',
       }}

@@ -12,9 +12,9 @@ const ProfilePage = ({ headerProps, footerProps, profileConfig }: Props) => {
     <NavPageLayout
       {...{ headerProps, footerProps }}
       headerData={{
-        title: 'Gen3 Profile Page',
+        title: 'CALIPER Profile Page',
         content: 'Profile page',
-        key: 'gen3-profile-page',
+        key: 'caliper-profile-page',
       }}
     >
       <Profile profileConfig={profileConfig} />

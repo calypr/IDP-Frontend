@@ -15,7 +15,7 @@ const AuthzPage = ({ headerProps, footerProps, authz }: Props) => {
       {...{ headerProps, footerProps }}
       headerProps={headerProps}
       headerData={{
-        title: 'Gen3 Authz Editor Page',
+        title: 'CALIPER Authz Editor Page',
         content: 'Authz Editor page',
         key: 'gen3-authz-editor-page',
       }}
