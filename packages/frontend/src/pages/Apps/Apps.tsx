@@ -3,8 +3,6 @@ import {
   MantineProvider,
   Loader,
   Alert,
-  CloseButton,
-  Text,
 } from '@mantine/core';
 import { AppsPageProps } from './types';
 import { NavPageLayout } from '../../features/Navigation';
@@ -17,6 +15,7 @@ import {
 import AppCard from './AppCard';
 import { ProtectedContent } from '../../components/Protected';
 import { useFileTotalCountQuery } from './fetchFileCounts';
+import EqualHeightCards from './EqualHeightCards';
 
 export function SummaryStatsBanner(authz: any) {
   const [visible, setVisible] = useState(true);
@@ -49,14 +48,14 @@ export function SummaryStatsBanner(authz: any) {
 }
 
 const AppsPage = ({ headerProps, footerProps, appsConfig }: AppsPageProps) => {
-  const { data: authzMapping = {}, isLoading: isAuthZLoading } =
-    useGetAuthzMappingsQuery();
-
+  // define the content to be returned
+  const { data: authzMapping = {}, isLoading: isAuthZLoading } = useGetAuthzMappingsQuery();
   const content = isAuthZLoading ? (
     <div className="fixed inset-0 flex justify-center items-center bg-gray-700 bg-opacity-50 z-50">
       <Loader size={30} />
     </div>
   ) : (
+    <EqualHeightCards>
     <div>
       <div className="flex flex-col">
         <SummaryStatsBanner authz={authzMapping} />
@@ -90,9 +89,10 @@ const AppsPage = ({ headerProps, footerProps, appsConfig }: AppsPageProps) => {
           ))}
       </div>
     </div>
+    </EqualHeightCards>
   );
-  
 
+  // return with protected and general page navbar
   return (
     <NavPageLayout
       {...{ headerProps, footerProps }}
