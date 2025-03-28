@@ -63,12 +63,9 @@ flex truncate ... px-2 py-1 bg-base-max h-full
 `;
 
 const QueryFieldLabel = tw.div`
-bg-accent-cool-lightest
-text-base-darkest
-uppercase
-px-1
-border-primary-darkest
-border-r-[1.5px]
+bg-primary
+text-base-max
+px-1.5
 flex
 items-center
 `;
@@ -80,10 +77,11 @@ font-heading
 shadow-md
 font-medium
 text-sm
-border-[1.5px]
 mr-1
 mb-2
-border-secondary-darkest
+border-primary
+rounded-sm
+overflow-hidden
 w-inherit
 `;
 
@@ -178,17 +176,17 @@ const IncludeExcludeQueryElement = ({
           });
         }}
         color="accent"
-        className="ml-1 my-auto hover:bg-accent-darker hover:bg-primary]"
+        className="ml-1 my-auto hover:bg-secondary]"
         aria-label={expanded ? `collapse ${fieldName}` : `expand ${fieldName}`}
         aria-expanded={expanded}
       >
-        {expanded ? <LeftArrow /> : <RightArrow />}
+        {expanded ? <LeftArrow className="text-base-dark" /> : <RightArrow className="text-base-dark" />}
       </ActionIcon>
       <Divider
         orientation="vertical"
         size="xs"
         className="m-1"
-        color="base.2"
+        color="base.6"
       />
       {!expanded ? (
         <b className="text-primary-darkest px-2 py-1 flex items-center">
@@ -206,8 +204,9 @@ const IncludeExcludeQueryElement = ({
                   variant="filled"
                   color="primary.0"
                   size="md"
+                  radius="sm"
                   pr={0}
-                  className="normal-case items-center max-w-[162px] cursor-pointer pl-0 pr-0 hover:bg-accent-darker"
+                  className="normal-case items-center max-w-[162px] cursor-pointer px-1 hover:bg-secondary"
                   rightSection={<RemoveButton value={value} />}
                   onClick={() => {
                     const newOperands = operandsArray.filter((o) => o !== x);
@@ -376,7 +375,7 @@ export const QueryElement = ({
     });
   };
 
-  return (
+return (
     <QueryItemContainer>
       {children}
       {/* ---
@@ -386,7 +385,7 @@ export const QueryElement = ({
       </button>
       -- */}
       <button
-        className="bg-primary p-0 m-0 h-full rounded-r-sm text-white hover:bg-accent-darker"
+        className="bg-primary p-0 m-0 h-full text-white hover:bg-secondary"
         onClick={handleRemoveFilter}
         aria-label={`remove ${fieldNameToTitle(field)}`}
       >

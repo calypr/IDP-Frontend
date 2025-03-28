@@ -26,12 +26,9 @@ import { useClearFilters } from '../../components/facets/hooks';
 const QueryExpressionContainer = tw.div`
   flex
   items-center
-  bg-base-min
+  bg-base-max
   shadow-[0_-2px_6px_0_rgba(0,0,0,0.16)]
-  border-1
-  border-l-4
-  my-4
-  mx-3
+  rounded-sm
 `;
 
 const MAX_HEIGHT_QE_SECTION = 120;
@@ -152,14 +149,14 @@ const QueryExpressionSection : React.FC<QueryExpressionSectionProps> = ({
       <QueryExpressionsExpandedContext.Provider
         value={[expandedState[currentCohortId], setExpandedState]}
       >
-        <div className="flex flex-col w-full bg-primary">
+        <div className="flex flex-col w-full bg-primary rounded-sm">
           <div
             data-testid="text-cohort-filters-top-row"
-            className="flex flex-row py-2 items-center border-b-1"
+            className="flex flex-row py-2 items-center border-b-1 border-base-max] rounded-t-sm"
           >
             <OverflowTooltippedLabel
               label={currentCohortName}
-              className="font-bold text-secondary-contrast-darkest ml-3 max-w-[260px]"
+              className="font-bold text-secondary-contrast-darkest ml-3 max-w-[260px] rounded-sm"
             >
               {currentCohortName}
             </OverflowTooltippedLabel>
@@ -263,7 +260,7 @@ const QueryExpressionSection : React.FC<QueryExpressionSectionProps> = ({
           </div>
           <div
             data-testid="text-cohort-filters"
-            className="flex flex-wrap bg-base-max w-full p-2 overflow-x-hidden"
+            className="flex flex-wrap bg-base-max w-full p-2 overflow-x-hidden rounded-b-sm"
             style={
               filtersSectionCollapsed
                 ? { maxHeight: `${QESectionHeight}px`, overflowY: 'scroll' }

@@ -249,7 +249,7 @@
     "guppyConfig": {
       "dataType": "medicationadministration",
       "fieldMapping": [],
-      "nodeCountTitle": "MedicationAdministration",
+      "nodeCountTitle": "Medication Administration",
       "manifestMapping": {
         "resourceIndexType": "MedicationAdministration",
         "resourceIdField": "_id",
