@@ -3,8 +3,8 @@
   "version": "0.10.50",
   "private": true,
   "scripts": {
+    "dev": "next dev --experimental-https --experimental-https-key ./privkey.pem --experimental-https-cert ./fullchain.pem",
     "lint": "next lint",
-    "dev": "next dev",
     "clean": "rm -rf .next && rm -rf out",
     "build": "next build",
     "start": "next start",
