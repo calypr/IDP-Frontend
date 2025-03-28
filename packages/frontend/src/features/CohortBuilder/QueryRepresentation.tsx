@@ -77,7 +77,7 @@ font-heading
 shadow-md
 font-medium
 text-sm
-mr-1
+mr-2
 mb-2
 border-primary
 rounded-sm

@@ -152,7 +152,7 @@ const QueryExpressionSection : React.FC<QueryExpressionSectionProps> = ({
         <div className="flex flex-col w-full bg-primary rounded-sm">
           <div
             data-testid="text-cohort-filters-top-row"
-            className="flex flex-row py-2 items-center border-b-1 border-base-max] rounded-t-sm"
+            className="flex flex-row py-2 items-center border-b-1 border-base-max rounded-t-sm"
           >
             <OverflowTooltippedLabel
               label={currentCohortName}
