@@ -20,8 +20,8 @@ const SmmartPage = ({
     <NavPageLayout
       {...{ headerProps, footerProps }}
       headerData={{
-        title: 'CALIPER Landing Page',
-        content: 'CALIPER Landing Page',
+        title: 'CALIPER SMMART Landing Page',
+        content: 'CALIPER SMMART Landing Page',
         key: 'caliper-landing-page',
       }}
     >
