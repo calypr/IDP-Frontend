@@ -4,7 +4,6 @@ import {
   Title,
   ScrollArea,
   Divider,
-  Box,
 } from '@mantine/core';
 import { fieldNameToTitle, useGeneralGQLQuery } from '@gen3/core';
 import { MatchingTable } from '@gen3/frontend';
@@ -16,7 +15,6 @@ import {
 import React from 'react';
   
 import SimpleTable from '../../../../frontend/src/features/SimpleTable/SimpleTable';
-import { useFilesQuery } from './ResearchSubjectModal/AssociatedFiles';
 import { extractData, isQueryResponse, useGroupToSpecimenMapping } from './ResearchSubjectModal/tools';
 import SpecimenTree from './SpecimenModal/SpecimenTree';
 
@@ -111,20 +109,27 @@ export const SpecimenDetailsPanel = ({
       filter: {
         AND: [
           {
-            EQ: {
-                specimen_id: `${id}`,
-            }
+            OR: [
+              {
+                IN: {
+                  [filterField ?? 0]: specimenIdArr,
+                }
+              },
+              {
+                IN: {
+                  group_id: groupIds
+                }
+              }
+            ]
           }
         ]
       },
     },
   });
-  console.log("specimen", id);
 
-  console.log("fileCountData", fileCountData);
-
+  // get number of files
   const numFiles = isQueryResponse(fileCountData)
-      ? extractData(fileCountData, 'file', '').length
+      ? fileCountData.data._aggregation.file._totalCount
       : '';
 
   if (!idField || idField === null) {
@@ -142,27 +147,30 @@ export const SpecimenDetailsPanel = ({
     <React.Fragment>
       <LoadingOverlay visible={fileIsLoading} />
       <ScrollArea.Autosize maw={'80vw'} mx="auto">
-        <div className="flex">
-          <Title className="flex-grow pb-3 text-center" order={3}>
-            Subject Summary
-          </Title>
-          <div className="ml-auto flex-shrink-0 text-right">
-            <Text>
-              {numFiles} Files
-            </Text>
-          </div>
-        </div>
+        {/* Subject Summary */}
+        <Title className="pb-3 text-center" order={3}>
+          Subject Summary
+        </Title>
         <div className="flex pb-5">
           <SimpleTable data={subjectTableData} />
         </div>
+      {/* Specimen Summary, title centered with file count */}
         <Divider className="pb-5" size="md" color="black" />
-        <div className="pb-5">
-          <Title className="pb-3 text-center" order={3}>
+        <div className="relative w-full flex pb-3">
+          <Title className="flex-grow text-center" order={3}>
             Specimen Summary
           </Title>
+          <div className="absolute right-0 top-1/2 -translate-y-1/2">
+            <Text>
+              {numFiles as string} Files
+            </Text>
+          </div>
+        </div>
+        <div className="pb-5">
           <SimpleTable data={specimenTableData} />
         </div>
         <Divider className="pb-5" size="md" color="black" />
+        {/* Related Specimens Tree by Sample Family ID */}
         <div className="pb-5">
           <Title className="pb-3 text-center" order={3}>
             Related Specimens by Sample Family ID: {row?._valuesCache.sample_family_id}
@@ -174,9 +182,10 @@ export const SpecimenDetailsPanel = ({
           />
         </div>
         <Divider className="pb-5" size="md" color="black" />
+        {/* Associated Files Table */}
         <div>
           <Title className="pb-3 text-center" order={3}>
-            File Information Table
+            Files for Specimen {row?._valuesCache.identifier}
           </Title>
           <div className="grid">
             <MatchingTable

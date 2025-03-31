@@ -125,12 +125,14 @@ export const ResearchSubjectDetailsPanel = ({
     <React.Fragment>
       <LoadingOverlay visible={isLoading} />
       <ScrollArea.Autosize maw={'80vw'} mx="auto">
-        <div className="flex pb-5">
-          <AssaySummaryModal ids={querySpecimenIds} />
+        <div className="flex pb-7">
+          <div className="absolute left-0 top-1/2 -translate-y-1/2">
+              <AssaySummaryModal ids={querySpecimenIds} />
+          </div>
           <div className="flex-grow text-center">
             <Title order={3}> Subject Summary </Title>
           </div>
-          <div className="ml-auto flex-shrink-0">
+          <div className="absolute right-0 top-1/2 -translate-y-1/2">
             <AssociatedFilesText
               specimenIds={querySpecimenIds}
             />
