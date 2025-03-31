@@ -23,7 +23,7 @@ import {
 } from 'react-icons/md';
 import { AssociatedFilesText } from './ResearchSubjectModal/AssociatedFiles';
 import { SpecimenAggregationCountsChart } from './ResearchSubjectModal/AssociatedSpecimen';
-import { TimeSeriesAssaySummaryModal } from './ResearchSubjectModal/TimeSeriesModal';
+import { AssaySummaryModal } from './ResearchSubjectModal/AssaySummaryModal';
 import { extractData, isQueryResponse, useFilteredGroupMembers } from './ResearchSubjectModal/tools';
 import { QueryContent, ResourceDict } from './types';
 import React from 'react';
@@ -126,7 +126,7 @@ export const ResearchSubjectDetailsPanel = ({
       <LoadingOverlay visible={isLoading} />
       <ScrollArea.Autosize maw={'80vw'} mx="auto">
         <div className="flex pb-5">
-          <TimeSeriesAssaySummaryModal ids={querySpecimenIds} />
+          <AssaySummaryModal ids={querySpecimenIds} />
           <div className="flex-grow text-center">
             <Title order={3}> Subject Summary </Title>
           </div>

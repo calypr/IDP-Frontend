@@ -131,13 +131,11 @@ const TopBar = ({ title, items, classNames, logo }: TopBarProps) => {
         ? 'mx-2 text-black border-b-2 border-transparent border-white hover:border-black'
         : 'mx-2 text-white border-b-2 border-transparent border-primary hover:border-white',
   };
-  console.log("classNames:", classNames);
+  
   const mergedClassnames = mergeDefaultTailwindClassnames(
     defaultClassNames,
     classNames || {},
   );
-
-  console.log("mergedClassnames:", mergedClassnames);
 
   return (
     <div>
