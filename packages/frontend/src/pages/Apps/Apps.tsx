@@ -41,6 +41,7 @@ export function SummaryStatsBanner(authz: any) {
       color="secondary.0"
       variant="filled"
       withCloseButton
+      onClose={() => setVisible(false)}
       title={message}
     >
     </Alert>
