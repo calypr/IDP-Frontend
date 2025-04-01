@@ -21,6 +21,7 @@ import { registerCohortTableCustomCellRenderers } from '@/lib/CohortBuilder/Cust
 import { registerCustomExplorerDetailsPanels } from '@/lib/CohortBuilder/FileDetailsPanel';
 
 import '../styles/globals.css';
+import '@fontsource/lato';
 import '@fontsource/montserrat';
 import '@fontsource/source-sans-pro';
 import '@fontsource/poppins';
