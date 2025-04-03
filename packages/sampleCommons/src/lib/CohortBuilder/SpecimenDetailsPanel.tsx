@@ -4,6 +4,7 @@ import {
   Title,
   ScrollArea,
   Divider,
+  SegmentedControl,
 } from '@mantine/core';
 import { fieldNameToTitle, useGeneralGQLQuery } from '@gen3/core';
 import { MatchingTable } from '@gen3/frontend';
@@ -12,7 +13,7 @@ import {
   type TableDetailsPanelProps,
   ExplorerTableDetailsPanelFactory,
 } from '@gen3/frontend';
-import React from 'react';
+import React, { useState } from 'react';
   
 import SimpleTable from '../../../../frontend/src/features/SimpleTable/SimpleTable';
 import { extractData, isQueryResponse, useGroupToSpecimenMapping } from './ResearchSubjectModal/tools';
@@ -30,6 +31,7 @@ export const SpecimenDetailsPanel = ({
 
   const processedNodeFields = Object.keys(nodeFields ?? {}).join('\n');
 
+  // create config to display associated files using nodeFiles from config
   const modelTableConfig = nodeFields
       ? Object.entries(nodeFields).reduce(
           (acc, [key, value]) => {
@@ -43,10 +45,38 @@ export const SpecimenDetailsPanel = ({
         )
       : {};
 
+  // view for specimen tree
+  const [graphView, setGraphView] = useState(false);
+
+  // get enrollment diagnosis from research subject
+  const { data: diagnosisData, isLoading: diagnosisIsLoading, isError: diagnosisIsError } = useGeneralGQLQuery({
+    query: `query ($filter: JSON) {
+              researchsubject(filter: $filter,  accessibility: all, first: 10000) {
+                condition_Diagnosis
+              }
+            }`,
+    variables: {
+      filter: {
+        AND: [
+          {
+            EQ: {
+              patient_id: `${row?._valuesCache.patient_id}`,
+            }
+          }
+        ]
+      },
+    },
+  });
+
+  const diagnosis = !diagnosisIsLoading && isQueryResponse(diagnosisData)
+    ? extractData(diagnosisData, 'researchsubject', '')[0].condition_Diagnosis as string
+    : '';
+
+  // set up table data
   const subjectTableData = {
     'Clinical Trial': row?._valuesCache.project_id as string,
     'Participant ID': row?._valuesCache.patient_identifier as string,
-    'Condition Diagnosis': row?._valuesCache.patient_condition_Diagnosis as string
+    'Enrollment Diagnosis': diagnosis,
   };
 
   const specimenTableData = {
@@ -128,7 +158,7 @@ export const SpecimenDetailsPanel = ({
   });
 
   // get number of files
-  const numFiles = isQueryResponse(fileCountData)
+  const numFiles = !fileIsLoading && isQueryResponse(fileCountData)
       ? fileCountData.data._aggregation.file._totalCount
       : '';
 
@@ -175,10 +205,23 @@ export const SpecimenDetailsPanel = ({
           <Title className="pb-3 text-center" order={3}>
             Related Specimens by Sample Family ID: {row?._valuesCache.sample_family_id}
           </Title>
+          { /*Mantine SegmentedControl to toggle graph view */}
+          <div className="flex justify-left pb-3">
+            <SegmentedControl
+              value={graphView ? 'graph' : 'dropdown'}
+              onChange={(value) => setGraphView(value === 'graph')}
+              data={[
+                { label: 'Dropdown', value: 'dropdown' },
+                { label: 'Graph', value: 'graph' },
+              ]}
+            />
+          </div>
           <SpecimenTree
             projectId={row?._valuesCache.project_id as string}
             sampleFamilyId={row?._valuesCache.sample_family_id as string}
+            sampleTypeField="sample_type"
             specimenId={id as string}
+            graphView={graphView}
           />
         </div>
         <Divider className="pb-5" size="md" color="black" />
