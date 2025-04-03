@@ -1,5 +1,5 @@
 import { useGeneralGQLQuery } from '@gen3/core';
-import { UncontrolledTreeEnvironment, Tree, StaticTreeDataProvider } from 'react-complex-tree';
+import { StaticTreeDataProvider, Tree, UncontrolledTreeEnvironment } from 'react-complex-tree';
 import 'react-complex-tree/lib/style-modern.css';
 import { extractData, isQueryResponse } from '../ResearchSubjectModal/tools';
 import { QueryContent, ResourceDict } from '../types';
@@ -129,9 +129,22 @@ const SpecimenTree = ({
     };
 
     const formattedTree = readTemplate(treeWithRoot);
-
-    const focus = specimenIdToLabel[specimenId];
     const dataProvider = new StaticTreeDataProvider(formattedTree.items, (item, data) => ({ ...item, data }));
+
+    // get parent ids to highlight for 
+    const focusId = specimenId;
+    const focusLabel = specimenIdToLabel[focusId];
+    const childEdgeMap = specimenDicts.reduce((acc, specimen: ResourceDict) => {
+      acc[specimen.id] = specimen.parent;
+      return acc;
+    }, {}) as Record<string, string>;
+    const specimenParentIds = [focusId];
+    let specimen = focusId;
+    while(specimen in childEdgeMap && childEdgeMap[specimen]) {
+      specimen = childEdgeMap[specimen];
+      specimenParentIds.push(specimen);
+    }
+    const specimenParentLabels = specimenParentIds.map((id) => specimenIdToLabel[id]);
     
     // handle load and error states
     if (familyIsLoading) {
@@ -178,15 +191,24 @@ const SpecimenTree = ({
       <UncontrolledTreeEnvironment
         dataProvider={dataProvider}
         getItemTitle={item => item.data}
-        viewState={{
-          ['specimen-tree']: {
-            expandedItems: [sampleFamilyId],
-        }}}
-        renderItemTitle={({title}) => title !== focus ? title : (<strong>{title}</strong>)}
+        viewState={{}}
+        renderItemTitle={({title}) => (
+          specimenParentLabels.includes(title)
+            ? title == focusLabel 
+              ? (<strong>{title} *</strong>)
+              : (<strong>{title}</strong>)
+            : title
+          )
+        }
         onFocusItem={() => {}}
       >
-        <Tree treeId="specimen-tree" rootItem="root" treeLabel="Specimen Tree" />
-      </UncontrolledTreeEnvironment>);
+        <Tree
+          treeId="specimen-tree"
+          rootItem="root"
+          treeLabel="Specimen Tree"
+        />
+      </UncontrolledTreeEnvironment>
+    );
 }; 
 
 export default SpecimenTree;
