@@ -28,6 +28,11 @@ export type ChartItem = {
   chartType: string;
 };
 
+export interface ApiResponse {
+  success: boolean;
+  error?: string;
+}
+
 export type ColumnProps<T extends 'table' | 'filters' | 'charts'> = {
   columnId: string;
   items: (TableItem | ChartItem)[];
