@@ -27,6 +27,9 @@ import { CaliperPageGetServerSideProps } from './pages/Caliper';
 import FileSummaryPage from './pages/FileSummary/FileSummary';
 import { FileSummaryPageGetServerSideProps } from './pages/FileSummary';
 
+import ConfiguratorPage from './pages/Configurator/Configurator';
+import { ConfiguratorPageGetServerSideProps } from './pages/Configurator';
+
 import AppsPage from './pages/Apps/Apps';
 import { AppsPageGetServerSideProps } from './pages/Apps';
 // export Gen3 data UI standard pages
@@ -128,4 +131,6 @@ export {
   CrosswalkPageGetServerSideProps,
   SubmissionPage,
   SubmissionPageGetServerSideProps,
+  ConfiguratorPageGetServerSideProps,
+  ConfiguratorPage,
 };

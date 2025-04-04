@@ -1,19 +1,10 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { getAutocompleteSuggestions } from 'graphql-language-service-interface';
-import { IPosition } from 'graphql-language-service-types';
-import {
-  buildClientSchema,
-  IntrospectionQuery,
-  getIntrospectionQuery,
-  type GraphQLSchema,
-} from 'graphql';
+import React, { useState } from 'react';
+import { type GraphQLSchema } from 'graphql';
 import {
   Center,
   Box,
   Button,
-  UnstyledButton,
   TextInput,
-  Autocomplete,
   Text,
   Loader,
   Modal,
@@ -21,429 +12,39 @@ import {
   Alert,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
+import { NavPageLayout, NavPageLayoutProps } from '../../features/Navigation';
+import { getNavPageLayoutPropsFromConfig } from '../../lib/common/staticProps';
 import {
-  NavPageLayout,
-  NavPageLayoutProps,
-  getNavPageLayoutPropsFromConfig,
   type SummaryTable,
   type TabsConfig,
   type CohortPanelConfig,
-  type SummaryChart,
   type SummaryTableColumn,
-} from '@gen3/frontend';
-import {
-  useGeneralGQLQuery,
-  type FacetDefinition,
-  FacetType,
-  GEN3_API,
-} from '@gen3/core';
+} from '../../features/CohortBuilder';
+import { type SummaryChart } from '../../components/charts';
+import { type FacetDefinition, FacetType, GEN3_API } from '@gen3/core';
 import { GetServerSideProps } from 'next';
 import {
-  DragDropContext,
-  Droppable,
-  Draggable,
-  DropResult,
-} from '@hello-pangea/dnd';
-
-const GraphQLAutocomplete = ({
-  value,
-  onChange,
-  placeholder,
-  schema,
-  context,
-  tabType,
-}: {
-  value: string;
-  onChange: ((value: string) => void) | undefined;
-  placeholder: string | undefined;
-  schema: GraphQLSchema;
-  context: string | undefined;
-  tabType: string | undefined;
-}) => {
-  const [suggestions, setSuggestions] = useState<string[]>([]);
-
-  useEffect(() => {
-    let queryText: string;
-    let cursorPosition: IPosition;
-    if (context === 'tabType') {
-      queryText = `query { ${value}`;
-      cursorPosition = { line: 1, character: 8 + value.length } as IPosition;
-    } else if (context === 'fieldName' && tabType) {
-      queryText = `query { ${tabType} { ${value}`;
-      cursorPosition = {
-        line: 1,
-        character: 11 + tabType.length + value.length,
-      } as IPosition;
-    } else {
-      setSuggestions([]);
-      return;
-    }
-
-    try {
-      const rawSuggestions = getAutocompleteSuggestions(
-        schema,
-        queryText,
-        cursorPosition,
-      );
-      const processedSuggestions = Array.isArray(rawSuggestions)
-        ? rawSuggestions
-            .map((s) => s.label)
-            .filter((s) => s && !s.startsWith('__') && !s.startsWith('_'))
-        : [];
-      setSuggestions(processedSuggestions);
-    } catch (error) {
-      console.error('Error generating autocomplete suggestions:', error);
-      setSuggestions([]);
-    }
-  }, [value, schema, context, tabType]);
-
-  return (
-    <Autocomplete
-      value={value}
-      onChange={onChange}
-      placeholder={placeholder}
-      data={suggestions}
-      color="secondary.0"
-    />
-  );
-};
-
-const useGetSchemaQuery = () => {
-  const { data, isLoading, isError } = useGeneralGQLQuery({
-    query: getIntrospectionQuery(),
-  });
-
-  const cachedSchemaData = useMemo(() => {
-    if (data) {
-      try {
-        return buildClientSchema(data.data as IntrospectionQuery);
-      } catch (error) {
-        console.error('Error building client schema:', error);
-        return [];
-      }
-    }
-    return [];
-  }, [data]);
-  return { sdata: cachedSchemaData, sisLoading: isLoading, sisError: isError };
-};
-
-type TableItem = {
-  id: number;
-  field: string;
-  label: string;
-};
-
-type ChartItem = {
-  id: number;
-  field: string;
-  title: string;
-  chartType: string;
-};
-
-type ColumnProps<T extends 'table' | 'filters' | 'charts'> = {
-  columnId: string;
-  items: (TableItem | ChartItem)[];
-  removeData: (tabId: string | number, entryId: number) => void;
-  tabId: string | number;
-  type: T;
-};
-
-const Column = <T extends 'table' | 'filters' | 'charts'>({
-  columnId,
-  items,
-  removeData,
-  tabId,
-  type,
-}: ColumnProps<T>) => {
-  const validItems = Array.isArray(items)
-    ? items.filter(
-        (item): item is T extends 'charts' ? ChartItem : TableItem =>
-          item != null,
-      )
-    : [];
-
-  const renderEntry = (entry: T extends 'charts' ? ChartItem : TableItem) => {
-    if (type === 'charts') {
-      const chartEntry = entry as ChartItem; // Type assertion for clarity
-      return `${chartEntry.title}\n${chartEntry.field}\n${chartEntry.chartType}`;
-    } else {
-      const tableEntry = entry as TableItem; // Type assertion for clarity
-      return `${tableEntry.label}\n${tableEntry.field}`;
-    }
-  };
-
-  return (
-    <Droppable droppableId={`${tabId}-${columnId}`}>
-      {(provided) => (
-        <Box
-          ref={provided.innerRef}
-          {...provided.droppableProps}
-          className="flex-1 min-w-[150px]"
-        >
-          {validItems.map((entry, index) => (
-            <Draggable
-              key={entry.id.toString()}
-              draggableId={entry.id.toString()}
-              index={index}
-            >
-              {(provided) => (
-                <Box
-                  ref={provided.innerRef}
-                  {...provided.draggableProps}
-                  {...provided.dragHandleProps}
-                  className="flex items-center p-2 bg-white border border-gray-200 rounded-lg shadow-sm mb-2 mx-1 min-w-[140px]"
-                >
-                  <Box className="flex-grow bg-gray-100 p-2 rounded-md whitespace-pre-wrap overflow-hidden text-ellipsis">
-                    {renderEntry(entry)}
-                  </Box>
-                  <Button
-                    variant="subtle"
-                    size="xs"
-                    color="gray"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removeData(tabId, entry.id);
-                    }}
-                    className="ml-2"
-                  >
-                    x
-                  </Button>
-                </Box>
-              )}
-            </Draggable>
-          ))}
-          {provided.placeholder}
-        </Box>
-      )}
-    </Droppable>
-  );
-};
-
-type FlexibleColumns = {
-  col1: (ChartItem | TableItem)[];
-  col2: (ChartItem | TableItem)[];
-  col3: (ChartItem | TableItem)[];
-  col4: (ChartItem | TableItem)[];
-};
-
-type ColumnKey = 'col1' | 'col2' | 'col3' | 'col4';
-
-type FilterUnitProps<T extends 'table' | 'filters' | 'charts'> = {
-  tabId: string | number;
-  columns: FlexibleColumns;
-  setColumns: (newColumns: FlexibleColumns) => void;
-  index: number;
-  type: T;
-  schema: GraphQLSchema;
-  tabType: string;
-  title: string;
-};
+  ConfiguratorPageProps,
+  type FilterUnitType,
+  type Tab,
+  type FlexibleColumns,
+  type TableItem,
+  type ChartItem,
+  type ColumnKey,
+  type ColumnProps,
+} from './types';
+import { GraphQLAutocomplete } from './graphqlAutoComplete';
+import { useGetSchemaQuery } from './hooks';
+import { FilterUnit } from './filterUnit';
 
 // FilterUnit Component (Customized for Table, Filters, and Charts)
-const FilterUnit = <T extends 'table' | 'filters' | 'charts'>({
-  tabId,
-  columns,
-  setColumns,
-  type,
-  schema,
-  tabType,
-  title,
-}: FilterUnitProps<T>) => {
-  const [fieldName, setFieldName] = useState('');
-  const [labelName, setLabelName] = useState('');
-  const [chartType, setChartType] = useState('');
-  const [lastInsertColumn, setLastInsertColumn] = useState<ColumnKey>('col4');
-
-  const distributeItems = (items: any[]) => {
-    const columns: FlexibleColumns = {
-      col1: [],
-      col2: [],
-      col3: [],
-      col4: [],
-    };
-    items.forEach((item, i) => {
-      const colKey = `col${(i % 4) + 1}` as keyof FlexibleColumns;
-      columns[colKey].push(item);
-    });
-    return columns;
-  };
-
-  const submitData = () => {
-    if (!fieldName || !labelName || (type === 'charts' && !chartType)) {
-      return;
-    }
-
-    const newEntry = { id: Date.now() } as T extends 'charts'
-      ? ChartItem
-      : TableItem;
-    if (type === 'charts') {
-      (newEntry as ChartItem).field = fieldName;
-      (newEntry as ChartItem).title = labelName;
-      (newEntry as ChartItem).chartType = chartType;
-    } else {
-      (newEntry as TableItem).field = fieldName;
-      (newEntry as TableItem).label = labelName;
-    }
-
-    const currentItems = [
-      ...columns.col1,
-      ...columns.col2,
-      ...columns.col3,
-      ...columns.col4,
-    ];
-
-    const updatedItems = [...currentItems, newEntry];
-    const newColumns = distributeItems(updatedItems);
-
-    setColumns(newColumns);
-    setLastInsertColumn(
-      `col${((updatedItems.length - 1) % 4) + 1}` as ColumnKey,
-    );
-    setFieldName('');
-    setLabelName('');
-    setChartType('');
-  };
-
-  const removeData = (tabId: string | number, entryId: number) => {
-    const columnOrder = ['col1', 'col2', 'col3', 'col4'] as const;
-    const flatItems: (TableItem | ChartItem)[] = [];
-    let removedColId: keyof FlexibleColumns | null = null;
-
-    const maxLength = Math.max(
-      ...Object.values(columns).map((col) => col.length),
-    );
-    for (let i = 0; i < maxLength; i++) {
-      columnOrder.forEach((colId) => {
-        const key = colId as keyof FlexibleColumns;
-        if (columns[key][i]) {
-          if (columns[key][i].id === entryId) {
-            removedColId = key;
-          } else {
-            flatItems.push(columns[key][i]);
-          }
-        }
-      });
-    }
-
-    if (removedColId) {
-      const newColumns: FlexibleColumns = {
-        col1: [],
-        col2: [],
-        col3: [],
-        col4: [],
-      };
-      flatItems.forEach((item, index) => {
-        const colIndex = index % 4;
-        const colId = columnOrder[colIndex] as keyof FlexibleColumns;
-        newColumns[colId].push(item);
-      });
-      setColumns(newColumns);
-    }
-  };
-
-  const onDragEnd = (result: DropResult) => {
-    const { source, destination } = result;
-    if (!destination) return;
-
-    const [, sourceColId] = source.droppableId.split('-');
-    const [, destColId] = destination.droppableId.split('-');
-
-    const columnOrder = ['col1', 'col2', 'col3', 'col4'];
-    const flatItems: (TableItem | ChartItem)[] = [];
-    const maxLength = Math.max(
-      ...Object.values(columns).map((col) => col.length),
-    );
-    for (let i = 0; i < maxLength; i++) {
-      columnOrder.forEach((colId) => {
-        const key = colId as keyof FlexibleColumns;
-        if (columns[key][i]) {
-          flatItems.push(columns[key][i]); // Correct access using key
-        }
-      });
-    }
-
-    const sourceFlatIndex = columnOrder.indexOf(sourceColId) + source.index;
-    const destFlatIndex = columnOrder.indexOf(destColId) + destination.index;
-
-    const [movedItem] = flatItems.splice(sourceFlatIndex, 1);
-    flatItems.splice(destFlatIndex, 0, movedItem);
-
-    const newColumns: FlexibleColumns = {
-      col1: [],
-      col2: [],
-      col3: [],
-      col4: [],
-    };
-    flatItems.forEach((item, index) => {
-      const colIndex = index % 4;
-      const colId = columnOrder[colIndex] as keyof FlexibleColumns;
-      newColumns[colId].push(item);
-    });
-
-    setColumns(newColumns);
-  };
-
-  return (
-    <div>
-      <Text className="text-start mb-2">{title}</Text>
-      <Box className="flex items-start space-x-4 mb-4 w-full overflow-scroll">
-        <Box className="flex items-center space-x-4">
-          <UnstyledButton
-            onClick={submitData}
-            className="px-6 py-3 text-white bg-primary rounded-md hover:bg-secondary active:scale-95"
-          >
-            Add
-          </UnstyledButton>
-          <Box className="flex flex-col space-y-2 min-w-[300px]">
-            <GraphQLAutocomplete
-              value={fieldName}
-              onChange={setFieldName}
-              placeholder="Enter field name (db name)"
-              schema={schema as GraphQLSchema}
-              context="fieldName"
-              tabType={tabType}
-            />
-            <TextInput
-              value={labelName}
-              onChange={(e) => setLabelName(e.target.value)}
-              placeholder={
-                type === 'table'
-                  ? 'Enter title (label name)'
-                  : 'Enter label name'
-              }
-              className="w-full"
-            />
-            {type === 'charts' && (
-              <TextInput
-                value={chartType}
-                onChange={(e) => setChartType(e.target.value)}
-                placeholder="Enter chart type (e.g: fullPie, bar or donut )"
-                className="w-full"
-              />
-            )}
-          </Box>
-        </Box>
-        <DragDropContext onDragEnd={onDragEnd}>
-          <Box className="flex bg-gray-100 p-3 rounded-lg space-x-3">
-            {Object.entries(columns).map(([colId, items]) => (
-              <Column
-                key={colId}
-                columnId={colId}
-                items={items}
-                removeData={removeData}
-                tabId={tabId}
-                type={type}
-              />
-            ))}
-          </Box>
-        </DragDropContext>
-      </Box>
-    </div>
-  );
-};
 
 // Main Component
-const EConfigBuilder = ({ headerProps, footerProps }: NavPageLayoutProps) => {
+const Configurator = ({
+  headerProps,
+  footerProps,
+  configuratorConfig,
+}: ConfiguratorPageProps) => {
   const { sdata, sisLoading } = useGetSchemaQuery();
   const [tabs, setTabs] = useState<Tab[]>([]);
   const [allTabsTitle, setAllTabsTitle] = useState('');
@@ -533,19 +134,6 @@ const EConfigBuilder = ({ headerProps, footerProps }: NavPageLayoutProps) => {
     setError('');
   };
 
-  type FilterUnitType<T extends 'table' | 'filters' | 'charts'> = {
-    type: T;
-    columns: FlexibleColumns;
-    title: string;
-  };
-
-  // Define the tab structure
-  type Tab = {
-    id: string | number;
-    label: string;
-    tabType: string;
-    filterUnits: FilterUnitType<'table' | 'filters' | 'charts'>[];
-  };
   interface ApiResponse {
     success: boolean;
     error?: string;
@@ -1019,4 +607,4 @@ export const getServerSideProps: GetServerSideProps<
   };
 };
 
-export default EConfigBuilder;
+export default Configurator;
