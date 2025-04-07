@@ -5,8 +5,7 @@ import { useGetSchemaQuery } from './hooks';
 import { FilterUnit } from './filterUnit';
 import TabBar from './TabBar';
 import ConfigControls from './ConfigControls';
-import { fetchConfigContent, postConfigContent } from './api';
-import { buildConfigFromTabs, transformConfigToTabs } from './utils';
+import { buildConfigFromTabs } from './utils';
 import { ConfiguratorPageProps, type Tab } from './types';
 import { GraphQLSchema } from 'graphql';
 
@@ -67,22 +66,6 @@ const Configurator = ({
     navigator.clipboard.writeText(JSON.stringify(allTabsConfig, null, 2));
   };
 
-  const handlePostConfig = async () => {
-    return await postConfigContent(allTabsTitle, allTabsConfig);
-  };
-
-  const loadConfig = async (name: string) => {
-    const result = await fetchConfigContent(name);
-    if (result.success && result.data) {
-      setAllTabsTitle(result.data.Name || '');
-      const loadedTabs = transformConfigToTabs(result.data.content);
-      setTabs(loadedTabs);
-      if (loadedTabs.length > 0) setActiveTab(loadedTabs[0].id.toString());
-    } else {
-      throw new Error(result.error || 'Failed to load config');
-    }
-  };
-
   return (
     <NavPageLayout
       {...{ headerProps, footerProps }}
@@ -100,11 +83,11 @@ const Configurator = ({
             </Text>
             <ConfigControls
               tabs={tabs}
+              setTabs={setTabs}
               allTabsTitle={allTabsTitle}
               setAllTabsTitle={setAllTabsTitle}
+              setActiveTab={setActiveTab}
               onCopyConfig={copyAllContent}
-              onPostConfig={handlePostConfig}
-              onLoadConfig={loadConfig}
               onReset={resetTabs}
             />
             <TabBar

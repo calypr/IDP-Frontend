@@ -88,7 +88,7 @@ export const buildConfigFromTabs = (tabs: Tab[]): CohortPanelConfig[] => {
 
 export const transformConfigToTabs = (content: CohortPanelConfig[]): Tab[] => {
   return content.map((tabConfig: CohortPanelConfig, index: number) => {
-    const tableItems = Object.entries(tabConfig.table?.columns || {}).map(
+    const tableItems = Object.entries(tabConfig?.table?.columns || {}).map(
       ([field, col]) => ({
         id: Date.now() + Math.random(),
         field,

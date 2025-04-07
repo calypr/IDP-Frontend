@@ -5,12 +5,20 @@ import { gen3AppReducer } from './features/gen3Apps/gen3AppsSlice';
 import { drsHostnamesReducer } from './features/drsResolver';
 import { modalReducer } from './features/modals/modalsSlice';
 import { cohortReducer } from './features/cohort';
-import { userAuthApiReducerPath, userAuthApiReducer} from './features/user/userSliceRTK';
+import {
+  userAuthApiReducerPath,
+  userAuthApiReducer,
+} from './features/user/userSliceRTK';
 
 import {
   guppyApiReducer,
   guppyApiSliceReducerPath,
 } from './features/guppy/guppyApi';
+
+import {
+  explorerConfigReducer,
+  explorerConfigReducerPath,
+} from './features/configurator/explorerConfigApi';
 
 import {
   gripApiReducer,
@@ -25,6 +33,7 @@ export const rootReducer = combineReducers({
   modals: modalReducer,
   cohorts: cohortReducer,
   [guppyApiSliceReducerPath]: guppyApiReducer,
+  [explorerConfigReducerPath]: explorerConfigReducer,
   [gripApiSliceReducerPath]: gripApiReducer,
   [userAuthApiReducerPath]: userAuthApiReducer,
 });

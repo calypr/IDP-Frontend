@@ -37,6 +37,7 @@ export * from './features/grip';
 export * from './features/aiSearch';
 export * from './features/workspace';
 export * from './features/submission';
+export * from './features/configurator';
 
 export {
   type CoreState,
