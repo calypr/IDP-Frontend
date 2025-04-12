@@ -7,11 +7,11 @@ interface SimpleNodeProps {
   };
 }
 
-export default function LabelledNode({ data }: SimpleNodeProps) {
+export default function SimpleNode({ data }: SimpleNodeProps) {
   return (
     <React.Fragment>
       <Handle type="target" position={Position.Right} style={{ background: '#fff' }} />
-        <div className='p-1'>
+        <div className="p-1">
           {data.label}
         </div>
       <Handle type="source" position={Position.Left} style={{ background: '#fff' }} />

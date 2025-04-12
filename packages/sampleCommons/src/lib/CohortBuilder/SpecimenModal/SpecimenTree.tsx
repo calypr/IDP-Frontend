@@ -6,21 +6,13 @@ import { QueryContent, ResourceDict } from '../types';
 import { edgesToNestedTree } from './SpecimenTreeAlgo';
 import { readTemplate, replaceIdsWithLabels, sortJsonKeys } from './SpecimenTreeHelpers';
 
-import React, { useCallback, useState } from 'react';
+import React from 'react';
 import '@xyflow/react/dist/style.css';
 import { HierarchyNode, stratify, tree } from 'd3-hierarchy';
-import { graph } from './D3HorizontalTreeHelper.js';
-import D3HorizontalTreeComponent from './D3HorizontalTree';
-import { Tree as ReactD3Tree, TreeNodeDatum } from 'react-d3-tree';
 import {
-  applyEdgeChanges,
-  applyNodeChanges,
+  Controls,
   ReactFlow,
   ReactFlowProvider,
-  Panel,
-  useNodesState,
-  useEdgesState,
-  useReactFlow,
 } from '@xyflow/react';
 import * as d3 from 'd3';
 import SimpleNode from './SimpleNode';
@@ -48,68 +40,8 @@ function replaceNamesWithLabels(
   return tree;
 }
 
-const g = tree();
- 
-const getLayoutedElements = (nodes, edges, options) => {
-  if (nodes.length === 0) return { nodes, edges };
- 
-  const { width, height } = document
-    .querySelector(`[data-id="${nodes[0].id}"]`)
-    .getBoundingClientRect();
-  const hierarchy = stratify()
-    .id((node) => node.id)
-    .parentId((node) => edges.find((edge) => edge.target === node.id)?.source);
-  const root = hierarchy(nodes);
-  const layout = g.nodeSize([width * 2, height * 2])(root);
- 
-  return {
-    nodes: layout
-      .descendants()
-      .map((node) => ({ ...node.data, position: { x: node.x, y: node.y } })),
-    edges,
-  };
-};
- 
-const LayoutFlow = () => {
-  const { fitView } = useReactFlow();
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
- 
-  const onLayout = useCallback(
-    (direction) => {
-      const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
-        nodes,
-        edges,
-        {
-          direction,
-        },
-      );
- 
-      setNodes([...layoutedNodes]);
-      setEdges([...layoutedEdges]);
- 
-      fitView();
-    },
-    [nodes, edges],
-  );
- 
-  return (
-    <ReactFlow
-      nodes={nodes}
-      edges={edges}
-      onNodesChange={onNodesChange}
-      onEdgesChange={onEdgesChange}
-      fitView
-    >
-      <Panel position="top-right">
-        <button onClick={onLayout}>layout</button>
-      </Panel>
-    </ReactFlow>
-  );
-};
-
 const nodeTypes = {
-  simpleNode: SimpleNode
+  textUpdater: SimpleNode
 };
 
 const SpecimenTree = ({
@@ -208,28 +140,26 @@ const SpecimenTree = ({
       
       // const d3Tree = tree().nodeSize([dx, dy])(stratify<TreeNode>()(d3Edges));
       const root = stratify<TreeNode>()(d3Edges);
-      const dx = 10;
-      const padding = 1;
-      const dy = 800 / (root.height + padding);
       root.sort((a, b) => d3.ascending(a.data.name, b.data.name));
-      const d3Tree = tree().nodeSize([dx, dy])(root);
-      console.log("d3Tree.descendants():", d3Tree.descendants());
+      const d3Tree = tree()(root);
+      // console.log('d3Tree.descendants():', d3Tree.descendants());
 
-      console.log("d3Tree:", d3Tree); 
-      console.log("new tree:", tree()(d3Tree)); 
+      console.log('d3Tree:', d3Tree); 
+      // console.log('new tree:', tree()(d3Tree)); 
+      // console.log('new tree:', d3Tree); 
 
       // get nodes using specimenDict
 
 
       // Convert d3 tree nodes
-      replaceNamesWithLabels(d3Tree, specimenIdToLabel);
+      // replaceNamesWithLabels(d3Tree, specimenIdToLabel);
 
       // create nodes
       const reactFlowNodes = d3Tree.descendants().map((node, index) => {
-        console.log("node:", node);
+        console.log('node:', node);
         return {
           id: node.data.id,
-          type: 'simpleNode',
+          type: 'textUpdater',
           data: { label: specimenIdToLabel[node.data.id] },
           position: {x: node.y * 1400, y: node.x * 1400 },
         };
@@ -239,8 +169,8 @@ const SpecimenTree = ({
       const reactFlowEdges = edges.map((edge) => ({id: `${edge[0]}-${edge[1]}`, target: edge[0], source: edge[1]}));
       
       // check that everything looks good
-      console.log("reactFlowNodes:", reactFlowNodes);
-      console.log("reactFlowEdges:", reactFlowEdges);
+      console.log('reactFlowNodes:', reactFlowNodes);
+      console.log('reactFlowEdges:', reactFlowEdges);
 
       // const [stateNodes, setNodes] = useState(reactFlowNodes);
       // const [stateEdges, setEdges] = useState(reactFlowEdges);
@@ -290,8 +220,12 @@ const SpecimenTree = ({
               // edges={stateEdges}
               // onNodesChange={onNodesChange}
               // onEdgesChange={onEdgesChange}
+              zoomOnScroll={false}
+              preventScrolling={false}
               fitView
-            />
+            >
+              <Controls showZoom={true} />
+            </ReactFlow>
           </ReactFlowProvider>
         </div>
       );
