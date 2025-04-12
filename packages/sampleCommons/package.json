@@ -29,6 +29,7 @@
   "devDependencies": {
     "@gen3/toolsff": "file:../tools",
     "@next/mdx": "^14.2.15",
+    "@types/d3": "^7.4.3",
     "@types/d3-hierarchy": "^3.1.7",
     "@types/mdx": "^2.0.13",
     "@types/react": "^18.2.21",

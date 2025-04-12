@@ -1,15 +1,29 @@
 import { useGeneralGQLQuery } from '@gen3/core';
-import { StaticTreeDataProvider, Tree, UncontrolledTreeEnvironment } from 'react-complex-tree';
+import { StaticTreeDataProvider, Tree as ReactComplexTree, UncontrolledTreeEnvironment } from 'react-complex-tree';
 import 'react-complex-tree/lib/style-modern.css';
 import { extractData, isQueryResponse } from '../ResearchSubjectModal/tools';
 import { QueryContent, ResourceDict } from '../types';
 import { edgesToNestedTree } from './SpecimenTreeAlgo';
 import { readTemplate, replaceIdsWithLabels, sortJsonKeys } from './SpecimenTreeHelpers';
 
-import React from 'react';
+import React, { useCallback, useState } from 'react';
 import '@xyflow/react/dist/style.css';
-import { hierarchy, stratify, tree } from 'd3-hierarchy';
-import { Tree as D3Tree, TreeNodeDatum } from 'react-d3-tree';
+import { HierarchyNode, stratify, tree } from 'd3-hierarchy';
+import { graph } from './D3HorizontalTreeHelper.js';
+import D3HorizontalTreeComponent from './D3HorizontalTree';
+import { Tree as ReactD3Tree, TreeNodeDatum } from 'react-d3-tree';
+import {
+  applyEdgeChanges,
+  applyNodeChanges,
+  ReactFlow,
+  ReactFlowProvider,
+  Panel,
+  useNodesState,
+  useEdgesState,
+  useReactFlow,
+} from '@xyflow/react';
+import * as d3 from 'd3';
+import SimpleNode from './SimpleNode';
 
 interface TreeNode {
   name: string;
@@ -17,42 +31,11 @@ interface TreeNode {
   children?: TreeNode[];
 }
 
-function buildTree(edgeList: [string, string][]): TreeNode {
-  const nodeMap: Map<string, TreeNode> = new Map();
-
-  // Create nodes for each unique name
-  for (const [parent, child] of edgeList) {
-    if (!nodeMap.has(parent)) {
-      nodeMap.set(parent, { name: parent });
-    }
-    if (!nodeMap.has(child)) {
-      nodeMap.set(child, { name: child });
-    }
-  }
-
-  // Assign children to parent nodes
-  for (const [parent, child] of edgeList) {
-    const parentNode = nodeMap.get(parent);
-    const childNode = nodeMap.get(child);
-
-    if (parentNode && childNode) {
-      if (!parentNode.children) {
-        parentNode.children = [];
-      }
-      parentNode.children.push(childNode);
-    }
-  }
-
-  // Assuming the first element in the edge list is the root
-  const rootName = edgeList[0][0];
-  return nodeMap.get(rootName)!;
-}
-
 function replaceNamesWithLabels(
-  tree: TreeNode,
+  tree: HierarchyNode<TreeNode>,
   labelMap: { [key: string]: string }
-): TreeNode {
-  function traverse(node: TreeNode): void {
+): HierarchyNode<TreeNode> {
+  function traverse(node: HierarchyNode<TreeNode>): void {
     if (labelMap[node.id]) {
       node.name = labelMap[node.id];
     }
@@ -64,6 +47,70 @@ function replaceNamesWithLabels(
   traverse(tree);
   return tree;
 }
+
+const g = tree();
+ 
+const getLayoutedElements = (nodes, edges, options) => {
+  if (nodes.length === 0) return { nodes, edges };
+ 
+  const { width, height } = document
+    .querySelector(`[data-id="${nodes[0].id}"]`)
+    .getBoundingClientRect();
+  const hierarchy = stratify()
+    .id((node) => node.id)
+    .parentId((node) => edges.find((edge) => edge.target === node.id)?.source);
+  const root = hierarchy(nodes);
+  const layout = g.nodeSize([width * 2, height * 2])(root);
+ 
+  return {
+    nodes: layout
+      .descendants()
+      .map((node) => ({ ...node.data, position: { x: node.x, y: node.y } })),
+    edges,
+  };
+};
+ 
+const LayoutFlow = () => {
+  const { fitView } = useReactFlow();
+  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+ 
+  const onLayout = useCallback(
+    (direction) => {
+      const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
+        nodes,
+        edges,
+        {
+          direction,
+        },
+      );
+ 
+      setNodes([...layoutedNodes]);
+      setEdges([...layoutedEdges]);
+ 
+      fitView();
+    },
+    [nodes, edges],
+  );
+ 
+  return (
+    <ReactFlow
+      nodes={nodes}
+      edges={edges}
+      onNodesChange={onNodesChange}
+      onEdgesChange={onEdgesChange}
+      fitView
+    >
+      <Panel position="top-right">
+        <button onClick={onLayout}>layout</button>
+      </Panel>
+    </ReactFlow>
+  );
+};
+
+const nodeTypes = {
+  simpleNode: SimpleNode
+};
 
 const SpecimenTree = ({
     projectId, // required in case the same sample family ids is used across projects
@@ -157,31 +204,95 @@ const SpecimenTree = ({
     // show graph view
     if (graphView && !familyIsLoading) {
       // build tree into d3-hierarchy form 
-      // const edgesAsLabels = edges.map((edge) => edge.map((id) => specimenIdToLabel[id]));
-      // const d3Tree = buildTree(edges);
-      const d3Edges = edges.map((edge) => ({parent: edge[0], child: edge[1]}));
-      const d3Tree = stratify()
-        .id((d) => d.child)
-        .parentId((d) => d.parent)
-        (d3Edges);
+      const d3Edges = edges.map((edge) => ({parentId: edge[0], id: edge[1]})) as Record<string,string>[];
+      
+      // const d3Tree = tree().nodeSize([dx, dy])(stratify<TreeNode>()(d3Edges));
+      const root = stratify<TreeNode>()(d3Edges);
+      const dx = 10;
+      const padding = 1;
+      const dy = 800 / (root.height + padding);
+      root.sort((a, b) => d3.ascending(a.data.name, b.data.name));
+      const d3Tree = tree().nodeSize([dx, dy])(root);
+      console.log("d3Tree.descendants():", d3Tree.descendants());
+
+      console.log("d3Tree:", d3Tree); 
+      console.log("new tree:", tree()(d3Tree)); 
+
+      // get nodes using specimenDict
+
 
       // Convert d3 tree nodes
       replaceNamesWithLabels(d3Tree, specimenIdToLabel);
-      
 
+      // create nodes
+      const reactFlowNodes = d3Tree.descendants().map((node, index) => {
+        console.log("node:", node);
+        return {
+          id: node.data.id,
+          type: 'simpleNode',
+          data: { label: specimenIdToLabel[node.data.id] },
+          position: {x: node.y * 1400, y: node.x * 1400 },
+        };
+      });
+
+      // create edges
+      const reactFlowEdges = edges.map((edge) => ({id: `${edge[0]}-${edge[1]}`, target: edge[0], source: edge[1]}));
+      
+      // check that everything looks good
+      console.log("reactFlowNodes:", reactFlowNodes);
+      console.log("reactFlowEdges:", reactFlowEdges);
+
+      // const [stateNodes, setNodes] = useState(reactFlowNodes);
+      // const [stateEdges, setEdges] = useState(reactFlowEdges);
+
+      // const onNodesChange = useCallback(
+      //   (changes) => setNodes((nds) => applyNodeChanges(changes, nds)),
+      //   [setNodes],
+      // );
+      // const onEdgesChange = useCallback(
+      //   (changes) => setEdges((eds) => applyEdgeChanges(changes, eds)),
+      //   [setEdges],
+      // );
+ 
+      
       return (
         // graph(d3Tree)
         <div style={{
           width: '100%',
-          height: '100%'
-        }}>
-          <D3Tree
+          height: 800
+        }}
+          // className="text-sm"
+        >
+          {/* <D3HorizontalTreeComponent
+            root={d3Tree}
+            label={d => d.data.id}
+            highlight={d => d.data.id === 'Child 1'}
+            marginLeft={40}
+            dx={12}
+            dy={120}
+            width={500}
+          /> */}
+          {/* <D3Tree
             data={d3Tree}
-            orientation="vertical"
+            orientation="horizontal"
             translate={{ x: 400, y: 50 }}
             pathFunc="diagonal"
-            separation={{ siblings: 2, nonSiblings: 3 }}
-          />
+            separation={{ siblings: 0.4, nonSiblings: 0.6 }}
+            rootNodeClassName="radius-xl"
+          /> */}
+
+          <ReactFlowProvider>
+            <ReactFlow
+              nodes={reactFlowNodes}
+              edges={reactFlowEdges}
+              nodeTypes={nodeTypes}
+              // nodes={stateNodes}
+              // edges={stateEdges}
+              // onNodesChange={onNodesChange}
+              // onEdgesChange={onEdgesChange}
+              fitView
+            />
+          </ReactFlowProvider>
         </div>
       );
     }
@@ -202,7 +313,7 @@ const SpecimenTree = ({
         }
         onFocusItem={() => {}}
       >
-        <Tree
+        <ReactComplexTree
           treeId="specimen-tree"
           rootItem="root"
           treeLabel="Specimen Tree"
