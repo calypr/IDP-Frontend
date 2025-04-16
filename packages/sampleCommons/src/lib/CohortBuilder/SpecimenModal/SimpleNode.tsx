@@ -4,15 +4,18 @@ import React from 'react';
 interface SimpleNodeProps {
   data: {
     label: string;
+    isAncestor: boolean;
   };
 }
 
-export default function SimpleNode({ data }: SimpleNodeProps) {
+export default function SimpleNode({ data: {label, isAncestor} }: SimpleNodeProps) {
   return (
     <React.Fragment>
       <Handle type="target" position={Position.Right} style={{ background: '#fff' }} />
         <div className="p-1">
-          {data.label}
+          <div className={`${isAncestor ? 'font-bold' : ''}`}>
+            {label}
+          </div>
         </div>
       <Handle type="source" position={Position.Left} style={{ background: '#fff' }} />
     </React.Fragment>

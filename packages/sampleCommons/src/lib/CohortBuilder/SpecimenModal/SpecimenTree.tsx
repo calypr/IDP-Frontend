@@ -8,7 +8,7 @@ import { readTemplate, replaceIdsWithLabels, sortJsonKeys } from './SpecimenTree
 
 import React from 'react';
 import '@xyflow/react/dist/style.css';
-import { HierarchyNode, stratify, tree } from 'd3-hierarchy';
+import { stratify, tree } from 'd3-hierarchy';
 import {
   Controls,
   ReactFlow,
@@ -20,28 +20,12 @@ import SimpleNode from './SimpleNode';
 interface TreeNode {
   name: string;
   id: string;
+  data: Record<string,any>;
   children?: TreeNode[];
 }
 
-function replaceNamesWithLabels(
-  tree: HierarchyNode<TreeNode>,
-  labelMap: { [key: string]: string }
-): HierarchyNode<TreeNode> {
-  function traverse(node: HierarchyNode<TreeNode>): void {
-    if (labelMap[node.id]) {
-      node.name = labelMap[node.id];
-    }
-    if (node.children) {
-      node.children.forEach(traverse);
-    }
-  }
-
-  traverse(tree);
-  return tree;
-}
-
 const nodeTypes = {
-  textUpdater: SimpleNode
+  simpleNode: SimpleNode
 };
 
 const SpecimenTree = ({
@@ -135,91 +119,78 @@ const SpecimenTree = ({
 
     // show graph view
     if (graphView && !familyIsLoading) {
-      // build tree into d3-hierarchy form 
-      const d3Edges = edges.map((edge) => ({parentId: edge[0], id: edge[1]})) as Record<string,string>[];
+      // build tree using labels into d3-hierarchy form 
+      const d3Edges = edges.map((edge) => ({parentId: specimenIdToLabel[edge[0]], id: specimenIdToLabel[edge[1]]})) as Record<string,string>[];
+
+      // create root, providing a data.label for each node
+      const root = stratify()(d3Edges)
+        .sort(
+          (a, b) => b.height - a.height || d3.ascending(a.id, b.id)
+        ) as d3.HierarchyNode<TreeNode>;
       
-      // const d3Tree = tree().nodeSize([dx, dy])(stratify<TreeNode>()(d3Edges));
-      const root = stratify<TreeNode>()(d3Edges);
-      root.sort((a, b) => d3.ascending(a.data.name, b.data.name));
-      const d3Tree = tree()(root);
-      // console.log('d3Tree.descendants():', d3Tree.descendants());
+      const d3Tree = tree<TreeNode>()(root);
+      
 
-      console.log('d3Tree:', d3Tree); 
-      // console.log('new tree:', tree()(d3Tree)); 
-      // console.log('new tree:', d3Tree); 
-
-      // get nodes using specimenDict
-
-
-      // Convert d3 tree nodes
-      // replaceNamesWithLabels(d3Tree, specimenIdToLabel);
+      // get all ancestors of the node with the same id as the focusId
+      const focusNode = d3Tree.descendants().find((node) => node.data.id === focusLabel);
+      const focusAncestors: Set<string> = focusNode 
+        ? new Set(focusNode.ancestors().map((ancestor) => ancestor.id) as string[])
+        : new Set();
 
       // create nodes
-      const reactFlowNodes = d3Tree.descendants().map((node, index) => {
-        console.log('node:', node);
-        return {
+      const reactFlowNodes = d3Tree.descendants().map((node) => {
+        const val = {
           id: node.data.id,
-          type: 'textUpdater',
-          data: { label: specimenIdToLabel[node.data.id] },
-          position: {x: node.y * 1400, y: node.x * 1400 },
+          type: 'simpleNode',
+          data: {
+            ...node.data,
+            label: node.id,
+            isAncestor: node.id && focusAncestors.has(node.id),
+          },
+          // font bolded if the node is an ancestor of the focus node
+          style: {
+            fontWeight: node.id && focusAncestors.has(node.id) ? 'bold' : 'normal',
+          },
+          position: {x: node.y * 1400, y: node.x * 1400 } // horizontal tree
         };
+        return val;
       });
 
-      // create edges
-      const reactFlowEdges = edges.map((edge) => ({id: `${edge[0]}-${edge[1]}`, target: edge[0], source: edge[1]}));
-      
-      // check that everything looks good
+      // create edges with conditional styles
+      const ancestorEdgeStyle = {
+        stroke: 'black',
+        strokeWidth: 2
+      };
+
+      const reactFlowEdges = d3Edges.map((edge) => (
+        {
+          id: `${edge.parentId}-${edge.id}`,
+          data: {
+            betweenAncestors: focusAncestors.has(edge.parentId) && focusAncestors.has(edge.id),
+          },
+          // make the line thicker if the edge is between two ancestors of the focus node
+          style: focusAncestors.has(edge.parentId) && focusAncestors.has(edge.id)  
+            ? ancestorEdgeStyle
+            : {},
+          target: edge.parentId,
+          source: edge.id
+        }
+      ));
+
       console.log('reactFlowNodes:', reactFlowNodes);
       console.log('reactFlowEdges:', reactFlowEdges);
-
-      // const [stateNodes, setNodes] = useState(reactFlowNodes);
-      // const [stateEdges, setEdges] = useState(reactFlowEdges);
-
-      // const onNodesChange = useCallback(
-      //   (changes) => setNodes((nds) => applyNodeChanges(changes, nds)),
-      //   [setNodes],
-      // );
-      // const onEdgesChange = useCallback(
-      //   (changes) => setEdges((eds) => applyEdgeChanges(changes, eds)),
-      //   [setEdges],
-      // );
- 
       
       return (
-        // graph(d3Tree)
         <div style={{
           width: '100%',
           height: 800
         }}
-          // className="text-sm"
         >
-          {/* <D3HorizontalTreeComponent
-            root={d3Tree}
-            label={d => d.data.id}
-            highlight={d => d.data.id === 'Child 1'}
-            marginLeft={40}
-            dx={12}
-            dy={120}
-            width={500}
-          /> */}
-          {/* <D3Tree
-            data={d3Tree}
-            orientation="horizontal"
-            translate={{ x: 400, y: 50 }}
-            pathFunc="diagonal"
-            separation={{ siblings: 0.4, nonSiblings: 0.6 }}
-            rootNodeClassName="radius-xl"
-          /> */}
-
           <ReactFlowProvider>
             <ReactFlow
               nodes={reactFlowNodes}
               edges={reactFlowEdges}
               nodeTypes={nodeTypes}
-              // nodes={stateNodes}
-              // edges={stateEdges}
-              // onNodesChange={onNodesChange}
-              // onEdgesChange={onEdgesChange}
               zoomOnScroll={false}
               preventScrolling={false}
               fitView
