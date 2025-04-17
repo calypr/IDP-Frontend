@@ -23,6 +23,7 @@ const GraphTreeView = ({
     specimenIdToLabel: Record<string, string>;
     focusId: string;
   }) => {
+    
     // build tree using labels into d3-hierarchy form 
     const d3Edges = edges.map((edge) => ({parentId: specimenIdToLabel[edge[0]], id: specimenIdToLabel[edge[1]]})) as Record<string,string>[];
   
@@ -33,7 +34,18 @@ const GraphTreeView = ({
       ) as d3.HierarchyNode<TreeNode>;
   
     const d3Tree = tree<TreeNode>()(root);
-  
+
+    // get the number of nodes for each depth of the tree
+    const depthCounts = d3Tree.descendants().reduce((acc, node) => {
+      acc[node.depth] = (acc[node.depth] || 0) + 1;
+      return acc;
+    }, {} as Record<number, number>);
+
+    // get the max depth of the tree
+    const maxDepth = Math.max(...Object.keys(depthCounts).map(Number));
+
+    // get the max nodes for a given depth of the tree
+    const maxNodes = Math.max(...Object.values(depthCounts));
   
     // get all ancestors of the node with the same id as the focusLabel
     const focusLabel = specimenIdToLabel[focusId];
@@ -56,7 +68,7 @@ const GraphTreeView = ({
         style: {
           fontWeight: node.id && focusAncestors.has(node.id) ? 'bold' : 'normal',
         },
-        position: {x: node.y * 1400, y: node.x * 1400 } // horizontal tree
+        position: {x: node.y * maxDepth * 400, y: node.x * maxNodes * 30 } // horizontal tree
       };
     });
   
@@ -84,7 +96,7 @@ const GraphTreeView = ({
     return (
       <div style={{
         width: '100%',
-        height: 800
+        height: maxNodes * 14 + 100
       }}
       >
         <ReactFlowProvider>
