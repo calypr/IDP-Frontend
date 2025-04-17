@@ -2,8 +2,8 @@ import { useGeneralGQLQuery } from '@gen3/core';
 import React from 'react';
 
 import GraphTreeView from './GraphTreeView/GraphTreeView';
-import MenuTreeView from './MenuTreeView/MenuTreeView';
-import { extractData, isQueryResponse } from '../ResearchSubjectModal/tools';
+import DropdownTreeView from './DropdownTreeView/DropdownTreeView';
+import { extractQueryContent } from '../ResearchSubjectModal/tools';
 import { QueryContent, ResourceDict } from '../types';
 
 export interface TreeNode {
@@ -56,9 +56,7 @@ const SpecimenTree = ({
     });
 
     // map specimen id to identifier
-    const specimenDicts = isQueryResponse(specimenFamilyData)
-      ? (extractData(specimenFamilyData, 'specimen', '') as QueryContent)
-      : [];
+    const specimenDicts = extractQueryContent(specimenFamilyData, 'specimen', '') as QueryContent;
 
     const specimenIdToLabel = specimenDicts.reduce((acc, specimen: ResourceDict) => {
       acc[specimen.id] = `${specimen.identifier} (${specimen.sample_type})`;
@@ -83,7 +81,7 @@ const SpecimenTree = ({
       specimenIdToLabel={specimenIdToLabel}
       focusId={specimenId}
     /> :
-    <MenuTreeView
+    <DropdownTreeView
       specimenDicts={specimenDicts}
       edges={edges}
       specimenIdToLabel={specimenIdToLabel}

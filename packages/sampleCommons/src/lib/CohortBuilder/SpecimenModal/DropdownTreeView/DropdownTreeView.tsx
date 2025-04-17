@@ -1,12 +1,12 @@
 import React from 'react';
 import { ResourceDict } from '../../types';
-import { edgesToNestedTree } from './MenuTreeAlgo';
-import { readTemplate, replaceIdsWithLabels, sortJsonKeys } from './MenuTreeHelpers';
+import { edgesToNestedTree } from './DropdownTreeAlgo';
+import { readTemplate, replaceIdsWithLabels, sortJsonKeys } from './DropdownTreeHelpers';
 
 import { StaticTreeDataProvider, Tree as ReactComplexTree, UncontrolledTreeEnvironment } from 'react-complex-tree';
 import 'react-complex-tree/lib/style-modern.css';
 
-const MenuTreeView = ({
+const DropdownTreeView = ({
     specimenDicts,
     edges,
     specimenIdToLabel,
@@ -69,4 +69,4 @@ const MenuTreeView = ({
     );
   };
 
-export default MenuTreeView;
+export default DropdownTreeView;
