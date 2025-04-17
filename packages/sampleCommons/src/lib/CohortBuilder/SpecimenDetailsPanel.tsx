@@ -206,23 +206,25 @@ export const SpecimenDetailsPanel = ({
             Related Specimens by Sample Family ID: {row?._valuesCache.sample_family_id}
           </Title>
           { /*Mantine SegmentedControl to toggle graph view */}
-          <div className="flex justify-left pb-3">
-            <SegmentedControl
-              value={graphView ? 'graph' : 'dropdown'}
-              onChange={(value) => setGraphView(value === 'graph')}
-              data={[
+          <div className="border border-gray-300 rounded-md px-2 py-3">
+            <div className="flex justify-left pb-3">
+              <SegmentedControl
+                value={graphView ? 'graph' : 'dropdown'}
+                onChange={(value) => setGraphView(value === 'graph')}
+                data={[
                 { label: 'Dropdown', value: 'dropdown' },
                 { label: 'Graph', value: 'graph' },
-              ]}
+                ]}
+              />
+            </div>
+            <SpecimenTree
+              projectId={row?._valuesCache.project_id as string}
+              sampleFamilyId={row?._valuesCache.sample_family_id as string}
+              sampleTypeField="sample_type"
+              specimenId={id as string}
+              graphView={graphView}
             />
-          </div>
-          <SpecimenTree
-            projectId={row?._valuesCache.project_id as string}
-            sampleFamilyId={row?._valuesCache.sample_family_id as string}
-            sampleTypeField="sample_type"
-            specimenId={id as string}
-            graphView={graphView}
-          />
+            </div>
         </div>
         <Divider className="pb-5" size="md" color="black" />
         {/* Associated Files Table */}
