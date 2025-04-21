@@ -192,10 +192,10 @@ export const AssociatedFilesText = ({
 
 export const AssociatedAssaysTable = ({
   ids,
-  asoc_val,
+  sortField,
 }: {
   ids: string[];
-  asoc_val: string;
+  sortField: string;
 }) => {
   const { data: resData, isLoading, isError } = useFilesQuery(ids, true);
   const {
@@ -212,8 +212,8 @@ export const AssociatedAssaysTable = ({
 
   const filteredResourcesTwo = (resDataTwo as JSONObject[])?.toSorted(
     (a: JSONObject, b: JSONObject) => {
-      const left = a[asoc_val] as number;
-      const right = b[asoc_val] as number;
+      const left = a[sortField] as number;
+      const right = b[sortField] as number;
       return left - right;
     },
   );
@@ -308,7 +308,7 @@ export const AssayCheckboxChart = ({
               <Checkbox
                 key={index}
                 checked={true}
-                defaultChecked
+                readOnly
                 color="#32CD32"
                 size="lg"
               />

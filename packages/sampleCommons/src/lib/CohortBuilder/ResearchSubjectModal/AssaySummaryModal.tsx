@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Button, Text } from '@mantine/core';
 import { AssociatedAssaysTable } from './AssociatedFiles';
 
-export const TimeSeriesAssaySummaryModal = ({
+export const AssaySummaryModal = ({
   ids,
 }: {
   ids: string[];
@@ -37,7 +37,7 @@ export const TimeSeriesAssaySummaryModal = ({
       >
         <AssociatedAssaysTable
           ids={ids}
-          asoc_val={'specimen_indexed_collection_date_days'}
+          sortField={'specimen_indexed_collection_date_days'}
         />
       </BaseModal>
     </div>

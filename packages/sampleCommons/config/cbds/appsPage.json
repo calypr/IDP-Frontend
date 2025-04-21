@@ -8,8 +8,8 @@
             "perms": null
         },
         {
-            "title": "File Report",
-            "description": "Overview of file system useage",
+            "title": "File Summary",
+            "description": "Overview of file system usage",
             "icon": "/icons/file.svg",
             "href": "/Filesummary",
             "perms": null

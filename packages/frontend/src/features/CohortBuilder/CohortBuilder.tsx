@@ -31,6 +31,7 @@ export const CohortBuilder = ({
               <Tabs.Tab
                 value={panelConfig.tabTitle}
                 key={`${panelConfig.tabTitle}-tabList`}
+                className="mt-2"
               >
                 {panelConfig.tabTitle}
               </Tabs.Tab>

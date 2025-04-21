@@ -152,7 +152,7 @@ export const ProgramProjectsDisplay = ({ headerProps, footerProps }: NavPageLayo
     <NavPageLayout
       {...{ headerProps, footerProps }}
       headerData={{
-        title: 'My Projects',
+        title: 'CALIPER My Projects Page',
         content: 'My Projects',
         key: 'my-projects-page',
       }}
@@ -168,7 +168,7 @@ export const ProgramProjectsDisplay = ({ headerProps, footerProps }: NavPageLayo
             {!isAuthZLoading && <TreeView demoData={demoData} />}
           </Container>
         </div>
-        </ProtectedContent>
+      </ProtectedContent>
     </NavPageLayout>
   );
 };
