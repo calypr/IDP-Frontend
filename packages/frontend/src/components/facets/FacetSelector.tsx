@@ -95,7 +95,7 @@ const FacetSelector: React.FC<FacetSelectorCardProps> = ({
         className={showFilters ? 'h-full' : 'h-0 invisible'}
         aria-hidden={!showFilters}
       >
-        <>
+        <React.Fragment>
           {isSearching && (
             <TextInput
               data-testid="textbox-search-values"
@@ -164,7 +164,7 @@ const FacetSelector: React.FC<FacetSelectorCardProps> = ({
               />
             ) : null}
           </div>
-        </>
+        </React.Fragment>
       </div>
     </div>
   );

@@ -10,6 +10,7 @@ import { registerCustomExplorerDetailsPanels } from '@/lib/CohortBuilder/FileDet
 import { registerCustomExplorerResourceDetailsPanels } from '@/lib/CohortBuilder/ResourceDetailsPanel';
 import { registerCustomExplorerMedicationAdministrationDetailsPanels } from '@/lib/CohortBuilder/MedicationAdministrationPanel';
 import { registerCustomExplorerResearchSubjectDetailsPanels } from '@/lib/CohortBuilder/ResearchSubjectPanel';
+import { registerCustomExplorerSpecimenDetailsPanels } from '@/lib/CohortBuilder/SpecimenDetailsPanel';
 
 registerExplorerDefaultCellRenderers();
 registerCohortBuilderDefaultPreviewRenderers();
@@ -18,6 +19,7 @@ registerCustomExplorerDetailsPanels();
 registerCustomExplorerResourceDetailsPanels();
 registerCustomExplorerMedicationAdministrationDetailsPanels();
 registerCustomExplorerResearchSubjectDetailsPanels();
+registerCustomExplorerSpecimenDetailsPanels();
 
 export default ExplorerPage;
 

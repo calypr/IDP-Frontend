@@ -2,7 +2,14 @@ import { useGeneralGQLQuery } from '@gen3/core';
 import { QueryContent, QueryHookResponse, QueryResponse, ResourceDict } from '../types';
 import { useMemo } from 'react';
 
-// TODO: we should try and consolidate the definitions of this at some point
+// TODO: prefer use of extractQueryContent over isQueryResponse and extractData (make these two private)
+// create function to extract content from QueryResponse
+export const extractQueryContent = (response: unknown, resourceType: string, aggregationVal: string) => {
+  return isQueryResponse(response)
+    ? extractData(response, resourceType, aggregationVal) as QueryContent
+    : [];
+};
+
 /**
  * Checks if the given object is a QueryResponse.
  *
@@ -22,18 +29,18 @@ export const isQueryResponse = (obj: any): obj is QueryResponse => {
  *
  * @param {QueryResponse} response The fetch response object to be indexed
    @param {string} index The name to index on
-   @param {string} aggregation_val If fetch response is an aggregation response, the index to index on
+   @param {string} aggregationVal If fetch response is an aggregation response, the index to index on
  * @returns {Record<string, any> || AggregationData}
  */
 export function extractData(
   response: QueryResponse,
   index: string,
-  aggregation_val: string,
+  aggregationVal: string,
 ) {
-  if (aggregation_val !== '') {
+  if (aggregationVal !== '') {
     const aggregationData = response.data._aggregation[index]; // Access using string key
-    if (aggregationData && aggregation_val in aggregationData) {
-      const histogram = aggregationData[aggregation_val]?.histogram;
+    if (aggregationData && aggregationVal in aggregationData) {
+      const histogram = aggregationData[aggregationVal]?.histogram;
       return Array.isArray(histogram) && histogram.length > 0 ? histogram : [];
     }
   }
