@@ -315,11 +315,11 @@ export const CohortPanel = ({
           />
         )}
       </div>
-      <div className="w-full relative">
+      <div className="w-full relative ml-2 mr-4">
         <div className="flex flex-col">
           <CohortManager index={index} />
 
-          <div className="flex justify-between mb-2 ml-2">
+          <div className="flex justify-between">
             <DownloadsPanel
               dropdowns={dropdowns ?? {}}
               buttons={buttons ?? []}
@@ -329,12 +329,12 @@ export const CohortPanel = ({
               fields={table?.fields ?? []}
               filter={cohortFilters}
             />
-            <div className="flex justify-between flex-row items-center mb-2">
+            <div className="flex justify-between flex-row items-center my-2">
               {Object.keys(summaryCharts).length !== 0 && (
                 <Gen3Button
                   colors="primary"
                   onClick={() => setShowCharts(!showCharts)}
-                  className="px-2 py-1 text-primary-contrast rounded mr-4 active:scale-95"
+                  className="px-2 py-1 text-primary-contrast rounded mr-4 hover:bg-secondary active:scale-95"
                 >
                   {showCharts ? 'Hide Charts' : 'Show Charts'}
                 </Gen3Button>

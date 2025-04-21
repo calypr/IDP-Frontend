@@ -3,8 +3,6 @@ import {
   MantineProvider,
   Loader,
   Alert,
-  CloseButton,
-  Text,
 } from '@mantine/core';
 import { AppsPageProps } from './types';
 import { NavPageLayout } from '../../features/Navigation';
@@ -17,6 +15,7 @@ import {
 import AppCard from './AppCard';
 import { ProtectedContent } from '../../components/Protected';
 import { useFileTotalCountQuery } from './fetchFileCounts';
+import EqualHeightCards from './EqualHeightCards';
 
 export function SummaryStatsBanner(authz: any) {
   const [visible, setVisible] = useState(true);
@@ -28,40 +27,46 @@ export function SummaryStatsBanner(authz: any) {
     (resource) => resource.split('/')?.length === 5,
   ).length;
 
+  const message = 'Welcome to CALIPER! You have access to'
+    + ` ${len_access_projects} project${len_access_projects === 1 ? '' : 's'}`
+    + ` and ${!isLoading ? data : 0} file${data === 1 ? '' : 's'}`;
+
   return (
-    <Alert className="bg-secondary" variant="filled">
-      <div className="flex justify-between items-center">
-        <Text>
-          Welcome to CALIPER! You have access to {len_access_projects} project
-          {len_access_projects == 1 ? '' : 's'} and{' '}
-          {!isLoading ? data + ' ' : 0 + ' '} file
-          {data == 1 ? '' : 's'}
-        </Text>
-        <CloseButton
-          className="bg-base-max"
-          onClick={() => setVisible(false)}
-        />
-      </div>
+    <Alert
+      classNames={{
+        root: 'rounded-lg mx-8 my-4 py-4',
+        wrapper: 'flex items-center',
+        title: 'text-base font-normal',
+      }}
+      color="secondary.0"
+      variant="filled"
+      withCloseButton
+      onClose={() => setVisible(false)}
+      title={message}
+    >
     </Alert>
   );
 }
-const AppsPage = ({ headerProps, footerProps, appsConfig }: AppsPageProps) => {
-  const { data: authzMapping = {}, isLoading: isAuthZLoading } =
-    useGetAuthzMappingsQuery();
 
+const AppsPage = ({ headerProps, footerProps, appsConfig }: AppsPageProps) => {
+  // define the content to be returned
+  const { data: authzMapping = {}, isLoading: isAuthZLoading } = useGetAuthzMappingsQuery();
   const content = isAuthZLoading ? (
     <div className="fixed inset-0 flex justify-center items-center bg-gray-700 bg-opacity-50 z-50">
       <Loader size={30} />
     </div>
   ) : (
+    <EqualHeightCards>
     <div>
-      <div className="flex flex-col gap-4 pt-2">
+      <div className="flex flex-col">
         <SummaryStatsBanner authz={authzMapping} />
-        <Alert className="bg-primary" variant="filled">
-          <div className="text-3xl text-center font-semibold">Apps</div>
+        <Alert className="bg-base-max" variant="filled">
+          <div className="text-black text-4xl text-center font-semibold">
+            Apps
+          </div>
         </Alert>
       </div>
-      <div className="grid grid-cols-4 gap-12 p-8 auto-rows-auto">
+      <div className="grid grid-cols-4 gap-6 px-8 my-4 auto-rows-auto">
         {appsConfig?.appCards
           ?.filter(
             (proj) =>
@@ -85,13 +90,15 @@ const AppsPage = ({ headerProps, footerProps, appsConfig }: AppsPageProps) => {
           ))}
       </div>
     </div>
+    </EqualHeightCards>
   );
 
+  // return with protected and general page navbar
   return (
     <NavPageLayout
       {...{ headerProps, footerProps }}
       headerData={{
-        title: 'Gen3 Apps Page',
+        title: 'CALIPER Homepage',
         content: 'Apps',
         key: 'gen3-apps',
       }}

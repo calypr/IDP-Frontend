@@ -10,8 +10,8 @@
           {
             "Icon": {
               "logo": "/icons/knight.svg",
-              "width": 150,
-              "height": 70,
+              "width": 100,
+              "height": 47,
               "description": "Knight Cancer Institute"
             }
           }

@@ -7,12 +7,15 @@ interface CountsValueProps {
 }
 
 const CountsValue = ({ label, isSuccess, counts }: CountsValueProps) => {
-  // TODO handle case of data.length == 1
+  const pluralizedLabel = Number(counts) == 1
+    ? label.slice(0, -1)
+    : label;
+
   return (
     <div className="mr-4">
       <LoadingOverlay visible={!isSuccess} />
       <Text className="rounded mr-4" color="text-base-contrast">
-        {`${counts?.toLocaleString() ?? '...'} ${label}`}
+        {`${counts?.toLocaleString() ?? '...'} ${pluralizedLabel}`}
       </Text>
     </div>
   );

@@ -50,9 +50,9 @@ const CaliperPage = ({ headerProps, footerProps }: Props) => {
     <NavPageLayout
       {...{ headerProps, footerProps }}
       headerData={{
-        title: 'Gen3 Landing Page',
+        title: 'CALIPER Landing Page',
         content: 'Landing Page',
-        key: 'gen3-landing-page',
+        key: 'caliper-landing-page',
       }}
     >
       <div className="flex flex-col w-full">

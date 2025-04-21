@@ -35,9 +35,9 @@ const TopIconButton = ({
     logoAndTitlePanel: 'flex justify-center items-center align-middle',
     button: 'flex items-center align-middle border-b-2 h-full',
     leftIcon: 'text-white pr-1 flex-shrink-0',
-    label: 'font-content text-secondary-contrast-lighter block leading-none',
-    rightIcon: 'text-secondary-contrast-lighter pl-1 flex-shrink-0',
-    loginMenu: 'border-r-2',
+    label: 'font-content block leading-none',
+    rightIcon: 'pl-1 flex-shrink-0',
+    loginMenu: 'flex justify-center h-full border-r-1',
   };
   const mergedClassnames = mergeDefaultTailwindClassnames(
     classNamesDefaults,
@@ -111,29 +111,27 @@ export interface TopBarProps {
 }
 
 const TopBar = ({ title, items, classNames, logo }: TopBarProps) => {
-  title === 'Gen3 Landing Page'
-    ? (logo!.basepage = true)
-    : (logo!.basepage = false);
+  logo!.basepage = title === 'CALIPER Landing Page';
 
   const defaultClassNames = {
     root:
-      title === 'Gen3 Landing Page'
-        ? 'flex justify-end items-center align-middle px-2 border-r-2 my-2 bg-white border-black'
-        : 'flex justify-end items-center align-middle px-2 border-r-2 my-2 bg-primary border-primary',
+      title === 'CALIPER Landing Page'
+        ? 'flex justify-end items-center align-middle px-2 border-r-2 bg-white text-black border-black'
+        : 'flex justify-end items-center align-middle px-2 border-r-2 bg-primary text-white border-primary',
     label:
-      title === 'Gen3 Landing Page'
+      title === 'CALIPER Landing Page'
         ? 'font-content text-black block align-middle'
         : 'font-content text-white block align middle',
     button:
-      title === 'Gen3 Landing Page'
-        ? 'flex flex-nowrap items-center align-middle border-b-2 border-white hover:border-black'
-        : 'flex flex-nowrap items-center align-middle border-b-2 px-2 hover:border-white',
+      title === 'CALIPER Landing Page'
+        ? 'flex flex-nowrap items-center align-middle border-white hover:border-black'
+        : 'flex flex-nowrap items-center align-middle px-2 border-primary hover:border-white',
     loginMenu:
-      title === 'Gen3 Landing Page'
-        ? 'mx-2 text-black border border-transparent hover:border-black py-1'
-        : 'mx-2 text-white border border-transparent hover:border-white py-1',
+      title === 'CALIPER Landing Page'
+        ? 'mx-2 text-black border-b-2 border-transparent border-white hover:border-black'
+        : 'mx-2 text-white border-b-2 border-transparent border-primary hover:border-white',
   };
-
+  
   const mergedClassnames = mergeDefaultTailwindClassnames(
     defaultClassNames,
     classNames || {},
@@ -147,9 +145,9 @@ const TopBar = ({ title, items, classNames, logo }: TopBarProps) => {
         >
           {logo && <NavigationLogo {...{ ...logo }} />}
         </div>
-        <nav className="flex items-center align-middle justify-end w-full my-2">
+        <nav className="flex items-center justify-end w-full my-2">
           {processTopBarItems(
-            title === 'Gen3 Landing Page'
+            title === 'CALIPER Landing Page'
               ? [
                   {
                     ...items[0],
