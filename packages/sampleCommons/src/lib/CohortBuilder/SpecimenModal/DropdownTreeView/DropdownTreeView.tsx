@@ -17,6 +17,12 @@ const DropdownTreeView = ({
     specimenIdToLabel: Record<string, string>;
     focusId: string;
   }) => {
+
+    // check if there are any edges or labels
+    if (edges.length === 0 || Object.keys(specimenIdToLabel).length === 0) {
+      return <div>No specimen tree available</div>;
+    }
+
     const nestedTree = edgesToNestedTree(edges);
   
     // format tree with identifiers
@@ -45,7 +51,6 @@ const DropdownTreeView = ({
     const focusLabel = specimenIdToLabel[focusId];
   
     return (
-        
       <UncontrolledTreeEnvironment
         dataProvider={dataProvider}
         getItemTitle={item => item.data}

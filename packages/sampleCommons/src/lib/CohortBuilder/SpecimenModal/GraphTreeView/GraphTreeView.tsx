@@ -23,10 +23,14 @@ const GraphTreeView = ({
     specimenIdToLabel: Record<string, string>;
     focusId: string;
   }) => {
+
+    if (edges.length === 0 || Object.keys(specimenIdToLabel).length === 0) {
+      return <div>No specimen tree available</div>;
+    }
     
     // build tree using labels into d3-hierarchy form 
     const d3Edges = edges.map((edge) => ({parentId: specimenIdToLabel[edge[0]], id: specimenIdToLabel[edge[1]]})) as Record<string,string>[];
-  
+
     // create root, providing a data.label for each node
     const root = stratify()(d3Edges)
       .sort(
@@ -93,26 +97,28 @@ const GraphTreeView = ({
       }
     ));
   
-    return (
-      <div style={{
-        width: '100%',
-        height: maxNodes * 14 + 100
-      }}
-      >
-        <ReactFlowProvider>
-          <ReactFlow
-            nodes={reactFlowNodes}
-            edges={reactFlowEdges}
-            nodeTypes={nodeTypes}
-            zoomOnScroll={false}
-            preventScrolling={false}
-            fitView
-          >
-            <Controls showZoom={true} />
-          </ReactFlow>
-        </ReactFlowProvider>
-      </div>
-    );
+    return reactFlowEdges.length !== 0 && reactFlowNodes.length !== 0
+      ? (
+        <div style={{
+          width: '100%',
+          height: maxNodes * 14 + 100
+        }}
+        >
+          <ReactFlowProvider>
+            <ReactFlow
+              nodes={reactFlowNodes}
+              edges={reactFlowEdges}
+              nodeTypes={nodeTypes}
+              zoomOnScroll={false}
+              preventScrolling={false}
+              fitView
+            >
+              <Controls showZoom={true} />
+            </ReactFlow>
+          </ReactFlowProvider>
+        </div>
+      ) 
+      : <div>No specimen tree available</div>;
   };
   
 export default GraphTreeView;
