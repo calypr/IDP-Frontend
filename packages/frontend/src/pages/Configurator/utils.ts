@@ -95,13 +95,19 @@ export const transformConfigToTabs = (content: CohortPanelConfig[]): Tab[] => {
         label: col.title,
       }),
     );
-    const filterItems = tabConfig.filters?.tabs[0].fields.map(
-      (field: string, idx: number) => ({
-        id: Date.now() + Math.random() + idx,
-        field,
-        label: tabConfig.filters?.tabs[0].fieldsConfig[field]?.label || field,
-      }),
-    );
+
+    const filterItems =
+      tabConfig.filters?.tabs?.[0]?.fields?.map(
+        (field: string, idx: number) => ({
+          id: Date.now() + Math.random() + idx,
+          field,
+          // Safely access fieldsConfig[field]?.label, default to field if any part is undefined
+          label:
+            tabConfig?.filters?.tabs?.[0]?.fieldsConfig?.[field]?.label ||
+            field,
+        }),
+      ) || []; // Default to empty array if filters/tabs/fields is undefined
+
     const chartItems = Object.entries(tabConfig.charts || {}).map(
       ([field, chart]) => ({
         id: Date.now() + Math.random(),
