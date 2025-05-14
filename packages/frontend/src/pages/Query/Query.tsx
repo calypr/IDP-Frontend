@@ -12,9 +12,9 @@ const QueryPage = ({
     <NavPageLayout
       {...{ headerProps, footerProps }}
       headerData={{
-        title: 'CALIPER Query Page',
+        title: 'CALYPR Query Page',
         content: 'Query page',
-        key: 'caliper-query-page',
+        key: 'calypr-query-page',
       }}
     >
       <QueryPanel graphQLEndpoint={queryProps.graphQLEndpoint} />

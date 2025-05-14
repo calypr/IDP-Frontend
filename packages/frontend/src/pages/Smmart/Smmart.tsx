@@ -20,9 +20,9 @@ const SmmartPage = ({
     <NavPageLayout
       {...{ headerProps, footerProps }}
       headerData={{
-        title: 'CALIPER SMMART Landing Page',
-        content: 'CALIPER SMMART Landing Page',
-        key: 'caliper-landing-page',
+        title: 'CALYPR SMMART Landing Page',
+        content: 'CALYPR SMMART Landing Page',
+        key: 'calypr-smmart-landing-page',
       }}
     >
       {smmartConfig === undefined ? (

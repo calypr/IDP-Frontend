@@ -12,9 +12,9 @@ const ProfilePage = ({ headerProps, footerProps, profileConfig }: Props) => {
     <NavPageLayout
       {...{ headerProps, footerProps }}
       headerData={{
-        title: 'CALIPER Profile Page',
+        title: 'CALYPR Profile Page',
         content: 'Profile page',
-        key: 'caliper-profile-page',
+        key: 'calypr-profile-page',
       }}
     >
       <Profile profileConfig={profileConfig} />

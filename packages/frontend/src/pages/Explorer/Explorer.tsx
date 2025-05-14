@@ -21,9 +21,9 @@ const ExplorerPage = ({
     <NavPageLayout
       {...{ headerProps, footerProps }}
       headerData={{
-        title: 'CALIPER Explorer Page',
+        title: 'CALYPR Explorer Page',
         content: 'Explorer Page',
-        key: 'caliper-explorer-page',
+        key: 'calypr-explorer-page',
       }}
     >
       <CohortBuilder explorerConfig={explorerConfig} />

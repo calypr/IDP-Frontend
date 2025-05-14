@@ -19,10 +19,10 @@ import { type Fonts, type RegisteredIcons } from './lib/content/types';
 import ErrorCard from './components/ErrorCard';
 import '@gen3/core';
 import SmmartPage from './pages/Smmart/Smmart';
-import CaliperPage from './pages/Caliper/Caliper';
+import CalyprPage from './pages/CALYPR/CALYPR';
 
 import { SmmartPageGetServerSideProps } from './pages/Smmart';
-import { CaliperPageGetServerSideProps } from './pages/Caliper';
+import { CalyprPageGetServerSideProps } from './pages/CALYPR';
 
 import FileSummaryPage from './pages/FileSummary/FileSummary';
 import { FileSummaryPageGetServerSideProps } from './pages/FileSummary';
@@ -92,8 +92,8 @@ export {
   QueryPageGetServerSideProps,
   SmmartPage,
   SmmartPageGetServerSideProps,
-  CaliperPage,
-  CaliperPageGetServerSideProps,
+  CalyprPage,
+  CalyprPageGetServerSideProps,
   FileSummaryPage,
   FileSummaryPageGetServerSideProps,
   AppsPage,

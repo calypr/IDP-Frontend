@@ -207,9 +207,9 @@ const SamplePage = ({ headerProps, footerProps }: NavPageLayoutProps) => {
     <NavPageLayout
       {...{ headerProps, footerProps }}
       headerData={{
-        title: 'CALIPER GRIPREF Page',
-        content: 'CALIPER GRIPREF Page',
-        key: 'caliper-gripref-page',
+        title: 'CALYPR GRIPREF Page',
+        content: 'CALYPR GRIPREF Page',
+        key: 'calypr-gripref-page',
     }}>
       <Paper>
         <div style={{ display: 'flex', alignItems: 'center' }}>

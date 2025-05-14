@@ -2,20 +2,20 @@ import { GetServerSideProps } from 'next';
 import { GEN3_COMMONS_NAME } from '@gen3/core';
 import { getNavPageLayoutPropsFromConfig } from '../../lib/common/staticProps';
 import ContentSource from '../../lib/content';
-import { type CaliperProps } from './types';
+import { type CalyprProps } from './types';
 import type { NavPageLayoutProps } from '../../features/Navigation';
 
-export const CaliperPageGetServerSideProps: GetServerSideProps<
+export const CalyprPageGetServerSideProps: GetServerSideProps<
   NavPageLayoutProps
 > = async () => {
   try {
-    const caliperConfig: CaliperProps = await ContentSource.get(
-      `config/${GEN3_COMMONS_NAME}/caliperLandingPage.json`,
+    const calyprConfig: CalyprProps = await ContentSource.get(
+      `config/${GEN3_COMMONS_NAME}/calyprLandingPage.json`,
     );
     return {
       props: {
         ...(await getNavPageLayoutPropsFromConfig()),
-        caliperConfig: caliperConfig ? caliperConfig : null,
+        calyprConfig: calyprConfig ? calyprConfig : null,
       },
     };
   } catch (err) {
@@ -23,7 +23,7 @@ export const CaliperPageGetServerSideProps: GetServerSideProps<
     return {
       props: {
         ...(await getNavPageLayoutPropsFromConfig()),
-        caliperConfig: undefined,
+        calyprConfig: undefined,
       },
     };
   }

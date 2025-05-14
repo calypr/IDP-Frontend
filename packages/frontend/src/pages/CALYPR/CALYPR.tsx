@@ -6,12 +6,12 @@ import {
   Divider,
   Image,
 } from '@mantine/core';
-import { CaliperLandingPageProps } from './types';
+import { CalyprLandingPageProps } from './types';
 import { LandingPageProps } from '../../components/Content/LandingPageContent';
 import { NavPageLayout } from '../../features/Navigation';
 import LoginMenu from '../../components/Login/LoginMenu';
 
-interface Props extends CaliperLandingPageProps {
+interface Props extends CalyprLandingPageProps {
   landingPage: LandingPageProps;
 }
 
@@ -45,14 +45,14 @@ const BannerPanel = ({
     </div>
   );
 };
-const CaliperPage = ({ headerProps, footerProps }: Props) => {
+const CalyprPage = ({ headerProps, footerProps }: Props) => {
   return (
     <NavPageLayout
       {...{ headerProps, footerProps }}
       headerData={{
-        title: 'CALIPER Landing Page',
+        title: 'CALYPR Landing Page',
         content: 'Landing Page',
-        key: 'caliper-landing-page',
+        key: 'calypr-landing-page',
       }}
     >
       <div className="flex flex-col w-full">
@@ -66,7 +66,7 @@ const CaliperPage = ({ headerProps, footerProps }: Props) => {
             </BackgroundImage>
 
             <div className="relative z-20 flex flex-col justify-center items-center text-white p-4 pt-20">
-              <div className="text-4xl font-bold pb-7">CALIPER</div>
+              <div className="text-4xl font-bold pb-7">CALYPR</div>
               <div className="text-xl font-semibold pb-10">
                 Integrated data system tracking OHSU Knight Cancer Institute
                 research datasets
@@ -250,4 +250,4 @@ const CaliperPage = ({ headerProps, footerProps }: Props) => {
   );
 };
 
-export default CaliperPage;
+export default CalyprPage;
