@@ -152,7 +152,7 @@ export const ProgramProjectsDisplay = ({ headerProps, footerProps }: NavPageLayo
     <NavPageLayout
       {...{ headerProps, footerProps }}
       headerData={{
-        title: 'CALIPER My Projects Page',
+        title: 'CALYPR My Projects Page',
         content: 'My Projects',
         key: 'my-projects-page',
       }}

@@ -27,7 +27,7 @@ export function SummaryStatsBanner(authz: any) {
     (resource) => resource.split('/')?.length === 5,
   ).length;
 
-  const message = 'Welcome to CALIPER! You have access to'
+  const message = 'Welcome to CALYPR! You have access to'
     + ` ${len_access_projects} project${len_access_projects === 1 ? '' : 's'}`
     + ` and ${!isLoading ? data : 0} file${data === 1 ? '' : 's'}`;
 
@@ -98,7 +98,7 @@ const AppsPage = ({ headerProps, footerProps, appsConfig }: AppsPageProps) => {
     <NavPageLayout
       {...{ headerProps, footerProps }}
       headerData={{
-        title: 'CALIPER Homepage',
+        title: 'CALYPR Homepage',
         content: 'Apps',
         key: 'gen3-apps',
       }}

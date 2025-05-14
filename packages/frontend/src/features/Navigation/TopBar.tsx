@@ -111,23 +111,23 @@ export interface TopBarProps {
 }
 
 const TopBar = ({ title, items, classNames, logo }: TopBarProps) => {
-  logo!.basepage = title === 'CALIPER Landing Page';
+  logo!.basepage = title === 'CALYPR Landing Page';
 
   const defaultClassNames = {
     root:
-      title === 'CALIPER Landing Page'
+      title === 'CALYPR Landing Page'
         ? 'flex justify-end items-center align-middle px-2 border-r-2 bg-white text-black border-black'
         : 'flex justify-end items-center align-middle px-2 border-r-2 bg-primary text-white border-primary',
     label:
-      title === 'CALIPER Landing Page'
+      title === 'CALYPR Landing Page'
         ? 'font-content text-black block align-middle'
         : 'font-content text-white block align middle',
     button:
-      title === 'CALIPER Landing Page'
+      title === 'CALYPR Landing Page'
         ? 'flex flex-nowrap items-center align-middle border-white hover:border-black'
         : 'flex flex-nowrap items-center align-middle px-2 border-primary hover:border-white',
     loginMenu:
-      title === 'CALIPER Landing Page'
+      title === 'CALYPR Landing Page'
         ? 'mx-2 text-black border-b-2 border-transparent border-white hover:border-black'
         : 'mx-2 text-white border-b-2 border-transparent border-primary hover:border-white',
   };
@@ -147,7 +147,7 @@ const TopBar = ({ title, items, classNames, logo }: TopBarProps) => {
         </div>
         <nav className="flex items-center justify-end w-full my-2">
           {processTopBarItems(
-            title === 'CALIPER Landing Page'
+            title === 'CALYPR Landing Page'
               ? [
                   {
                     ...items[0],

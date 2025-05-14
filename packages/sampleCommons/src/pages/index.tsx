@@ -1,7 +1,7 @@
 import {
-  CaliperPage,
-  CaliperPageGetServerSideProps as getStaticProps,
+  CalyprPage,
+  CalyprPageGetServerSideProps as getStaticProps,
 } from '@gen3/frontend';
 
-export default CaliperPage;
+export default CalyprPage;
 export { getStaticProps };

@@ -2,7 +2,7 @@
     "appCards": [
         {
             "title": "Data Explorer",
-            "description": "Explore all data in the CALIPER system",
+            "description": "Explore all data in the CALYPR system",
             "icon": "/icons/binoculars.svg",
             "href": "/Explorer",
             "perms": null
@@ -23,7 +23,7 @@
         },
         {
             "title": "Project Discovery",
-            "description": "Explore project summaries of every project in CALIPER",
+            "description": "Explore project summaries of every project in CALYPR",
             "icon": "/icons/compass.svg",
             "href": "/Discovery",
             "perms": null
