@@ -23,7 +23,7 @@ const ResourcePage = ({
   return (
     <NavPageLayout
       {...{ headerProps, footerProps }}
-      headerData={{
+      headerMetadata={{
         title: 'Gen3 Resource Page',
         content: 'Resource Page',
         key: 'gen3-resource-page',
@@ -41,8 +41,8 @@ const ResourcePage = ({
 // should move this thing into _app.tsx and make a dedicated layout component after https://github.com/vercel/next.js/discussions/10949 is addressed
 export const getStaticProps: GetStaticProps<ResourcePageProps> = async () => {
   const navPageLayoutProps = await getNavPageLayoutPropsFromConfig();
-  const resourcePageConfig = (await ContentSource.get(
-    `config/${GEN3_COMMONS_NAME}/resource.json`,
+  const resourcePageConfig = (await ContentSource.getContentDatabase().get(
+    `${GEN3_COMMONS_NAME}/resource.json`,
   )) as unknown as ResourcePageConfig;
   return {
     props: {

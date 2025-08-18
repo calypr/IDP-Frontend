@@ -1,22 +1,31 @@
-import { Paper, LoadingOverlay, Text } from '@mantine/core';
+import React from 'react';
+import { LoadingOverlay, Paper } from '@mantine/core';
+import { toCountsString } from '../../utils';
 
 interface CountsValueProps {
   readonly label: string;
   readonly counts?: number;
-  readonly isSuccess: boolean;
+  readonly isFetching: boolean;
+  readonly isError: boolean;
 }
 
-const CountsValue = ({ label, isSuccess, counts }: CountsValueProps) => {
-  const pluralizedLabel = Number(counts) == 1
-    ? label.slice(0, -1)
-    : label;
-
+const CountsValue = ({
+  label,
+  isFetching,
+  isError,
+  counts,
+}: CountsValueProps) => {
   return (
-    <div className="mr-4">
-      <LoadingOverlay visible={!isSuccess} />
-      <Text className="rounded mr-4" color="text-base-contrast">
-        {`${counts?.toLocaleString() ?? '...'} ${pluralizedLabel}`}
-      </Text>
+    <div className="mr-4 relative">
+      <LoadingOverlay visible={isFetching} />
+      <Paper
+        shadow="xs"
+        p="xs"
+        withBorder
+        className="bg-primary text-primary-contrast font-heading text-md font-semibold"
+      >
+        {isError ? 'error' : toCountsString(counts, label)}
+      </Paper>
     </div>
   );
 };

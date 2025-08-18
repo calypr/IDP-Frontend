@@ -3,14 +3,16 @@ export * from './guppySlice';
 import {
   downloadFromGuppyToBlob,
   downloadJSONDataFromGuppy,
-  useGetIndexFields,
+  groupSharedFields,
 } from './utils';
 import { useDownloadFromGuppyMutation } from './guppyDownloadSlice';
 export * from './types';
+export * from './processing';
 
 export {
   downloadFromGuppyToBlob,
   downloadJSONDataFromGuppy,
   useDownloadFromGuppyMutation,
-  useGetIndexFields,
+  groupSharedFields,
 };
+export { processHistogramResponse } from './processing';

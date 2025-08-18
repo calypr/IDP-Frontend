@@ -5,7 +5,9 @@ import ViewSelector from './ViewSelector';
 import TableSearch from './TableSearch';
 import { useDictionaryContext } from './DictionaryProvider';
 import CategoryPanel from './CategoryPanel';
+import GraphView from './GraphView';
 import { useScrollIntoView } from '@mantine/hooks';
+import { Tabs } from '@mantine/core';
 
 const Dictionary = () => {
   const [selectedId, setSelectedId] = useState('');
@@ -13,10 +15,12 @@ const Dictionary = () => {
   const { dictionary, categories, visibleCategories, config } =
     useDictionaryContext();
 
-  const { scrollIntoView, targetRef, scrollableRef } =
-    useScrollIntoView<HTMLSpanElement>({
-      offset: 60,
-    });
+  const { scrollIntoView, targetRef, scrollableRef } = useScrollIntoView<
+    HTMLSpanElement,
+    HTMLDivElement
+  >({
+    offset: 60,
+  });
 
   const scrollTo = useCallback((item: MatchingSearchResult) => {
     setSelectedId(() => SearchPathToPropertyIdString(item));
@@ -24,14 +28,24 @@ const Dictionary = () => {
 
   const scrollToSelection = useCallback(
     (itemRef: HTMLSpanElement) => {
+      // @ts-expect-error need to refactor this
       targetRef.current = itemRef;
       scrollIntoView();
     },
     [scrollIntoView, targetRef],
   );
+  const categoryPanelTable = Object.keys(categories).length &&
+            Object.keys(categories).map((category) => (
+              <CategoryPanel
+                key={category}
+                category={category}
+                selectedId={selectedId}
+                scrollToSelection={scrollToSelection}
+              />
+            ));
 
   return (
-    <React.Fragment>
+    <>
       <div className="w-1/4 overflow-auto p-4">
         <div className="h-full">
           {config?.showGraph ? (
@@ -54,18 +68,22 @@ const Dictionary = () => {
         ref={scrollableRef}
       >
         <div className="h-full">
-          {Object.keys(categories).length &&
-            Object.keys(categories).map((category) => (
-              <CategoryPanel
-                key={category}
-                category={category}
-                selectedId={selectedId}
-                scrollToSelection={scrollToSelection}
-              />
-            ))}
+          {config?.showGraph ? (
+            <Tabs value={view} keepMounted={false}>
+              <Tabs.Panel value="table">{categoryPanelTable}</Tabs.Panel>
+              <Tabs.Panel value="graph">
+                <GraphView
+                  categories={categories}
+                  selectedId={selectedId}
+                />
+              </Tabs.Panel>
+            </Tabs>
+          ) : 
+            categoryPanelTable
+          }
         </div>
       </div>
-    </React.Fragment>
+    </>
   );
 };
 

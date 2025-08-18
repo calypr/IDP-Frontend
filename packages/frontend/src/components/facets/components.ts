@@ -15,9 +15,9 @@ export const controlsIconStyle =
   'text-secondary-contrast hover:text-secondary-lighter';
 
 export const FacetText = tw.div`
-text-secondary-contrast-darkest font-heading font-semibold text-sm break-words
+text-secondary-contrast font-heading font-semibold text-sm break-words
 `;
 
 export const FacetHeader = tw.div`
-flex items-start justify-between items-center flex-nowrap bg-primary px-1.5 rounded-t-sm
+flex items-start justify-between items-center flex-nowrap bg-secondary px-1.5 rounded-t-md
 `;

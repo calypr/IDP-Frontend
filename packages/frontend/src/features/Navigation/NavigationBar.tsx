@@ -1,4 +1,4 @@
-import { ReactElement, useState, useEffect } from 'react';
+import React, { ReactElement, useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { NavigationProps } from './types';
 import NavigationLogo from './NavigationLogo';
@@ -21,9 +21,10 @@ const NavigationBar = ({
   classNames = {},
 }: NavigationProps): ReactElement => {
   const classNamesDefaults = {
-    root: 'flex bg-base-max border-b-1 border-base-light',
+    root: 'flex bg-base-max border-b-1 border-base-dark',
     navigationPanel: 'font-heading',
     logoAndTitlePanel: 'flex justify-center items-center align-middle',
+    buttons: '',
     login:
       'pl-1 mr-6 bg-base-max text-base-contrast opacity-80 hover:opacity-100',
   };
@@ -39,19 +40,18 @@ const NavigationBar = ({
     setCurrent(router.pathname);
   }, [router.pathname]);
 
-  console.log(
-    'gir',
-    `grid grid-cols-${items?.length} ${extractClassName('navigationPanel', mergedClassnames)}`,
-  );
-
   return (
-    <div className={extractClassName('root', mergedClassnames)}>
+    <div
+      role="navigation"
+      aria-label="main site navigation"
+      className={extractClassName('root', mergedClassnames)}
+    >
       <div className={extractClassName('logoAndTitlePanel', mergedClassnames)}>
         {logo && <NavigationLogo {...{ ...logo }} />}
       </div>
       <div className="flex flex-grow">{/* middle section of header */}</div>
       <div
-        className={`grid grid-cols-${items?.length} ${extractClassName(
+        className={`flex flex-grow nowrap ${extractClassName(
           'navigationPanel',
           mergedClassnames,
         )}`}
@@ -64,7 +64,10 @@ const NavigationBar = ({
           return (
             <div
               key={`${x.name}-${index}`}
-              className={`first:border-l-1 border-r-1 border-base-light ${selectedStyle}`}
+              className={`first:border-l-1 border-r-1 flex-1 border-base-dark ${selectedStyle} ${extractClassName(
+                'buttons',
+                mergedClassnames,
+              )}`}
             >
               <NavigationBarButton
                 tooltip={x.tooltip}
@@ -72,6 +75,7 @@ const NavigationBar = ({
                 href={x.href}
                 name={x.name}
                 classNames={x.classNames}
+                noBasePath={x?.noBasePath}
               />
             </div>
           );

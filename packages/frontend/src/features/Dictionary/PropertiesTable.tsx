@@ -141,10 +141,10 @@ const PropertiesTable = ({
             type: Object.keys(row).includes('anyOf')
               ? row.anyOf?.map(({ type }) => type)
               : Object.keys(row).includes('oneOf')
-                ? row.oneOf?.map(({ type }) => type)
-                : Object.keys(row).includes('enum')
-                  ? row.enum
-                  : [row.type],
+              ? row.oneOf?.map(({ type }) => type)
+              : Object.keys(row).includes('enum')
+              ? row.enum
+              : [row.type],
             required: required?.includes(k) ? 'Required' : 'No',
             description:
               row?.description ?? row?.term?.description ?? 'No Description',

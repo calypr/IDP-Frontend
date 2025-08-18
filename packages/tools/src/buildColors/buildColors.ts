@@ -1,7 +1,7 @@
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
-import { create10ColorPallet, create10ColorAccessibleContrast } from './colors';
+import { create10ColorAccessibleContrast, create10ColorPallet } from './colors';
 
 const utility = {
   link: '#155276',
@@ -31,7 +31,7 @@ const utilityContrast = {
 
 const main = () => {
   const {
-    values: { themeFile, out },
+    values: { themeFile, out, colorShift, colorSaturation },
   } = parseArgs({
     options: {
       themeFile: {
@@ -69,57 +69,63 @@ const main = () => {
       },
       table: {
         type: 'string',
-        short: 'b',
         default: '#858585',
+      },
+      navigation: {
+        type: 'string',
+        default: '#eaeaea',
       },
       out: {
         type: 'string',
         short: 'o',
         default: '../',
       },
+      colorShift: {
+        type: 'string',
+        default: '90',
+      },
+      colorSaturation: {
+        type: 'string',
+        default: '20',
+      },
     },
   });
 
+  const shift = Number(colorShift);
+  const saturation = Number(colorSaturation);
+
   if (!themeFile) {
-    console.log('No themefile found. Please provide a themefile with \'-t\'.');
+    console.log("No theme file found. Please provide a theme file with '-t'.");
     return;
   }
 
   if (themeFile && !existsSync(themeFile)) {
-    console.log('No themefile found. Please provide a themefile with \'-t\'.');
+    console.log("No theme file found. Please provide a theme file with '-t'.");
     return;
   }
   const themeData = readFileSync(themeFile, { encoding: 'utf8', flag: 'r' });
   const themeColors = JSON.parse(themeData);
-  const primaryPallet = create10ColorPallet(themeColors.primary);
-  const secondaryPallet = create10ColorPallet(themeColors.secondary);
-  const accentPallet = create10ColorPallet(themeColors.accent);
-  const accentPalletWarm = create10ColorPallet(themeColors.accentWarm);
-  const accentPalletCool = create10ColorPallet(themeColors.accentCool);
-  const basePallet = create10ColorPallet(themeColors.base);
-  const chartPallet = create10ColorPallet(themeColors.chart);
-  const tablePallet = create10ColorPallet(themeColors?.table ?? '#ffffff');
 
-  const theme = {
-    primary: primaryPallet,
-    'primary-contrast': create10ColorAccessibleContrast(primaryPallet),
-    secondary: secondaryPallet,
-    'secondary-contrast': create10ColorAccessibleContrast(secondaryPallet),
-    accent: accentPallet,
-    'accent-contrast': create10ColorAccessibleContrast(accentPallet),
-    'accent-warm': accentPalletWarm,
-    'accent-warm-contrast': create10ColorAccessibleContrast(accentPalletWarm),
-    'accent-cool': accentPalletCool,
-    'accent-cool-contrast': create10ColorAccessibleContrast(accentPalletCool),
-    base: basePallet,
-    'base-contrast': create10ColorAccessibleContrast(basePallet),
-    utility: utility,
-    'utility-contrast': utilityContrast,
-    chart: chartPallet,
-    'chart-contrast': create10ColorAccessibleContrast(chartPallet),
-    table: tablePallet,
-    'table-contrast': create10ColorAccessibleContrast(tablePallet),
-  };
+  // build a list of colors
+  const theme = Object.entries(themeColors).reduce(
+    (acc: Record<string, Record<string, string>>, [colorName, colorValue]) => {
+      acc[colorName] = create10ColorPallet(
+        colorValue as string,
+        shift,
+        saturation,
+      );
+
+      acc[`${colorName}-contrast`] = create10ColorAccessibleContrast(
+        acc[colorName],
+      );
+
+      return acc;
+    },
+    {},
+  );
+
+  theme['utility'] = utility;
+  theme['utility-contrast'] = utilityContrast;
 
   writeFileSync(
     join(out ?? './', 'themeColors.json'),

@@ -1,8 +1,8 @@
+import React, { Dispatch, SetStateAction, forwardRef } from 'react';
 import { Button, ButtonProps, Loader, Tooltip } from '@mantine/core';
 import { FiDownload } from 'react-icons/fi';
-import download, { DownloadFunctionParams } from '../../../utils/download';
+import download from '../../../utils/download';
 import { hideModal, Modals, useCoreDispatch } from '@gen3/core';
-import { Dispatch, SetStateAction, forwardRef } from 'react';
 
 /**
  * Properties for the DownloadButton component.
@@ -129,13 +129,15 @@ export const DownloadButton = forwardRef<
               return;
             }
             dispatch(hideModal());
-            setActive && setActive(true);
+            if (setActive) setActive(true);
             download({
               endpoint,
               params,
               method,
               dispatch,
-              done: () => setActive && setActive(false),
+              done: () => {
+                if (setActive) setActive(false);
+              },
               Modal400,
               Modal403,
             });

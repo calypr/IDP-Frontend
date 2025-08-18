@@ -1,7 +1,9 @@
+import { useEffect, useState } from 'react';
 import { useGetExternalLoginsQuery } from './externalLoginsSlice';
-import { FileMetadata } from './types';
+import { ExternalProvider, FileMetadata } from './types';
 import { GUID_PREFIX_PATTERN } from '../../constants';
 import { resolveDRSObjectId } from '../drsResolver/utils';
+import { queryWTSFederatedLoginStatus } from './utils';
 
 /**
  * Input is a list of files selected for download.
@@ -87,11 +89,54 @@ const resolveGUIDsInSelectedFiles = async (
   };
 };
 
+interface ExternalLoginStatus {
+  providersToAuthenticate?: ExternalProvider[];
+  missingProviders?: ExternalProvider[];
+  error?: Error;
+}
+const fetchExternalLogins = async (
+  externalProviders: Array<ExternalProvider>,
+  selectedFiles: ReadonlyArray<FileMetadata>,
+): Promise<ExternalLoginStatus> => {
+  const providers = externalProviders ?? [];
+  // find all the providers that do not have tokens
+  const unauthenticatedProviders = providers.filter(
+    (provider) => !provider.refresh_token_expiration,
+  );
+
+  try {
+    const guidResolutions = await resolveGUIDsInSelectedFiles(selectedFiles);
+    const providersToAuthenticate = unauthenticatedProviders.filter(
+      (unauthenticatedProvider) =>
+        Object.values(guidResolutions.externalHosts).includes(
+          new URL(unauthenticatedProvider.base_url).hostname,
+        ),
+    );
+
+    const missingProviders = providersToAuthenticate.filter(
+      (provider) =>
+        !Object.values(guidResolutions.externalHosts).includes(
+          new URL(provider.base_url).hostname,
+        ),
+    );
+
+    return {
+      providersToAuthenticate: providersToAuthenticate,
+      missingProviders: missingProviders,
+    };
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      return { error };
+    }
+    return { error: new Error('Unknown error') };
+  }
+};
+
 interface FederatedLoginStatusParams {
   selectedFiles: ReadonlyArray<FileMetadata>;
 }
 
-const useGetFederatedLoginStatus = async ({
+export const useGetFederatedLoginStatus = ({
   selectedFiles,
 }: FederatedLoginStatusParams) => {
   const {
@@ -100,45 +145,40 @@ const useGetFederatedLoginStatus = async ({
     error: wtsError,
   } = useGetExternalLoginsQuery();
 
-  if (wtsError || wtsResults === undefined) {
-    return { error: wtsError };
-  }
+  // State to manage the asynchronous results
+  const [result, setResult] = useState<ExternalLoginStatus | null>(null);
 
-  const providers = wtsResults.providers ?? [];
+  useEffect(() => {
+    const fetchData = async () => {
+      if (wtsError || !wtsResults) {
+        if (wtsError instanceof Error) setResult({ error: wtsError });
+        else setResult({ error: new Error('Unknown error') });
+        return;
+      }
 
-  const unauthenticatedProviders = providers.filter(
-    (provider) => !provider.refresh_token_expiration,
-  );
+      const results = await fetchExternalLogins(
+        wtsResults.providers,
+        selectedFiles,
+      );
+      setResult(results);
+    };
 
-  const guidResolutions = await resolveGUIDsInSelectedFiles(selectedFiles);
-  const providersToAuthenticate = unauthenticatedProviders.filter(
-    (unauthenticatedProvider) =>
-      Object(guidResolutions.externalHosts)
-        .values()
-        .includes(new URL(unauthenticatedProvider.base_url).hostname),
-  );
-
-  const missingProviders = providersToAuthenticate.filter(
-    (provider) =>
-      !Object(guidResolutions.externalHosts)
-        .values()
-        .includes(new URL(provider.base_url).hostname),
-  );
-  if (missingProviders.length > 0) {
-    throw new Error(
-      `Could not find DRS server hostname for providers: ${missingProviders
-        .map((provider) => provider.name)
-        .join(', ')}`,
-    );
-  }
+    // Only run if there's data to act on
+    if (!wstIsLoading && wtsResults) {
+      fetchData();
+    }
+  }, [selectedFiles, wstIsLoading, wtsError, wtsResults]);
 
   return {
-    data: wtsResults,
     isLoading: wstIsLoading,
-    error: wtsError,
-    providersToAuthenticate: providersToAuthenticate,
-    missingProviders: missingProviders,
+    data: result,
+    error: result?.error || wtsError,
   };
 };
 
-export default useGetFederatedLoginStatus;
+export const getFederatedLoginStatus = async (
+  selectedFiles: ReadonlyArray<FileMetadata>,
+) => {
+  const providers = await queryWTSFederatedLoginStatus();
+  return await fetchExternalLogins(providers.providers, selectedFiles);
+};

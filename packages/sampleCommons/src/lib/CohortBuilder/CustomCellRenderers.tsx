@@ -1,21 +1,13 @@
+import React, { ReactNode } from 'react';
 import {
   ExplorerTableCellRendererFactory,
   type CellRendererFunctionProps,
 } from '@gen3/frontend';
 import { ActionIcon, Text } from '@mantine/core';
-import React from 'react';
 import { FaExternalLinkAlt } from 'react-icons/fa';
 
-const RenderDiacomLink = (
-  { cell, row }: CellRendererFunctionProps,
-  ...args: Array<Record<string, unknown>>
-) => {
-  if (
-    !cell?.getValue() ||
-    cell?.getValue() === '' ||
-    (!(row.getValue('source_path') as string)?.endsWith('.tiff') &&
-      !(row.getValue('source_path') as string)?.endsWith('.tif'))
-  ) {
+const RenderDicomLink = ({ cell }: CellRendererFunctionProps) => {
+  if (!cell?.getValue() || cell?.getValue() === '') {
     return <span></span>;
   } else
     return (
@@ -29,21 +21,6 @@ const RenderDiacomLink = (
         </ActionIcon>
       </a>
     );
-};
-
-const RenderHumanReadableString = (
-  { cell, row }: CellRendererFunctionProps,
-  ...args: Array<Record<string, unknown>>
-) => {
-  if (!cell?.getValue() || cell?.getValue() === '') {
-    return <span></span>;
-  }
-  const bytes = Number(row.getValue('size'));
-  if (bytes === 0) return '0 B';
-  const humanReadable = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(1024));
-  const round = bytes / Math.pow(1024, i);
-  return `${round.toFixed(2)} ${humanReadable[i]}`;
 };
 
 const JoinFields = (
@@ -67,11 +44,32 @@ const JoinFields = (
   return <span>Not configured</span>;
 };
 
+const RenderLinkCell = ({ cell }: CellRendererFunctionProps) => {
+  return (
+    <a href={`${cell.getValue()}`} target="_blank" rel="noreferrer">
+      <Text c="blue" td="underline" fw={700}>
+        {' '}
+        {cell.getValue() as ReactNode}{' '}
+      </Text>
+    </a>
+  );
+};
+
 export const registerCohortTableCustomCellRenderers = () => {
   ExplorerTableCellRendererFactory().registerRenderer(
     'link',
-    'DiacomLink',
-    RenderDiacomLink,
+    'DicomLink',
+    RenderDicomLink,
+  );
+  ExplorerTableCellRendererFactory().registerRenderer(
+    'string',
+    'JoinFields',
+    JoinFields,
+  );
+  ExplorerTableCellRendererFactory().registerRenderer(
+    'link',
+    'linkURL',
+    RenderLinkCell,
   );
   ExplorerTableCellRendererFactory().registerRenderer(
     'string',

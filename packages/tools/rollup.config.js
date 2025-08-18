@@ -23,7 +23,7 @@ export default [
     ],
   },
   {
-    input: './src/bundleIcons/bundleIcons.js',
+    input: './src/bundleIcons/bundleIcons.ts',
     output: [
       {
         file: 'dist/bundleIcons.esm.js',
@@ -36,8 +36,9 @@ export default [
       '@iconify/tools/src/svg/cleanup',
       '@iconify/tools/src/colors/parse',
       '@iconify/tools/src/optimise/svgo',
+      'node:fs',
       'fs',
-      'node:path',
+      'path',
       'node:util',
       '@iconify/tools/lib/colors/parse',
       '@iconify/tools/lib/import/directory',
@@ -70,7 +71,8 @@ export default [
       'node:util',
       'fetch-retry',
       'node-fetch',
-      'path', 'url',
+      'path',
+      'url',
       'graphql',
     ],
     plugins: [peerDepsExternal(), swc(), executable()],
@@ -91,8 +93,45 @@ export default [
       'node:util',
       'fetch-retry',
       'node-fetch',
-      'path', 'url',
+      'path',
+      'url',
     ],
     plugins: [peerDepsExternal(), swc()],
-  }
+  },
+  {
+    input: './src/getSharedFilters/index.ts',
+    output: [
+      {
+        file: 'dist/getSharedFilters.esm.js',
+        format: 'esm',
+        name: 'getSharedFilters',
+      },
+    ],
+    external: [
+      'https',
+      'http',
+      'fs',
+      'node:util',
+      'fetch-retry',
+      'node-fetch',
+      '@gen3/core',
+      'url',
+    ],
+    plugins: [peerDepsExternal(), swc()],
+  },
+  {
+    input: './src/gdcGqlToGuppyGql/convert.ts',
+    output: [
+      {
+        file: 'dist/gdcGqlToGuppyGql.esm.js',
+        format: 'esm',
+        name: 'gdcGqlToGuppyGql',
+      },
+    ],
+    external: [
+      '@gen3/core',
+      'url',
+    ],
+    plugins: [peerDepsExternal(), swc()],
+  },
 ];

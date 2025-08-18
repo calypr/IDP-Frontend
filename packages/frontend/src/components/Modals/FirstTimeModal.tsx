@@ -1,3 +1,4 @@
+import React from 'react';
 import { Text } from '@mantine/core';
 import { useCookies } from 'react-cookie';
 import { BaseModal } from './BaseModal';
@@ -12,13 +13,15 @@ interface FirstTimeModalProps {
 export const FirstTimeModal = ({
   openModal,
   config,
-}: FirstTimeModalProps ): JSX.Element => {
+}: FirstTimeModalProps): JSX.Element => {
   const [cookie, setCookie] = useCookies(['Gen3-first-time-use']);
 
   const handleAccept = () => {
-    cookie['Gen3-first-time-use'] || setCookie('Gen3-first-time-use', true, {
-      maxAge: 60 * 60 * 24 * (config?.expireDays ?? 365),
-    });
+    const isFirstTimeUse = cookie['Gen3-first-time-use'];
+    if (!isFirstTimeUse) {
+      const maxAge = 60 * 60 * 24 * (config?.expireDays ?? 365);
+      setCookie('Gen3-first-time-use', true, { maxAge });
+    }
   };
 
   return (

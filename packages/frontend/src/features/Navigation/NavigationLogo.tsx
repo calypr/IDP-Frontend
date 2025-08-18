@@ -12,23 +12,20 @@ const NavigationLogo = ({
   width,
   height,
   divider = false,
-  basePath = '',
+  noBasePath = undefined,
   classNames = {},
   href,
   basepage,
 }: NavigationBarLogo) => {
   const classNamesDefaults = {
-    root: 'relative flex py-2 justify-start items-center align-middle font-heading font-bold tracking-wide text-xl ml-[5px] mr-[20px]',
+    root: 'relative flex py-0 justify-start items-center align-middle font-heading font-bold tracking-wide text-xl ml-[5px] mr-[20px]',
     link: 'relative object-contain',
-    logo: 'flex-shrink-0 min-w-[50px] h-auto px-3',
+    logo: 'px-3',
     title: 'border-solid border-base-darker ml-1 mr-3',
     divider:
       'border-solid border-gen3-smoke border-l-1 ml-[2px] mr-[7px] h-[64px] w-1',
-
     titleLink:
-      basepage === true
-        ? 'font-heading text-md pt-2 text-black hover:text-black hover:border-black hover:border-b-3'
-        : 'font-heading text-md pt-2 text-white hover:text-white hover:border-white hover:border-b-3',
+      'font-heading text-md pt-2 text-ink-dark hover:text-ink-darkest hover:border-accent hover:border-b-3',
   };
 
   const mergedClassnames = mergeDefaultTailwindClassnames(
@@ -43,16 +40,15 @@ const NavigationLogo = ({
     >
       <HoverLink
         className={extractClassName('link', mergedClassnames)}
-        href={href}
+        href="/"
+        noBasePath={noBasePath}
       >
         <Image
           className={extractClassName('logo', mergedClassnames)}
           width={width ?? undefined}
           height={height ?? undefined}
           fill={!width && !height}
-          src={
-            !basepage ? `${basePath}/icons/ohsu_white.svg` : `${basePath}${src}`
-          }
+          src={`${src}`}
           alt={description ?? title ?? 'link back to homepage'}
         />
       </HoverLink>

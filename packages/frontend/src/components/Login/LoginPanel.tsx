@@ -1,13 +1,14 @@
 import { useCallback } from 'react';
 import { useRouter } from 'next/router';
 import { showNotification } from '@mantine/notifications';
+import { Center, Stack } from '@mantine/core';
 import TexturedSidePanel from '../Layout/TexturedSidePanel';
 import LoginProvidersPanel from './LoginProvidersPanel';
 import CredentialsLogin from './CredentialsLogin';
 import TextContent from '../Content/TextContent';
 import { LoginConfig } from './types';
 import { GEN3_REDIRECT_URL } from '@gen3/core';
-import ContactWithEmailContent from '../Content/ContactWithEmailContent';
+import { appendParameterToUrl } from './utils';
 
 const filterRedirect = (redirect: string | string[] | undefined) => {
   let redirectPath = '';
@@ -16,6 +17,7 @@ const filterRedirect = (redirect: string | string[] | undefined) => {
   } else {
     redirectPath = redirect ?? '/Explorer';
   }
+
   return GEN3_REDIRECT_URL
     ? `${GEN3_REDIRECT_URL}/${redirectPath}`
     : redirectPath;
@@ -32,7 +34,9 @@ const LoginPanel = (loginConfig: LoginConfig) => {
   const handleFenceLoginSelected = useCallback(
     async (loginURL: string) => {
       router
-        .push(`${loginURL}?redirect=${filterRedirect(referer)}`)
+        .push(
+          `${appendParameterToUrl(loginURL, 'redirect', filterRedirect(referer))}`,
+        )
         .catch((e) => {
           showNotification({
             title: 'Login Error',
@@ -44,7 +48,13 @@ const LoginPanel = (loginConfig: LoginConfig) => {
   );
 
   const handleCredentialsLogin = useCallback(async () => {
-    await router.push(filterRedirect(referer));
+    const redirect = filterRedirect(referer);
+    router.push(redirect).catch((e) => {
+      showNotification({
+        title: 'Login Error',
+        message: `error logging in ${e.message}`,
+      });
+    });
   }, [referer, router]);
 
   return (
@@ -73,14 +83,13 @@ const LoginPanel = (loginConfig: LoginConfig) => {
           process.env.NODE_ENV === 'development' && (
             <CredentialsLogin handleLogin={handleCredentialsLogin} />
           )}
-
-        {bottomContent?.map((content, index) =>
-          content?.email ? (
-            <ContactWithEmailContent {...content} key={index} />
-          ) : (
-            <TextContent {...content} key={index} />
-          ),
-        )}
+        <Center>
+          <Stack>
+            {bottomContent?.map((content, index) => (
+              <TextContent {...content} key={`bottomContent-${index}`} />
+            ))}
+          </Stack>
+        </Center>
       </div>
       <TexturedSidePanel url={image} />
     </div>

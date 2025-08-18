@@ -1,3 +1,4 @@
+import React from 'react';
 import ProtectedContent from '../../components/Protected/ProtectedContent';
 import Credentials from '../../components/Profile/Credentials';
 import { Accordion } from '@mantine/core';
@@ -20,9 +21,9 @@ const Profile = ({ profileConfig }: ProfileProps) => {
             multiple
             variant="separated"
             chevronPosition="left"
-            chevron={<Caret className="text-primary-contrast" size="1.75rem" />}
+            chevron={<Caret color="primary.4" size="1.75rem" />}
             defaultValue={[
-              ...['apiKeys'],
+              ...['apiKeys', 'resources'],
               ...(profileConfig?.hasExternalLogins ? ['externalLogins'] : []),
             ]}
             classNames={{

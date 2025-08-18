@@ -1,6 +1,6 @@
+import React, { ReactNode, useState } from 'react';
 import { Button, Menu, MenuItemProps } from '@mantine/core';
 import { FloatingPosition } from '@mantine/core';
-import { ReactNode, useState } from 'react';
 import { Tooltip } from '@mantine/core';
 import { IoMdArrowDropdown as Dropdown } from 'react-icons/io';
 import { focusStyles } from '../../../utils';
@@ -61,7 +61,7 @@ const GuppyDropdownMenuItem = ({
   return (
     <Menu.Item
       onClick={() => {
-        handleClick && handleClick();
+        if (handleClick) handleClick();
       }}
       key={`${title}-${idx}`}
       data-testid={`${title}-${idx}`}

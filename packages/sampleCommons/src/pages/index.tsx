@@ -1,7 +1,7 @@
 import {
-  CalyprPage,
-  CalyprPageGetServerSideProps as getStaticProps,
+  LandingPage,
+  LandingPageGetServerSideProps as getServerSideProps,
 } from '@gen3/frontend';
 
-export default CalyprPage;
-export { getStaticProps };
+export default LandingPage;
+export { getServerSideProps };

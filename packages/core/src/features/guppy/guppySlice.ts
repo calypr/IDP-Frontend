@@ -1,40 +1,18 @@
-import useSWR, { SWRResponse, Fetcher } from 'swr';
-import { AggregationsData, JSONObject } from '../../types';
+import useSWR, { Fetcher, SWRResponse } from 'swr';
+import { AggregationsData, JSONObject, StatsData } from '../../types';
 import { Accessibility, GEN3_GUPPY_API } from '../../constants';
-import { JSONPath } from 'jsonpath-plus';
 import {
+  convertFilterSetToGqlFilter,
   FilterSet,
   isFilterEmpty,
-  convertFilterSetToGqlFilter,
 } from '../filters';
 import { guppyApi, guppyApiSliceRequest } from './guppyApi';
-import { CoreState } from '../../reducers';
+import { SharedFieldMapping } from './types';
+
+import { groupSharedFields } from './utils';
+import { processHistogramResponse } from './processing';
 
 const statusEndpoint = '/_status';
-
-const processHistogramResponse = (
-  data: Record<string, any>,
-): AggregationsData => {
-  const pathData = JSONPath({
-    json: data,
-    path: '$..histogram',
-    resultType: 'all',
-  });
-  const results = pathData.reduce(
-    (acc: AggregationsData, element: Record<string, any>) => {
-      const key = element.pointer
-        .slice(1)
-        .replace(/\/histogram/g, '')
-        .replace(/\//g, '.');
-      return {
-        ...acc,
-        [key]: element.value,
-      };
-    },
-    {} as AggregationsData,
-  );
-  return results as AggregationsData;
-};
 
 export interface GraphQLQuery {
   query: string;
@@ -74,40 +52,43 @@ export interface RawDataAndTotalCountsParams {
   @returns: a list of fields for the given type
  */
 
-interface AccessibleDataSliceParams {
+interface GuppyBaseQueryParams {
   type: string;
-  fields: ReadonlyArray<string>;
-  accessType: Accessibility;
-}
-
-interface QueryAggsParams {
-  type: string;
-  fields: ReadonlyArray<string>;
   filters: FilterSet;
   accessibility?: Accessibility;
 }
 
-interface QueryForSubAggsParams {
+interface AccessibleDataSliceParams {
   type: string;
+  fields: ReadonlyArray<string>;
+  accessibility: Accessibility;
+}
+
+interface QueryAggsParams extends GuppyBaseQueryParams {
+  fields: ReadonlyArray<string>;
+  filterSelf?: boolean;
+  queryId?: string;
+}
+
+interface QueryForSubAggsParams extends Omit<GuppyBaseQueryParams, 'filters'> {
   mainField: string;
   numericAggAsText: boolean;
   termsFields?: ReadonlyArray<string>;
   missingFields?: ReadonlyArray<string>;
-  gqlFilter?: FilterSet;
-  accessibility?: Accessibility;
+  filters?: FilterSet;
 }
 
-interface QueryCountsParams {
-  type: string;
-  filters: FilterSet;
-  accessibility?: Accessibility;
+interface QueryCountsParams extends GuppyBaseQueryParams {
+  queryId?: string;
 }
 
-interface QueryForFileCountSummaryParams {
-  type: string;
+interface QueryForFileCountSummaryParams extends GuppyBaseQueryParams {
   field: string;
-  filters: FilterSet;
 }
+
+export const explorerTags = guppyApi.enhanceEndpoints({
+  addTagTypes: ['AGGS', 'COUNTS', 'STATS', 'TABLE_DATA', 'RAW_DATA'] as const,
+});
 
 /**
  * The main endpoint used in templating Exploration page queries.
@@ -125,9 +106,9 @@ interface QueryForFileCountSummaryParams {
  * @param getAggs - An aggregated histogram counts query which outputs vertex property frequencies
  * @param getSubAggs - TODO: not sure what this one does. Looks like nested aggregation
  * @param getCounts - Returns total counts of a vertex type
- * @returns: A guppy API endpoint for templating queriable data displayed on the exploration page
+ * @returns: A guppy API endpoint for templating queryable data displayed on the exploration page
  */
-const explorerApi = guppyApi.injectEndpoints({
+export const explorerApi = explorerTags.injectEndpoints({
   endpoints: (builder) => ({
     getAllFieldsForType: builder.query({
       query: (type: { type: string }) => ({
@@ -138,13 +119,13 @@ const explorerApi = guppyApi.injectEndpoints({
       },
     }),
     getAccessibleData: builder.query({
-      query: ({ type, fields, accessType }: AccessibleDataSliceParams) => {
+      query: ({ type, fields, accessibility }: AccessibleDataSliceParams) => {
         const fieldParts = fields.map(
           (field) => `${field} { histogram { key count } }`,
         );
         return {
           query: `_aggregation {
-              ${type} (accessibility: ${accessType}) {
+              ${type} (accessibility: ${accessibility}) {
                 ${fieldParts.join(',')}
               }
             }`,
@@ -203,6 +184,7 @@ const explorerApi = guppyApi.injectEndpoints({
         };
         return { query, variables };
       },
+      providesTags: ['RAW_DATA', 'TABLE_DATA'],
     }),
     getAggs: builder.query<AggregationsData, QueryAggsParams>({
       query: ({
@@ -210,31 +192,56 @@ const explorerApi = guppyApi.injectEndpoints({
         fields,
         filters,
         accessibility = Accessibility.ALL,
+        filterSelf = false,
       }: QueryAggsParams) => {
-        const queryStart = isFilterEmpty(filters)
-          ? `
-              query getAggs {
-              _aggregation {
-              ${type} (accessibility: ${accessibility}) {`
-          : `query getAggs ($filter: JSON) {
-               _aggregation {
-                      ${type} (filter: $filter, filterSelf: false, accessibility: ${accessibility}) {`;
-        const query = `${queryStart}
-                  ${fields.map((field: string) =>
-                    histogramQueryStrForEachField(field),
-                  )}
-                }
-              }
-            }`;
-        const queryBody: GraphQLQuery = {
-          query: query,
-          variables: { filter: convertFilterSetToGqlFilter(filters) },
-        };
-        return queryBody;
+        return buildGetAggregationQuery(
+          type,
+          fields,
+          filters,
+          accessibility,
+          filterSelf,
+        );
       },
       transformResponse: (response: Record<string, any>, _meta, args) => {
-        return processHistogramResponse(response.data._aggregation[args.type]);
+        const buckets = processHistogramResponse<AggregationsData>(
+          response?.data?._aggregation[args.type] ?? {},
+        );
+
+        // check for totals
+        const count =
+          response?.data?._aggregation[args.type]?._totalCount ?? null;
+
+        return {
+          _totalCount: [{ key: args.type, count }], // add total count to allow cohorts to cache index item totals
+          ...buckets,
+        };
       },
+      providesTags: ['AGGS'],
+    }),
+    getStatsAggregations: builder.query<StatsData, QueryAggsParams>({
+      query: ({
+        type,
+        fields,
+        filters,
+        accessibility = Accessibility.ALL,
+        filterSelf = false,
+        queryId = undefined,
+      }: QueryAggsParams) => {
+        return buildGetStatsAggregationQuery(
+          type,
+          fields,
+          filters,
+          accessibility,
+          filterSelf,
+          queryId,
+        );
+      },
+      transformResponse: (response: Record<string, any>, _meta, args) => {
+        return processHistogramResponse<StatsData>(
+          response?.data?._aggregation[args.type] ?? {},
+        );
+      },
+      providesTags: ['STATS'],
     }),
     getSubAggs: builder.query<AggregationsData, QueryForSubAggsParams>({
       query: ({
@@ -243,7 +250,7 @@ const explorerApi = guppyApi.injectEndpoints({
         termsFields = undefined,
         missingFields = undefined,
         numericAggAsText = false,
-        gqlFilter = undefined,
+        filters = undefined,
         accessibility = Accessibility.ALL,
       }: QueryForSubAggsParams) => {
         const nestedAggFields = {
@@ -252,37 +259,43 @@ const explorerApi = guppyApi.injectEndpoints({
         };
 
         const query = `query getSubAggs ( ${
-          gqlFilter ?? '$filter: JSON,'
+          filters ?? '$filter: JSON,'
         } $nestedAggFields: JSON) {
     _aggregation {
       ${type} ( ${
-          gqlFilter ?? 'filter: $filter, filterSelf: false,'
-        } nestedAggFields: $nestedAggFields, accessibility: ${accessibility}) {
+        filters ?? 'filter: $filter, filterSelf: false,'
+      } nestedAggFields: $nestedAggFields, accessibility: ${accessibility}) {
+      _totalCounts
         ${nestedHistogramQueryStrForEachField(mainField, numericAggAsText)}
       }`;
 
         return {
           query: query,
           variables: {
-            ...(gqlFilter && {
-              filter: convertFilterSetToGqlFilter(gqlFilter),
+            ...(filters && {
+              filter: convertFilterSetToGqlFilter(filters),
             }),
             nestedAggFields: nestedAggFields,
           },
         };
       },
       transformResponse: (response: Record<string, any>, _meta, args) => {
-        return processHistogramResponse(response.data._aggregation[args.type]);
+        return processHistogramResponse<AggregationsData>(
+          response?.data?._aggregation[args.type] ?? {},
+        );
       },
+      providesTags: ['AGGS'],
     }),
+
     getCounts: builder.query<number, QueryCountsParams>({
       query: ({
         type,
         filters,
         accessibility = Accessibility.ALL,
+        queryId = undefined,
       }: QueryCountsParams) => {
         const gqlFilters = convertFilterSetToGqlFilter(filters);
-        const queryLine = `query totalCounts ${
+        const queryLine = `query totalCounts${queryId ? `_${queryId}` : ''} ${
           gqlFilters ? '($filter: JSON)' : ''
         }{`;
         const typeAggsLine = `${type} ${
@@ -309,21 +322,38 @@ const explorerApi = guppyApi.injectEndpoints({
         _meta,
         args,
       ): number => {
-        return response.data._aggregation[args.type]._totalCount;
+        if (!response.data || !response.data._aggregation) {
+          throw new Error(
+            'Invalid response: Missing data or _aggregation field',
+          );
+        }
+
+        if (!(args.type in response.data._aggregation)) {
+          throw new Error(
+            `Invalid response: Missing expected key '${args.type}' in _aggregation`,
+          );
+        }
+        return response.data._aggregation[args.type]._totalCount ?? 0;
       },
+      providesTags: ['COUNTS'],
     }),
     getFieldCountSummary: builder.query<
       Record<string, any>,
       QueryForFileCountSummaryParams
     >({
-      query: ({ type, field, filters }: QueryForFileCountSummaryParams) => {
+      query: ({
+        type,
+        field,
+        filters,
+        accessibility = Accessibility.ALL,
+      }: QueryForFileCountSummaryParams) => {
         const gqlFilters = convertFilterSetToGqlFilter(filters);
-        const query = `query ($filter: JSON) {
+        const query = `query summary ($filter: JSON) {
         _aggregation {
-          ${type} (filter: $filter) {
+          ${type} (filter: $filter, accessibility: ${accessibility}) {
             ${field} {
               histogram {
-                sum
+                sum,
               }
             }
           }
@@ -343,12 +373,27 @@ const explorerApi = guppyApi.injectEndpoints({
       query: (index: string) => {
         return {
           query: `{
-            _mapping ${index}
+            _mapping { ${index} }
           }`,
         };
       },
       transformResponse: (response: Record<string, any>) => {
         return response['_mapping'];
+      },
+    }),
+    getSharedFieldsForIndex: builder.query<SharedFieldMapping, string[]>({
+      query: (indices: string[]) => {
+        return {
+          query: `{
+            _mapping { ${indices.join(' ')} }
+          }`,
+        };
+      },
+      transformResponse: (response: Record<string, any>) => {
+        if ('_mapping' in response.data) {
+          return groupSharedFields(response.data['_mapping']);
+        }
+        return {};
       },
     }),
     generalGQL: builder.query<Record<string, unknown>, guppyApiSliceRequest>({
@@ -362,10 +407,7 @@ const explorerApi = guppyApi.injectEndpoints({
   }),
 });
 
-// query for aggregate data
-// convert the function below to typescript
-
-const histogramQueryStrForEachField = (field: string): string => {
+export const histogramQueryStrForEachField = (field: string): string => {
   const splittedFieldArray = field.split('.');
   const splittedField = splittedFieldArray.shift();
   if (splittedFieldArray.length === 0) {
@@ -383,7 +425,28 @@ const histogramQueryStrForEachField = (field: string): string => {
   }`;
 };
 
-const nestedHistogramQueryStrForEachField = (
+export const statsQueryStrForEachField = (field: string): string => {
+  const splittedFieldArray = field.split('.');
+  const splittedField = splittedFieldArray.shift();
+  if (splittedFieldArray.length === 0) {
+    return `
+    ${splittedField} {
+      histogram {
+                count
+                min
+                max
+                avg
+                sum
+      }
+    }`;
+  }
+  return `
+  ${splittedField} {
+    ${statsQueryStrForEachField(splittedFieldArray.join('.'))}
+  }`;
+};
+
+export const nestedHistogramQueryStrForEachField = (
   mainField: string,
   numericAggAsText: boolean,
 ) => `
@@ -430,26 +493,88 @@ export const useGetArrayTypes = () => {
   }
 };
 
+export const useGetIndexFields = (index: string) => {
+  const { data } = useGetFieldsForIndexQuery(index);
+  return data ?? [];
+};
+
+export const buildGetAggregationQuery = (
+  type: string,
+  fields: ReadonlyArray<string>,
+  filters: FilterSet,
+  accessibility = Accessibility.ALL,
+  filterSelf: boolean = false,
+  queryId: string | undefined = undefined,
+): GraphQLQuery => {
+  const queryStart = isFilterEmpty(filters)
+    ? `
+              query getAggs${queryId ? `_${queryId}` : ''} {
+              _aggregation {
+              ${type} (accessibility: ${accessibility}) {`
+    : `query getAggs ($filter: JSON) {
+               _aggregation {
+
+                      ${type} (filter: $filter, filterSelf: ${filterSelf ? 'true' : 'false'}, accessibility: ${accessibility}) { _totalCount`;
+  const query = `${queryStart}
+                  ${fields.map((field: string) =>
+                    histogramQueryStrForEachField(field),
+                  )}
+                }
+              }
+            }`;
+  const queryBody: GraphQLQuery = {
+    query: query,
+    variables: { filter: convertFilterSetToGqlFilter(filters) },
+  };
+
+  return queryBody;
+};
+
+export const buildGetStatsAggregationQuery = (
+  type: string,
+  fields: ReadonlyArray<string>,
+  filters: FilterSet,
+  accessibility = Accessibility.ALL,
+  filterSelf: boolean = false,
+  queryId: string | undefined = undefined,
+): GraphQLQuery => {
+  const queryStart = isFilterEmpty(filters)
+    ? `
+              query getStatsAggs${queryId ? `_${queryId}` : ''} {
+              _aggregation {
+              ${type} (accessibility: ${accessibility}) {`
+    : `query getStatsAggs${queryId ? `_${queryId}` : ''} ($filter: JSON) {
+               _aggregation {
+                      ${type} (filter: $filter, filterSelf: ${filterSelf ? 'true' : 'false'}, accessibility: ${accessibility}) { _totalCount`;
+  const query = `${queryStart}
+                  ${fields.map((field: string) =>
+                    statsQueryStrForEachField(field),
+                  )}
+                }
+              }
+            }`;
+  const queryBody: GraphQLQuery = {
+    query: query,
+    variables: { filter: convertFilterSetToGqlFilter(filters) },
+  };
+
+  return queryBody;
+};
+
 export const {
   useGetRawDataAndTotalCountsQuery,
   useGetAccessibleDataQuery,
   useGetAllFieldsForTypeQuery,
   useGetAggsQuery,
+  useLazyGetAggsQuery,
+  useGetStatsAggregationsQuery,
+  useLazyGetStatsAggregationsQuery,
   useGetSubAggsQuery,
   useGetCountsQuery,
+  useLazyGetCountsQuery,
   useGetFieldCountSummaryQuery,
   useGetFieldsForIndexQuery,
+  useGetSharedFieldsForIndexQuery,
   useGeneralGQLQuery,
   useLazyGeneralGQLQuery,
 } = explorerApi;
-
-const EmptyAggData = {};
-
-export const selectAggDataForIndex = (
-  state: CoreState,
-  index: string,
-  field: string,
-) => {
-  const data = state.guppyApi.aggs[index]?.[field]?.histogram;
-  return data ?? EmptyAggData;
-};

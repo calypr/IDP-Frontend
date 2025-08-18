@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 import FacetControlsHeader from './FacetControlsHeader';
 import FacetEnumList from './FacetEnumList';
 
-import { FacetHeader, FacetText, controlsIconStyle } from './components';
+import { controlsIconStyle, FacetHeader, FacetText } from './components';
 
 import {
+  EnumFacetDataChangedFunction,
   FacetCardProps,
   FacetDataHooks,
   GetEnumFacetDataFunction,
@@ -12,6 +13,7 @@ import {
 
 export interface EnumFacetHooks extends FacetDataHooks {
   useGetFacetData: GetEnumFacetDataFunction;
+  updateVisibleValues?: EnumFacetDataChangedFunction;
 }
 
 const EnumFacet = ({
@@ -24,46 +26,77 @@ const EnumFacet = ({
   hideIfEmpty = true,
   showSearch = true,
   showFlip = false,
+  showSettings = false, // TODO: change to true with support for combine ops is completed
   startShowingData = true,
   dismissCallback = undefined,
   width = undefined,
+  sharedWithIndices = undefined,
+  moveValuesToBottom = [],
+  excludeValues = [],
   header = {
     Panel: FacetHeader,
     Label: FacetText,
     iconStyle: controlsIconStyle,
   },
 }: FacetCardProps<EnumFacetHooks>) => {
+  const [isSettings, setIsSessings] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [isFacetView, setIsFacetView] = useState(startShowingData);
-
+  const isFilterExpanded =
+    hooks.useFilterExpanded && hooks.useFilterExpanded(field);
+  const showFilters = isFilterExpanded === undefined || isFilterExpanded;
   const toggleSearch = () => {
-    setIsSearching(!isSearching);
+    setIsSearching((isSearching) => !isSearching);
+  };
+
+  const toggleSettings = () => {
+    setIsSessings((isSettings) => !isSettings);
   };
 
   const toggleFlip = () => {
-    setIsFacetView(!isFacetView);
+    setIsFacetView((isFacetView) => !isFacetView);
   };
 
   return (
     <div
       className={`flex flex-col ${
         width ? width : 'mx-1'
-      } bg-base-max relative shadow-lg border-base-lighter border-1 rounded-sm text-xs transition`}
+      } bg-base-max relative border-base-light border-1 rounded-md text-xs transition`}
       id={field}
     >
-      <div>
-        <FacetControlsHeader
+      <FacetControlsHeader
+        field={field}
+        description={description}
+        hooks={hooks}
+        facetName={facetName}
+        showSearch={showSearch}
+        showFlip={showFlip}
+        showSettings={showSettings}
+        isFacetView={isFacetView}
+        toggleFlip={toggleFlip}
+        toggleSearch={toggleSearch}
+        toggleSettings={toggleSettings}
+        dismissCallback={dismissCallback}
+        sharedWithIndices={sharedWithIndices}
+        header={header}
+      />
+
+      <div
+        className={showFilters ? 'h-full' : 'h-0 invisible'}
+        aria-hidden={!showFilters}
+      >
+        <FacetEnumList
           field={field}
-          description={description}
-          hooks={hooks}
           facetName={facetName}
-          showSearch={showSearch}
-          showFlip={showFlip}
+          valueLabel={valueLabel}
+          hooks={hooks}
+          isSettings={isSettings}
           isFacetView={isFacetView}
-          toggleFlip={toggleFlip}
-          toggleSearch={toggleSearch}
-          dismissCallback={dismissCallback}
-          header={header}
+          isSearching={isSearching}
+          hideIfEmpty={hideIfEmpty}
+          showPercent={showPercent}
+          moveValuesToBottom={moveValuesToBottom}
+          excludeValues={excludeValues}
         />
       </div>
       <FacetEnumList

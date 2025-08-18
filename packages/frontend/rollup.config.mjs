@@ -7,7 +7,6 @@ import autoprefixer from 'autoprefixer';
 import postcssImport from 'postcss-import';
 import { swc } from 'rollup-plugin-swc3';
 import swcPreserveDirectives from 'rollup-swc-preserve-directives';
-import sourcemaps from 'rollup-plugin-sourcemaps';
 
 const globals = {
   react: 'React',
@@ -26,9 +25,15 @@ const globals = {
   tinycolot2: 'tinyColor',
   fs: 'fs',
   path: 'path',
+  glob: 'glob',
+  idb: 'idb',
   '@gen3/core': 'gen3Core',
   'jsonpath-plus': 'jsonpathPlus',
+  '@hello-pangea/dnd': '@hello-pangea/dnd',
   '@mantine/notifications': 'mantineNotifications',
+  'redux-persist/integration/react': 'redux-persist/integration/react',
+  'redux-persist/lib/storage/createWebStorage':
+    'redux-persist/lib/storage/createWebStorage',
   '@mantine/hooks': 'mantineHooks',
   '@mantine/core': 'mantineCore',
   '@mantine/form': 'mantineForm',
@@ -61,6 +66,12 @@ const globals = {
   'tailwind-merge': 'tailwind-merge',
   util: 'util',
   swc: 'swc',
+  'redux-persist': 'reduxPersist',
+  '@hello-pangea': 'pangea',
+  'use-deep-compare': 'use-deep-compare',
+  graphql: 'graphql',
+  'isomorphic-dompurify': 'isomorphic-dompurify',
+  '@iconify-icon/react': 'iconify-iconReact ',
 };
 
 const config = [
@@ -140,7 +151,6 @@ const config = [
     plugins: [
       dts(),
       postcss(),
-      sourcemaps(),
       copy({
         targets: [
           {

@@ -1,5 +1,5 @@
 import { RenderFactoryTypedInstance } from '../../utils/RendererFactory';
-import { CustomChartProps } from './types';
+import { ChartProps } from './types';
 import BarChart from './echarts/BarChart';
 import PieChart from './echarts/PieChart';
 import DonutChart from './echarts/DonutChart';
@@ -14,16 +14,14 @@ const DefaultChartCatalog = {
   },
 };
 
-let instance: RenderFactoryTypedInstance<CustomChartProps> | undefined =
-  undefined;
+let instance: RenderFactoryTypedInstance<ChartProps> | undefined = undefined;
 
-const ChartRendererFactory =
-  (): RenderFactoryTypedInstance<CustomChartProps> => {
-    if (!instance) {
-      instance = new RenderFactoryTypedInstance<CustomChartProps>();
-      instance.registerRendererCatalog(DefaultChartCatalog);
-    }
-    return instance;
-  };
+const ChartRendererFactory = (): RenderFactoryTypedInstance<ChartProps> => {
+  if (!instance) {
+    instance = new RenderFactoryTypedInstance<ChartProps>();
+    instance.registerRendererCatalog(DefaultChartCatalog);
+  }
+  return instance;
+};
 
 export default ChartRendererFactory;

@@ -1,56 +1,79 @@
 import React from 'react';
-import { CohortPanelConfig, CohortBuilderConfiguration } from './types';
-import { Center, Loader, Tabs } from '@mantine/core';
+import { useDeepCompareMemo } from 'use-deep-compare';
+import { CohortBuilderProps, CohortPanelConfiguration } from './types';
+import { Tabs } from '@mantine/core';
 import { CohortPanel } from './CohortPanel';
-import { useGetCSRFQuery } from '@gen3/core';
-import { ProtectedContent } from '../../components/Protected';
+import {
+  selectCurrentCohortId,
+  setSharedFilters,
+  useCoreDispatch,
+  useCoreSelector,
+} from '@gen3/core';
+import { TabsLayoutToComponentProp } from '../../utils/layout';
+import CohortManager from './CohortManager/CohortManager';
 
-export const CohortBuilder = ({
+export const useGetCurrentCohort = () => {
+  return useCoreSelector((state) => selectCurrentCohortId(state));
+};
+
+const CohortBuilder = ({
   explorerConfig,
-}: CohortBuilderConfiguration) => {
-  const { isLoading } = useGetCSRFQuery();
+  sharedFiltersMap = null,
+  tabsLayout = 'left',
+}: CohortBuilderProps) => {
+  const dispatch = useCoreDispatch();
+  dispatch(setSharedFilters(sharedFiltersMap ?? {}));
 
-  if (isLoading) {
-    return (
-      <Center maw={400} h={100} mx="auto">
-        <Loader variant="dots" />
-      </Center>
-    );
-  }
+  const configuration = useDeepCompareMemo(
+    () => explorerConfig,
+    [explorerConfig],
+  );
 
   return (
-    <ProtectedContent>
-      <div className="w-full">
-        <Tabs
-          color="secondary.0"
-          keepMounted={false}
-          defaultValue={explorerConfig[0].tabTitle}
+    <div className="flex flex-col w-full mt-2">
+      <CohortManager></CohortManager>
+      <Tabs
+        color="primary.4"
+        variant={explorerConfig[0]?.tabType}
+        keepMounted={true}
+        defaultValue={explorerConfig[0].tabTitle}
+      >
+        <Tabs.List
+          className="w-full"
+          justify={TabsLayoutToComponentProp(tabsLayout)}
         >
-          <Tabs.List>
-            {explorerConfig.map((panelConfig: CohortPanelConfig) => (
-              <Tabs.Tab
-                value={panelConfig.tabTitle}
-                key={`${panelConfig.tabTitle}-tabList`}
-                className="mt-2"
-              >
-                {panelConfig.tabTitle}
-              </Tabs.Tab>
-            ))}
-          </Tabs.List>
-
-          {explorerConfig.map((panelConfig: CohortPanelConfig) => (
-            <Tabs.Panel
+          {configuration.map((panelConfig: CohortPanelConfiguration) => (
+            <Tabs.Tab
               value={panelConfig.tabTitle}
-              key={`${panelConfig.tabTitle}-tabPanel`}
+              key={`${panelConfig.tabTitle}-tabList`}
             >
-              <CohortPanel
-                {...panelConfig}
-                key={`${panelConfig.tabTitle}-CohortPanel`}
-              />
-            </Tabs.Panel>
+              {panelConfig.tabTitle}
+            </Tabs.Tab>
           ))}
-        </Tabs>
-      </div>
-    </ProtectedContent>
+        </Tabs.List>
+
+        {configuration.map((panelConfig: CohortPanelConfiguration) => (
+          <Tabs.Panel
+            value={panelConfig.tabTitle}
+            key={`${panelConfig.tabTitle}-tabPanel`}
+          >
+            <CohortPanel
+              guppyConfig={panelConfig.guppyConfig}
+              key={`${panelConfig.tabTitle}-CohortPanel`}
+              chartsSection={panelConfig?.chartsSection}
+              filters={panelConfig.filters}
+              tabTitle={panelConfig.tabTitle}
+              table={panelConfig.table}
+              dropdowns={panelConfig.dropdowns}
+              buttons={panelConfig.buttons}
+              loginForDownload={panelConfig.loginForDownload}
+              sharedFiltersMap={panelConfig.sharedFiltersMap}
+            />
+          </Tabs.Panel>
+        ))}
+      </Tabs>
+    </div>
   );
 };
+
+export default CohortBuilder;
