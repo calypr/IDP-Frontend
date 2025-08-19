@@ -9,7 +9,7 @@ export const AppsPageGetServerSideProps: GetServerSideProps<
   NavPageLayoutProps
 > = async () => {
   const appsPageProps: AppsProps = await ContentSource.getContentDatabase().get(
-    `config/${GEN3_COMMONS_NAME}/appsPage.json`,
+    `${GEN3_COMMONS_NAME}/appsPage.json`,
   );
   return {
     props: {

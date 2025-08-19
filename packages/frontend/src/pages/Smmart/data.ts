@@ -10,7 +10,7 @@ export const SmmartPageGetServerSideProps: GetServerSideProps<
 > = async () => {
   const smmartConfig: SmmartProps =
     await ContentSource.getContentDatabase().get(
-      `config/${GEN3_COMMONS_NAME}/smmartLandingPage.json`,
+      `${GEN3_COMMONS_NAME}/smmartLandingPage.json`,
     );
   return {
     props: {

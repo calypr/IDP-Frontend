@@ -10,7 +10,7 @@ export const CalyprPageGetServerSideProps: GetServerSideProps<
 > = async () => {
   const calyprConfig: CalyprProps =
     await ContentSource.getContentDatabase().get(
-      `config/${GEN3_COMMONS_NAME}/calyprLandingPage.json`,
+      `${GEN3_COMMONS_NAME}/calyprLandingPage.json`,
     );
   return {
     props: {

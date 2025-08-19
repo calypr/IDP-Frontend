@@ -10,7 +10,7 @@ export const FileSummaryPageGetServerSideProps: GetServerSideProps<
 > = async (_context) => {
   const summaryPageProps: FileSummaryProps =
     await ContentSource.getContentDatabase().get(
-      `config/${GEN3_COMMONS_NAME}/filesummary.json`,
+      `${GEN3_COMMONS_NAME}/filesummary.json`,
     );
   return {
     props: {
