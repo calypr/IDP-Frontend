@@ -38,7 +38,9 @@ export const GEN3_SOWER_API =
 export const GEN3_MANIFEST_API =
   process.env.NEXT_PUBLIC_GEN3_MANIFEST_API || `${GEN3_API}/manifests`;
 export const GEN3_REQUESTOR_API =
-    process.env.NEXT_PUBLIC_GEN3_REQUESTOR_API || `${GEN3_API}/requestor`;
+  process.env.NEXT_PUBLIC_GEN3_REQUESTOR_API || `${GEN3_API}/requestor`;
+export const GEN3_GRIP_API =
+  process.env.NEXT_PUBLIC_GEN3_GRIP_API || `${GEN3_API}/grip`;
 
 export enum Accessibility {
   ACCESSIBLE = 'accessible',

@@ -8,23 +8,14 @@ import type { NavPageLayoutProps } from '../../features/Navigation';
 export const CalyprPageGetServerSideProps: GetServerSideProps<
   NavPageLayoutProps
 > = async () => {
-  try {
-    const calyprConfig: CalyprProps = await ContentSource.get(
+  const calyprConfig: CalyprProps =
+    await ContentSource.getContentDatabase().get(
       `config/${GEN3_COMMONS_NAME}/calyprLandingPage.json`,
     );
-    return {
-      props: {
-        ...(await getNavPageLayoutPropsFromConfig()),
-        calyprConfig: calyprConfig ? calyprConfig : null,
-      },
-    };
-  } catch (err) {
-    console.error(err);
-    return {
-      props: {
-        ...(await getNavPageLayoutPropsFromConfig()),
-        calyprConfig: undefined,
-      },
-    };
-  }
+  return {
+    props: {
+      ...(await getNavPageLayoutPropsFromConfig()),
+      calyprConfig: calyprConfig ? calyprConfig : null,
+    },
+  };
 };

@@ -26,7 +26,9 @@ import TabbedCohortBuilder, {
   type TabbedCohortBuilderFacetConfig,
 } from './TabbedCohortBuilder';
 
+import { SummaryTableColumn } from './ExplorerTable';
 export {
+  type SummaryTableColumn,
   type CohortBuilderConfiguration,
   type CohortBuilderProps,
   type TableDetailsPanelProps,

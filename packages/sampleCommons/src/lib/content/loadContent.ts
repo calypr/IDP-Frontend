@@ -23,10 +23,10 @@ export const loadContent = async () => {
   );
 
   const colors = Object.fromEntries(
-    Object.entries(themeColors).map(([key, values]) => [
-      key,
-      Object.values(values) as TenStringArray,
-    ]),
+    Object.entries(themeColors).map(([key, values]) => {
+      const stringValues = values as { [s: string]: string };
+      return [key, Object.values(stringValues) as TenStringArray];
+    }),
   );
 
   const icons = await ContentSource.getContentDatabase().getAll(

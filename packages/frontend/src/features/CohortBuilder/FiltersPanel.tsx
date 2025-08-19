@@ -20,16 +20,16 @@ export const FiltersPanel = ({
       className="flex flex-col gap-y-4 h-full overflow-y-scroll px-4 pb-2 w-full"
     >
       {fields.map((facetDefinition) => {
-        return createFacetCard(
+        return createFacetCard({
           facetDefinition,
           valueLabel,
-          dataFunctions[facetDefinition.type],
-          'filters-panel',
-          undefined,
-          false,
-          facetDefinition.label,
-          'w-64',
-        );
+          hooks: dataFunctions[facetDefinition.type],
+          facetNameFormatter: (field) => facetDefinition.label ?? field,
+          idPrefix: 'filters-panel',
+          hideIfEmpty: false,
+          width: 'w-64',
+          showPercent: false,
+        });
       })}
     </div>
   );

@@ -11,6 +11,7 @@ export interface ReactEChartsProps {
   settings?: SetOptionOpts;
   loading?: boolean;
   theme?: 'light' | 'dark';
+  onClick?: (params: any) => void; // Add onClick handler to props
 }
 
 const ReactECharts = ({
@@ -19,6 +20,7 @@ const ReactECharts = ({
   settings,
   loading,
   theme,
+  onClick,
 }: ReactEChartsProps): JSX.Element => {
   const [chartRoot, setChartRoot] = useState<ECharts | undefined>(undefined);
   const [chartRef, rect] = useResizeObserver();
@@ -53,6 +55,19 @@ const ReactECharts = ({
       chartRoot.resize();
     }
   }, [rect]);
+
+  useDeepCompareEffect(() => {
+    // Add click event listener to chart
+    if (chartRef.current !== null) {
+      const chart = getInstanceByDom(chartRef.current);
+      if (onClick) {
+        chart?.on('click', onClick);
+      }
+      return () => {
+        chart?.off('click', onClick);
+      };
+    }
+  }, [onClick]);
 
   return (
     <div

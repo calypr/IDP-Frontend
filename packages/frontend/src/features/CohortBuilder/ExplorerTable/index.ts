@@ -5,10 +5,11 @@ import {
   registerExplorerDefaultCellRenderers,
 } from './ExplorerTableCellRenderers';
 
+import { SummaryTableColumn } from './types';
 export * from './ExploreTableDetails';
 
 export {
-  SummaryTableColumn,
+  type SummaryTableColumn,
   ExplorerTable,
   ExplorerTableCellRendererFactory,
   registerExplorerDefaultCellRenderers,

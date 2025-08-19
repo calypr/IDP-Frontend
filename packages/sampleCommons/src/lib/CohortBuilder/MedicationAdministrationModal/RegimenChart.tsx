@@ -18,7 +18,9 @@ export const RegimenChart = ({
   console.log('TRANS DATA: ', transformedData);
 
   const layout: Partial<Plotly.Layout> = {
-    title: `Drug Usage Timeline for Patient ${identifier}`,
+    title: {
+      text: `Drug Usage Timeline for Patient ${identifier}`,
+    },
     showlegend: false,
     xaxis: {
       title: { text: 'Days old', font: { size: 16 } },

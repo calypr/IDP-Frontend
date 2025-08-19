@@ -28,6 +28,9 @@ export interface ExplorerDetailsConfig {
   params?: Record<string, unknown>;
   classNames?: Record<string, string>;
   idField?: string; // field containing the unique id
+  nodeType?: string;
+  nodeFields?: Record<string, string>;
+  filterField?: string;
   dataPath?: string; // the path to the returned data object.
   simpleDetailsView?: StudyPageConfig; // simple detailed view similar to Discovery
 }

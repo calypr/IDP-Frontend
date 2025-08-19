@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
-import { isQueryResponse } from '../../features/CohortBuilder/ExplorerTable/ExploreTableDetails/QueryRowDetailsPanel';
-import { SummaryTableColumn } from '../../features/CohortBuilder';
+import isQueryResponse from '../../features/CohortBuilder/ExplorerTable/ExploreTableDetails/QueryRowDetailsPanel';
+import { SummaryTableColumn } from '../../features/CohortBuilder/ExplorerTable/types';
 import { useGeneralGQLQuery } from '@gen3/core';
 import { extractData } from '../../utils/extractdata';
 import { binDataWithCustomBoundaries } from './bindata';
@@ -32,9 +32,7 @@ export const useFileAggsQuery = (
 
   const cachedfileData = useMemo(() => {
     if (data) {
-      const project_data = isQueryResponse(data)
-        ? extractData(data, 'file', '')
-        : [];
+      const project_data = extractData(data, 'file', '');
       return binDataWithCustomBoundaries(project_data, slicePoints);
     }
     return [];
@@ -72,9 +70,7 @@ export const useFileTypesHistogramQuery = (project: string) => {
 
   const cachedfileData = useMemo(() => {
     if (data) {
-      return isQueryResponse(data)
-        ? extractData(data, 'file', 'contentType')
-        : [];
+      return extractData(data, 'file', 'contentType');
     }
     return [];
   }, [data]);
@@ -162,9 +158,7 @@ export const useProjectsQuery = () => {
 
   const cachedData = useMemo(() => {
     if (data) {
-      const project_data = isQueryResponse(data)
-        ? extractData(data, 'file', 'project_id')
-        : [];
+      const project_data = extractData(data, 'file', 'project_id');
       const result: any = project_data.map((project) => {
         const totalSum = project.termsFields.reduce(
           (fieldSum: number, field: any) => {

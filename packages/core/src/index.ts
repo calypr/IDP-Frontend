@@ -7,6 +7,7 @@ import {
   GEN3_DOMAIN,
   GEN3_DOWNLOADS_ENDPOINT,
   GEN3_FENCE_API,
+  GEN3_GRIP_API,
   GEN3_GUPPY_API,
   GEN3_MANIFEST_API,
   GEN3_MDS_API,
@@ -44,6 +45,7 @@ export * from './features/requestor';
 export * from './features/sower';
 export * from './features/submission';
 export * from './features/workspace';
+export * from './features/grip';
 
 export {
   type CoreState,

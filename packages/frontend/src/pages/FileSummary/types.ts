@@ -1,5 +1,5 @@
 import { NavPageLayoutProps } from '../../features/Navigation';
-import { SummaryTableColumn } from '../../features/CohortBuilder/ExplorerTable';
+import { SummaryTableColumn } from '../../features/CohortBuilder/ExplorerTable/types';
 
 export interface FileSummaryProps {
   filesummaryConfig?: FilesummaryConfig;

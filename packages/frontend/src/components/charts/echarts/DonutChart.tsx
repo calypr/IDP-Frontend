@@ -25,7 +25,7 @@ const processChartData = (
   return results;
 };
 
-const DonutChart = ({ data }: ChartProps) => {
+const DonutChart = ({ data }: CustomChartProps) => {
   const chartDefinition = useMemo((): ReactEChartsProps['option'] => {
     return {
       legend: {

@@ -1,7 +1,10 @@
 import { useState } from 'react';
 import { Text, Loader, Center, Switch } from '@mantine/core';
 import { MatchingTable } from '../../features/MatchingTable';
-import { DonutSumChart, BarChart } from '../../components/charts';
+
+import DonutSumChart from '../../components/charts/echarts/DonutSumChart';
+import BarChart from '../../components/charts/echarts/DonutSumChart';
+
 import { NavPageLayout } from '../../features/Navigation';
 import ProtectedContent from '../../components/Protected/ProtectedContent';
 
@@ -75,7 +78,7 @@ export const FileSummaryPage = ({
   return (
     <NavPageLayout
       {...{ headerProps, footerProps }}
-      headerData={{
+      headerMetadata={{
         title: 'CALYPR File Summary Page',
         content: 'File Summary',
         key: 'calypr-file-summary',

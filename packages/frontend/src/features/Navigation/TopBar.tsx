@@ -111,8 +111,6 @@ export interface TopBarProps {
 }
 
 const TopBar = ({ title, items, classNames, logo }: TopBarProps) => {
-  logo!.basepage = title === 'CALYPR Landing Page';
-
   const defaultClassNames = {
     root:
       title === 'CALYPR Landing Page'
@@ -131,7 +129,7 @@ const TopBar = ({ title, items, classNames, logo }: TopBarProps) => {
         ? 'mx-2 text-black border-b-2 border-transparent border-white hover:border-black'
         : 'mx-2 text-white border-b-2 border-transparent border-primary hover:border-white',
   };
-  
+
   const mergedClassnames = mergeDefaultTailwindClassnames(
     defaultClassNames,
     classNames || {},

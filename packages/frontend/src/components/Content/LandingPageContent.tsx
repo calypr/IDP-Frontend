@@ -17,6 +17,7 @@ import Gen3Link from '../../features/Navigation/Gen3Link';
 import TextContent, { ContentType } from './TextContent';
 import { Gen3AppConfigData } from '../../lib/content/types';
 
+import { useIsUserLoggedIn } from '@gen3/core';
 export interface LandingPageContentProp {
   content: LandingPageProps;
 }
@@ -71,10 +72,7 @@ export interface LandingPageProps extends Gen3AppConfigData {
 const LandingPageContent = ({ content }: LandingPageContentProp) => {
   const { basePath } = useRouter();
 
-  const userStatus = useCoreSelector((state: CoreState) =>
-    selectUserAuthStatus(state),
-  );
-  const authenticated = isAuthenticated(userStatus);
+  const isUserLoggedIn = useIsUserLoggedIn();
 
   return (
     <div className="sm:mt-8 2xl:mt-10 content-center w-full bg-base-max">
@@ -120,9 +118,9 @@ const LandingPageContent = ({ content }: LandingPageContentProp) => {
                   >
                     <Gen3Link
                       className="flex items-center"
-                      href={authenticated ? obj.link.href : '/Login'}
+                      href={isUserLoggedIn ? obj.link.href : '/Login'}
                       linkType={obj.link.linkType}
-                      text={authenticated ? obj.link.text : 'LOGIN'}
+                      text={isUserLoggedIn ? obj.link.text : 'LOGIN'}
                       showExternalIcon
                     />
                   </Gen3Button>

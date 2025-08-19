@@ -228,7 +228,7 @@ const HorizontalBarChart = ({ headerProps, footerProps }: SamplePageProps) => {
   return (
     <NavPageLayout
       {...{ headerProps, footerProps }}
-      headerData={{
+      headerMetadata={{
         title: 'CALYPR SMMART Report Page',
         content: 'SMMART Report Page',
         key: 'smmart-report-page',

@@ -14,8 +14,6 @@ const NavigationLogo = ({
   divider = false,
   noBasePath = undefined,
   classNames = {},
-  href,
-  basepage,
 }: NavigationBarLogo) => {
   const classNamesDefaults = {
     root: 'relative flex py-0 justify-start items-center align-middle font-heading font-bold tracking-wide text-xl ml-[5px] mr-[20px]',
@@ -62,7 +60,7 @@ const NavigationLogo = ({
         >
           <HoverLink
             className={extractClassName('titleLink', mergedClassnames)}
-            href={href}
+            href={'/'}
           >
             {title}
           </HoverLink>

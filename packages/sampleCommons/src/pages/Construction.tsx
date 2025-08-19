@@ -11,11 +11,12 @@ const SamplePage = ({ headerProps, footerProps }: NavPageLayoutProps) => {
   return (
     <NavPageLayout
       {...{ headerProps, footerProps }}
-      headerData={{
+      headerMetadata={{
         title: 'Construction Page',
         content: 'Construction Page',
         key: 'gen3-construction-page',
-    }}>
+      }}
+    >
       <div className="w-full m-10">
         <Center>
           <Paper shadow="md" p="xl" withBorder>

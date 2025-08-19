@@ -88,7 +88,7 @@ const AvailableImagesPage = ({
   return (
     <NavPageLayout
       {...{ headerProps, footerProps }}
-      headerData={{
+      headerMetadata={{
         title: 'CALYPR Image Viewer Page',
         content: 'CALYPR Image Viewer Page',
         key: 'available-images-page',

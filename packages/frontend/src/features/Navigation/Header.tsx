@@ -22,7 +22,9 @@ const Header = ({
 }: HeaderProps) => {
   return type === 'horizontal' ? (
     <div className="w-full">
-      {banners?.map((banner) => <Banner {...banner} key={banner.id} />)}
+      {banners?.map((banner) => (
+        <Banner {...banner} key={banner.id} />
+      ))}
       <HorizontalNavigationBar
         logo={navigation.logo}
         title={navigation.title}
@@ -33,7 +35,9 @@ const Header = ({
     </div>
   ) : type === 'vertical' ? (
     <div>
-      {banners?.map((banner) => <Banner {...banner} key={banner.id} />)}
+      {banners?.map((banner) => (
+        <Banner {...banner} key={banner.id} />
+      ))}
       <HorizontalNavigationBar
         logo={navigation.logo}
         title={navigation.title}
@@ -44,15 +48,15 @@ const Header = ({
   ) : (
     <div className="w-full">
       <TopBar
-        title={title}
-        logo={navigation.logo}
         items={top.items}
         loginButtonVisibility={top?.loginButtonVisibility}
         externalLoginUrl={top?.externalLoginUrl}
         classNames={{ ...top.classNames }}
         itemClassnames={{ ...top.itemClassnames }}
       />
-      {banners?.map((banner) => <Banner {...banner} key={banner.id} />)}
+      {banners?.map((banner) => (
+        <Banner {...banner} key={banner.id} />
+      ))}
       <NavigationBar
         logo={navigation.logo}
         title={navigation.title}

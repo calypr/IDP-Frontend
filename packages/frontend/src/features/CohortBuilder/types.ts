@@ -22,15 +22,6 @@ export type FacetType =
   | 'date'
   | 'datetime';
 
-export type FacetType =
-  | 'enum'
-  | 'range'
-  | 'text'
-  | 'number'
-  | 'boolean'
-  | 'date'
-  | 'datetime';
-
 export interface TabConfig {
   title: string;
   fields: ReadonlyArray<string>; // list of fields

@@ -88,6 +88,31 @@ const ExplorerTable = ({
     [tableColumns],
   );
 
+  // Returns a value in the selected table row
+  const getFieldValue = useCallback(
+    (
+      tableConfig: SummaryTable,
+      rowSelection: MRT_RowSelectionState,
+      data: JSONObject[],
+      field: string,
+    ): string => {
+      const { detailsConfig } = tableConfig || {};
+      const idField: string | undefined = detailsConfig?.idField;
+      const selectedRowId = Object.keys(rowSelection).at(0);
+      if (!selectedRowId || !data) {
+        return 'Default Placeholder';
+      }
+      const selectedRow = data.find(
+        (row) => row[idField ?? ''] === selectedRowId,
+      );
+
+      if (selectedRow && field in selectedRow) {
+        return selectedRow[field] as string;
+      }
+      return 'Default Placeholder';
+    },
+    [],
+  );
   const getRowId = useCallback((tableConfig: SummaryTable) => {
     const { detailsConfig } = tableConfig || {};
     const idField: string | undefined = detailsConfig?.idField;
@@ -165,7 +190,6 @@ const ExplorerTable = ({
     manualSorting: true,
     manualPagination: true,
     enableStickyHeader: true,
-    enableColumnFilters: false,
     paginateExpandedRows: false,
     onPaginationChange: setPagination,
     onSortingChange: setSorting,
@@ -279,7 +303,17 @@ const ExplorerTable = ({
       <StudyProvider>
         {DetailsComponent && (
           <DetailsComponent
-            title={tableConfig?.detailsConfig?.title}
+            title={`${String(tableConfig?.detailsConfig?.nodeType).charAt(0).toUpperCase() + String(tableConfig?.detailsConfig?.nodeType).slice(1)} / ${getFieldValue(
+              tableConfig,
+              rowSelection,
+              data?.data?.[index] ?? [],
+              'project_id',
+            )} / ${getFieldValue(
+              tableConfig,
+              rowSelection,
+              data?.data?.[index] ?? [],
+              tableConfig?.detailsConfig?.title as string,
+            )}`}
             id={
               Object.keys(rowSelection).length > 0
                 ? Object.keys(rowSelection).at(0)

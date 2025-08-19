@@ -87,8 +87,6 @@ const Gen3Provider = ({
     icons.forEach((i) => addCollection(i));
   }, [icons]);
 
-  const theme = createMantineTheme(fonts, colors);
-
   return (
     <CoreProvider>
       <ModalsProvider>

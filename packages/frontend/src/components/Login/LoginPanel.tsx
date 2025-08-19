@@ -7,6 +7,7 @@ import LoginProvidersPanel from './LoginProvidersPanel';
 import CredentialsLogin from './CredentialsLogin';
 import TextContent from '../Content/TextContent';
 import { LoginConfig } from './types';
+import ContactWithEmailContent from '../Content/ContactWithEmailContent';
 import { GEN3_REDIRECT_URL } from '@gen3/core';
 import { appendParameterToUrl } from './utils';
 
@@ -85,9 +86,13 @@ const LoginPanel = (loginConfig: LoginConfig) => {
           )}
         <Center>
           <Stack>
-            {bottomContent?.map((content, index) => (
-              <TextContent {...content} key={`bottomContent-${index}`} />
-            ))}
+            {bottomContent?.map((content, index) =>
+              content?.email ? (
+                <ContactWithEmailContent {...content} key={index} />
+              ) : (
+                <TextContent {...content} key={index} />
+              ),
+            )}
           </Stack>
         </Center>
       </div>

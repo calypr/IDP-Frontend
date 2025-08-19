@@ -1,5 +1,6 @@
 import { TextContentProps } from '../Content/TextContent';
 import { Gen3AppConfigData } from '../../lib/content/types';
+import { StylingOverrideWithMergeControl } from '../../types';
 
 export interface Gen3LoginPanelConfig {
   title: string; // Main title for Login page
@@ -14,20 +15,22 @@ export interface Gen3LoginPanelConfig {
 export interface LoginConfig
   extends Partial<Gen3LoginPanelConfig>,
     Gen3AppConfigData {
-  topContent?: ReadonlyArray<TextContentProps>;
-  bottomContent?: ReadonlyArray<TextContentProps>;
+  topContent?: ReadonlyArray<TextImageContentProps>;
+  bottomContent?: ReadonlyArray<TextImageContentProps>;
   showCredentialsLogin?: boolean;
+}
+
+interface TextImageContentProps extends TextContentProps {
+  readonly image?: {
+    readonly src: string;
+    readonly alt: string;
+  };
+  readonly className: string;
 }
 
 export interface LoginSelectedProps {
   readonly handleLoginSelected: (_url: string) => void;
   classNames?: StylingOverrideWithMergeControl;
-}
-
-export enum LoginButtonVisibility {
-  Hidden = 'hide',
-  Visible = 'visible',
-  LogoutOnly = 'logoutOnly',
 }
 
 export enum LoginButtonVisibility {

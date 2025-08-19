@@ -6,7 +6,10 @@ import {
 import { ActionIcon, Text } from '@mantine/core';
 import { FaExternalLinkAlt } from 'react-icons/fa';
 
-const RenderDicomLink = ({ cell }: CellRendererFunctionProps) => {
+const RenderDicomLink = (
+  { cell }: CellRendererFunctionProps,
+  ...args: Array<Record<string, unknown>>
+) => {
   if (!cell?.getValue() || cell?.getValue() === '') {
     return <span></span>;
   } else
@@ -53,6 +56,21 @@ const RenderLinkCell = ({ cell }: CellRendererFunctionProps) => {
       </Text>
     </a>
   );
+};
+
+const RenderHumanReadableString = (
+  { cell, row }: CellRendererFunctionProps,
+  ...args: Array<Record<string, unknown>>
+) => {
+  if (!cell?.getValue() || cell?.getValue() === '') {
+    return <span></span>;
+  }
+  const bytes = Number(row.getValue('size'));
+  if (bytes === 0) return '0 B';
+  const humanReadable = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  const round = bytes / Math.pow(1024, i);
+  return `${round.toFixed(2)} ${humanReadable[i]}`;
 };
 
 export const registerCohortTableCustomCellRenderers = () => {

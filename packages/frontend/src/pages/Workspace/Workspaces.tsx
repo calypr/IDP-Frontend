@@ -1,7 +1,7 @@
 import React from 'react';
 import { NavPageLayout } from '../../features/Navigation';
 import { WorkspacesPanel } from '../../features/Workspace';
-import { WorkspacePageProps } from './types';
+import { WorkspacePageLayoutProps } from './types';
 
 const WorkspacesPage = ({
   headerProps,
@@ -11,7 +11,7 @@ const WorkspacesPage = ({
   return (
     <NavPageLayout
       {...{ headerProps, footerProps }}
-      headerData={{
+      headerMetadata={{
         title: 'Gen3 Workspace Page',
         content: 'Workspace page',
         key: 'gen3-workspace-page',
