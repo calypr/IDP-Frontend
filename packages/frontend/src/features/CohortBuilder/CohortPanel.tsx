@@ -421,8 +421,28 @@ export const CohortPanel = ({
               fields={table?.fields ?? []}
               filter={cohortFilters}
             />
-            <CountsValue
-              label={guppyConfig?.nodeCountTitle || toDisplayName(index)}
+            <div className="flex justify-between flex-row items-center mb-2">
+              {Object.keys(summaryCharts).length !== 0 && (
+                <Gen3Button
+                  colors="primary"
+                  onClick={() => setShowCharts(!showCharts)}
+                  className="px-2 py-1 text-primary-contrast rounded mr-4 active:scale-95"
+                >
+                  {showCharts ? 'Hide Charts' : 'Show Charts'}
+                </Gen3Button>
+              )}
+              <CountsValue
+                label={guppyConfig.nodeCountTitle}
+                counts={counts}
+                isSuccess={isCountSuccess}
+              />
+            </div>
+          </div>
+          {showCharts && (
+            <Charts
+              index={index}
+              charts={summaryCharts}
+              data={data ?? EmptyData}
               counts={counts}
               isFetching={isCountsFetching}
               isError={isCountsError}

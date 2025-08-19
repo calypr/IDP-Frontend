@@ -2,6 +2,12 @@
 
 ## Installation
 
+Build image:
+
+```bash
+docker build -t quay.io/ohsu-comp-bio/frontend-framework:prod . --platform linux/amd64
+```
+
 ### Prerequisites
 
 This is a multi-workspace repo that requires npm v10. The minimum node version is set to v22.11.0.
@@ -15,11 +21,13 @@ npm install npm@10.2.4 -g
 ```
 
 Note: if you see this error:
+
 ```
 npm ERR! code ENOWORKSPACES
 npm ERR! This command does not support workspaces.
 ```
-you can run ```npx next telemetry disable```
+
+you can run `npx next telemetry disable`
 
 ### Install Dependencies
 
