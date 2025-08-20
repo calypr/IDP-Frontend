@@ -40,7 +40,7 @@ const NavPageLayout = ({
       {CustomHeaderComponent ? (
         <CustomHeaderComponent {...headerProps} />
       ) : (
-        <Header {...headerProps}>
+        <Header {...headerProps} title={headerMetadata.title}>
           <title>{headerMetadata.title}</title>
           <meta
             property="og:title"

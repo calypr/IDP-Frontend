@@ -11,10 +11,11 @@ export const AppsPageGetServerSideProps: GetServerSideProps<
   const appsPageProps: AppsProps = await ContentSource.getContentDatabase().get(
     `${GEN3_COMMONS_NAME}/appsPage.json`,
   );
+  console.log('APPS PAGE PROPS IN DATA.TS: ', appsPageProps);
   return {
     props: {
       ...(await getNavPageLayoutPropsFromConfig()),
-      queryProps: appsPageProps,
+      appsConfig: appsPageProps,
     },
   };
 };

@@ -2,24 +2,18 @@ import React from 'react';
 import TopBar from './TopBar/TopBar';
 import NavigationBar from './NavigationBar';
 import { Banner } from './Banner';
-import { HeaderProps } from './types';
+import { HeaderProps, HeaderMetadata } from './types';
 import HorizontalNavigationBar from './HorizontalClean/HorizontalNavigationBar';
 
-/**
- * Header component.
- *
- * @param {object} props - The properties for the Header component.
- * @param {object} props.top - The top bar items and configuration.
- * @param {object} props.navigation - The navigation bar items and configuration.
- * @param {string} props.type - The type of header to render. Default value is 'original'.
- * @returns {JSX.Element} - The rendered Header component.
- */
 const Header = ({
   top,
   navigation,
   banners,
   type = 'original',
-}: HeaderProps) => {
+  title,
+}: HeaderProps & Pick<HeaderMetadata, 'title'>) => {
+  console.log('PATHNAME: ', title);
+
   return type === 'horizontal' ? (
     <div className="w-full">
       {banners?.map((banner) => (
@@ -53,16 +47,12 @@ const Header = ({
         externalLoginUrl={top?.externalLoginUrl}
         classNames={{ ...top.classNames }}
         itemClassnames={{ ...top.itemClassnames }}
+        logo={navigation.logo}
+        title={title}
       />
       {banners?.map((banner) => (
         <Banner {...banner} key={banner.id} />
       ))}
-      <NavigationBar
-        logo={navigation.logo}
-        title={navigation.title}
-        items={navigation.items}
-        classNames={navigation?.classNames}
-      />
     </div>
   );
 };

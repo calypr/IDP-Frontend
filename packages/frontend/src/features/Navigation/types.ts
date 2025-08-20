@@ -21,7 +21,10 @@ export interface NavigationBarLogo {
   readonly height?: number;
   readonly noBasePath?: boolean;
   readonly divider?: boolean;
+  readonly basePath?: string;
   readonly classNames?: StylingOverrideWithMergeControl;
+  readonly href: string;
+  basepage?: boolean;
 }
 
 export interface NavigationProps {
@@ -70,6 +73,7 @@ interface CommonsData {
 }
 
 export interface HeaderProps {
+  children?: React.ReactNode; // Add this line
   top: TopBarProps;
   navigation: NavigationProps;
   banners?: Array<BannerProps>;

@@ -23,6 +23,7 @@ const HorizontalNavigationBar = ({
   loginIcon = <LoginIcon size={'3.15rem'} />,
   classNames = {},
 }: HorizontalNavigationBarProps) => {
+  console.log('HELLO WE HERE');
   const classNamesDefaults = {
     root: 'py-3 border-b-1 border-base-light shadow-sm',
     navigationPanel: 'font-heading font-bold tracking-wide text-xl space-x-4',

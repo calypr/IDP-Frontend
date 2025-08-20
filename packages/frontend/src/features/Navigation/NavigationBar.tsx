@@ -16,7 +16,6 @@ import { mergeDefaultTailwindClassnames } from '../../utils/mergeDefaultTailwind
  */
 const NavigationBar = ({
   logo = undefined,
-  title = undefined,
   items = [],
   classNames = {},
 }: NavigationProps): ReactElement => {
