@@ -1,9 +1,8 @@
-import React, { useState } from 'react';
+import React, { useRef } from 'react';
 import { useDeepCompareEffect } from 'use-deep-compare';
 import { init, getInstanceByDom } from 'echarts';
 import type { CSSProperties } from 'react';
 import type { EChartsOption, ECharts, SetOptionOpts } from 'echarts';
-import { useResizeObserver } from '@mantine/hooks';
 
 export interface ReactEChartsProps {
   option: EChartsOption;
@@ -22,19 +21,31 @@ const ReactECharts = ({
   theme,
   onClick,
 }: ReactEChartsProps): JSX.Element => {
-  const [chartRoot, setChartRoot] = useState<ECharts | undefined>(undefined);
-  const [chartRef, rect] = useResizeObserver();
+  const chartRef = useRef<HTMLDivElement>(null);
+
   useDeepCompareEffect(() => {
     // Initialize chart
     let chart: ECharts | undefined;
-    if (chartRoot === undefined && chartRef.current !== null) {
+    if (chartRef.current !== null) {
       chart = init(chartRef.current, theme);
     }
-    setChartRoot(chart);
+
+    // Add chart resize listener
+    // ResizeObserver is leading to a bit janky UX
+    function resizeChart(event: any) {
+      chart?.resize();
+    }
+    window.addEventListener('resize', resizeChart);
+
+    // Return cleanup function
+    return () => {
+      chart?.dispose();
+      window.removeEventListener('resize', resizeChart);
+    };
   }, [theme]);
 
   useDeepCompareEffect(() => {
-    // Update chart if theme, options, or settings change
+    // Update chart
     if (chartRef.current !== null) {
       const chart = getInstanceByDom(chartRef.current);
       chart?.setOption(option, settings);
@@ -51,18 +62,13 @@ const ReactECharts = ({
   }, [loading]);
 
   useDeepCompareEffect(() => {
-    if (chartRoot && rect.height && rect.width) {
-      chartRoot.resize();
-    }
-  }, [rect]);
-
-  useDeepCompareEffect(() => {
     // Add click event listener to chart
     if (chartRef.current !== null) {
       const chart = getInstanceByDom(chartRef.current);
       if (onClick) {
         chart?.on('click', onClick);
       }
+
       return () => {
         chart?.off('click', onClick);
       };
@@ -70,12 +76,7 @@ const ReactECharts = ({
   }, [onClick]);
 
   return (
-    <div
-      role="figure"
-      aria-label="Data Chart"
-      ref={chartRef}
-      style={{ width: '100%', height: '100%', ...style }}
-    />
+    <div ref={chartRef} style={{ width: '100%', height: '100%', ...style }} />
   );
 };
 

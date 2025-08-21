@@ -1,4 +1,5 @@
 import React from 'react';
+import { useState } from 'react';
 import {
   fieldNameToTitle,
   AggregationsData,
@@ -18,6 +19,7 @@ import {
   Table,
   ColorSwatch,
   Modal,
+  Switch,
   Button,
   useMantineTheme,
 } from '@mantine/core';
@@ -207,25 +209,45 @@ const Charts = ({
 
     const numberOfDataItems = data?.[field] && data[field].length;
     const moreThanMaxRows = numberOfDataItems > MAX_LEGEND_ROWS;
+    const [filterNoData, setFilterNoData] = useState(false); // Toggle state
+    const hasNoData = data?.[field]?.some((item) => item.key === 'no data');
 
     return (
       <Grid.Col span={colSpan} key={`${indexNum}-charts-${field}-col`}>
         <Card shadow="md" withBorder={style === 'box'} className="h-full">
           <Card.Section inheritPadding py="xs" withBorder={style === 'box'}>
-            <Group justify="space-between">
-              <Text
-                fw={900}
-                className={`${
-                  style === 'box' ? 'font-bold [text-shadow:_1px_0_#000]' : ''
-                }`}
-              >
-                {chartTitle}
+            <div className="flex justify-between align-middle">
+              <Text fw={900}>
+                {charts[field].title ?? fieldNameToTitle(field)}
               </Text>
-            </Group>
+              {hasNoData && (
+                <div className="flex justify-between align-middle px-4">
+                  <Text fw={500} className="mr-4">
+                    {filterNoData ? "Show 'no data'" : "Hide 'no data'"}
+                  </Text>
+                  <Switch
+                    classNames={{
+                      track: `border border-black rounded-full h-8 w-12 ${filterNoData ? 'bg-secondary' : 'bg-white'}`,
+                      thumb: `transform h-6 w-6 bg-black border-black ${filterNoData ? '-translate-x-[50%]' : 'translate-x-[0%]'}`,
+                      label: 'font-content text-black',
+                    }}
+                    onChange={() => setFilterNoData(!filterNoData)}
+                    checked={filterNoData}
+                  />
+                </div>
+              )}
+            </div>
           </Card.Section>
           <LoadingOverlay visible={!isSuccess} />
           {createChart(charts[field].chartType, {
-            data: data === undefined ? [] : data[field],
+            data:
+              data && data[field]
+                ? Object.entries(data[field])
+                    .filter(([_, value]) => {
+                      return filterNoData ? value.key !== 'no data' : true;
+                    })
+                    .map(([_, value]) => ({ ...value }))
+                : [],
             total: counts ?? 1,
             valueType: charts[field].valueType ?? 'count',
             label: charts[field].label,

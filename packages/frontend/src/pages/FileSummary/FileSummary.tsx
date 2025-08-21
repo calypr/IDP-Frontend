@@ -1,10 +1,7 @@
 import { useState } from 'react';
 import { Text, Loader, Center, Switch } from '@mantine/core';
 import { MatchingTable } from '../../features/MatchingTable';
-
-import DonutSumChart from '../../components/charts/echarts/DonutSumChart';
-import BarChart from '../../components/charts/echarts/DonutSumChart';
-
+import { DonutSumChart, BarChart } from '../../components/charts';
 import { NavPageLayout } from '../../features/Navigation';
 import ProtectedContent from '../../components/Protected/ProtectedContent';
 

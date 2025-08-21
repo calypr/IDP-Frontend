@@ -1,0 +1,62 @@
+[
+  {
+    "tabTitle": "TEST",
+    "guppyConfig": {
+      "dataType": "file",
+      "nodeCountTitle": "file Count",
+      "fieldMapping": []
+    },
+    "filters": {
+      "tabs": [
+        {
+          "title": "Filters",
+          "fields": ["assay", "creation", "project_id"],
+          "fieldsConfig": {
+            "project_id": {
+              "field": "project_id",
+              "dataField": "",
+              "index": "",
+              "label": "Project Id",
+              "type": "enum"
+            },
+            "assay": {
+              "field": "assay",
+              "dataField": "",
+              "index": "",
+              "label": "Assay",
+              "type": "enum"
+            },
+            "creation": {
+              "field": "creation",
+              "dataField": "",
+              "index": "",
+              "label": "Creation",
+              "type": "enum"
+            }
+          }
+        }
+      ]
+    },
+    "table": {
+      "enabled": true,
+      "fields": ["project_id", "assay", "creation"],
+      "columns": {
+        "project_id": {
+          "field": "project_id",
+          "title": "Project ID"
+        },
+        "assay": {
+          "field": "assay",
+          "title": "Assay"
+        },
+        "creation": {
+          "field": "creation",
+          "title": "Creation"
+        }
+      }
+    },
+    "dropdowns": {},
+    "buttons": [],
+    "loginForDownload": false
+  }
+]
