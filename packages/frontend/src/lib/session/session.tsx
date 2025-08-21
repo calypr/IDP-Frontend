@@ -172,8 +172,8 @@ const UPDATE_SESSION_LIMIT = MinutesToMilliseconds(5);
  */
 export const SessionProvider = ({
   children,
-  updateSessionTime = 5,
-  inactiveTimeLimit = 20,
+  updateSessionTime = 1440,
+  inactiveTimeLimit = 1440,
   workspaceInactivityTimeLimit = 0,
   logoutInactiveUsers = true,
   monitorWorkspace = true,

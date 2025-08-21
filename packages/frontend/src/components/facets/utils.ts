@@ -148,7 +148,7 @@ export const classifyFacets = (
           // this is to maintain compatibility with gitops but should be deprecated
           type: facetDef.type ?? type,
           index: index,
-          description: facetDef.description ?? 'Not Available',
+          description: facetDef.description ?? '',
           label: facetDef.label ?? facetName,
           // assumption is that the initial data has the min and max values
           sharedWithIndices:

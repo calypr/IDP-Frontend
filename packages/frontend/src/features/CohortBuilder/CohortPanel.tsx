@@ -319,13 +319,11 @@ export const CohortPanel = ({
   if (isCountsError || isAggsQueryError) {
     return <ErrorCard message="Unable to fetch data from server" />;
   }
-
   return (
     <div className="flex flex-col mt-3 relative px-4 bg-base-lightest w-full">
-      <QueryExpression index={index} />
-
+      {/* Main flex container for filters and content */}
       <div className="flex w-full">
-        {/* Left panel */}
+        {/* Left panel for filters */}
         <div
           id="cohort-builder-filters"
           className="flex-shrink-0 md:w-1/4 lg:w-1/5"
@@ -344,12 +342,17 @@ export const CohortPanel = ({
           )}
         </div>
 
-        {/* Right panel */}
+        {/* Right panel for query expression + content */}
         <div
           id="cohort-builder-content"
           className="flex flex-col md:w-3/4 lg:w-4/5 pl-4"
         >
-          <div className="flex justify-between mb-2 ml-2">
+          {/* Put QueryExpression at the top of content panel */}
+          <div className="mb-2">
+            <QueryExpression index={index} />
+          </div>
+
+          <div className="flex justify-between my-2">
             <DownloadsPanel
               dropdowns={defaultDropdowns}
               buttons={defaultButtons}
@@ -359,7 +362,7 @@ export const CohortPanel = ({
               fields={table?.fields ?? []}
               filter={cohortFilters}
             />
-            <div className="flex justify-between flex-row items-center mb-2">
+            <div className="flex justify-between flex-row items-center my-2">
               {Object.keys(summaryCharts).length !== 0 && (
                 <Gen3Button
                   colors="primary"
@@ -387,35 +390,17 @@ export const CohortPanel = ({
               numCols={numCols}
             />
           )}
+
+          {table?.enabled && (
+            <div className="mt-2 flex flex-col">
+              <ExplorerTable
+                index={index}
+                tableConfig={table}
+                accessibility={accessLevel}
+              />
+            </div>
+          )}
         </div>
-
-        {/* Charts Section */}
-        {chartsSection?.enabled ? (
-          <CollapsableCharts
-            config={{ ...chartsSection, charts: summaryCharts }}
-            data={cleanChartData ?? EmptyData}
-            isSuccess={isChartSuccess}
-          />
-        ) : (
-          <Charts
-            charts={summaryCharts}
-            data={cleanChartData ?? EmptyData}
-            counts={counts}
-            isSuccess={isChartSuccess}
-            numCols={numCols}
-          />
-        )}
-
-        {/* Table Section */}
-        {table?.enabled && (
-          <div className="mt-2 flex flex-col">
-            <ExplorerTable
-              index={index}
-              tableConfig={table}
-              accessibility={accessLevel}
-            />
-          </div>
-        )}
       </div>
     </div>
   );

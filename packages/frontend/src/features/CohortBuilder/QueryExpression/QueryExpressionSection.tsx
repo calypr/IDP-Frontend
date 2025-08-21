@@ -32,8 +32,8 @@ const QueryExpressionContainer = tw.div`
   rounded-sm
 `;
 
-const MAX_HEIGHT_QE_SECTION = 120;
-const MIN_HEIGHT_QE_SECTION = 75;
+const MAX_HEIGHT_QE_SECTION = 52;
+const MIN_HEIGHT_QE_SECTION = 16;
 
 const reducer = (
   state: Record<string, Record<string, boolean>>,
@@ -175,7 +175,7 @@ const QueryExpressionSection: React.FC<QueryExpressionSectionProps> = ({
       <QueryExpressionsExpandedContext.Provider
         value={[cohortId ? expandedState[cohortId] : {}, setExpandedState]}
       >
-        <div className="flex flex-col w-full bg-primary-lighter">
+        <div className="flex flex-col w-full bg-primary rounded-sm">
           <div
             data-testid="text-cohort-filters-top-row"
             className="flex flex-row py-2 items-center border-b-1 border-base-max rounded-t-sm"
@@ -183,15 +183,17 @@ const QueryExpressionSection: React.FC<QueryExpressionSectionProps> = ({
             {showTitle && (
               <OverflowTooltippedLabel
                 label={cohortName}
-                className="font-bold text-secondary-contrast-darkest ml-3 max-w-[260px]"
+                className="font-bold text-secondary-contrast-darkest ml-3 max-w-[260px] rounded-sm"
               >
-                {cohortName}
+                {
+                  'Filters' /*Hardcoding this here because not sure where default value "Cohort" is coming form. Tested a few things nothing worked */
+                }
               </OverflowTooltippedLabel>
             )}
             <React.Fragment>
               {!displayOnly && (
                 <button
-                  data-testid="button-clear-all-cohort-filters"
+                  data-testid="flex flex-wrap bg-base-max w-full p-2"
                   className={`text-sm font-montserrat ml-2 px-1 hover:bg-primary-darkest hover:text-primary-content-lightest hover:rounded-md ${
                     noFilters
                       ? 'hidden'
@@ -242,7 +244,7 @@ const QueryExpressionSection: React.FC<QueryExpressionSectionProps> = ({
                       <Icon
                         icon="gen3:chevron-expand"
                         aria-hidden="true"
-                        height="1.5rem"
+                        height="1rem"
                       >
                         {' '}
                       </Icon>
@@ -250,7 +252,7 @@ const QueryExpressionSection: React.FC<QueryExpressionSectionProps> = ({
                       <Icon
                         icon="gen3:chevron-contract"
                         aria-hidden="true"
-                        height="1.5rem"
+                        height="1rem"
                       >
                         {' '}
                       </Icon>
@@ -316,8 +318,7 @@ const QueryExpressionSection: React.FC<QueryExpressionSectionProps> = ({
               <p
                 data-testid="text-no-active-cohort-filter"
                 className="flex items-center font-content h-10"
-              >
-              </p>
+              ></p>
             ) : (
               Object.keys(filters.root).map((k) => {
                 return convertFilterToComponent(

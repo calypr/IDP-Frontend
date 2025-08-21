@@ -9,7 +9,6 @@ import OverflowTooltippedLabel from '../OverflowTooltippedLabel';
 
 import { useDisclosure } from '@mantine/hooks';
 import {
-  // ActionIcon,
   Center,
   Card,
   Grid,
@@ -124,9 +123,7 @@ const LegendOverflow = ({
               >
                 <Table.Tbody>
                   {data.map((element, elIndex) => (
-                    <Table.Tr
-                      key={elIndex}
-                    >
+                    <Table.Tr key={elIndex}>
                       <Table.Td>
                         <div className="flex flex-nowrap items-center">
                           <ColorSwatch
@@ -186,13 +183,19 @@ const Charts = ({
   style = 'tile',
   showLegends = false,
 }: ChartsProps) => {
-  const spans = computeRowSpan(Object.keys(charts).length, numCols);
+  // Determine the span based on the number of columns.
+  // Mantine's Grid is 12 columns, so 12 / numCols will give equal width.
+  const colSpan = 12 / numCols;
 
   const chartCard = (field: string, indexNum: number) => {
     if (Object.keys(data).length === 0) return null;
 
     if (Object.keys(data).length > 0 && !(field in data)) {
-      return <ErrorCard message={`${field} not found in data`} />;
+      return (
+        <Grid.Col span={colSpan} key={`${indexNum}-charts-${field}-col`}>
+          <ErrorCard message={`${field} not found in data`} />
+        </Grid.Col>
+      );
     }
 
     const dataKeys =
@@ -206,21 +209,18 @@ const Charts = ({
     const moreThanMaxRows = numberOfDataItems > MAX_LEGEND_ROWS;
 
     return (
-      <Grid.Col span={spans[indexNum]} key={`${indexNum}-charts-${field}-col`}>
+      <Grid.Col span={colSpan} key={`${indexNum}-charts-${field}-col`}>
         <Card shadow="md" withBorder={style === 'box'} className="h-full">
           <Card.Section inheritPadding py="xs" withBorder={style === 'box'}>
             <Group justify="space-between">
               <Text
                 fw={900}
-                className={`${style === 'box' ? 'font-bold [text-shadow:_1px_0_#000]' : ''}`}
+                className={`${
+                  style === 'box' ? 'font-bold [text-shadow:_1px_0_#000]' : ''
+                }`}
               >
                 {chartTitle}
               </Text>
-              {/* // TODO: handle close/hide chart
-            <ActionIcon>
-              <CloseIcon size="1rem" />
-            </ActionIcon>
-             */}
             </Group>
           </Card.Section>
           <LoadingOverlay visible={!isSuccess} />
@@ -247,9 +247,7 @@ const Charts = ({
                   <Table.Thead>
                     <Table.Tr>
                       {dataKeys.map((el, i) => (
-                        <Table.Th
-                          key={i}
-                        >
+                        <Table.Th key={i}>
                           {charts[field]?.dataLabels?.[el] || (
                             <React.Fragment>&nbsp;</React.Fragment>
                           )}
@@ -288,7 +286,7 @@ const Charts = ({
   };
 
   return (
-    <Grid className="w-full">
+    <Grid className="w-full mx-2" gutter="md">
       {data && Object.keys(charts)?.map(chartCard)}
     </Grid>
   );

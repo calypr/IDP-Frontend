@@ -52,12 +52,9 @@ flex truncate ... px-2 py-1 bg-base-max h-full
 `;
 
 const QueryFieldLabel = tw.div`
-bg-accent-cool-lightest
-text-base-darkest
-uppercase
-px-2 pl-1
-border-primary-darkest
-border-r-[1.5px]
+bg-primary
+text-base-max
+px-1.5
 flex
 items-center
 `;
@@ -178,7 +175,11 @@ const IncludeExcludeQueryElement = ({
         aria-label={expanded ? `collapse ${fieldName}` : `expand ${fieldName}`}
         aria-expanded={expanded}
       >
-        {expanded ? <LeftArrow className="text-base-dark" /> : <RightArrow className="text-base-dark" />}
+        {expanded ? (
+          <LeftArrow className="text-base-dark" />
+        ) : (
+          <RightArrow className="text-base-dark" />
+        )}
       </ActionIcon>
       <Divider
         orientation="vertical"
@@ -201,8 +202,9 @@ const IncludeExcludeQueryElement = ({
                   data-testid={`query-rep-${field}-${value}-${i}`}
                   variant="filled"
                   color="primary.0"
+                  radius="sm"
                   size="md"
-                  className={`normal-case items-center max-w-[162px] cursor-pointer hover:bg-accent-darker pl-2 ${displayOnly ? 'pr-3' : 'pr-0'}`}
+                  className={`normal-case items-center max-w-[162px] cursor-pointer hover:bg-secondary px-1 ${displayOnly ? 'pr-3' : 'pr-0'}`}
                   rightSection={!displayOnly && <RemoveButton value={value} />}
                   onClick={() => {
                     if (displayOnly) return;
@@ -374,7 +376,7 @@ export const QueryElement = ({
       });
   };
 
-return (
+  return (
     <QueryItemContainer>
       {children}
       {/* ---
@@ -385,7 +387,7 @@ return (
       -- */}
       {!displayOnly && (
         <button
-          className="bg-accent-vivid p-0 m-0 h-full rounded-r-sm text-white hover:bg-accent-darker"
+          className="bg-primary p-0 m-0 h-full text-white hover:bg-secondary"
           onClick={handleRemoveFilter}
           aria-label={`remove ${fieldNameToTitle(field)}`}
         >

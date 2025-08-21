@@ -12,7 +12,7 @@ import { CloseIcon, LockOutlineIcon } from '../../types/icons';
 import FacetSortPanel from './FacetSortPanel';
 import { type CombineMode, fieldNameToTitle } from '@gen3/core';
 import OverflowTooltippedLabel from '../OverflowTooltippedLabel';
-import FacetExpander from './FacetExpander';
+import FacetExpander, { ExpanderLabel } from './FacetExpander';
 import { EnumFacetChart } from '../charts';
 import React, { useEffect, useRef, useState } from 'react';
 import { EnumFacetHooks } from './EnumFacet';
@@ -414,7 +414,7 @@ const FacetEnumList: React.FC<FacetEnumListProps> = ({
                                 }
                                 aria-label={`${value}`}
                                 classNames={{
-                                  input: 'hover:bg-accent-darker',
+                                  input: 'hover:bg-primary',
                                   label: 'text-xs font-normal font-content',
                                 }}
                                 checked={
@@ -487,12 +487,25 @@ const FacetEnumList: React.FC<FacetEnumListProps> = ({
                   )}
                 </div>
               </div>
-              {facetChartData.remainingValues > 0 ? (
+              {facetChartData.remainingValues > 0 &&
+              facetChartData.filteredData.length < 1000 ? (
                 <FacetExpander
                   remainingValues={facetChartData.remainingValues}
                   isGroupExpanded={isGroupExpanded}
                   onShowChanged={setIsGroupExpanded}
                 />
+              ) : null}
+              {facetChartData.remainingValues > 0 &&
+              facetChartData.filteredData.length >= 1000 ? (
+                <div
+                  className={'mt-3 flex flex-row justify-end border-t-2 p-1.5'}
+                >
+                  <Tooltip label="click the magnifying glass icon to search for more values">
+                    <ExpanderLabel>
+                      {facetChartData.filteredData.length} values
+                    </ExpanderLabel>
+                  </Tooltip>
+                </div>
               ) : null}
             </div>
             <div

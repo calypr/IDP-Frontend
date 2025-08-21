@@ -61,7 +61,7 @@ const EnumFacet = ({
     <div
       className={`flex flex-col ${
         width ? width : 'mx-1'
-      } bg-base-max relative border-base-light border-1 rounded-md text-xs transition`}
+      } bg-base-max relative border-base-light border-1 rounded-sm text-xs transition`}
       id={field}
     >
       <FacetControlsHeader
@@ -99,16 +99,6 @@ const EnumFacet = ({
           excludeValues={excludeValues}
         />
       </div>
-      <FacetEnumList
-        field={field}
-        facetName={facetName}
-        valueLabel={valueLabel}
-        hooks={hooks}
-        isFacetView={isFacetView}
-        isSearching={isSearching}
-        hideIfEmpty={hideIfEmpty}
-        showPercent={showPercent}
-      />
     </div>
   );
 };

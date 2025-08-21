@@ -31,7 +31,6 @@ const CohortBuilder = ({
 
   return (
     <div className="flex flex-col w-full mt-2">
-      <CohortManager></CohortManager>
       <Tabs
         color="primary.4"
         variant={explorerConfig[0]?.tabType}
@@ -46,6 +45,7 @@ const CohortBuilder = ({
             <Tabs.Tab
               value={panelConfig.tabTitle}
               key={`${panelConfig.tabTitle}-tabList`}
+              className="mt-2"
             >
               {panelConfig.tabTitle}
             </Tabs.Tab>
@@ -61,6 +61,7 @@ const CohortBuilder = ({
               guppyConfig={panelConfig.guppyConfig}
               key={`${panelConfig.tabTitle}-CohortPanel`}
               chartsSection={panelConfig?.chartsSection}
+              charts={panelConfig.charts}
               filters={panelConfig.filters}
               tabTitle={panelConfig.tabTitle}
               table={panelConfig.table}

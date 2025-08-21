@@ -94,25 +94,30 @@ const FacetControlsHeader = ({
     <header.Panel>
       <div className="flex flex-row items-center">
         {toggleExpandFilter && (
-          <Tooltip label={isFilterExpanded ? 'Collapse card' : 'Expand card'}>
+          <Tooltip
+            label={isFilterExpanded ? 'Collapse card' : 'Expand card'}
+            color="black"
+          >
             <ActionIcon
-              variant="subtle"
               onClick={() => {
                 toggleExpandFilter(field, !isFilterExpanded);
               }}
               aria-expanded={isFilterExpanded}
               aria-label={isFilterExpanded ? 'Collapse card' : 'Expand card'}
+              color="primary.0"
             >
               {isFilterExpanded ? (
                 <ExpandLessIcon
                   size="3em"
                   className={header.iconStyle}
+                  color="accent.4"
                   aria-hidden="true"
                 />
               ) : (
                 <ExpandMoreIcon
                   size="3em"
                   className={header.iconStyle}
+                  color="accent.4"
                   aria-hidden="true"
                 />
               )}
@@ -193,6 +198,7 @@ const FacetControlsHeader = ({
                 size="1.45em"
                 className={header.iconStyle}
                 aria-hidden="true"
+                color="white"
               />
             </FacetIconButton>
           </Tooltip>
@@ -211,6 +217,7 @@ const FacetControlsHeader = ({
                 size="1.45em"
                 className={header.iconStyle}
                 aria-hidden="true"
+                color="white"
               />
             </FacetIconButton>
           </Tooltip>
@@ -225,6 +232,7 @@ const FacetControlsHeader = ({
                 size="1.0em"
                 className={header.iconStyle}
                 aria-hidden="true"
+                color="white"
               />
             </FacetIconButton>
           </Tooltip>
