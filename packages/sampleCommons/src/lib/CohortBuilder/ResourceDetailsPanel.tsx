@@ -100,7 +100,7 @@ export const ResourceDetailsPanel = ({
   if (isError) {
     return <ErrorCard message={'Error occurred while fetching data'} />;
   }
-  const queryData = isQueryResponse(data) ? extractData(data, index) : [];
+  const queryData = isQueryResponse(data) ? extractData(data, index ?? '') : [];
 
   const totalFiles = queryData.length;
   const currentFileData = queryData[currentFileIndex] || {};

@@ -8,6 +8,8 @@ import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { MantineProvider } from '@mantine/core';
 import mantinetheme from '../mantineTheme';
 
+import '@xyflow/react/dist/style.css';
+import 'react-complex-tree/lib/style-modern.css';
 import {
   Gen3Provider,
   type ModalsConfig,

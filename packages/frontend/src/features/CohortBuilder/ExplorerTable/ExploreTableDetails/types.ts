@@ -9,6 +9,13 @@ export interface TableDetailsPanelProps extends DetailsPanelComponentProps {
   accessibility: Accessibility;
 }
 
+export interface TableDetailsReportPanelProps
+  extends DetailsPanelComponentProps {
+  index?: string;
+  tableConfig: SummaryTable;
+  accessibility?: Accessibility;
+}
+
 /**
  * Represents the configuration for the Explorer details.
  *

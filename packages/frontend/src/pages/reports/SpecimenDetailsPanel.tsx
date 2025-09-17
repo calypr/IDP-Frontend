@@ -8,7 +8,7 @@ import {
 import { fieldNameToTitle, useGeneralGQLQuery } from '@gen3/core';
 import { MatchingTable } from '../../features/MatchingTable';
 import ErrorCard from '../../components/ErrorCard';
-import type { TableDetailsPanelProps } from '../../features/CohortBuilder';
+import type { TableDetailsReportPanelProps } from '../../features/CohortBuilder';
 import { useState } from 'react';
 import SimpleTable from '../../../../frontend/src/features/SimpleTable/SimpleTable';
 import {
@@ -21,7 +21,7 @@ import SpecimenTree from './SpecimenModal/SpecimenTree';
 export const SpecimenDetailsPanel = ({
   id, // The table value corresponding to the column name 'idField'
   tableConfig,
-}: TableDetailsPanelProps) => {
+}: TableDetailsReportPanelProps) => {
   const idField = tableConfig.detailsConfig?.idField;
   const nodeType = tableConfig.detailsConfig?.nodeType;
   const nodeFields = tableConfig.detailsConfig?.nodeFields;

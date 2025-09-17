@@ -27,7 +27,7 @@ const ReportsPage = ({
     >
       <ProtectedContent>
         <MedicationAdministrationDetailPanel
-          id={uuid}
+          id={Array.isArray(uuid) ? uuid[0] : uuid}
           tableConfig={reportsConfig.tableConfig}
         ></MedicationAdministrationDetailPanel>
       </ProtectedContent>

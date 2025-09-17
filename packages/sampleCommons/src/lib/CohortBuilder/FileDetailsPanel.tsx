@@ -100,7 +100,9 @@ export const FileDetailsPanel = ({
   }
 
   // process guppy response
-  const queryData = isQueryResponse(data) ? extractData(data, index) : {};
+  const queryData = isQueryResponse(data)
+    ? extractData(data, index ?? 'file')
+    : {};
 
   // create the rows for the table
   const rows = Object.entries(queryData).map(([field, value]) => (

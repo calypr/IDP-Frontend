@@ -1,8 +1,5 @@
-import {
-  ErrorCard,
-  type TableDetailsPanelProps,
-  ExplorerTableDetailsPanelFactory,
-} from '@gen3/frontend';
+import ErrorCard from '../../components/ErrorCard';
+import type { TableDetailsReportPanelProps } from '../../features/CohortBuilder/ExplorerTable/ExploreTableDetails/types';
 import { RegimenChart } from './MedicationAdministrationModal/RegimenChart';
 import { useGeneralGQLQuery } from '@gen3/core';
 import { isQueryResponse, extractData } from './ResearchSubjectModal/tools';
@@ -11,7 +8,7 @@ import { LoadingOverlay } from '@mantine/core';
 export const MedicationAdministrationDetailPanel = ({
   id, // The table value corresponding to the column name 'idField'
   tableConfig,
-}: TableDetailsPanelProps) => {
+}: TableDetailsReportPanelProps) => {
   const idField = tableConfig.detailsConfig?.idField;
   const nodeType = tableConfig.detailsConfig?.nodeType;
   const nodeFields = tableConfig.detailsConfig?.nodeFields;

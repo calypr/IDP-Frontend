@@ -12,6 +12,7 @@ import {
   registerCohortBuilderDefaultPreviewRenderers,
   registerExplorerDefaultCellRenderers,
   type TableDetailsPanelProps,
+  type TableDetailsReportPanelProps,
 } from './ExplorerTable';
 
 import { QueryExpressionContext } from './QueryExpression/QueryExpressionContext';
@@ -32,6 +33,7 @@ export {
   type CohortBuilderConfiguration,
   type CohortBuilderProps,
   type TableDetailsPanelProps,
+  type TableDetailsReportPanelProps,
   type CellRendererFunctionProps,
   type CohortPanelConfiguration,
   CohortBuilder,

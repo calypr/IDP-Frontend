@@ -76,6 +76,10 @@
     "postcss-simple-vars": "^7.0.1",
     "prettier": "^3.3.3"
   },
+  "styleDependencies": [
+    "@xyflow/react/dist/style.css",
+    "react-complex-tree/lib/style-modern.css"
+  ],
   "peerDependencies": {
     "tailwindcss": "^3.4.16",
     "ts-jest": "^29.1.2",
