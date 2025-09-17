@@ -6,11 +6,33 @@ import {
 import { ActionIcon, Text } from '@mantine/core';
 import { FaExternalLinkAlt } from 'react-icons/fa';
 
-const RenderDicomLink = (
-  { cell }: CellRendererFunctionProps,
+const RenderReportsLink = (
+  { cell, row }: CellRendererFunctionProps,
   ...args: Array<Record<string, unknown>>
 ) => {
-  if (!cell?.getValue() || cell?.getValue() === '') {
+  return (
+    <a
+      href={`${args[0].baseURL}/${cell.getValue()}`}
+      target="_blank"
+      rel="noreferrer"
+    >
+      <ActionIcon color="primary.0" size="md" variant="filled">
+        <FaExternalLinkAlt />
+      </ActionIcon>
+    </a>
+  );
+};
+
+const RenderDicomLink = (
+  { cell, row }: CellRendererFunctionProps,
+  ...args: Array<Record<string, unknown>>
+) => {
+  if (
+    !cell?.getValue() ||
+    cell?.getValue() === '' ||
+    (!(row.getValue('source_path') as string)?.endsWith('.tiff') &&
+      !(row.getValue('source_path') as string)?.endsWith('.tif'))
+  ) {
     return <span></span>;
   } else
     return (
@@ -74,6 +96,11 @@ const RenderHumanReadableString = (
 };
 
 export const registerCohortTableCustomCellRenderers = () => {
+  ExplorerTableCellRendererFactory().registerRenderer(
+    'link',
+    'ReportsLink',
+    RenderReportsLink,
+  );
   ExplorerTableCellRendererFactory().registerRenderer(
     'link',
     'DicomLink',

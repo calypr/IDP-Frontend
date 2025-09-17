@@ -81,6 +81,7 @@ export const TableCellRenderer = (
   functionName = 'default',
   ...params: any[]
 ): CellRendererFunction => {
+  console.log('TYPE: ', type, 'FUNC NAME: ', functionName, 'PARAMS: ', params);
   if (!type) {
     return defaultCellRenderer;
   }

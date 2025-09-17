@@ -66,6 +66,12 @@ import { QueryPageGetServerSideProps } from './pages/Query/data';
 import LandingPage from './pages/Landing/Landing';
 import { LandingPageGetServerSideProps } from './pages/Landing/data';
 
+import {
+  ReportsPageGetServerSideProps,
+  ResearchSubjectDetailsPanel,
+  type ReportsPageProps,
+} from './pages/reports';
+
 import ExplorerPage from './pages/Explorer/Explorer';
 import {
   ExplorerPageGetServerSideProps,
@@ -139,6 +145,7 @@ export {
   type SessionConfiguration,
   type ExplorerPageProps,
   type AnalysisPageLayoutProps,
+  type ReportsPageProps,
   // components
   CollapsableSidebar,
   DropdownButton,
@@ -173,6 +180,8 @@ export {
   ExplorerPage,
   ExplorerPageGetServerSideProps,
   ExplorerPageGetServerSidePropsForConfigId,
+  ReportsPageGetServerSideProps,
+  ResearchSubjectDetailsPanel,
   ProfilePage,
   ProfilePageGetServerSideProps,
   LoginPage,

@@ -1,0 +1,24 @@
+{
+  "Title": "Sample Dynamic  Reports Page",
+  "tableConfig": {
+    "enabled": true,
+    "detailsConfig": {
+      "panel": "researchSubject",
+      "mode": "click",
+      "idField": "patient_id",
+      "filterField": "patient_id",
+      "title": "identifier",
+      "nodeType": "specimen",
+      "nodeFields": {
+        "indexed_collection_date_days": "Collection Date",
+        "identifier": "BEMS ID",
+        "sample_family_id": "Sample Family ID",
+        "collection": "Metastasis Site",
+        "sample_type": "sample_type",
+        "tissue_type": "tissue_type",
+        "percent_tumor": "percent_tumor",
+        "id": "ID"
+      }
+    }
+  }
+}

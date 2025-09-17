@@ -307,7 +307,7 @@
           "title": "View Image",
           "type": "link",
           "accessorPath": "id",
-          "cellRenderFunction": "DiacomLink",
+          "cellRenderFunction": "DicomLink",
           "width": "32px",
           "params": {
             "baseURL": "/image-viewer/view"
