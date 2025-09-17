@@ -5,15 +5,12 @@ import {
 } from '@gen3/frontend';
 import { RegimenChart } from './MedicationAdministrationModal/RegimenChart';
 import { useGeneralGQLQuery } from '@gen3/core';
-import React from 'react';
 import { isQueryResponse, extractData } from './ResearchSubjectModal/tools';
-import { LoadingOverlay, ScrollArea } from '@mantine/core';
+import { LoadingOverlay } from '@mantine/core';
 
 export const MedicationAdministrationDetailPanel = ({
   id, // The table value corresponding to the column name 'idField'
-  row,
   tableConfig,
-  onClose,
 }: TableDetailsPanelProps) => {
   const idField = tableConfig.detailsConfig?.idField;
   const nodeType = tableConfig.detailsConfig?.nodeType;
@@ -22,6 +19,35 @@ export const MedicationAdministrationDetailPanel = ({
   const processedNodeFields = Object.entries(nodeFields ?? {})
     .map(([alias, field]) => `${alias}: ${field}`)
     .join('\n');
+
+  const {
+    data: maData,
+    isLoading: maIsLoading,
+    isError: maIsError,
+  } = useGeneralGQLQuery({
+    query: `query ($filter: JSON) {
+              medicationadministration(filter: $filter,  accessibility: all, first: 1) {
+              patient_identifier
+              }
+            }`,
+    variables: {
+      filter: {
+        AND: [
+          {
+            EQ: {
+              id: `${id}`,
+            },
+          },
+        ],
+      },
+    },
+  });
+
+  const ma =
+    !maIsLoading && isQueryResponse(maData)
+      ? extractData(maData, 'medicationadministration', '')[0]
+      : {};
+
   const { data, isLoading, isError } = useGeneralGQLQuery({
     query: `query ($filter: JSON) {
               ${nodeType} (filter: $filter,  accessibility: all, first: 10000,
@@ -55,21 +81,9 @@ export const MedicationAdministrationDetailPanel = ({
     : [];
 
   return (
-    <div className="flex-grow">
+    <div className="mx-auto max-w-5xl flex flex-col gap-6 p-4 h-[600px]">
       <LoadingOverlay visible={isLoading} />
-      <RegimenChart
-        data={queryData}
-        identifier={row?._valuesCache.patient_identifier}
-      />
+      <RegimenChart data={queryData} identifier={ma?.patient_identifier} />
     </div>
   );
 };
-export const registerCustomExplorerMedicationAdministrationDetailsPanels =
-  () => {
-    ExplorerTableDetailsPanelFactory().registerRendererCatalog({
-      // NOTE: The catalog name must be tableDetails
-      tableDetails: {
-        medicationAdministration: MedicationAdministrationDetailPanel,
-      }, // TODO: add simpler registration function that ensures the catalog name is tableDetails
-    });
-  };

@@ -4,7 +4,7 @@ import {
   NavPageLayout,
   ProtectedContent,
   type ReportsPageProps,
-  ReportsPageGetServerSideProps as getServerSideProps,
+  RSReportsPageGetServerSideProps as getServerSideProps,
   ResearchSubjectDetailsPanel,
 } from '@gen3/frontend';
 

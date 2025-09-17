@@ -67,8 +67,12 @@ import LandingPage from './pages/Landing/Landing';
 import { LandingPageGetServerSideProps } from './pages/Landing/data';
 
 import {
-  ReportsPageGetServerSideProps,
+  SpecimenReportsPageGetServerSideProps,
+  RSReportsPageGetServerSideProps,
+  MAReportsPageGetServerSideProps,
+  MedicationAdministrationDetailPanel,
   ResearchSubjectDetailsPanel,
+  SpecimenDetailsPanel,
   type ReportsPageProps,
 } from './pages/reports';
 
@@ -180,8 +184,12 @@ export {
   ExplorerPage,
   ExplorerPageGetServerSideProps,
   ExplorerPageGetServerSidePropsForConfigId,
-  ReportsPageGetServerSideProps,
+  RSReportsPageGetServerSideProps,
   ResearchSubjectDetailsPanel,
+  MedicationAdministrationDetailPanel,
+  MAReportsPageGetServerSideProps,
+  SpecimenReportsPageGetServerSideProps,
+  SpecimenDetailsPanel,
   ProfilePage,
   ProfilePageGetServerSideProps,
   LoginPage,

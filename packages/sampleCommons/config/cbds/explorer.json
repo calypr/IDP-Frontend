@@ -285,6 +285,7 @@
       "fields": [
         "title",
         "size",
+        "id",
         "contentType",
         "specimen_identifier",
         "parent_bems_id",
@@ -299,8 +300,7 @@
         "source_path",
         "creation",
         "project_id",
-        "specimen_id",
-        "id"
+        "specimen_id"
       ],
       "columns": {
         "id": {

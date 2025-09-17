@@ -1,0 +1,19 @@
+{
+  "tableConfig": {
+    "enabled": true,
+    "detailsConfig": {
+      "panel": "medicationAdministration",
+      "mode": "click",
+      "idField": "patient_id",
+      "filterField": "patient_id",
+      "title": "patient_identifier",
+      "nodeType": "medicationadministration",
+      "nodeFields": {
+        "Medication": "medication",
+        "Dosage": "dosage",
+        "Index_Date_Start_Days": "index_date_start_days",
+        "Index_Date_End_Days": "index_date_end_days"
+      }
+    }
+  }
+}

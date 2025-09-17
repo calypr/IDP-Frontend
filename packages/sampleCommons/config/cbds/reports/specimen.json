@@ -1,0 +1,24 @@
+{
+  "Title": "Sample Dynamic  Reports Page",
+  "tableConfig": {
+    "enabled": true,
+    "detailsConfig": {
+      "classNames": "px-5",
+      "panel": "specimenDetails",
+      "mode": "click",
+      "idField": "id",
+      "filterField": "specimen_id",
+      "title": "identifier",
+      "nodeType": "file",
+      "nodeFields": {
+        "title": "File Name",
+        "size": "size",
+        "contentType": "File Format",
+        "assay": "Assay",
+        "level": "Level",
+        "molecule_type": "Molecule Type",
+        "data_category": "Data Category"
+      }
+    }
+  }
+}
