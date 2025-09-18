@@ -7,7 +7,8 @@ import {
   SegmentedControl,
 } from '@mantine/core';
 
-import { ErrorCard, SummaryTableColumn } from '@gen3/frontend';
+import ErrorCard from '../../../components/ErrorCard';
+import { SummaryTableColumn } from '../../../features/CohortBuilder';
 import { useGeneralGQLQuery, JSONObject } from '@gen3/core';
 import {
   isQueryResponse,
@@ -21,7 +22,7 @@ import {
   ResourceDict,
 } from '../types';
 import React, { useMemo, useState } from 'react';
-import { MatchingTable } from '@gen3/frontend';
+import { MatchingTable } from '../../../features/MatchingTable';
 
 /**
  * Gets all files associated with the specified specimens

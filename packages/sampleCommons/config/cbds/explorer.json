@@ -38,25 +38,7 @@
         "condition_Diagnosis",
         "patient_id",
         "id"
-      ],
-      "detailsConfig": {
-        "panel": "researchSubject",
-        "mode": "click",
-        "idField": "patient_id",
-        "filterField": "patient_id",
-        "title": "identifier",
-        "nodeType": "specimen",
-        "nodeFields": {
-          "indexed_collection_date_days": "Collection Date",
-          "identifier": "BEMS ID",
-          "sample_family_id": "Sample Family ID",
-          "collection": "Metastasis Site",
-          "sample_type": "sample_type",
-          "tissue_type": "tissue_type",
-          "percent_tumor": "percent_tumor",
-          "id": "ID"
-        }
-      }
+      ]
     },
     "dropdowns": {},
     "guppyConfig": {
@@ -160,25 +142,7 @@
         "patient_id",
         "project_id",
         "id"
-      ],
-      "detailsConfig": {
-        "classNames": "px-5",
-        "panel": "specimenDetails",
-        "mode": "click",
-        "idField": "id",
-        "filterField": "specimen_id",
-        "title": "identifier",
-        "nodeType": "file",
-        "nodeFields": {
-          "title": "File Name",
-          "size": "size",
-          "contentType": "File Format",
-          "assay": "Assay",
-          "level": "Level",
-          "molecule_type": "Molecule Type",
-          "data_category": "Data Category"
-        }
-      }
+      ]
     },
     "dropdowns": {},
     "guppyConfig": {
@@ -218,21 +182,7 @@
         "status",
         "patient_id",
         "project_id"
-      ],
-      "detailsConfig": {
-        "panel": "medicationAdministration",
-        "mode": "click",
-        "idField": "patient_id",
-        "filterField": "patient_id",
-        "title": "patient_identifier",
-        "nodeType": "medicationadministration",
-        "nodeFields": {
-          "Medication": "medication",
-          "Dosage": "dosage",
-          "Index_Date_Start_Days": "index_date_start_days",
-          "Index_Date_End_Days": "index_date_end_days"
-        }
-      }
+      ]
     },
     "dropdowns": {},
     "guppyConfig": {

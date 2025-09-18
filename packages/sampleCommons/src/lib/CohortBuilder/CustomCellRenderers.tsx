@@ -10,17 +10,26 @@ const RenderReportsLink = (
   { cell, row }: CellRendererFunctionProps,
   ...args: Array<Record<string, unknown>>
 ) => {
-  return (
-    <a
-      href={`${args[0].baseURL}/${cell.getValue()}`}
-      target="_blank"
-      rel="noreferrer"
-    >
-      <ActionIcon color="primary.0" size="md" variant="filled">
-        <FaExternalLinkAlt />
-      </ActionIcon>
-    </a>
-  );
+  const cellValue = cell?.getValue();
+  const projectId = row.getValue('project_id') as string;
+  const baseUrl = args[0]?.baseURL;
+  if (
+    cellValue &&
+    cellValue !== '' &&
+    projectId === 'cbds-smmart_labkey_demo' &&
+    baseUrl
+  ) {
+    return (
+      <a href={`${baseUrl}/${cellValue}`} target="_blank" rel="noreferrer">
+        <ActionIcon color="primary.0" size="md" variant="filled">
+          <FaExternalLinkAlt />
+        </ActionIcon>
+      </a>
+    );
+  }
+
+  // If any condition fails, return an empty span to render nothing
+  return <span></span>;
 };
 
 const RenderDicomLink = (

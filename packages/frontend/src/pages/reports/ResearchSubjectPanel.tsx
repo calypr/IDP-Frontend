@@ -25,9 +25,10 @@ import {
   useFilteredGroupMembers,
 } from './ResearchSubjectModal/tools';
 import { QueryContent, ResourceDict } from './types';
+import { SimpleTable } from '../../features/SimpleTable';
 
 export const ResearchSubjectDetailsPanel = ({
-  id, // The table value corresponding to the column name 'idField'
+  id,
   tableConfig,
 }: TableDetailsReportPanelProps) => {
   const idField = tableConfig.detailsConfig?.idField;
@@ -36,6 +37,37 @@ export const ResearchSubjectDetailsPanel = ({
   const filterField = tableConfig.detailsConfig?.filterField;
 
   const processedNodeFields = Object.keys(nodeFields ?? {}).join('\n');
+
+  const {
+    data: rsData,
+    isLoading: rsIsLoading,
+    isError: rsIsError,
+  } = useGeneralGQLQuery({
+    query: `query ($filter: JSON) {
+      researchsubject(filter: $filter,  accessibility: all, first: 1) {
+      project_id
+      condition_Diagnosis
+      identifier
+      patient_id
+      }
+    }`,
+    variables: {
+      filter: {
+        AND: [
+          {
+            EQ: {
+              patient_id: `${id}`,
+            },
+          },
+        ],
+      },
+    },
+  });
+
+  const rs =
+    !rsIsLoading && isQueryResponse(rsData)
+      ? extractData(rsData, 'researchsubject', '')[0]
+      : {};
 
   // get any Groups this Patient is associated with
   const {
@@ -51,15 +83,12 @@ export const ResearchSubjectDetailsPanel = ({
     : [];
 
   // get resources of type nodeType associated with patient
-  // for syntax, see Guppy docs
-  // https://github.com/uc-cdis/guppy/blob/master/doc/queries.md#combine-into-advanced-filters
-  // The filters in this query assume that the patient ID is unique across all other projects.
   const { data, isLoading, isError } = useGeneralGQLQuery({
     query: `query ($filter: JSON) {
-              ${nodeType} (filter: $filter,  accessibility: all, first: 10000) {
-              ${processedNodeFields}
-        }
-      }`,
+      ${nodeType} (filter: $filter,  accessibility: all, first: 10000) {
+      ${processedNodeFields}
+    }
+  }`,
     variables: {
       filter: {
         AND: [
@@ -82,16 +111,6 @@ export const ResearchSubjectDetailsPanel = ({
     },
   });
 
-  if (!idField || idField === null) {
-    return (
-      <ErrorCard message={'idField not configure in Tables Details Config'} />
-    );
-  }
-
-  if (isError) {
-    return <ErrorCard message={'Error occurred while fetching data'} />;
-  }
-
   const querySpecimenIds: string[] = isQueryResponse(data)
     ? Array.isArray(data.data[nodeType ?? 'researchsubject'])
       ? data.data[nodeType ?? 'researchsubject'].map((item: ResourceDict) => {
@@ -104,8 +123,8 @@ export const ResearchSubjectDetailsPanel = ({
     ? Object.entries(nodeFields).reduce(
         (acc, [key, value]) => {
           acc[key] = {
-            title: fieldNameToTitle(value), // Use the value of the key-value pair
-            field: key, // Use the key as the field
+            title: fieldNameToTitle(value),
+            field: key,
           };
           return acc;
         },
@@ -113,9 +132,55 @@ export const ResearchSubjectDetailsPanel = ({
       )
     : {};
 
-  return !isLoading ? (
+  const subjectTableData = {
+    'Clinical Trial': rs?.project_id as string,
+    'Condition Diagnosis': rs?.condition_Diagnosis as string,
+    'Participant ID': rs?.identifier as string,
+    'Patient ID': rs?.patient_id as string,
+  };
+
+  // Combine all the isLoading states
+  const anyLoading = groupIsLoading || isLoading || rsIsLoading;
+
+  if (!idField || idField === null) {
+    return (
+      <ErrorCard message={'idField not configure in Tables Details Config'} />
+    );
+  }
+
+  // Combine all the isError states
+  const anyError = groupIsError || isError || rsIsError;
+  if (anyError) {
+    return <ErrorCard message={'Error occurred while fetching data'} />;
+  }
+
+  // Use the combined loading state
+  if (anyLoading) {
+    return (
+      <Container size="xl" my="xl">
+        <LoadingOverlay visible={true} />
+      </Container>
+    );
+  }
+
+  // Check for no data after loading is complete
+  if (
+    !isQueryResponse(data) ||
+    (Array.isArray(data.data[nodeType ?? 'researchsubject']) &&
+      data.data[nodeType ?? 'researchsubject'].length === 0)
+  ) {
+    return (
+      <div className="px-6">
+        <Text>
+          {' '}
+          No {nodeType}s found for {idField} {id}
+        </Text>
+      </div>
+    );
+  }
+
+  return (
     <Container size="xl" my="xl">
-      <LoadingOverlay visible={isLoading} />
       <div className="flex pb-7">
         <AssaySummaryModal ids={querySpecimenIds} />
         <div className="flex-grow text-center">
@@ -123,7 +188,9 @@ export const ResearchSubjectDetailsPanel = ({
         </div>
         <AssociatedFilesText specimenIds={querySpecimenIds} />
       </div>
-
+      <div className="pb-5">
+        <SimpleTable data={subjectTableData} />
+      </div>
       <Divider size="md" color="black" />
       <div className="grid grid-cols-2">
         <SpecimenAggregationCountsChart
@@ -167,7 +234,7 @@ export const ResearchSubjectDetailsPanel = ({
       <div>
         <div className="grid">
           <MatchingTable
-            isLoading={isLoading}
+            isLoading={anyLoading} // Use the combined loading state here
             columns={modelTableConfig}
             index={nodeType ?? 'file'}
             idField={idField}
@@ -176,12 +243,5 @@ export const ResearchSubjectDetailsPanel = ({
         </div>
       </div>
     </Container>
-  ) : (
-    <div className="px-6">
-      <Text>
-        {' '}
-        No {nodeType}s found for {idField} {id}
-      </Text>
-    </div>
   );
 };

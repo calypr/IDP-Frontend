@@ -35,10 +35,15 @@ RUN addgroup --system --gid 1001 nextjs && \
 COPY --from=builder --chown=nextjs:nodejs /gen3/packages/sampleCommons/node_modules ./node_modules
 COPY --from=builder --chown=nextjs:nodejs  /gen3/packages/sampleCommons/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /gen3/packages/sampleCommons/.next/static packages/sampleCommons/.next/static
-RUN rm -rf packages/sampleCommons/config
+
+COPY --from=builder --chown=nextjs:nodejs /gen3/packages/sampleCommons/config ./packages/sampleCommons/config
+COPY --from=builder --chown=nextjs:nodejs /gen3/packages/sampleCommons/public ./packages/sampleCommons/public
+
+
+#RUN rm -rf packages/sampleCommons/config
 COPY --from=builder /gen3/start.sh ./start.sh
-VOLUME /gen3/config
-VOLUME /gen3/public
+#VOLUME /gen3/config
+#VOLUME /gen3/public
 RUN ln -s /gen3/config packages/sampleCommons/config
 RUN ln -s /gen3/public packages/sampleCommons/pubic
 

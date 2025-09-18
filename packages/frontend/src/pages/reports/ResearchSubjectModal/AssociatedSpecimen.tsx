@@ -1,4 +1,5 @@
-import { ErrorCard, PieChart } from '@gen3/frontend';
+import ErrorCard from '../../../components/ErrorCard';
+import { PieChart } from '../../../components/charts';
 import { Stack, LoadingOverlay, Title } from '@mantine/core';
 import { useMemo } from 'react';
 import { useFilesQuery } from './AssociatedFiles';
@@ -16,29 +17,31 @@ export const SpecimenAggregationCountsChart = ({
   specimenIds: string[];
 }) => {
   // retrieve files associated with specimen ids (+ any groups with that specimen in it)
-  const {data, isLoading, isError} = useFilesQuery(specimenIds, false);
+  const { data, isLoading, isError } = useFilesQuery(specimenIds, false);
 
   // convert Guppy response into format needed for PieChart component
   // ie get file counts by `countField` (eg sample family ID) grouped by `aggField` (eg assay)
   const pieChartData = useMemo(() => {
     if (!data) return [];
-    
-    // for each file-specimen JSON, get 
-    const aggregatedMap = (data as QueryContent).reduce((countsMap: Record<string, Set<string>>, d: ResourceDict) => {
-      const aggValue = d[aggField];
-      if (aggValue in countsMap) {
-        countsMap[aggValue].add(d[countField]);
-      }
-      else {
-        countsMap[aggValue] = new Set([d[countField]]);
-      }
-      return countsMap;
-    }, {});
+
+    // for each file-specimen JSON, get
+    const aggregatedMap = (data as QueryContent).reduce(
+      (countsMap: Record<string, Set<string>>, d: ResourceDict) => {
+        const aggValue = d[aggField];
+        if (aggValue in countsMap) {
+          countsMap[aggValue].add(d[countField]);
+        } else {
+          countsMap[aggValue] = new Set([d[countField]]);
+        }
+        return countsMap;
+      },
+      {},
+    );
 
     // convert into pie chart data format
-    return Object.keys(aggregatedMap).map(key => ({
-      'key': key,
-      'count': aggregatedMap[key].size,
+    return Object.keys(aggregatedMap).map((key) => ({
+      key: key,
+      count: aggregatedMap[key].size,
     }));
   }, [data, aggField, countField]);
 
@@ -46,7 +49,7 @@ export const SpecimenAggregationCountsChart = ({
   if (isError) {
     return <ErrorCard message={'Error occurred while fetching data'} />;
   }
-  
+
   return (
     pieChartData &&
     pieChartData.length !== 0 && (

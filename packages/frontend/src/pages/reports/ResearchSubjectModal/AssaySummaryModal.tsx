@@ -1,13 +1,9 @@
-import { BaseModal } from '@gen3/frontend';
+import { BaseModal } from '../../../components/Modals';
 import React, { useState } from 'react';
 import { Button, Text } from '@mantine/core';
 import { AssociatedAssaysTable } from './AssociatedFiles';
 
-export const AssaySummaryModal = ({
-  ids,
-}: {
-  ids: string[];
-}): JSX.Element => {
+export const AssaySummaryModal = ({ ids }: { ids: string[] }): JSX.Element => {
   const [openModal, setOpenModal] = useState(false); // Track modal state
 
   return (
