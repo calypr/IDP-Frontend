@@ -22,14 +22,13 @@ export const SpecimenDetailsPanel = ({
   id,
   tableConfig,
 }: TableDetailsReportPanelProps) => {
-  const idField = tableConfig.detailsConfig?.idField;
+  const idField = tableConfig.detailsConfig?.idField ?? '';
   const nodeType = tableConfig.detailsConfig?.nodeType;
-  const nodeFields = tableConfig.detailsConfig?.nodeFields;
-  const filterField = tableConfig.detailsConfig?.filterField;
+  const nodeFields = tableConfig.detailsConfig?.nodeFields ?? '';
+  const filterField = tableConfig.detailsConfig?.filterField ?? '';
 
   const processedNodeFields = Object.keys(nodeFields ?? {}).join('\n');
 
-  // All Hooks must be called at the top level unconditionally.
   const [graphView, setGraphView] = useState(false);
 
   const {
@@ -169,8 +168,6 @@ export const SpecimenDetailsPanel = ({
     },
   });
 
-  // Now, all conditional logic and returns are after the Hook calls.
-  // Use a loading state check and early return for the entire component.
   if (
     specimenIsLoading ||
     diagnosisIsLoading ||
@@ -181,7 +178,6 @@ export const SpecimenDetailsPanel = ({
     return <LoadingOverlay visible />;
   }
 
-  // Handle errors after all loading states are false.
   if (
     specimenIsError ||
     diagnosisIsError ||
@@ -230,8 +226,6 @@ export const SpecimenDetailsPanel = ({
     'Percent Tumor': (specimen?.percent_tumor as string) ?? '',
   };
 
-  // The rest of the return logic is the same, but now it's only reached
-  // after all data has been successfully fetched.
   return (
     <div className="mx-auto max-w-5xl flex flex-col gap-6 p-4">
       {/* Subject Summary */}

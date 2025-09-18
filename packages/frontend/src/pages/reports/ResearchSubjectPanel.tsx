@@ -44,11 +44,11 @@ export const ResearchSubjectDetailsPanel = ({
     isError: rsIsError,
   } = useGeneralGQLQuery({
     query: `query ($filter: JSON) {
-      researchsubject(filter: $filter,  accessibility: all, first: 1) {
-      project_id
-      condition_Diagnosis
-      identifier
-      patient_id
+      researchsubject(filter: $filter, accessibility: all, first: 1) {
+        project_id
+        condition_Diagnosis
+        identifier
+        patient_id
       }
     }`,
     variables: {
@@ -64,35 +64,29 @@ export const ResearchSubjectDetailsPanel = ({
     },
   });
 
-  const rs =
-    !rsIsLoading && isQueryResponse(rsData)
-      ? extractData(rsData, 'researchsubject', '')?.[0]
-      : {};
-
-  if (Object.keys(rs).length === 0) {
-    return <ErrorCard message={'Error: ResearchSubject data not found.'} />;
-  }
-
-  // get any Groups this Patient is associated with
   const {
     data: groupMemberData,
     isLoading: groupIsLoading,
     isError: groupIsError,
   } = useFilteredGroupMembers([`${id}`]);
 
+  // This logic depends on the result of a hook, which is fine.
   const groupIds: string[] = isQueryResponse(groupMemberData)
     ? (extractData(groupMemberData, 'groupmember', '') as QueryContent).map(
         (groupMember) => groupMember.group_id,
       )
     : [];
 
-  // get resources of type nodeType associated with patient
-  const { data, isLoading, isError } = useGeneralGQLQuery({
+  const {
+    data,
+    isLoading: resourcesIsLoading,
+    isError: resourcesIsError,
+  } = useGeneralGQLQuery({
     query: `query ($filter: JSON) {
-      ${nodeType} (filter: $filter,  accessibility: all, first: 10000) {
-      ${processedNodeFields}
-    }
-  }`,
+      ${nodeType} (filter: $filter, accessibility: all, first: 10000) {
+        ${processedNodeFields}
+      }
+    }`,
     variables: {
       filter: {
         AND: [
@@ -115,51 +109,7 @@ export const ResearchSubjectDetailsPanel = ({
     },
   });
 
-  const querySpecimenIds: string[] = isQueryResponse(data)
-    ? Array.isArray(data.data[nodeType ?? 'researchsubject'])
-      ? data.data[nodeType ?? 'researchsubject'].map((item: ResourceDict) => {
-          return item.id;
-        })
-      : []
-    : [];
-
-  const modelTableConfig = nodeFields
-    ? Object.entries(nodeFields).reduce(
-        (acc, [key, value]) => {
-          acc[key] = {
-            title: fieldNameToTitle(value),
-            field: key,
-          };
-          return acc;
-        },
-        {} as Record<string, { title: string; field: string }>,
-      )
-    : {};
-
-  const subjectTableData = {
-    'Clinical Trial': (rs?.project_id as string) ?? '',
-    'Condition Diagnosis': (rs?.condition_Diagnosis as string) ?? '',
-    'Participant ID': (rs?.identifier as string) ?? '',
-    'Patient ID': (rs?.patient_id as string) ?? '',
-  };
-
-  // Combine all the isLoading states
-  const anyLoading = groupIsLoading || isLoading || rsIsLoading;
-
-  if (!idField || idField === null) {
-    return (
-      <ErrorCard message={'idField not configure in Tables Details Config'} />
-    );
-  }
-
-  // Combine all the isError states
-  const anyError = groupIsError || isError || rsIsError;
-  if (anyError) {
-    return <ErrorCard message={'Error occurred while fetching data'} />;
-  }
-
-  // Use the combined loading state
-  if (anyLoading) {
+  if (rsIsLoading || groupIsLoading || resourcesIsLoading) {
     return (
       <Container size="xl" my="xl">
         <LoadingOverlay visible={true} />
@@ -167,21 +117,59 @@ export const ResearchSubjectDetailsPanel = ({
     );
   }
 
-  // Check for no data after loading is complete
+  if (rsIsError || groupIsError || resourcesIsError) {
+    return <ErrorCard message={'Error occurred while fetching data'} />;
+  }
+
+  const rs = isQueryResponse(rsData)
+    ? extractData(rsData, 'researchsubject', '')?.[0]
+    : {};
+
+  if (Object.keys(rs).length === 0) {
+    return <ErrorCard message={'Error: ResearchSubject data not found.'} />;
+  }
+
+  if (!idField) {
+    return (
+      <ErrorCard message={'idField not configured in Tables Details Config'} />
+    );
+  }
+
   if (
     !isQueryResponse(data) ||
-    (Array.isArray(data.data[nodeType ?? 'researchsubject']) &&
-      data.data[nodeType ?? 'researchsubject'].length === 0)
+    !data.data[nodeType ?? ''] ||
+    data.data[nodeType ?? ''].length === 0
   ) {
     return (
       <div className="px-6">
         <Text>
-          {' '}
           No {nodeType}s found for {idField} {id}
         </Text>
       </div>
     );
   }
+
+  const querySpecimenIds: string[] = Array.isArray(data.data[nodeType ?? ''])
+    ? data.data[nodeType ?? ''].map((item: ResourceDict) => item.id)
+    : [];
+
+  const modelTableConfig = Object.entries(nodeFields ?? {}).reduce(
+    (acc, [key, value]) => {
+      acc[key] = {
+        title: fieldNameToTitle(value),
+        field: key,
+      };
+      return acc;
+    },
+    {} as Record<string, { title: string; field: string }>,
+  );
+
+  const subjectTableData = {
+    'Clinical Trial': (rs?.project_id as string) ?? '',
+    'Condition Diagnosis': (rs?.condition_Diagnosis as string) ?? '',
+    'Participant ID': (rs?.identifier as string) ?? '',
+    'Patient ID': (rs?.patient_id as string) ?? '',
+  };
 
   return (
     <Container size="xl" my="xl">
@@ -238,7 +226,7 @@ export const ResearchSubjectDetailsPanel = ({
       <div>
         <div className="grid">
           <MatchingTable
-            isLoading={anyLoading} // Use the combined loading state here
+            isLoading={rsIsLoading || groupIsLoading || resourcesIsLoading}
             columns={modelTableConfig}
             index={nodeType ?? 'file'}
             idField={idField}
