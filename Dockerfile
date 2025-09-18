@@ -47,12 +47,11 @@ COPY --from=builder /gen3/start.sh ./start.sh
 RUN ln -s /gen3/config packages/sampleCommons/config
 RUN ln -s /gen3/public packages/sampleCommons/pubic
 
-USER nextjs:nextjs
+#USER nextjs:nextjs
 ENV PORT=3000
 ENV NODE_ENV=production
 
-# Switch to non-root user
-#USER nextjs
+
 
 # Expose port
 EXPOSE 3000

@@ -66,8 +66,12 @@ export const ResearchSubjectDetailsPanel = ({
 
   const rs =
     !rsIsLoading && isQueryResponse(rsData)
-      ? extractData(rsData, 'researchsubject', '')[0]
+      ? extractData(rsData, 'researchsubject', '')?.[0]
       : {};
+
+  if (Object.keys(rs).length === 0) {
+    return <ErrorCard message={'Error: ResearchSubject data not found.'} />;
+  }
 
   // get any Groups this Patient is associated with
   const {
@@ -133,10 +137,10 @@ export const ResearchSubjectDetailsPanel = ({
     : {};
 
   const subjectTableData = {
-    'Clinical Trial': rs?.project_id as string,
-    'Condition Diagnosis': rs?.condition_Diagnosis as string,
-    'Participant ID': rs?.identifier as string,
-    'Patient ID': rs?.patient_id as string,
+    'Clinical Trial': (rs?.project_id as string) ?? '',
+    'Condition Diagnosis': (rs?.condition_Diagnosis as string) ?? '',
+    'Participant ID': (rs?.identifier as string) ?? '',
+    'Patient ID': (rs?.patient_id as string) ?? '',
   };
 
   // Combine all the isLoading states

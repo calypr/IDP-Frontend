@@ -42,8 +42,12 @@ export const MedicationAdministrationDetailPanel = ({
 
   const ma =
     !maIsLoading && isQueryResponse(maData)
-      ? extractData(maData, 'medicationadministration', '')[0]
+      ? extractData(maData, 'medicationadministration', '')?.[0]
       : {};
+
+  if (Object.keys(ma).length === 0) {
+    return <ErrorCard message={'Error: Medication data not found.'} />;
+  }
 
   const { data, isLoading, isError } = useGeneralGQLQuery({
     query: `query ($filter: JSON) {
@@ -80,7 +84,9 @@ export const MedicationAdministrationDetailPanel = ({
   return (
     <div className="mx-auto max-w-5xl flex flex-col gap-6 p-4 h-[600px]">
       <LoadingOverlay visible={isLoading} />
-      <RegimenChart data={queryData} identifier={ma?.patient_identifier} />
+      {ma?.patient_identifier && (
+        <RegimenChart data={queryData} identifier={ma?.patient_identifier} />
+      )}
     </div>
   );
 };
