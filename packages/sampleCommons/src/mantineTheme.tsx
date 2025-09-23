@@ -12,9 +12,9 @@ const themeColors: Record<string, TenStringArray> = require(
 
 const gen3Theme = createMantineTheme(
   {
-    heading: ['Poppins', 'sans-serif'],
-    content: ['Poppins', 'sans-serif'],
-    fontFamily: 'Poppins',
+    heading: ['Lato', 'sans-serif'],
+    content: ['Lato', 'sans-serif'],
+    fontFamily: 'Lato',
   },
   themeColors,
 );

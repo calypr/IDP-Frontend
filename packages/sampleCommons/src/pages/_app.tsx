@@ -29,7 +29,7 @@ import { registerCustomExplorerDetailsPanels } from '@/lib/CohortBuilder/FileDet
 import '../styles/globals.css';
 import '@fontsource/montserrat';
 import '@fontsource/source-sans-pro';
-import '@fontsource/poppins';
+import '@fontsource/lato';
 
 import { setDRSHostnames } from '@gen3/core';
 import drsHostnames from '../../config/drsHostnames.json';

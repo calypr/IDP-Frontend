@@ -176,7 +176,7 @@ export const ResearchSubjectDetailsPanel = ({
       <div className="flex pb-7">
         <AssaySummaryModal ids={querySpecimenIds} />
         <div className="flex-grow text-center">
-          <Title order={3}> Sample Dynamic Reports Page </Title>
+          <Title order={3}> Research Subject Dynamic Reports Page </Title>
         </div>
         <AssociatedFilesText specimenIds={querySpecimenIds} />
       </div>

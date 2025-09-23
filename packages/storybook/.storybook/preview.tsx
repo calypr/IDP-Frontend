@@ -4,14 +4,14 @@ import { MantineProvider } from '@mantine/core';
 import { GEN3_API, GEN3_AUTHZ_API, GEN3_FENCE_API } from '@gen3/core';
 import { Gen3Provider } from '@gen3/frontend';
 import { initialize, mswLoader } from 'msw-storybook-addon';
-import { http, HttpResponse } from 'msw'
+import { http, HttpResponse } from 'msw';
 import theme from '../src/mantineTheme';
 import icons from './loadIcons';
 
 import '../src/styles/globals.css';
 import '@fontsource/montserrat';
 import '@fontsource/source-sans-pro';
-import '@fontsource/poppins';
+import '@fontsource/lato';
 /*
  * Initializes MSW
  * See https://github.com/mswjs/msw-storybook-addon#configuring-msw
@@ -20,19 +20,15 @@ import '@fontsource/poppins';
 initialize({}, [
   http.get(`${GEN3_API}/_status`, () => {
     return HttpResponse.json({
-      "message": "Feeling good with storybook!",
-      "csrf": "6640e4857e5cb3b42db303d8ee3a4ace11900.0002025-06-17T15:24:53+00:00"
+      message: 'Feeling good with storybook!',
+      csrf: '6640e4857e5cb3b42db303d8ee3a4ace11900.0002025-06-17T15:24:53+00:00',
     });
   }),
   http.get(`${GEN3_AUTHZ_API}/mapping`, () => {
-    return HttpResponse.json({
-    });
+    return HttpResponse.json({});
   }),
   http.get(`${GEN3_FENCE_API}/user`, () => {
-    return HttpResponse.json(
-      { error: 'Unauthorized' },
-      { status: 401 }
-    )
+    return HttpResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }),
 ]);
 
@@ -59,7 +55,7 @@ const preview: Preview = {
         color: /(background|color)$/i,
         date: /Date$/i,
       },
-    }
+    },
   },
   tags: ['autodocs'],
   decorators: [

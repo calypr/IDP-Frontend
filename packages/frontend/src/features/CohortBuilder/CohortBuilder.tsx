@@ -3,14 +3,15 @@ import { useDeepCompareMemo } from 'use-deep-compare';
 import { CohortBuilderProps, CohortPanelConfiguration } from './types';
 import { Tabs } from '@mantine/core';
 import { CohortPanel } from './CohortPanel';
+import { ProtectedContent } from '../../components/Protected';
 import {
   selectCurrentCohortId,
   setSharedFilters,
   useCoreDispatch,
   useCoreSelector,
 } from '@gen3/core';
-import { TabsLayoutToComponentProp } from '../../utils/layout';
 import CohortManager from './CohortManager/CohortManager';
+import { TabsLayoutToComponentProp } from '../../utils/layout';
 
 export const useGetCurrentCohort = () => {
   return useCoreSelector((state) => selectCurrentCohortId(state));

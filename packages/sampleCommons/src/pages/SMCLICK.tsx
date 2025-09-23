@@ -249,7 +249,7 @@ const HorizontalBarChart = ({ headerProps, footerProps }: SamplePageProps) => {
                 </h1>
                 <Button
                   onClick={() => {
-                    router.push('/Explorer');
+                    router.push('/Explorer/SMMART');
                   }}
                   className="bg-primary text-white py-2 px-4 rounded"
                 >

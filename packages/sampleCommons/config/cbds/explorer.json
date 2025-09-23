@@ -290,32 +290,6 @@
           "md5": {
             "title": "MD5"
           }
-        },
-        "detailsConfig": {
-          "panel": "resourceDetails",
-          "mode": "click",
-          "idField": "id",
-          "filterField": "id",
-          "nodeType": "file",
-          "title": "title",
-          "nodeFields": {
-            "File_Name": "title",
-            "Content_Type": "contentType",
-            "File_Size": "size",
-            "Md5sum": "md5",
-            "Source_Path": "source_path",
-            "Project_ID": "project_id",
-            "Creation_Date": "creation",
-            "BEMS_ID": "specimen_identifier",
-            "Instrument": "instrument",
-            "Site": "allocated_for_site",
-            "Assay": "assay",
-            "Level": "level",
-            "Molecule_Type": "molecule_type",
-            "Data_Category": "data_category",
-            "File_Download": "id",
-            "Identifier": "identifier"
-          }
         }
       },
       "dropdowns": {},

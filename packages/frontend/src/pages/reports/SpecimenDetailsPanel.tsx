@@ -228,9 +228,8 @@ export const SpecimenDetailsPanel = ({
 
   return (
     <div className="mx-auto max-w-5xl flex flex-col gap-6 p-4">
-      {/* Subject Summary */}
       <Title className="pb-3 text-center" order={3}>
-        Subject Summary
+        Specimen Dynamic Reports Page
       </Title>
       <div className="flex pb-5">
         <SimpleTable data={subjectTableData} />

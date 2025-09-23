@@ -32,8 +32,8 @@ const QueryExpressionContainer = tw.div`
   rounded-sm
 `;
 
-const MAX_HEIGHT_QE_SECTION = 52;
-const MIN_HEIGHT_QE_SECTION = 16;
+const MAX_HEIGHT_QE_SECTION = 100;
+const MIN_HEIGHT_QE_SECTION = 70;
 
 const reducer = (
   state: Record<string, Record<string, boolean>>,
