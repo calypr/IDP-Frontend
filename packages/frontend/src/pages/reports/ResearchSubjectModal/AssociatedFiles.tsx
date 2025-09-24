@@ -56,20 +56,20 @@ export const useFilesQuery = (
   } = useGeneralGQLQuery({
     query: `query ($filter: JSON) {
            	  _aggregation{
-                file(filter: $filter){
+                document_reference(filter: $filter){
                   _totalCount
                 }
               }
-              file (filter: $filter, accessibility: all, first: 10000) {
-                id
-                title
-                data_category
-                assay
-                specimen_indexed_collection_date_days
-                specimen_sample_family_id
-                specimen_id
-                group_id
-                level
+              document_reference (filter: $filter, accessibility: all, first: 10000) {
+                document_reference_id
+                document_reference_title
+                document_reference_data_category
+                document_reference_assay
+                document_reference_specimen_indexed_collection_date_days
+                document_reference_specimen_sample_family_id
+                document_reference_specimen_id
+                document_reference_group_id
+                document_reference_level
               }
             }`,
     variables: {
@@ -80,12 +80,12 @@ export const useFilesQuery = (
             OR: [
               {
                 IN: {
-                  specimen_id: specimenIds,
+                  document_reference_specimen_id: specimenIds,
                 },
               },
               {
                 IN: {
-                  group_id: groupIds,
+                  document_reference_group_id: groupIds,
                 },
               },
             ],
@@ -100,25 +100,26 @@ export const useFilesQuery = (
     // for non-table use case, return nested list of docrefs from raw guppy query result
     if (fileData && groupSpecimensMap) {
       const fileDicts = isQueryResponse(fileData)
-        ? (extractData(fileData, 'file', '') as JSONObject[])
+        ? (extractData(fileData, 'document_reference', '') as JSONObject[])
         : [];
 
       // create array of arrays
       const NestedFileDictsArray: Array<QueryContent> = fileDicts.map(
         (fileDict): QueryContent => {
-          if (fileDict.group_id) {
+          if (fileDict.document_reference_group_id) {
             const specimens = (
               groupSpecimensMap as Record<string, QueryContent>
-            )[String(fileDict.group_id)];
+            )[String(fileDict.document_reference_group_id)];
 
             // expand out so that each specimen points to each row
             const imputedSpecimens: QueryContent = specimens?.map(
               (specimen: ResourceDict) => ({
                 ...fileDict,
-                specimen_id: specimen.member_id,
+                specimen_id: specimen.document_reference_specimen_id,
                 specimen_indexed_collection_date_days:
-                  specimen.indexed_collection_date_days,
-                specimen_sample_family_id: specimen.sample_family_id,
+                  specimen.document_reference_specimen_indexed_collection_date_days,
+                specimen_sample_family_id:
+                  specimen.document_reference_sample_family_id,
               }),
             );
 
@@ -216,13 +217,12 @@ export const AssociatedFilesText = ({
     isError,
   } = useFilesQuery(specimenIds, true);
 
-  console.log('ASOC SPEC IDS: ', specimenIds);
   if (isError) {
     return <Text> Error occurred while fetching data </Text>;
   }
 
   const numFiles = isQueryResponse(resData)
-    ? extractData(resData, 'file', '').length
+    ? extractData(resData, 'document_reference', '').length
     : '';
 
   return (
@@ -248,7 +248,7 @@ export const AssociatedAssaysTable = ({
     isError: isErrorTwo,
   } = useFilesQuery(ids, false);
 
-  const [viewMode, setViewMode] = useState('assay');
+  const [viewMode, setViewMode] = useState('document_reference_assay');
 
   if (isError || isErrorTwo) {
     return <ErrorCard message={'Error occurred while fetching data'} />;
@@ -265,23 +265,23 @@ export const AssociatedAssaysTable = ({
   const asocFileConfig: Record<string, SummaryTableColumn> = {
     title: {
       title: 'File Name',
-      field: 'title',
+      field: 'document_reference_title',
     },
     assay: {
       title: 'Assay',
-      field: 'assay',
+      field: 'document_reference_assay',
     },
     specimen_indexed_collection_date_days: {
       title: 'Indexed Days',
-      field: 'specimen_indexed_collection_date_days',
+      field: 'document_reference_specimen_indexed_collection_date_days',
     },
     specimen_sample_family_id: {
       title: 'Sample Family IDs',
-      field: 'specimen_sample_family_id',
+      field: 'document_reference_specimen_sample_family_id',
     },
     level: {
       title: 'Level',
-      field: 'level',
+      field: 'document_reference_level',
     },
   };
 
@@ -293,19 +293,19 @@ export const AssociatedAssaysTable = ({
           value={viewMode}
           onChange={(value) => setViewMode(value)}
           data={[
-            { label: 'Assay View', value: 'assay' },
-            { label: 'File View', value: 'file' },
+            { label: 'Assay View', value: 'document_reference_assay' },
+            { label: 'File View', value: 'document_reference' },
           ]}
           color="primary.0"
         />
       </div>
-      {viewMode === 'file' ? (
+      {viewMode === 'document_reference' ? (
         <div className="grid">
           <MatchingTable
             isLoading={isLoading}
             columns={asocFileConfig}
-            index="file"
-            idField="id"
+            index="document_reference"
+            idField="document_reference_id"
             data={resData}
           />
         </div>
@@ -317,10 +317,12 @@ export const AssociatedAssaysTable = ({
 };
 export const AssayCheckboxChart = ({ data }: { data: QueryContent }) => {
   const resData = data.map((obj) => ({
-    family_id: obj.specimen_sample_family_id,
-    assay: obj.assay,
+    family_id: obj.document_reference_specimen_sample_family_id,
+    assay: obj.document_reference_assay,
   }));
 
+  // Looking at existing deployments, The RPPA assays don't have a sample family ID so it makes sense why they come back NULL
+  // in the table. It doesn't look that great though. Previous deployments merged the rows, but I don't think that makes any sense either.
   const uniqueAssayValues = Array.from(
     new Set(resData.map((val) => val['assay'])),
   );

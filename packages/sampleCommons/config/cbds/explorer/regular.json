@@ -225,7 +225,7 @@
         "idField": "patient_id",
         "filterField": "patient_id",
         "title": "patient_identifier",
-        "nodeType": "medicationadministration",
+        "nodeType": "medication_administration",
         "nodeFields": {
           "Medication": "medication",
           "Dosage": "dosage",
@@ -236,7 +236,7 @@
     },
     "dropdowns": {},
     "guppyConfig": {
-      "dataType": "medicationadministration",
+      "dataType": "medication_administration",
       "fieldMapping": [],
       "nodeCountTitle": "Medication Administration",
       "manifestMapping": {

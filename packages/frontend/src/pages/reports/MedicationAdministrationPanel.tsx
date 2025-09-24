@@ -1,3 +1,4 @@
+import React from 'react';
 import ErrorCard from '../../components/ErrorCard';
 import type { TableDetailsReportPanelProps } from '../../features/CohortBuilder/ExplorerTable/ExploreTableDetails/types';
 import { RegimenChart } from './MedicationAdministrationModal/RegimenChart';
@@ -6,13 +7,13 @@ import { isQueryResponse, extractData } from './ResearchSubjectModal/tools';
 import { LoadingOverlay } from '@mantine/core';
 
 export const MedicationAdministrationDetailPanel = ({
-  id, // The table value corresponding to the column name 'idField'
+  id,
   tableConfig,
 }: TableDetailsReportPanelProps) => {
-  const idField = tableConfig.detailsConfig?.idField;
   const nodeType = tableConfig.detailsConfig?.nodeType;
   const nodeFields = tableConfig.detailsConfig?.nodeFields;
   const filterField = tableConfig.detailsConfig?.filterField;
+
   const processedNodeFields = Object.entries(nodeFields ?? {})
     .map(([alias, field]) => `${alias}: ${field}`)
     .join('\n');
@@ -23,8 +24,8 @@ export const MedicationAdministrationDetailPanel = ({
     isError: maIsError,
   } = useGeneralGQLQuery({
     query: `query ($filter: JSON) {
-              medicationadministration(filter: $filter,  accessibility: all, first: 1) {
-              patient_identifier
+              medication_administration(filter: $filter,  accessibility: all, first: 1) {
+              medication_administration_patient_identifier
               }
             }`,
     variables: {
@@ -32,7 +33,7 @@ export const MedicationAdministrationDetailPanel = ({
         AND: [
           {
             EQ: {
-              id: `${id}`,
+              medication_administration_patient_id: `${id}`,
             },
           },
         ],
@@ -40,28 +41,23 @@ export const MedicationAdministrationDetailPanel = ({
     },
   });
 
-  const ma =
-    !maIsLoading && isQueryResponse(maData)
-      ? extractData(maData, 'medicationadministration', '')?.[0]
-      : {};
-
-  if (Object.keys(ma).length === 0) {
-    return <ErrorCard message={'Error: Medication data not found.'} />;
-  }
-
-  const { data, isLoading, isError } = useGeneralGQLQuery({
+  const {
+    data,
+    isLoading: nodeIsLoading,
+    isError: nodeIsError,
+  } = useGeneralGQLQuery({
     query: `query ($filter: JSON) {
-              ${nodeType} (filter: $filter,  accessibility: all, first: 10000,
-              sort: [{index_date_start_days: "desc"}]) {
-              ${processedNodeFields}
-        }
-      }`,
+      ${nodeType} (filter: $filter, accessibility: all, first: 10000,
+      sort: [{medication_administration_index_date_start_days: "desc"}]) {
+        ${processedNodeFields}
+      }
+    }`,
     variables: {
       filter: {
         AND: [
           {
             IN: {
-              [filterField ?? 0]: [`${id}`],
+              [filterField ?? '']: [`${id}`],
             },
           },
         ],
@@ -69,24 +65,32 @@ export const MedicationAdministrationDetailPanel = ({
     },
   });
 
-  if (!idField || idField === null) {
+  if (nodeIsLoading || maIsLoading) {
     return (
-      <ErrorCard message={'idField not configure in Tables Details Config'} />
+      <div className="mx-auto max-w-5xl flex flex-col gap-6 p-4 h-[600px]">
+        <LoadingOverlay visible={true} />
+      </div>
     );
   }
-  if (isError) {
-    return <ErrorCard message={'Error occurred while fetching data'} />;
+
+  if (nodeIsError || maIsError) {
+    return <ErrorCard message="Failed to load data" />;
   }
-  const queryData = isQueryResponse(data)
-    ? extractData(data, nodeType ?? '', '') || []
-    : [];
+
+  const maId = isQueryResponse(maData)
+    ? extractData(maData, 'medication_administration', '')?.[0]
+    : {};
+
+  const ma = isQueryResponse(data)
+    ? extractData(data, 'medication_administration', '')
+    : undefined;
 
   return (
     <div className="mx-auto max-w-5xl flex flex-col gap-6 p-4 h-[600px]">
-      <LoadingOverlay visible={isLoading} />
-      {ma?.patient_identifier && (
-        <RegimenChart data={queryData} identifier={ma?.patient_identifier} />
-      )}
+      <RegimenChart
+        data={ma}
+        identifier={maId?.medication_administration_patient_identifier}
+      />
     </div>
   );
 };

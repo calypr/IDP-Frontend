@@ -4,15 +4,15 @@
     "detailsConfig": {
       "panel": "medicationAdministration",
       "mode": "click",
-      "idField": "patient_id",
-      "filterField": "patient_id",
-      "title": "patient_identifier",
-      "nodeType": "medicationadministration",
+      "idField": "medication_administration_patient_id",
+      "filterField": "medication_administration_patient_id",
+      "title": "medication_administration_patient_identifier",
+      "nodeType": "medication_administration",
       "nodeFields": {
-        "Medication": "medication",
-        "Dosage": "dosage",
-        "Index_Date_Start_Days": "index_date_start_days",
-        "Index_Date_End_Days": "index_date_end_days"
+        "Medication": "medication_administration_medication",
+        "Dosage": "medication_administration_dosage",
+        "Index_Date_Start_Days": "medication_administration_index_date_start_days",
+        "Index_Date_End_Days": "medication_administration_index_date_end_days"
       }
     }
   }

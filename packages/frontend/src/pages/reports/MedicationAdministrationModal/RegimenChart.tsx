@@ -8,7 +8,12 @@ export const RegimenChart = ({
   data: any;
   identifier: string;
 }) => {
-  const transformedData = data.map((item: any, index: number) => ({
+  console.log('DATA IN REGIMEN CHART: ', data);
+  if (!data || data.length === 0) {
+    return <div>No data available</div>;
+  }
+
+  const transformedData = data?.map((item: any, index: number) => ({
     x: [item.Index_Date_Start_Days, item.Index_Date_End_Days],
     y: [index + 1, index + 1],
     mode: 'lines',
@@ -36,6 +41,10 @@ export const RegimenChart = ({
       ticktext: transformedData.map((item: any) => item.name),
     },
   };
+
+  if (!transformedData || transformedData.length === 0) {
+    return <div>No transformed data available</div>;
+  }
 
   return (
     <Plotly

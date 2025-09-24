@@ -15,10 +15,10 @@ import { useGeneralGQLQuery } from '@gen3/core';
 export const useFileTypesFiles = () => {
   const { data, isLoading, isError } = useGeneralGQLQuery({
     query: `query($filter:JSON){
-      file(filter: $filter, first: 10000){
-        id
-        source_path
-        size
+      document_reference(filter: $filter, first: 10000){
+        document_reference_id
+        document_reference_source_path
+        document_reference_size
         project_id
       }
     }`,
@@ -27,7 +27,7 @@ export const useFileTypesFiles = () => {
         AND: [
           {
             EQ: {
-              contentType: 'image/tiff',
+              document_reference_contentType: 'image/tiff',
             },
           },
         ],
@@ -53,11 +53,11 @@ const AvailableImagesPage = ({
   const { data, isLoading, isError } = useFileTypesFiles();
 
   const imageViewerTableConfig: Record<string, SummaryTableColumn> = {
-    id: {
+    document_reference_id: {
       title: 'View Image',
-      field: 'id',
+      field: 'document_reference_id',
       type: 'link',
-      accessorPath: 'id',
+      accessorPath: 'document_reference_id',
       cellRenderFunction: 'DiacomLink',
       width: 32,
       params: {
@@ -66,15 +66,15 @@ const AvailableImagesPage = ({
     },
     project_id: {
       title: 'Project Id',
-      field: 'project_id',
+      field: 'document_reference_project_id',
     },
-    source_path: {
+    document_reference_source_path: {
       title: 'Source Path',
-      field: 'source_path',
+      field: 'document_reference_source_path',
     },
-    size: {
+    document_reference_size: {
       title: 'File Size',
-      field: 'size',
+      field: 'document_reference_size',
       accessorPath: 'size',
       cellRenderFunction: 'HumanReadableString',
       type: 'string',
@@ -104,7 +104,7 @@ const AvailableImagesPage = ({
               <MatchingTable
                 isLoading={isLoading}
                 columns={imageViewerTableConfig ?? {}}
-                index={'file'}
+                index={'document_reference'}
                 idField={''}
                 data={data}
               />

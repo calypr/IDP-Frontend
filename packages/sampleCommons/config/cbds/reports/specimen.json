@@ -6,18 +6,18 @@
       "classNames": "px-5",
       "panel": "specimenDetails",
       "mode": "click",
-      "idField": "id",
-      "filterField": "specimen_id",
-      "title": "identifier",
-      "nodeType": "file",
+      "idField": "document_reference_id",
+      "filterField": "document_reference_specimen_id",
+      "title": "document_reference_identifier",
+      "nodeType": "document_reference",
       "nodeFields": {
-        "title": "File Name",
-        "size": "size",
-        "contentType": "File Format",
-        "assay": "Assay",
-        "level": "Level",
-        "molecule_type": "Molecule Type",
-        "data_category": "Data Category"
+        "document_reference_title": "File Name",
+        "document_reference_size": "size",
+        "document_reference_contentType": "File Format",
+        "document_reference_assay": "Assay",
+        "document_reference_level": "Level",
+        "document_reference_molecule_type": "Molecule Type",
+        "document_reference_data_category": "Data Category"
       }
     }
   }

@@ -1,12 +1,21 @@
 import { useGeneralGQLQuery } from '@gen3/core';
-import { QueryContent, QueryHookResponse, QueryResponse, ResourceDict } from '../types';
+import {
+  QueryContent,
+  QueryHookResponse,
+  QueryResponse,
+  ResourceDict,
+} from '../types';
 import { useMemo } from 'react';
 
 // TODO: prefer use of extractQueryContent over isQueryResponse and extractData (make these two private)
 // create function to extract content from QueryResponse
-export const extractQueryContent = (response: unknown, resourceType: string, aggregationVal: string) => {
+export const extractQueryContent = (
+  response: unknown,
+  resourceType: string,
+  aggregationVal: string,
+) => {
   return isQueryResponse(response)
-    ? extractData(response, resourceType, aggregationVal) as QueryContent
+    ? (extractData(response, resourceType, aggregationVal) as QueryContent)
     : [];
 };
 
@@ -52,9 +61,9 @@ export function extractData(
 export const useFilteredGroupMembers = (member_ids: Array<string>) => {
   return useGeneralGQLQuery({
     query: `query($filter: JSON) {
-              groupmember (filter: $filter, first: 10000) {
-                group_id,
-                member_id
+              group_member (filter: $filter, first: 10000) {
+                group_member_group_id,
+                group_member_member_id
               }
             }`,
     variables: {
@@ -62,7 +71,7 @@ export const useFilteredGroupMembers = (member_ids: Array<string>) => {
         AND: [
           {
             IN: {
-              member_id: member_ids,
+              group_member_member_id: member_ids,
             },
           },
         ],
@@ -78,29 +87,39 @@ export const useFilteredGroupMembers = (member_ids: Array<string>) => {
  * @param {string[]} specimen_ids
  * @returns {QueryHookResponse}
  */
-export function useGroupToSpecimenMapping(specimen_ids: string[]) : QueryHookResponse {
-  // get all group ids 
-  const { data: groupData, isLoading: groupIsLoading, isError: groupIsError } = useFilteredGroupMembers(specimen_ids);
+export function useGroupToSpecimenMapping(
+  specimen_ids: string[],
+): QueryHookResponse {
+  // get all group ids
+  const {
+    data: groupData,
+    isLoading: groupIsLoading,
+    isError: groupIsError,
+  } = useFilteredGroupMembers(specimen_ids);
 
-  // get specimen metadata 
-  const { data: specimenData, isLoading: specimenIsLoading, isError: specimenIsError } = useGeneralGQLQuery({
+  // get specimen metadata
+  const {
+    data: specimenData,
+    isLoading: specimenIsLoading,
+    isError: specimenIsError,
+  } = useGeneralGQLQuery({
     query: `query($filter: JSON) {
       specimen (filter: $filter, first: 10000) {
-        id,
-        sample_family_id,
-        indexed_collection_date_days
+        specimen_id,
+        specimen_sample_family_id,
+        specimen_indexed_collection_date_days
       }
     }`,
     variables: {
-    filter: {
-    AND: [
-      {
-        IN: {
-          id: specimen_ids,
-        },
+      filter: {
+        AND: [
+          {
+            IN: {
+              specimen_id: specimen_ids,
+            },
+          },
+        ],
       },
-    ],
-    },
     },
   });
 
@@ -108,46 +127,48 @@ export function useGroupToSpecimenMapping(specimen_ids: string[]) : QueryHookRes
   const groupToSpecimensMap = useMemo(() => {
     if (groupData && specimenData) {
       // get group member data
-      const memberData : QueryContent = isQueryResponse(groupData)
-      ? extractData(groupData, 'groupmember', '')
-      : [];
+      const memberData: QueryContent = isQueryResponse(groupData)
+        ? extractData(groupData, 'group_member', '')
+        : [];
 
       // get specimen data
-      const specimenDicts : QueryContent = isQueryResponse(specimenData)
-      ? extractData(specimenData, 'specimen', '')
-      : []; 
+      const specimenDicts: QueryContent = isQueryResponse(specimenData)
+        ? extractData(specimenData, 'specimen', '')
+        : [];
 
       // map specimens from specimen id to the rest of the metadata
-      const specimenMap = specimenDicts.reduce(
-        (dict, specimen) => {
-          dict[specimen.id] = {...specimen};
-          if (dict[specimen.id].id){
-            delete dict[specimen.id].id;
-          }
-          return dict;
-        },
-        {}
-      );
+      const specimenMap = specimenDicts.reduce((dict, specimen) => {
+        dict[specimen.specimen_id] = { ...specimen };
+        if (dict[specimen.specimen_id].specimen_id) {
+          delete dict[specimen.specimen_id].specimen_id;
+        }
+        return dict;
+      }, {});
       // const specimenMap = Object.fromEntries(specimenDicts.map(s => [s.id, {s}]));
 
       // map group to group members
-      const groupMembers = memberData.reduce((dict: Record<string, Array<ResourceDict>>, groupMember: ResourceDict) => {
-        // fill in specimen data
-        const memberWithSpecimen = {
-          ...groupMember,
-          ...specimenMap[groupMember.member_id]
-        };
+      const groupMembers = memberData.reduce(
+        (
+          dict: Record<string, Array<ResourceDict>>,
+          groupMember: ResourceDict,
+        ) => {
+          // fill in specimen data
+          const memberWithSpecimen = {
+            ...groupMember,
+            ...specimenMap[groupMember.group_member_member_id],
+          };
 
-        // add to accumulator dict
-        if (!dict[groupMember.group_id]){
-          dict[groupMember.group_id] = [memberWithSpecimen];
-        }
-        else {
-          dict[groupMember.group_id].push(memberWithSpecimen);
-        }
+          // add to accumulator dict
+          if (!dict[groupMember.group_member_group_id]) {
+            dict[groupMember.group_member_group_id] = [memberWithSpecimen];
+          } else {
+            dict[groupMember.group_member_group_id].push(memberWithSpecimen);
+          }
 
-        return dict;
-      }, {});
+          return dict;
+        },
+        {},
+      );
 
       return groupMembers;
     }
@@ -159,5 +180,5 @@ export function useGroupToSpecimenMapping(specimen_ids: string[]) : QueryHookRes
   const isLoading = groupIsLoading && specimenIsLoading;
   const isError = groupIsError && specimenIsError;
 
-  return {data: groupToSpecimensMap, isLoading, isError};
+  return { data: groupToSpecimensMap, isLoading, isError };
 }

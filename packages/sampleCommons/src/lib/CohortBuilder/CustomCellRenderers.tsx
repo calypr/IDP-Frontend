@@ -39,8 +39,12 @@ const RenderDicomLink = (
   if (
     !cell?.getValue() ||
     cell?.getValue() === '' ||
-    (!(row.getValue('source_path') as string)?.endsWith('.tiff') &&
-      !(row.getValue('source_path') as string)?.endsWith('.tif'))
+    (!(row.getValue('document_reference_source_path') as string)?.endsWith(
+      '.tiff',
+    ) &&
+      !(row.getValue('document_reference_source_path') as string)?.endsWith(
+        '.tif',
+      ))
   ) {
     return <span></span>;
   } else
@@ -96,7 +100,7 @@ const RenderHumanReadableString = (
   if (!cell?.getValue() || cell?.getValue() === '') {
     return <span></span>;
   }
-  const bytes = Number(row.getValue('size'));
+  const bytes = Number(row.getValue('document_reference_size'));
   if (bytes === 0) return '0 B';
   const humanReadable = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
   const i = Math.floor(Math.log(bytes) / Math.log(1024));

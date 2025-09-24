@@ -36,6 +36,7 @@ export const ResearchSubjectDetailsPanel = ({
   const nodeFields = tableConfig.detailsConfig?.nodeFields;
   const filterField = tableConfig.detailsConfig?.filterField;
 
+  console.log('VALUE OF ID: ', id);
   const processedNodeFields = Object.keys(nodeFields ?? {}).join('\n');
 
   const {
@@ -44,11 +45,11 @@ export const ResearchSubjectDetailsPanel = ({
     isError: rsIsError,
   } = useGeneralGQLQuery({
     query: `query ($filter: JSON) {
-      researchsubject(filter: $filter, accessibility: all, first: 1) {
+      research_subject(filter: $filter, accessibility: all, first: 1) {
         project_id
-        condition_Diagnosis
-        identifier
-        patient_id
+        research_subject_condition_Diagnosis
+        research_subject_identifier
+        research_subject_patient_id
       }
     }`,
     variables: {
@@ -56,7 +57,7 @@ export const ResearchSubjectDetailsPanel = ({
         AND: [
           {
             EQ: {
-              patient_id: `${id}`,
+              research_subject_patient_id: `${id}`,
             },
           },
         ],
@@ -72,8 +73,8 @@ export const ResearchSubjectDetailsPanel = ({
 
   // This logic depends on the result of a hook, which is fine.
   const groupIds: string[] = isQueryResponse(groupMemberData)
-    ? (extractData(groupMemberData, 'groupmember', '') as QueryContent).map(
-        (groupMember) => groupMember.group_id,
+    ? (extractData(groupMemberData, 'group_member', '') as QueryContent).map(
+        (groupMember) => groupMember.group_member_group_id,
       )
     : [];
 
@@ -99,7 +100,7 @@ export const ResearchSubjectDetailsPanel = ({
               },
               {
                 IN: {
-                  group_id: groupIds,
+                  specimen_group_id: groupIds,
                 },
               },
             ],
@@ -122,7 +123,7 @@ export const ResearchSubjectDetailsPanel = ({
   }
 
   const rs = isQueryResponse(rsData)
-    ? extractData(rsData, 'researchsubject', '')?.[0]
+    ? extractData(rsData, 'research_subject', '')?.[0]
     : {};
 
   if (Object.keys(rs).length === 0) {
@@ -150,7 +151,7 @@ export const ResearchSubjectDetailsPanel = ({
   }
 
   const querySpecimenIds: string[] = Array.isArray(data.data[nodeType ?? ''])
-    ? data.data[nodeType ?? ''].map((item: ResourceDict) => item.id)
+    ? data.data[nodeType ?? ''].map((item: ResourceDict) => item.specimen_id)
     : [];
 
   const modelTableConfig = Object.entries(nodeFields ?? {}).reduce(
@@ -165,10 +166,11 @@ export const ResearchSubjectDetailsPanel = ({
   );
 
   const subjectTableData = {
-    'Clinical Trial': (rs?.project_id as string) ?? '',
-    'Condition Diagnosis': (rs?.condition_Diagnosis as string) ?? '',
-    'Participant ID': (rs?.identifier as string) ?? '',
-    'Patient ID': (rs?.patient_id as string) ?? '',
+    'Clinical Trial': (rs?.research_subject_project_id as string) ?? '',
+    'Condition Diagnosis':
+      (rs?.research_subject_condition_Diagnosis as string) ?? '',
+    'Participant ID': (rs?.research_subject_identifier as string) ?? '',
+    'Patient ID': (rs?.research_subject_patient_id as string) ?? '',
   };
 
   return (
@@ -188,12 +190,12 @@ export const ResearchSubjectDetailsPanel = ({
         <SpecimenAggregationCountsChart
           specimenIds={querySpecimenIds}
           title={'Biopsies by Category'}
-          aggField={'data_category'}
-          countField={'specimen_sample_family_id'}
+          aggField={'document_reference_data_category'}
+          countField={'document_reference_specimen_sample_family_id'}
         />
         <SpecimenAggregationCountsChart
           specimenIds={querySpecimenIds}
-          aggField={'assay'}
+          aggField={'document_reference_assay'}
           title={'Biopsies by Assay'}
           countField={'specimen_sample_family_id'}
         />
@@ -228,7 +230,7 @@ export const ResearchSubjectDetailsPanel = ({
           <MatchingTable
             isLoading={rsIsLoading || groupIsLoading || resourcesIsLoading}
             columns={modelTableConfig}
-            index={nodeType ?? 'file'}
+            index={nodeType ?? 'document_reference'}
             idField={idField}
             data={data}
           />

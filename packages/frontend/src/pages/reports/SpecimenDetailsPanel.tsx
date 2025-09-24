@@ -38,16 +38,16 @@ export const SpecimenDetailsPanel = ({
   } = useGeneralGQLQuery({
     query: `query ($filter: JSON) {
       specimen(filter: $filter, accessibility: all, first: 1) {
-        identifier
-        indexed_collection_date_days
-        sample_family_id
-        sample_type
-        collection
-        tissue_type
-        percent_tumor
+        specimen_identifier
+        specimen_indexed_collection_date_days
+        specimen_sample_family_id
+        specimen_sample_type
+        specimen_collection
+        specimen_tissue_type
+        specimen_percent_tumor
         project_id
-        patient_identifier
-        patient_id
+        specimen_patient_identifier
+        specimen_patient_id
       }
     }`,
     variables: {
@@ -55,7 +55,7 @@ export const SpecimenDetailsPanel = ({
         AND: [
           {
             EQ: {
-              id: `${id}`,
+              specimen_id: `${id}`,
             },
           },
         ],
@@ -74,8 +74,8 @@ export const SpecimenDetailsPanel = ({
     isError: diagnosisIsError,
   } = useGeneralGQLQuery({
     query: `query ($filter: JSON) {
-      researchsubject(filter: $filter, accessibility: all, first: 10000) {
-        condition_Diagnosis
+      research_subject(filter: $filter, accessibility: all, first: 10000) {
+        research_subject_condition_Diagnosis
       }
     }`,
     variables: {
@@ -83,7 +83,7 @@ export const SpecimenDetailsPanel = ({
         AND: [
           {
             EQ: {
-              patient_id: `${specimen?.patient_id ?? ''}`,
+              research_subject_patient_id: `${specimen?.specimen_patient_id ?? ''}`,
             },
           },
         ],
@@ -93,8 +93,8 @@ export const SpecimenDetailsPanel = ({
 
   const diagnosis =
     !diagnosisIsLoading && isQueryResponse(diagnosisData)
-      ? (extractData(diagnosisData, 'researchsubject', '')?.[0]
-          .condition_Diagnosis as string)
+      ? (extractData(diagnosisData, 'research_subject', '')?.[0]
+          .research_subject_condition_Diagnosis as string)
       : '';
 
   const specimenIdArr = [`${id}`];
@@ -124,7 +124,7 @@ export const SpecimenDetailsPanel = ({
               },
               {
                 IN: {
-                  group_id: groupIds,
+                  document_reference_group_id: groupIds,
                 },
               },
             ],
@@ -141,7 +141,7 @@ export const SpecimenDetailsPanel = ({
   } = useGeneralGQLQuery({
     query: `query ($filter: JSON) {
       _aggregation{
-        file(filter: $filter){
+        document_reference(filter: $filter){
           _totalCount
         }
       }
@@ -158,7 +158,7 @@ export const SpecimenDetailsPanel = ({
               },
               {
                 IN: {
-                  group_id: groupIds,
+                  document_reference_group_id: groupIds,
                 },
               },
             ],
@@ -207,23 +207,24 @@ export const SpecimenDetailsPanel = ({
 
   const numFiles =
     !fileIsLoading && isQueryResponse(fileCountData)
-      ? fileCountData.data._aggregation.file._totalCount
+      ? fileCountData.data._aggregation.document_reference._totalCount
       : '';
 
   const subjectTableData = {
     'Clinical Trial': (specimen?.project_id as string) ?? '',
-    'Participant ID': (specimen?.patient_identifier as string) ?? '',
+    'Participant ID': (specimen?.specimen_patient_identifier as string) ?? '',
     'Enrollment Diagnosis': diagnosis,
   };
 
   const specimenTableData = {
-    'BEMS ID': (specimen?.identifier as string) ?? '',
-    'Collection Date': (specimen?.indexed_collection_date_days as string) ?? '',
-    'Sample Family ID': (specimen?.sample_family_id as string) ?? '',
-    'Metastatis Site': (specimen?.collection as string) ?? '',
-    'Sample Type': (specimen?.sample_type as string) ?? '',
-    'Tissue Type': (specimen?.tissue_type as string) ?? '',
-    'Percent Tumor': (specimen?.percent_tumor as string) ?? '',
+    'BEMS ID': (specimen?.specimen_identifier as string) ?? '',
+    'Collection Date':
+      (specimen?.specimen_indexed_collection_date_days as string) ?? '',
+    'Sample Family ID': (specimen?.specimen_sample_family_id as string) ?? '',
+    'Metastatis Site': (specimen?.specimen_collection as string) ?? '',
+    'Sample Type': (specimen?.specimen_sample_type as string) ?? '',
+    'Tissue Type': (specimen?.specimen_tissue_type as string) ?? '',
+    'Percent Tumor': (specimen?.specimen_percent_tumor as string) ?? '',
   };
 
   return (
@@ -251,7 +252,8 @@ export const SpecimenDetailsPanel = ({
       {/* Related Specimens Tree by Sample Family ID */}
       <div className="pb-5">
         <Title className="pb-3 text-center" order={3}>
-          Related Specimens by Sample Family ID: {specimen?.sample_family_id}
+          Related Specimens by Sample Family ID:{' '}
+          {specimen?.specimen_sample_family_id}
         </Title>
         {/*Mantine SegmentedControl to toggle graph view */}
         <div className="border border-gray-300 b border-b-xs rounded-t-md px-2 py-3">
@@ -269,8 +271,8 @@ export const SpecimenDetailsPanel = ({
         <div className="border border-t-0 border-gray-300 rounded-b-md px-2 py-3">
           <SpecimenTree
             projectId={specimen?.project_id as string}
-            sampleFamilyId={specimen?.sample_family_id as string}
-            sampleTypeField="sample_type"
+            sampleFamilyId={specimen?.specimen_sample_family_id as string}
+            sampleTypeField="specimen_sample_type"
             specimenId={id as string}
             graphView={graphView}
           />
@@ -280,13 +282,13 @@ export const SpecimenDetailsPanel = ({
       {/* Associated Files Table */}
       <div>
         <Title className="pb-3 text-center" order={3}>
-          Files for Specimen {specimen?.identifier}
+          Files for Specimen {specimen?.specimen_identifier}
         </Title>
         <div className="grid">
           <MatchingTable
             isLoading={isLoading}
             columns={modelTableConfig}
-            index={nodeType ?? 'file'}
+            index={nodeType ?? 'document_reference'}
             idField={idField}
             data={data}
           />

@@ -187,7 +187,7 @@
       },
       "dropdowns": {},
       "guppyConfig": {
-        "dataType": "medicationadministration",
+        "dataType": "medication_administration",
         "fieldMapping": [],
         "nodeCountTitle": "Medication Administration",
         "manifestMapping": {

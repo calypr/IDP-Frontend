@@ -5,19 +5,19 @@
     "detailsConfig": {
       "panel": "researchSubject",
       "mode": "click",
-      "idField": "patient_id",
-      "filterField": "patient_id",
+      "idField": "specimen_patient_id",
+      "filterField": "specimen_patient_id",
       "title": "identifier",
       "nodeType": "specimen",
       "nodeFields": {
-        "indexed_collection_date_days": "Collection Date",
-        "identifier": "BEMS ID",
-        "sample_family_id": "Sample Family ID",
-        "collection": "Metastasis Site",
-        "sample_type": "sample_type",
-        "tissue_type": "tissue_type",
-        "percent_tumor": "percent_tumor",
-        "id": "ID"
+        "specimen_indexed_collection_date_days": "Collection Date",
+        "specimen_identifier": "BEMS ID",
+        "specimen_sample_family_id": "Sample Family ID",
+        "specimen_collection": "Metastasis Site",
+        "specimen_sample_type": "Sample Type",
+        "specimen_tissue_type": "Tissue Type",
+        "specimen_percent_tumor": "Percent Tumor",
+        "specimen_id": "ID"
       }
     }
   }

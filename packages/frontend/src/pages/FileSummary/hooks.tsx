@@ -12,9 +12,9 @@ export const useFileAggsQuery = (
 ) => {
   const { data, isLoading, isError } = useGeneralGQLQuery({
     query: `query($filter:JSON){
-      file(filter: $filter, accessibility: all, first: 10000, sort: [{size: "desc"}]){
-        source_path
-        size
+      document_reference(filter: $filter, accessibility: all, first: 10000, sort: [{document_reference_size: "desc"}]){
+        document_reference_source_path
+        document_reference_size
       }
     }`,
     variables: {
@@ -32,7 +32,7 @@ export const useFileAggsQuery = (
 
   const cachedfileData = useMemo(() => {
     if (data) {
-      const project_data = extractData(data, 'file', '');
+      const project_data = extractData(data, 'document_reference', '');
       return binDataWithCustomBoundaries(project_data, slicePoints);
     }
     return [];
@@ -45,8 +45,8 @@ export const useFileTypesHistogramQuery = (project: string) => {
   const { data, isLoading, isError } = useGeneralGQLQuery({
     query: `query($filter:JSON){
   		_aggregation{
-        file(filter: $filter){
-          contentType{
+        document_reference(filter: $filter){
+          document_reference_contentType{
             histogram{
               key
               count
@@ -70,7 +70,11 @@ export const useFileTypesHistogramQuery = (project: string) => {
 
   const cachedfileData = useMemo(() => {
     if (data) {
-      return extractData(data, 'file', 'contentType');
+      return extractData(
+        data,
+        'document_reference',
+        'document_reference_contentType',
+      );
     }
     return [];
   }, [data]);
@@ -93,24 +97,27 @@ export const useFilesFromBinQuery = (
   if (category !== '') {
     filters.push({
       EQ: {
-        contentType:
+        document_reference_contentType:
           String(category).charAt(0).toLowerCase() + String(category).slice(1),
       },
     });
   } else {
     filters.push({
-      AND: [{ GTE: { size: file_range[0] } }, { LT: { size: file_range[1] } }],
+      AND: [
+        { GTE: { document_reference_size: file_range[0] } },
+        { LT: { document_reference_size: file_range[1] } },
+      ],
     });
   }
 
   const { data, isLoading, isError } = useGeneralGQLQuery({
     query: `query($filter:JSON){
   		_aggregation{
-        file(filter: $filter){
+        document_reference(filter: $filter){
           _totalCount
         }
       }
-      file(filter: $filter, accessibility: all, first: 10000, sort: [{size: "desc"}]){
+      document_reference(filter: $filter, accessibility: all, first: 10000, sort: [{document_reference_size: "desc"}]){
         ${Object.keys(config).join('\n')}
       }
     }`,
@@ -133,7 +140,7 @@ export const useProjectsQuery = () => {
   const { data, isLoading, isError } = useGeneralGQLQuery({
     query: `query ($nestedAggFields: JSON) {
       _aggregation {
-        file(nestedAggFields: $nestedAggFields) {
+        document_reference(nestedAggFields: $nestedAggFields) {
           project_id {
             histogram {
               key
@@ -151,14 +158,18 @@ export const useProjectsQuery = () => {
     }`,
     variables: {
       nestedAggFields: {
-        termsFields: ['size'],
+        termsFields: ['document_reference_size'],
       },
     },
   });
 
   const cachedData = useMemo(() => {
     if (data) {
-      const project_data = extractData(data, 'file', 'project_id');
+      const project_data = extractData(
+        data,
+        'document_reference',
+        'project_id',
+      );
       const result: any = project_data.map((project) => {
         const totalSum = project.termsFields.reduce(
           (fieldSum: number, field: any) => {

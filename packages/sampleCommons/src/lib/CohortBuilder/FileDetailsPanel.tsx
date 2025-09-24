@@ -101,7 +101,7 @@ export const FileDetailsPanel = ({
 
   // process guppy response
   const queryData = isQueryResponse(data)
-    ? extractData(data, index ?? 'file')
+    ? extractData(data, index ?? 'document_reference')
     : {};
 
   // create the rows for the table
