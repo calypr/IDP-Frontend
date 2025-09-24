@@ -220,8 +220,8 @@ const HorizontalBarChart = ({ headerProps, footerProps }: SamplePageProps) => {
   const router = useRouter();
 
   // TODO: refactor out into a config
-  const chartResourceType = ['file', 'researchsubject'];
-  const chartFields = ['assay', 'condition_Diagnosis'];
+  const chartResourceType = ['document_reference', 'research_subject'];
+  const chartFields = ['document_reference_assay', 'research_subject_condition_Diagnosis'];
   const chartTitles = ['Assay', 'Diagnosis'];
   const numChartCols = chartFields.length <= 3 ? chartFields.length : 3;
 
@@ -271,11 +271,11 @@ const HorizontalBarChart = ({ headerProps, footerProps }: SamplePageProps) => {
                   <div className="text-sm">Specimens</div>
                 </div>
                 <div className="text-center">
-                  {useCountsFromField('file')}
+                  {useCountsFromField('document_reference')}
                   <div className="text-sm">Files</div>
                 </div>
                 <div className="text-center">
-                  {useCountsFromField('researchsubject')}
+                  {useCountsFromField('research_subject')}
                   <div className="text-sm">Research Subjects</div>
                 </div>
                 {/* {countsFields.map((field, i) => {
