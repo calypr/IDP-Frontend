@@ -61,7 +61,8 @@ const AvailableImagesPage = ({
       cellRenderFunction: 'DicomLink',
       width: 32,
       params: {
-        baseURL: '/image-viewer/view',
+        imageURL: '/image-viewer/view',
+        downloadURL: '/user/data/download',
       },
     },
     project_id: {
