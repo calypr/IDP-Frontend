@@ -18,7 +18,6 @@ const NavigationLogo = ({
   href,
   basepage,
 }: NavigationBarLogo) => {
-  console.log('TITLE INSIDE LOGO FUNC: ', basepage);
   const classNamesDefaults = {
     root: 'relative flex py-2 justify-start items-center align-middle font-heading font-bold tracking-wide text-xl ml-[5px] mr-[20px]',
     link: 'relative object-contain',

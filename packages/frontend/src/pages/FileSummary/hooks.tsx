@@ -1,5 +1,4 @@
 import { useMemo } from 'react';
-import isQueryResponse from '../../features/CohortBuilder/ExplorerTable/ExploreTableDetails/QueryRowDetailsPanel';
 import { SummaryTableColumn } from '../../features/CohortBuilder/ExplorerTable/types';
 import { useGeneralGQLQuery } from '@gen3/core';
 import { extractData } from '../../utils/extractdata';

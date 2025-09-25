@@ -4,8 +4,9 @@ import {
   type CellRendererFunctionProps,
 } from '@gen3/frontend';
 import { ActionIcon, Text } from '@mantine/core';
-import { FaExternalLinkAlt } from 'react-icons/fa';
+import { FaExternalLinkAlt, FaImage, FaFileDownload } from 'react-icons/fa';
 
+/* Used for research_subject, medication_administration, and specimen indices */
 const RenderReportsLink = (
   { cell, row }: CellRendererFunctionProps,
   ...args: Array<Record<string, unknown>>
@@ -16,6 +17,8 @@ const RenderReportsLink = (
   if (
     cellValue &&
     cellValue !== '' &&
+    // since this only designed for 1 project
+    // might as well hardcode it into the renderer for now
     projectId === 'cbds-smmart_labkey_demo' &&
     baseUrl
   ) {
@@ -32,6 +35,7 @@ const RenderReportsLink = (
   return <span></span>;
 };
 
+/* Used for document_reference indices */
 const RenderDicomLink = (
   { cell, row }: CellRendererFunctionProps,
   ...args: Array<Record<string, unknown>>
@@ -46,18 +50,39 @@ const RenderDicomLink = (
         '.tif',
       ))
   ) {
-    return <span></span>;
-  } else
     return (
       <a
-        href={`${args[0].baseURL}/${cell.getValue()}`}
-        target="_blank"
+        href={`${args[0]?.downloadURL}/${cell.getValue()}?redirect=true`}
         rel="noreferrer"
+        target="_blank"
       >
         <ActionIcon color="primary.0" size="md" variant="filled">
-          <FaExternalLinkAlt />
+          <FaFileDownload />
         </ActionIcon>
       </a>
+    );
+  } else
+    return (
+      <div className="flex space-x-2">
+        <a
+          href={`${args[0]?.downloadURL}/${cell.getValue()}?redirect=true`}
+          rel="noreferrer"
+          target="_blank"
+        >
+          <ActionIcon color="primary.0" size="md" variant="filled">
+            <FaFileDownload />
+          </ActionIcon>
+        </a>
+        <a
+          href={`${args[0]?.imageURL}/${cell.getValue()}`}
+          target="_blank"
+          rel="noreferrer"
+        >
+          <ActionIcon color="primary.0" size="md" variant="filled">
+            <FaImage />
+          </ActionIcon>
+        </a>
+      </div>
     );
 };
 

@@ -47,7 +47,7 @@ const DropdownTreeView = ({
 
   // get parent ids to highlight the path to the focus node
   const childEdgeMap = specimenDicts.reduce((acc, specimen: ResourceDict) => {
-    acc[specimen.id] = specimen.parent;
+    acc[specimen.specimen_id] = specimen.specimen_parent;
     return acc;
   }, {}) as Record<string, string>;
 

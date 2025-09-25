@@ -26,6 +26,7 @@ import {
 } from './ResearchSubjectModal/tools';
 import { QueryContent, ResourceDict } from './types';
 import { SimpleTable } from '../../features/SimpleTable';
+import { useMemo } from 'react';
 
 export const ResearchSubjectDetailsPanel = ({
   id,
@@ -36,8 +37,10 @@ export const ResearchSubjectDetailsPanel = ({
   const nodeFields = tableConfig.detailsConfig?.nodeFields;
   const filterField = tableConfig.detailsConfig?.filterField;
 
-  console.log('VALUE OF ID: ', id);
-  const processedNodeFields = Object.keys(nodeFields ?? {}).join('\n');
+  const processedNodeFields = useMemo(
+    () => Object.keys(nodeFields ?? {}).join('\n'),
+    [nodeFields],
+  );
 
   const {
     data: rsData,
@@ -72,11 +75,14 @@ export const ResearchSubjectDetailsPanel = ({
   } = useFilteredGroupMembers([`${id}`]);
 
   // This logic depends on the result of a hook, which is fine.
-  const groupIds: string[] = isQueryResponse(groupMemberData)
-    ? (extractData(groupMemberData, 'group_member', '') as QueryContent).map(
-        (groupMember) => groupMember.group_member_group_id,
-      )
-    : [];
+  const groupIds: string[] = useMemo(() => {
+    if (isQueryResponse(groupMemberData)) {
+      return (
+        extractData(groupMemberData, 'group_member', '') as QueryContent
+      ).map((groupMember) => groupMember.group_member_group_id);
+    }
+    return [];
+  }, [groupMemberData]);
 
   const {
     data,
@@ -186,20 +192,23 @@ export const ResearchSubjectDetailsPanel = ({
         <SimpleTable data={subjectTableData} />
       </div>
       <Divider size="md" color="black" />
-      <div className="grid grid-cols-2">
-        <SpecimenAggregationCountsChart
-          specimenIds={querySpecimenIds}
-          title={'Biopsies by Category'}
-          aggField={'document_reference_data_category'}
-          countField={'document_reference_specimen_sample_family_id'}
-        />
-        <SpecimenAggregationCountsChart
-          specimenIds={querySpecimenIds}
-          aggField={'document_reference_assay'}
-          title={'Biopsies by Assay'}
-          countField={'specimen_sample_family_id'}
-        />
-      </div>
+
+      {querySpecimenIds.length > 0 && (
+        <div className="grid grid-cols-2">
+          <SpecimenAggregationCountsChart
+            specimenIds={querySpecimenIds}
+            title="Biopsies by Category"
+            aggField="document_reference_data_category"
+            countField="document_reference_specimen_sample_family_id"
+          />
+          <SpecimenAggregationCountsChart
+            specimenIds={querySpecimenIds}
+            aggField="document_reference_assay"
+            title="Biopsies by Assay"
+            countField="specimen_sample_family_id"
+          />
+        </div>
+      )}
       <Divider size="md" color="black" />
       <div className="flex justify-center p-5 items-center">
         <div className="flex-grow text-center">

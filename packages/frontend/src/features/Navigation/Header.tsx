@@ -12,8 +12,6 @@ const Header = ({
   type = 'original',
   title,
 }: HeaderProps & Pick<HeaderMetadata, 'title'>) => {
-  console.log('PATHNAME: ', title);
-
   return type === 'horizontal' ? (
     <div className="w-full">
       {banners?.map((banner) => (

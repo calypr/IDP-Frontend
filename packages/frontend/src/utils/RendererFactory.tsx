@@ -73,8 +73,6 @@ export class RenderFactoryTypedInstance<T>
    * @returns boolean indicating if the renderer exists
    */
   rendererExists(type: string, functionName: string): boolean {
-    console.log('CATALOG: ', this.catalog);
-    console.log('TYPE: ', type, 'FUNC NAME: ', functionName);
     return type in this.catalog && functionName in this.catalog[type];
   }
 

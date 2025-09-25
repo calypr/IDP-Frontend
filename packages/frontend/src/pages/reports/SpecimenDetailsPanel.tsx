@@ -91,11 +91,10 @@ export const SpecimenDetailsPanel = ({
     },
   });
 
-  const diagnosis =
-    !diagnosisIsLoading && isQueryResponse(diagnosisData)
-      ? (extractData(diagnosisData, 'research_subject', '')?.[0]
-          .research_subject_condition_Diagnosis as string)
-      : '';
+  const diagnosis = isQueryResponse(diagnosisData)
+    ? extractData(diagnosisData, 'research_subject', '')?.[0]
+        ?.research_subject_condition_Diagnosis
+    : '';
 
   const specimenIdArr = [`${id}`];
   const {

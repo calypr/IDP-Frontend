@@ -54,11 +54,11 @@ const AvailableImagesPage = ({
 
   const imageViewerTableConfig: Record<string, SummaryTableColumn> = {
     document_reference_id: {
-      title: 'View Image',
+      title: 'Download / View',
       field: 'document_reference_id',
       type: 'link',
       accessorPath: 'document_reference_id',
-      cellRenderFunction: 'DiacomLink',
+      cellRenderFunction: 'DicomLink',
       width: 32,
       params: {
         baseURL: '/image-viewer/view',
@@ -66,7 +66,7 @@ const AvailableImagesPage = ({
     },
     project_id: {
       title: 'Project Id',
-      field: 'document_reference_project_id',
+      field: 'project_id',
     },
     document_reference_source_path: {
       title: 'Source Path',
@@ -75,7 +75,7 @@ const AvailableImagesPage = ({
     document_reference_size: {
       title: 'File Size',
       field: 'document_reference_size',
-      accessorPath: 'size',
+      accessorPath: 'document_reference_size',
       cellRenderFunction: 'HumanReadableString',
       type: 'string',
     },

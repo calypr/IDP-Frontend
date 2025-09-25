@@ -51,6 +51,8 @@ export const SpecimenAggregationCountsChart = ({
   }
 
   return (
+    specimenIds &&
+    specimenIds.length !== 0 &&
     pieChartData &&
     pieChartData.length !== 0 && (
       <div className="flex flex-col">

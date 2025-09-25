@@ -8,7 +8,6 @@ export const RegimenChart = ({
   data: any;
   identifier: string;
 }) => {
-  console.log('DATA IN REGIMEN CHART: ', data);
   if (!data || data.length === 0) {
     return <div>No data available</div>;
   }
@@ -20,7 +19,6 @@ export const RegimenChart = ({
     name: item.Medication,
     line: { color: 'red', width: 4 },
   }));
-  console.log('TRANS DATA: ', transformedData);
 
   const layout: Partial<Plotly.Layout> = {
     title: {

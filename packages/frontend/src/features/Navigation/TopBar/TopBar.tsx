@@ -74,7 +74,6 @@ const TopBar = ({
   logo!.basepage = title === 'CALYPR Landing Page';
 
   const isLandingPage = title === 'CALYPR Landing Page';
-  console.log('TITLE: ', title);
 
   const classNamesDefaults = {
     root: `flex items-center align-middle px-2 border-r-2 ${

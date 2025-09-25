@@ -12,7 +12,6 @@ const SimpleTable = ({ data }: SimpleTableProps) => {
 
   const headers = Object.keys(data);
 
-  console.log('SIMPLE TABLE DATA: ', data);
   return (
     <Paper withBorder className="w-full">
       <Table withColumnBorders>

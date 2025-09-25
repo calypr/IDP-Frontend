@@ -19,11 +19,14 @@ export interface ProjectFilter {
 }
 
 export interface ContentTypeFilter {
-  EQ: { contentType: string };
+  EQ: { document_reference_contentType: string };
 }
 
 export interface RangeFilter {
-  AND: [{ GTE: { size: number } }, { LT: { size: number } }];
+  AND: [
+    { GTE: { document_reference_size: number } },
+    { LT: { document_reference_size: number } },
+  ];
 }
 
 export type Filter = ProjectFilter | ContentTypeFilter | RangeFilter;

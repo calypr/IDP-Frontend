@@ -45,7 +45,6 @@ export function SummaryStatsBanner(authz: any) {
 }
 
 const AppsPage = ({ headerProps, footerProps, appsConfig }: AppsPageProps) => {
-  console.log('APPS CONFIG: ', appsConfig);
   // define the content to be returned
   const { data: authzMapping = {}, isLoading: isAuthZLoading } =
     useGetAuthzMappingsQuery();

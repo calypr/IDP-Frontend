@@ -33,7 +33,7 @@ import { QueryExpressionsExpandedContext } from './QueryExpressionsExpandedConte
 import { buildNested } from '../../../components/facets';
 import { useDeepCompareEffect } from 'use-deep-compare';
 import { QueryExpressionContext } from './QueryExpressionContext';
-
+import { useClearFilters } from '../../CohortDiscovery/hooks';
 const RemoveButton = ({ value }: { value: string }) => (
   <ActionIcon
     size="xs"
@@ -218,7 +218,6 @@ const IncludeExcludeQueryElement = ({
                         cohortId: currentCohortId,
                         field: fieldToUpdate,
                       });
-
                       removeCohortFilter(index, fieldToUpdate);
                     } else {
                       updateCohortFilter(
