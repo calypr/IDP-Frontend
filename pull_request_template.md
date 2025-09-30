@@ -64,8 +64,11 @@
     - [ ]  Populates values that match the clicked row within the specimen summary tabble
 - [ ] Spot-check specimen tree for multiple specimens
     - [ ] Has a nested dropdown detailing the specimen and its sample type
-    - [ ] Has a 
+    - [ ] Can toggle to graph version with the same info
     - [ ] Is bolded for each parent specimen corresponding
+- [ ] File counts in Specimen Summary section match the Files table rows at the bottom
+
+
 
 
 **Medication Report**
