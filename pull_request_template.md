@@ -88,3 +88,10 @@
 - [ ] I can create a token using “Create API Key”
 - [ ] I can see the list of token and whether they’re expired
 - [ ] I can download and verify that the new token works via a ping
+
+**File Summary Page**
+- [ ] When selecting a project on the top-left donut chart, the histogram repopulates
+- [ ] When selecting a histogram bar on top right, files repopulate
+- [ ] Able to toggle top right and select a different bar to repopulate the table
+- [ ] Number of rows match the number described by hovering over a histogram bar
+
