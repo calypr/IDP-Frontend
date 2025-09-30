@@ -71,8 +71,6 @@
 - [ ] File counts in Specimen Summary section match the Files table rows at the bottom
 
 
-
-
 **Medication Report**
 - [ ] I can see the history of medications across time
 
@@ -93,6 +91,15 @@
 - [ ] I can create a token using “Create API Key”
 - [ ] I can see the list of token and whether they’re expired
 - [ ] I can download and verify that the new token works via a ping
+
+**Security**
+- [ ] When opening the following when not logged in, I am redirected to the homepage then to the intended site when logged in. 
+  - [ ] /Profile
+  - [ ] /Explorer
+    - [ ] /SMMART
+    - [ ] /BForePC
+  - [ ] /AvailableImages
+  - [ ] /Query
 
 **File Summary Page**
 - [ ] When selecting a project on the top-left donut chart, the histogram repopulates
