@@ -26,6 +26,8 @@
 - [ ] Reviewer has tested this feature locally
 
 ## Testing Checklist
+*Add what is necessary to test this PR below. Keep the relevant existing functionality tests below that are related/affected. Delete the rest*
+
 **Apps Page**
 - [ ] All Apps are clickable and reroute you to a new site
 
