@@ -31,50 +31,52 @@ const CohortBuilder = ({
   );
 
   return (
-    <div className="flex flex-col w-full mt-2">
-      <Tabs
-        color="primary.4"
-        variant={explorerConfig[0]?.tabType}
-        keepMounted={true}
-        defaultValue={explorerConfig[0].tabTitle}
-      >
-        <Tabs.List
-          className="w-full"
-          justify={TabsLayoutToComponentProp(tabsLayout)}
+    <ProtectedContent>
+      <div className="flex flex-col w-full mt-2">
+        <Tabs
+          color="primary.4"
+          variant={explorerConfig[0]?.tabType}
+          keepMounted={true}
+          defaultValue={explorerConfig[0].tabTitle}
         >
-          {configuration.map((panelConfig: CohortPanelConfiguration) => (
-            <Tabs.Tab
-              value={panelConfig.tabTitle}
-              key={`${panelConfig.tabTitle}-tabList`}
-              className="mt-2"
-            >
-              {panelConfig.tabTitle}
-            </Tabs.Tab>
-          ))}
-        </Tabs.List>
-
-        {configuration.map((panelConfig: CohortPanelConfiguration) => (
-          <Tabs.Panel
-            value={panelConfig.tabTitle}
-            key={`${panelConfig.tabTitle}-tabPanel`}
+          <Tabs.List
+            className="w-full"
+            justify={TabsLayoutToComponentProp(tabsLayout)}
           >
-            <CohortPanel
-              guppyConfig={panelConfig.guppyConfig}
-              key={`${panelConfig.tabTitle}-CohortPanel`}
-              chartsSection={panelConfig?.chartsSection}
-              charts={panelConfig.charts}
-              filters={panelConfig.filters}
-              tabTitle={panelConfig.tabTitle}
-              table={panelConfig.table}
-              dropdowns={panelConfig.dropdowns}
-              buttons={panelConfig.buttons}
-              loginForDownload={panelConfig.loginForDownload}
-              sharedFiltersMap={panelConfig.sharedFiltersMap}
-            />
-          </Tabs.Panel>
-        ))}
-      </Tabs>
-    </div>
+            {configuration.map((panelConfig: CohortPanelConfiguration) => (
+              <Tabs.Tab
+                value={panelConfig.tabTitle}
+                key={`${panelConfig.tabTitle}-tabList`}
+                className="mt-2"
+              >
+                {panelConfig.tabTitle}
+              </Tabs.Tab>
+            ))}
+          </Tabs.List>
+
+          {configuration.map((panelConfig: CohortPanelConfiguration) => (
+            <Tabs.Panel
+              value={panelConfig.tabTitle}
+              key={`${panelConfig.tabTitle}-tabPanel`}
+            >
+              <CohortPanel
+                guppyConfig={panelConfig.guppyConfig}
+                key={`${panelConfig.tabTitle}-CohortPanel`}
+                chartsSection={panelConfig?.chartsSection}
+                charts={panelConfig.charts}
+                filters={panelConfig.filters}
+                tabTitle={panelConfig.tabTitle}
+                table={panelConfig.table}
+                dropdowns={panelConfig.dropdowns}
+                buttons={panelConfig.buttons}
+                loginForDownload={panelConfig.loginForDownload}
+                sharedFiltersMap={panelConfig.sharedFiltersMap}
+              />
+            </Tabs.Panel>
+          ))}
+        </Tabs>
+      </div>
+    </ProtectedContent>
   );
 };
 
