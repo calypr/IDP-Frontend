@@ -15,7 +15,7 @@ const AboutUsPage = ({ footerProps, headerProps }: NavPageLayoutProps) => {
   return (
     <NavPageLayout
       {...{ footerProps, headerProps }}
-      headerData={{
+      headerMetadata={{
         title: 'Gen3 About Us Page',
         content: ' About Us Page',
         key: 'gen3-about-us-page',
@@ -90,7 +90,7 @@ const AboutUsPage = ({ footerProps, headerProps }: NavPageLayoutProps) => {
         <div className="flex flex-col pr-8 pt-40">
           <Image
             className="align-middle"
-            src={`${basePath}/icons/gen3-dark.png`}
+            src="/icons/gen3-dark.png"
             fill
             alt="Gen3 Logo"
           />

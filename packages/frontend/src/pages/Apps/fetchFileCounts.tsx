@@ -1,12 +1,11 @@
 import { useGeneralGQLQuery } from '@gen3/core';
 import { useMemo } from 'react';
-import { isQueryResponse } from '../../features/CohortBuilder/ExplorerTable/ExploreTableDetails/QueryRowDetailsPanel';
 
 export const useFileTotalCountQuery = () => {
   const { data, isLoading, isError } = useGeneralGQLQuery({
     query: `query{
               _aggregation {
-                file{
+                document_reference{
                   _totalCount
                 }
               }
@@ -16,11 +15,13 @@ export const useFileTotalCountQuery = () => {
   const cachedCounts = useMemo(() => {
     if (data) {
       const typedData = data as {
-        data?: { _aggregation?: { file?: { _totalCount?: number } } };
+        data?: {
+          _aggregation?: { document_reference?: { _totalCount?: number } };
+        };
       };
-      return isQueryResponse(data)
-        ? (typedData.data?._aggregation?.file?._totalCount ?? -1)
-        : -1;
+      return (
+        typedData.data?._aggregation?.document_reference?._totalCount ?? -1
+      );
     }
     return -1;
   }, [data]);

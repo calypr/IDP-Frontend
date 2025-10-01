@@ -63,6 +63,8 @@ module.exports = {
         content: themeFonts.content,
       },
       fontSize: {
+        xxxs: '0.4rem',
+        xxs: '0.5rem',
         tiny: '0.625rem',
       },
       borderWidth: {
@@ -168,9 +170,38 @@ module.exports = {
       });
     }),
   ],
-  // Add any colors used in a config file here
+  // Add any colors. fontSize, height used in a json config file here
   safelist: [
-    { pattern: /^bg-navigation-footer$/ },
-    { pattern: /^border-navigation-topbar_hover$/ },
+    'text-tiny',
+    'text-xxs',
+    'text-xxxs',
+    'h-20',
+    'mt-10',
+    'mb-10',
+    {
+      pattern:
+        /bg-(primary|secondary|accent|accent-warm|accent-cool|base)-(min|lightest|lighter|light|dark|darker|darkest|max)/,
+    },
+    {
+      pattern:
+        /text-(primary|secondary|accent|accent-warm|accent-cool|base)-(min|lightest|lighter|light|dark|darker|darkest|max)/,
+    },
+    {
+      pattern:
+        /text-(primary|secondary|accent|accent-warm|accent-cool|base)-contrast-(min|lightest|lighter|light|dark|darker|darkest|max)/,
+    },
+    {
+      pattern:
+        /border-(primary|secondary|accent|accent-warm|accent-cool|base)-(min|lightest|lighter|light|dark|darker|darkest|max)/,
+    },
+    {
+      pattern: /bg-(primary|secondary|accent|accent-warm|accent-cool|base)/,
+    },
+    {
+      pattern: /text-(primary|secondary|accent|accent-warm|accent-cool|base)/,
+    },
+    {
+      pattern: /border-(primary|secondary|accent|accent-warm|accent-cool|base)/,
+    },
   ],
 };

@@ -6,6 +6,7 @@ import React, {
   useState,
 } from 'react';
 import { useRouter } from 'next/router';
+import { getCookie } from 'cookies-next';
 import { useDeepCompareMemo } from 'use-deep-compare';
 import { useManageSession } from './hooks';
 import { showNotification } from '@mantine/notifications';
@@ -20,13 +21,25 @@ import {
   showModal,
   useCoreDispatch,
   useCoreSelector,
+  useGetCSRFQuery,
   useLazyFetchUserDetailsQuery,
 } from '@gen3/core';
 
+import { Center, Loader } from '@mantine/core';
+
 import { MinutesToMilliseconds } from '../../utils';
+import { useWorkspaceResourceMonitor } from '../../components/Providers/ResourceMonitor';
+
+const ACTIVITY_CHANNEL = 'gen3-user-activity';
 
 export const logoutSession = async () => {
-  await fetch(`${GEN3_FENCE_API}/user/logout?next=${GEN3_REDIRECT_URL}/`, {
+  // logged in using credentials then execute credentials logout first
+  const accessToken = getCookie('credentials_token');
+  if (accessToken) {
+    await fetch('/api/auth/credentialsLogout');
+  }
+
+  await fetch(`${GEN3_FENCE_API}/logout?next=${GEN3_REDIRECT_URL}/`, {
     cache: 'no-store',
   });
 };
@@ -117,7 +130,7 @@ const refreshSession = (
     return;
   }
 
-  // hitting Fence endpoint refreshes token
+  // hitting Fence endpoint refreshes the token
   updateSessionRefreshTimestamp(Date.now());
   getUserDetails();
 };
@@ -159,14 +172,18 @@ const UPDATE_SESSION_LIMIT = MinutesToMilliseconds(5);
  */
 export const SessionProvider = ({
   children,
-  session,
   updateSessionTime = 1440,
   inactiveTimeLimit = 1440,
   workspaceInactivityTimeLimit = 0,
   logoutInactiveUsers = true,
+  monitorWorkspace = true,
 }: SessionProviderProps) => {
   const router = useRouter();
   const coreDispatch = useCoreDispatch();
+
+  const { isSuccess: isGetCSRFSuccess, isError: isGetCSRFError } =
+    useGetCSRFQuery();
+  useWorkspaceResourceMonitor(monitorWorkspace); // monitor workspaces if any are running or configured
 
   const [getUserDetails] = useLazyFetchUserDetailsQuery(); // Fetch user details
   const userStatus = useCoreSelector((state: CoreState) =>
@@ -175,6 +192,38 @@ export const SessionProvider = ({
 
   const [mostRecentActivityTimestamp, setMostRecentActivityTimestamp] =
     useState(Date.now());
+
+  const broadcastChannelRef = useRef<BroadcastChannel | null>(null);
+
+  // Initialize BroadcastChannel for cross-tab communication
+  // any user event on one tab or window will update mostRecentActivityTimestamp
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      broadcastChannelRef.current = new BroadcastChannel(ACTIVITY_CHANNEL);
+
+      // Listen for activity updates from other tabs
+      const handleActivityMessage = (event: MessageEvent) => {
+        if (event.data.type === 'activity-update') {
+          setMostRecentActivityTimestamp(event.data.timestamp);
+        }
+      };
+
+      broadcastChannelRef.current.addEventListener(
+        'message',
+        handleActivityMessage,
+      );
+
+      return () => {
+        if (broadcastChannelRef.current) {
+          broadcastChannelRef.current.removeEventListener(
+            'message',
+            handleActivityMessage,
+          );
+          broadcastChannelRef.current.close();
+        }
+      };
+    }
+  }, []);
 
   const [
     mostRecentSessionRefreshTimestamp,
@@ -190,28 +239,20 @@ export const SessionProvider = ({
   const updateSessionIntervalMilliseconds =
     MinutesToMilliseconds(updateSessionTime);
 
-  // Update session status using the session token api
-  const updateSessionWithSessionApi = async () => {
-    // const tokenStatus = await getSession();
-    // setSessionInfo(tokenStatus);
-    // setPending(false); // not waiting for session to load anymore
-    await getUserDetails();
-  };
-
   // update session status using the user status
-  const updateSessionWithUserStatus = async () => {
-    await getUserDetails();
-  };
 
   const sessionInfo = useManageSession(userStatus);
 
-  // for now we are using the user status to determine if the user is logged in
-  const updateSession = useCallback(
-    () => updateSessionWithUserStatus(),
-    [updateSessionWithUserStatus],
-  );
+  // for now, we are using the user status to determine if the user is logged in
+  const updateSession = useCallback(() => {
+    const updateSessionWithUserStatus = async () => {
+      await getUserDetails();
+    };
 
-  const endSession = async () => {
+    updateSessionWithUserStatus();
+  }, [getUserDetails]);
+
+  const endSession = useCallback(async () => {
     logoutSession()
       .then(() => {
         getUserDetails();
@@ -225,7 +266,7 @@ export const SessionProvider = ({
       .finally(() => {
         router.push(`${GEN3_REDIRECT_URL}`); // TODO replace with config option
       });
-  };
+  }, [getUserDetails, router]);
   /**
    * Update session value every updateSessionInterval seconds
    */
@@ -235,15 +276,31 @@ export const SessionProvider = ({
     if (updateSessionIntervalMilliseconds <= 0) return; // do not poll if updateSessionInterval is 0
 
     const updateUserActivity = () => {
-      setMostRecentActivityTimestamp(Date.now());
+      const timestamp = Date.now();
+      setMostRecentActivityTimestamp(timestamp);
+
+      if (broadcastChannelRef.current) {
+        broadcastChannelRef.current.postMessage({
+          type: 'activity-update',
+          timestamp,
+        });
+      }
     };
 
     window.addEventListener('mousedown', updateUserActivity);
     window.addEventListener('keypress', updateUserActivity);
+    window.addEventListener('updateUserActivity', updateUserActivity);
+    window.addEventListener('scroll', updateUserActivity);
+    window.addEventListener('click', updateUserActivity);
+    window.addEventListener('touchstart', updateUserActivity);
 
     return () => {
       window.removeEventListener('mousedown', updateUserActivity);
       window.removeEventListener('keypress', updateUserActivity);
+      window.removeEventListener('updateUserActivity', updateUserActivity);
+      window.removeEventListener('scroll', updateUserActivity);
+      window.removeEventListener('click', updateUserActivity);
+      window.removeEventListener('touchstart', updateUserActivity);
     };
   }, []); // only call on mount/dismount
 
@@ -294,7 +351,24 @@ export const SessionProvider = ({
     };
   }, [sessionInfo, updateSession, endSession]);
 
-  return (
-    <SessionContext.Provider value={value}>{children}</SessionContext.Provider>
-  );
+  if (isGetCSRFError) {
+    return (
+      <Center h="100vh">
+        {`Error from the commons services. They do not seem to be running`}
+      </Center>
+    );
+  }
+
+  if (isGetCSRFSuccess)
+    return (
+      <SessionContext.Provider value={value}>
+        {children}
+      </SessionContext.Provider>
+    );
+  else
+    return (
+      <Center h="100vh">
+        <Loader />
+      </Center>
+    );
 };

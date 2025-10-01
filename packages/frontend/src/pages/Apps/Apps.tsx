@@ -1,9 +1,5 @@
 import { useState } from 'react';
-import {
-  MantineProvider,
-  Loader,
-  Alert,
-} from '@mantine/core';
+import { MantineProvider, Loader, Alert } from '@mantine/core';
 import { AppsPageProps } from './types';
 import { NavPageLayout } from '../../features/Navigation';
 import {
@@ -27,9 +23,10 @@ export function SummaryStatsBanner(authz: any) {
     (resource) => resource.split('/')?.length === 5,
   ).length;
 
-  const message = 'Welcome to CALYPR! You have access to'
-    + ` ${len_access_projects} project${len_access_projects === 1 ? '' : 's'}`
-    + ` and ${!isLoading ? data : 0} file${data === 1 ? '' : 's'}`;
+  const message =
+    'Welcome to CALYPR! You have access to' +
+    ` ${len_access_projects} project${len_access_projects === 1 ? '' : 's'}` +
+    ` and ${!isLoading ? data : 0} file${data === 1 ? '' : 's'}`;
 
   return (
     <Alert
@@ -43,53 +40,53 @@ export function SummaryStatsBanner(authz: any) {
       withCloseButton
       onClose={() => setVisible(false)}
       title={message}
-    >
-    </Alert>
+    ></Alert>
   );
 }
 
 const AppsPage = ({ headerProps, footerProps, appsConfig }: AppsPageProps) => {
   // define the content to be returned
-  const { data: authzMapping = {}, isLoading: isAuthZLoading } = useGetAuthzMappingsQuery();
+  const { data: authzMapping = {}, isLoading: isAuthZLoading } =
+    useGetAuthzMappingsQuery();
   const content = isAuthZLoading ? (
     <div className="fixed inset-0 flex justify-center items-center bg-gray-700 bg-opacity-50 z-50">
       <Loader size={30} />
     </div>
   ) : (
     <EqualHeightCards>
-    <div>
-      <div className="flex flex-col">
-        <SummaryStatsBanner authz={authzMapping} />
-        <Alert className="bg-base-max" variant="filled">
-          <div className="text-black text-4xl text-center font-semibold">
-            Apps
-          </div>
-        </Alert>
+      <div>
+        <div className="flex flex-col">
+          <SummaryStatsBanner authz={authzMapping} />
+          <Alert className="bg-base-max" variant="filled">
+            <div className="text-black text-4xl text-center font-semibold">
+              Apps
+            </div>
+          </Alert>
+        </div>
+        <div className="grid grid-cols-4 gap-6 px-8 my-4 auto-rows-auto">
+          {appsConfig?.appCards
+            ?.filter(
+              (proj) =>
+                proj?.perms == null ||
+                userHasMethodForServiceOnResource(
+                  'read',
+                  '*',
+                  resourcePathFromProjectID(proj?.perms ?? ''),
+                  authzMapping,
+                ),
+            )
+            .map((project) => (
+              <AppCard
+                key={project.title}
+                title={project.title}
+                description={project.description}
+                icon={project.icon}
+                href={project.href}
+                perms={project.perms}
+              />
+            ))}
+        </div>
       </div>
-      <div className="grid grid-cols-4 gap-6 px-8 my-4 auto-rows-auto">
-        {appsConfig?.appCards
-          ?.filter(
-            (proj) =>
-              proj?.perms == null ||
-              userHasMethodForServiceOnResource(
-                'read',
-                '*',
-                resourcePathFromProjectID(proj?.perms ?? ''),
-                authzMapping,
-              ),
-          )
-          .map((project) => (
-            <AppCard
-              key={project.title}
-              title={project.title}
-              description={project.description}
-              icon={project.icon}
-              href={project.href}
-              perms={project.perms}
-            />
-          ))}
-      </div>
-    </div>
     </EqualHeightCards>
   );
 
@@ -97,7 +94,7 @@ const AppsPage = ({ headerProps, footerProps, appsConfig }: AppsPageProps) => {
   return (
     <NavPageLayout
       {...{ headerProps, footerProps }}
-      headerData={{
+      headerMetadata={{
         title: 'CALYPR Homepage',
         content: 'Apps',
         key: 'gen3-apps',

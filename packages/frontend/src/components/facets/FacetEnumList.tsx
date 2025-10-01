@@ -1,27 +1,45 @@
 import { BAD_DATA_MESSAGE, DEFAULT_VISIBLE_ITEMS } from './constants';
-import { ActionIcon, Checkbox, LoadingOverlay, TextInput, Tooltip } from '@mantine/core';
-import { MdClose as CloseIcon } from 'react-icons/md';
+import {
+  ActionIcon,
+  Checkbox,
+  LoadingOverlay,
+  SegmentedControl,
+  TextInput,
+  Tooltip,
+  useMantineTheme,
+} from '@mantine/core';
+import { CloseIcon, LockOutlineIcon } from '../../types/icons';
 import FacetSortPanel from './FacetSortPanel';
-import { fieldNameToTitle } from '@gen3/core';
+import { type CombineMode, fieldNameToTitle } from '@gen3/core';
 import OverflowTooltippedLabel from '../OverflowTooltippedLabel';
 import FacetExpander, { ExpanderLabel } from './FacetExpander';
 import { EnumFacetChart } from '../charts';
 import React, { useEffect, useRef, useState } from 'react';
 import { EnumFacetHooks } from './EnumFacet';
-import { SortType } from './types';
-import { updateFacetEnum } from './utils';
+import { FacetSortType, SortType } from './types';
+import {
+  compareKeysAscending,
+  compareKeysDescending,
+  mapFacetSortToSortType,
+  updateFacetEnum,
+} from './utils';
 import { useDeepCompareCallback, useDeepCompareEffect } from 'use-deep-compare';
+import { Icon } from '@iconify-icon/react';
 
 interface FacetEnumListProps {
   field: string;
   facetName?: string;
   valueLabel: string;
   hooks: EnumFacetHooks;
+  isSettings?: boolean;
   isSearching?: boolean;
   isFacetView?: boolean;
   showPercent?: boolean;
   hideIfEmpty?: boolean;
   showSorting?: boolean;
+  sort?: FacetSortType;
+  moveValuesToBottom?: Array<string>;
+  excludeValues?: Array<string>;
 }
 
 const FacetEnumList: React.FC<FacetEnumListProps> = ({
@@ -29,17 +47,25 @@ const FacetEnumList: React.FC<FacetEnumListProps> = ({
   facetName,
   hooks,
   valueLabel,
+  isSettings = false,
   isFacetView = true,
   isSearching = false,
   showPercent = false,
   hideIfEmpty = false,
   showSorting = true,
+  sort = 'value-dsc',
+  moveValuesToBottom = [],
+  excludeValues = [],
 }) => {
   const [isGroupExpanded, setIsGroupExpanded] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const settingRef = useRef<HTMLDivElement>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const { data, enumFilters, isSuccess, error } = hooks.useGetFacetData(field);
+  // const [combineMode, setCombineMode] = useState<'or' | 'and'>('or');
+
+  const { data, enumFilters, combineMode, isSuccess, error } =
+    hooks.useGetFacetData(field);
   const [selectedEnums, setSelectedEnums] = useState(enumFilters ?? []);
   const totalCount = hooks?.useTotalCounts ? hooks.useTotalCounts() : 1;
   const clearFilters = hooks.useClearFilter();
@@ -47,13 +73,15 @@ const FacetEnumList: React.FC<FacetEnumListProps> = ({
   const isFilterExpanded =
     hooks?.useFilterExpanded && hooks.useFilterExpanded(field);
   const showFilters = isFilterExpanded === undefined || isFilterExpanded;
-  const [sortedData, setSortedData] = useState<Record<string | number, number>>(
-    {},
+  const [sortedData, setSortedData] = useState<
+    Array<[string | number, number]>
+  >([]);
+  const [sortType, setSortType] = useState<SortType>(
+    mapFacetSortToSortType(sort),
   );
-  const [sortType, setSortType] = useState<SortType>({
-    type: 'value',
-    direction: 'dsc',
-  });
+  const theme = useMantineTheme();
+
+  const updateVisibleValues = hooks?.updateVisibleValues;
 
   useEffect(() => {
     if (isSearching) {
@@ -62,6 +90,12 @@ const FacetEnumList: React.FC<FacetEnumListProps> = ({
       setSearchTerm('');
     }
   }, [isSearching, searchTerm]);
+
+  useEffect(() => {
+    if (isSettings) {
+      settingRef?.current?.focus();
+    }
+  }, [settingRef, isSettings]);
 
   useDeepCompareEffect(() => {
     setSelectedEnums(enumFilters ?? []);
@@ -77,11 +111,33 @@ const FacetEnumList: React.FC<FacetEnumListProps> = ({
     });
     if (checked) {
       const updated = selectedEnums ? [...selectedEnums, value] : [value];
-      updateFacetEnum(field, updated, updateFacetFilters, clearFilters);
+      updateFacetEnum(
+        field,
+        updated,
+        updateFacetFilters,
+        clearFilters,
+        combineMode,
+      );
     } else {
-      const updated = selectedEnums?.filter((x) => x != value);
-      updateFacetEnum(field, updated ?? [], updateFacetFilters, clearFilters);
+      const updated = selectedEnums?.filter((x) => x !== value);
+      updateFacetEnum(
+        field,
+        updated ?? [],
+        updateFacetFilters,
+        clearFilters,
+        combineMode,
+      );
     }
+  };
+
+  const handleCombineModeChange = (mode: CombineMode) => {
+    updateFacetEnum(
+      field,
+      selectedEnums ?? [],
+      updateFacetFilters,
+      clearFilters,
+      mode,
+    );
   };
 
   const [facetChartData, setFacetChartData] = useState<{
@@ -111,7 +167,7 @@ const FacetEnumList: React.FC<FacetEnumListProps> = ({
             : remainingValues > 0
               ? Math.min(96, remainingValues * 5 + 40)
               : 24;
-        return `flex-none h-${cardHeight} overflow-y-scroll pl-3 mr-3`;
+        return `flex-none h-${cardHeight} overflow-y-scroll pl-3`;
       } else {
         return 'overflow-hidden h-auto mr-3 pl-3';
       }
@@ -133,7 +189,7 @@ const FacetEnumList: React.FC<FacetEnumListProps> = ({
     if (isSuccess && data) {
       // get all the data except the missing and empty values
       const tempFilteredData = Object.entries(data)
-        .filter((entry) => entry[0] != '_missing' && entry[0] != '')
+        .filter((entry) => entry[0] !== '_missing' && entry[0] !== '')
         .filter((entry) =>
           searchTerm === ''
             ? entry
@@ -163,13 +219,16 @@ const FacetEnumList: React.FC<FacetEnumListProps> = ({
         tempFilteredData.length + selectedEnumNotInData.length,
       );
 
+      const allData = [...tempFilteredData, ...selectedEnumNotInData];
+      // remove any enum in excludeValues
+      const filteredData = allData.filter(
+        (x) => !excludeValues?.includes(x[0].toString()),
+      );
+
       setFacetChartData((prevFacetChartData) => ({
         ...prevFacetChartData,
-        filteredData: [...tempFilteredData, ...selectedEnumNotInData], // merge any selected enums that are not in the data
-        filteredDataObj: Object.fromEntries([
-          ...tempFilteredData,
-          ...selectedEnumNotInData,
-        ]),
+        filteredData: filteredData, // merge any selected enums that are not in the data
+        filteredDataObj: Object.fromEntries(filteredData),
         remainingValues,
         numberOfBarsToDisplay,
         isSuccess: true,
@@ -202,66 +261,23 @@ const FacetEnumList: React.FC<FacetEnumListProps> = ({
 
   useDeepCompareEffect(() => {
     if (facetChartData.filteredData && facetChartData.filteredData.length > 0) {
-      const compareValuesAscending = (
-        [, a]: [string | number, number],
-        [, b]: [string | number, number],
-      ): number => a - b;
-      const compareValuesDescending = (
-        [, a]: [string | number, number],
-        [, b]: [string | number, number],
-      ): number => b - a;
-      const compareKeysAscending = (
-        [a]: [string | number, number],
-        [b]: [string | number, number],
-      ): number =>
-        typeof a === 'string' && typeof b === 'string'
-          ? a.localeCompare(b)
-          : typeof a === 'number' && typeof b === 'number'
-            ? a - b
-            : 0;
-
-      const compareKeysDescending = (
-        [a]: [string | number, number],
-        [b]: [string | number, number],
-      ): number =>
-        typeof a === 'string' && typeof b === 'string'
-          ? b.localeCompare(a)
-          : typeof a === 'number' && typeof b === 'number'
-            ? b - a
-            : 0;
-
-      let comparisonFn;
-
-      if (sortType.type === 'value') {
-        comparisonFn =
-          sortType.direction === 'dsc'
-            ? compareValuesDescending
-            : compareValuesAscending;
-      } else {
-        comparisonFn =
-          sortType.direction === 'dsc'
-            ? compareKeysDescending
-            : compareKeysAscending;
-      }
-
-      const obj = [...facetChartData.filteredData]
-        .sort(comparisonFn)
-        .slice(0, !isGroupExpanded ? maxValuesToDisplay : undefined)
-        .reduce(
-          (acc, [key, value]) => {
-            acc[key] = value;
-            return acc;
-          },
-          {} as Record<string | number, number>,
-        );
-
-      const val = Object.fromEntries(
-        [...facetChartData.filteredData]
-          .sort(comparisonFn)
-          .slice(0, !isGroupExpanded ? maxValuesToDisplay : undefined),
-      );
-
+      const obj = [
+        ...facetChartData.filteredData
+          .filter((x) => !moveValuesToBottom.includes(x[0].toString()))
+          .sort(
+            sortType.type === 'value'
+              ? ([, a], [, b]) => (sortType.direction === 'dsc' ? b - a : a - b)
+              : ([a], [b]) =>
+                  sortType.direction === 'dsc'
+                    ? compareKeysDescending(a, b)
+                    : compareKeysAscending(a, b),
+          ),
+        ...facetChartData.filteredData.filter((x) =>
+          moveValuesToBottom.includes(x[0].toString()),
+        ),
+      ].slice(0, !isGroupExpanded ? maxValuesToDisplay : undefined);
       setSortedData(obj);
+      if (updateVisibleValues) updateVisibleValues(obj);
     }
   }, [
     facetChartData.filteredData,
@@ -283,7 +299,7 @@ const FacetEnumList: React.FC<FacetEnumListProps> = ({
       {isSuccess && error ? (
         <div className="m-4 font-content pb-2">{BAD_DATA_MESSAGE}</div>
       ) : (
-        <React.Fragment>
+        <>
           {isSearching && (
             <TextInput
               value={searchTerm}
@@ -305,6 +321,36 @@ const FacetEnumList: React.FC<FacetEnumListProps> = ({
                 ) : undefined
               }
             />
+          )}
+          {isSettings && (
+            <div className="flex w-full justify-center">
+              <div className="flex items-center space-x-1 mt-1">
+                <SegmentedControl
+                  classNames={{
+                    root: 'border-1 border-accent rounded-l-md rounded-r-md',
+                    control: 'p-0 m-0',
+                    indicator: 'bg-accent text-accent-contrast',
+                  }}
+                  ref={settingRef}
+                  value={combineMode}
+                  onChange={(value: string) => {
+                    handleCombineModeChange(value as 'and' | 'or');
+                  }}
+                  data={[
+                    { label: 'AND', value: 'and' },
+                    { label: 'OR', value: 'or' },
+                  ]}
+                />
+                <Tooltip label="Combine filters with AND or OR 2">
+                  <Icon
+                    icon="gen3:info"
+                    height={12}
+                    width={12}
+                    color={theme.colors.accent[4]}
+                  />
+                </Tooltip>
+              </div>
+            </div>
           )}
           <div
             className={
@@ -345,10 +391,10 @@ const FacetEnumList: React.FC<FacetEnumListProps> = ({
                       {BAD_DATA_MESSAGE}
                     </div>
                   ) : isSuccess ? (
-                    !sortedData || Object.entries(sortedData).length === 0 ? (
+                    !sortedData || sortedData.length === 0 ? (
                       <div className="mx-4">No results found</div>
                     ) : (
-                      Object.entries(sortedData ?? {}).map(([value, count]) => {
+                      sortedData.map(([value, count]) => {
                         return (
                           <div
                             key={`${field}-${value}`}
@@ -359,7 +405,7 @@ const FacetEnumList: React.FC<FacetEnumListProps> = ({
                                 data-testid={`checkbox-${value}`}
                                 value={value}
                                 size="xs"
-                                color="primary.0"
+                                color="accent.4"
                                 onChange={(e) =>
                                   handleChange(
                                     e.currentTarget.value,
@@ -376,21 +422,35 @@ const FacetEnumList: React.FC<FacetEnumListProps> = ({
                                 }
                               />
                             </div>
-                            <OverflowTooltippedLabel label={value}>
+                            <OverflowTooltippedLabel label={value.toString()}>
                               <span className="text-xs font-normal font-content">
                                 {value}
                               </span>
                             </OverflowTooltippedLabel>
                             <div className="flex-none text-right w-14 text-xs font-normal font-content">
-                              {count.toLocaleString()}
+                              {count < 0 ? (
+                                <LockOutlineIcon
+                                  size="1.1em"
+                                  className="ml-auto"
+                                />
+                              ) : (
+                                count.toLocaleString()
+                              )}
                             </div>
                             {showPercent ? (
                               <div className="flex-none text-right w-18 text-xs font-normal font-content">
                                 (
-                                {(
-                                  ((count as number) / totalCount) *
-                                  100
-                                ).toFixed(2)}
+                                {count < 0 ? (
+                                  <LockOutlineIcon
+                                    size="1.1em"
+                                    className="ml-auto"
+                                  />
+                                ) : (
+                                  (
+                                    ((count as number) / totalCount) *
+                                    100
+                                  ).toFixed(2)
+                                )}
                                 %)
                               </div>
                             ) : null}
@@ -427,15 +487,17 @@ const FacetEnumList: React.FC<FacetEnumListProps> = ({
                   )}
                 </div>
               </div>
-              {facetChartData.remainingValues > 0  && facetChartData.filteredData.length < 1000 ? (
+              {facetChartData.remainingValues > 0 &&
+              facetChartData.filteredData.length < 1000 ? (
                 <FacetExpander
                   remainingValues={facetChartData.remainingValues}
                   isGroupExpanded={isGroupExpanded}
                   onShowChanged={setIsGroupExpanded}
                 />
               ) : null}
-              {facetChartData.remainingValues > 0  && facetChartData.filteredData.length >= 1000
-                ? <div
+              {facetChartData.remainingValues > 0 &&
+              facetChartData.filteredData.length >= 1000 ? (
+                <div
                   className={'mt-3 flex flex-row justify-end border-t-2 p-1.5'}
                 >
                   <Tooltip label="click the magnifying glass icon to search for more values">
@@ -444,8 +506,7 @@ const FacetEnumList: React.FC<FacetEnumListProps> = ({
                     </ExpanderLabel>
                   </Tooltip>
                 </div>
-                : null
-              }
+              ) : null}
             </div>
             <div
               className={`card-face card-back rounded-b-md bg-base-max h-full pb-1 ${
@@ -470,7 +531,7 @@ const FacetEnumList: React.FC<FacetEnumListProps> = ({
               )}
             </div>
           </div>
-        </React.Fragment>
+        </>
       )}
     </div>
   );

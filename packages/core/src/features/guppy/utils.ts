@@ -1,4 +1,8 @@
-import { DownloadFromGuppyParams, GuppyDownloadDataParams } from './types';
+import {
+  DownloadFromGuppyParams,
+  GuppyDownloadDataParams,
+  IndexAndField,
+} from './types';
 import { GEN3_GUPPY_API } from '../../constants';
 import { selectCSRFToken } from '../user';
 import { coreStore } from '../../store';
@@ -6,7 +10,6 @@ import { convertFilterSetToGqlFilter } from '../filters';
 import { jsonToFormat } from './conversion';
 import { isJSONObject } from '../../types';
 import { JSONPath } from 'jsonpath-plus';
-import { useGetFieldsForIndexQuery } from './guppySlice';
 
 /**
  * Represents a configuration for making a fetch request.
@@ -29,10 +32,11 @@ export type FetchConfig = {
  * @returns {URL} - The prepared download URL as a URL object.
  */
 const prepareUrl = (apiUrl: string) => `${apiUrl}/download`;
+
 /**
  * Prepares a fetch configuration object for downloading files from Guppy.
  *
- * @param {GuppyFileDownloadRequestParams} parameters - The parameters to include in the request body.
+ * @param {GuppyDownloadDataParams} parameters - The parameters to include in the request body.
  * @param {string} csrfToken - The CSRF token to include in the request headers.
  * @returns {FetchConfig} - The prepared fetch configuration object.
  */
@@ -163,7 +167,29 @@ export const downloadJSONDataFromGuppy = async ({
   }
 };
 
-export const useGetIndexFields = (index: string) => {
-  const { data } = useGetFieldsForIndexQuery(index);
-  return data ?? [];
+export const groupSharedFields = (data: Record<string, string[]>) => {
+  const reverseIndex: Record<string, Set<string>> = {};
+
+  // Build reverse index: track which root keys contain each element
+  for (const rootKey in data) {
+    data[rootKey].forEach((value) => {
+      if (!reverseIndex[value]) {
+        reverseIndex[value] = new Set();
+      }
+      reverseIndex[value].add(rootKey);
+    });
+  }
+
+  return Object.entries(reverseIndex).reduce(
+    (acc, [field, indexSet]) => {
+      if (indexSet.size > 1) {
+        acc[field] = Array.from(indexSet).map((x) => ({
+          index: x,
+          field: field,
+        }));
+      }
+      return acc;
+    },
+    {} as Record<string, Array<IndexAndField>>,
+  );
 };

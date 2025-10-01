@@ -1,7 +1,12 @@
 import { JSONObject } from '@gen3/core';
+import { HeaderMetadata } from '../../features/Navigation/types';
 
 export interface ContentSource {
   get<T extends Record<string, undefined>>(filepath: string): Promise<T>;
+  getAll<T extends Record<string, unknown>>(
+    filepath: string,
+    filter: string,
+  ): Promise<Array<T>>;
 }
 
 interface Gen3Icon {
@@ -30,4 +35,5 @@ export interface Gen3AppConfigData {
   version?: string;
   description?: string;
   schema?: JSONObject;
+  headerMetadata?: HeaderMetadata;
 }

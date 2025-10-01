@@ -1,0 +1,383 @@
+import {
+  Stack,
+  Table,
+  LoadingOverlay,
+  Text,
+  Checkbox,
+  SegmentedControl,
+} from '@mantine/core';
+
+import ErrorCard from '../../../components/ErrorCard';
+import { SummaryTableColumn } from '../../../features/CohortBuilder';
+import { useGeneralGQLQuery, JSONObject } from '@gen3/core';
+import {
+  isQueryResponse,
+  extractData,
+  useGroupToSpecimenMapping,
+} from './tools';
+import {
+  QueryContent,
+  QueryHookResponse,
+  QueryResponse,
+  ResourceDict,
+} from '../types';
+import React, { useMemo, useState } from 'react';
+import { MatchingTable } from '../../../features/MatchingTable';
+
+/**
+ * Gets all files associated with the specified specimens
+ *
+ * @param {string[]} specimenIds: specimen IDs
+ * @param {boolean} isRawQueryResponse
+ *     - true: returns raw Guppy query. Use for accurate file counts
+ *     - false: return list of assays (where assay = combo of file w/ unique specimen)
+ * @returns {QueryHookResponse}
+ */
+export const useFilesQuery = (
+  specimenIds: string[],
+  isRawQueryResponse: boolean,
+): QueryHookResponse => {
+  // map group id to the patient's specimens
+  const {
+    data: groupSpecimensMap,
+    isLoading: groupIsLoading,
+    isError: groupIsError,
+  } = useGroupToSpecimenMapping(specimenIds);
+
+  // get files matching specimen or group ID
+  // for syntax, see Guppy docs
+  // https://github.com/uc-cdis/guppy/blob/master/doc/queries.md#combine-into-advanced-filters
+  const groupIds = Object.keys(groupSpecimensMap);
+
+  const {
+    data: fileData,
+    isLoading: filesAreLoading,
+    isError: FilesAreError,
+  } = useGeneralGQLQuery({
+    query: `query ($filter: JSON) {
+           	  _aggregation{
+                document_reference(filter: $filter){
+                  _totalCount
+                }
+              }
+              document_reference (filter: $filter, accessibility: all, first: 10000) {
+                document_reference_id
+                document_reference_title
+                document_reference_data_category
+                document_reference_assay
+                document_reference_specimen_indexed_collection_date_days
+                document_reference_specimen_sample_family_id
+                document_reference_specimen_id
+                document_reference_group_id
+                document_reference_level
+              }
+            }`,
+    variables: {
+      filter: {
+        // check if DocRef subject is either specimen or group ID
+        AND: [
+          {
+            OR: [
+              {
+                IN: {
+                  document_reference_specimen_id: specimenIds,
+                },
+              },
+              {
+                IN: {
+                  document_reference_group_id: groupIds,
+                },
+              },
+            ],
+          },
+        ],
+      },
+    },
+  });
+
+  // cache results
+  const cachedData = useMemo(() => {
+    // for non-table use case, return nested list of docrefs from raw guppy query result
+    if (fileData && groupSpecimensMap) {
+      const fileDicts = isQueryResponse(fileData)
+        ? (extractData(fileData, 'document_reference', '') as JSONObject[])
+        : [];
+
+      // create array of arrays
+      const NestedFileDictsArray: Array<QueryContent> = fileDicts.map(
+        (fileDict): QueryContent => {
+          if (fileDict.document_reference_group_id) {
+            const specimens = (
+              groupSpecimensMap as Record<string, QueryContent>
+            )[String(fileDict.document_reference_group_id)];
+
+            // expand out so that each specimen points to each row
+            const imputedSpecimens: QueryContent = specimens?.map(
+              (specimen: ResourceDict) => ({
+                ...fileDict,
+                specimen_id: specimen.document_reference_specimen_id,
+                specimen_indexed_collection_date_days:
+                  specimen.document_reference_specimen_indexed_collection_date_days,
+                specimen_sample_family_id:
+                  specimen.document_reference_sample_family_id,
+              }),
+            );
+
+            return imputedSpecimens;
+          } else {
+            return [fileDict];
+          }
+        },
+        [],
+      );
+
+      // return guppy response
+      if (isRawQueryResponse) {
+        // flatten a single file's multiple specimen values into a single row
+        const flatFileDicts = NestedFileDictsArray.map(
+          (specimens: QueryContent) => {
+            // return if only specimen
+            if (!specimens) return {};
+            if (specimens.length === 1) return specimens[0];
+
+            // otherwise concatenate specimen values
+            const joined_family_ids = specimens
+              .map((specimen) => specimen.specimen_sample_family_id)
+              .join(', ');
+            const joined_indexed_dates = specimens
+              .map((specimen) => specimen.specimen_indexed_collection_date_days)
+              .join(', ');
+            return {
+              ...specimens[0],
+              specimen_sample_family_id: joined_family_ids,
+              specimen_indexed_collection_date_days: joined_indexed_dates,
+            };
+          },
+        );
+
+        // create new object since guppy responses are read-only
+        return isQueryResponse(fileData)
+          ? ({
+              ...fileData,
+              data: {
+                ...fileData.data,
+                file: flatFileDicts,
+              },
+            } as QueryResponse)
+          : {};
+      }
+      // return assay response
+      else {
+        // flatten the array of arrays into a single array of dicts
+        return NestedFileDictsArray.flat(1) as QueryContent;
+      }
+    }
+  }, [fileData, isRawQueryResponse, groupSpecimensMap]) as
+    | QueryResponse
+    | QueryContent;
+
+  // consolidate booleans
+  const isLoading = groupIsLoading && filesAreLoading;
+  const isError = groupIsError && FilesAreError;
+
+  return { data: cachedData, isLoading, isError };
+};
+
+export const UniqueAssociatedValsForSpecimen = ({
+  ids,
+  asocVal,
+}: {
+  ids: string[];
+  asocVal: string;
+}) => {
+  const { data: resData, isLoading, isError } = useFilesQuery(ids, false);
+  if (isError) {
+    return <Text> Error occurred while fetching file metadata </Text>;
+  }
+  if (!isLoading) {
+    const mappedValues = (resData as JSONObject[])?.map((val) => val[asocVal]);
+    const uniqueValuesSet = new Set(mappedValues);
+    const uniqueValuesArray = Array.from(uniqueValuesSet);
+    const ResourceList = uniqueValuesArray.join(', ');
+    return ResourceList;
+  }
+};
+
+/**
+ * Text to show number of patient-specific specimens and files
+ */
+export const AssociatedFilesText = ({
+  specimenIds,
+}: {
+  specimenIds: string[];
+}) => {
+  const {
+    data: resData,
+    isLoading,
+    isError,
+  } = useFilesQuery(specimenIds, true);
+
+  if (isError) {
+    return <Text> Error occurred while fetching data </Text>;
+  }
+
+  const numFiles = isQueryResponse(resData)
+    ? extractData(resData, 'document_reference', '').length
+    : '';
+
+  return (
+    <div>
+      <LoadingOverlay visible={isLoading} />
+      <Text>{specimenIds.length} Specimens</Text>
+      <Text>{numFiles} Files</Text>
+    </div>
+  );
+};
+
+export const AssociatedAssaysTable = ({
+  ids,
+  sortField,
+}: {
+  ids: string[];
+  sortField: string;
+}) => {
+  const { data: resData, isLoading, isError } = useFilesQuery(ids, true);
+  const {
+    data: resDataTwo,
+    isLoading: isLoadingTwo,
+    isError: isErrorTwo,
+  } = useFilesQuery(ids, false);
+
+  const [viewMode, setViewMode] = useState('document_reference_assay');
+
+  if (isError || isErrorTwo) {
+    return <ErrorCard message={'Error occurred while fetching data'} />;
+  }
+
+  const filteredResourcesTwo = (resDataTwo as JSONObject[])?.toSorted(
+    (a: JSONObject, b: JSONObject) => {
+      const left = a[sortField] as number;
+      const right = b[sortField] as number;
+      return left - right;
+    },
+  );
+
+  const asocFileConfig: Record<string, SummaryTableColumn> = {
+    title: {
+      title: 'File Name',
+      field: 'document_reference_title',
+    },
+    assay: {
+      title: 'Assay',
+      field: 'document_reference_assay',
+    },
+    specimen_indexed_collection_date_days: {
+      title: 'Indexed Days',
+      field: 'document_reference_specimen_indexed_collection_date_days',
+    },
+    specimen_sample_family_id: {
+      title: 'Sample Family IDs',
+      field: 'document_reference_specimen_sample_family_id',
+    },
+    level: {
+      title: 'Level',
+      field: 'document_reference_level',
+    },
+  };
+
+  return (
+    <Stack>
+      <LoadingOverlay visible={isLoading || isLoadingTwo} />
+      <div className="pt-2">
+        <SegmentedControl
+          value={viewMode}
+          onChange={(value) => setViewMode(value)}
+          data={[
+            { label: 'Assay View', value: 'document_reference_assay' },
+            { label: 'File View', value: 'document_reference' },
+          ]}
+          color="primary.0"
+        />
+      </div>
+      {viewMode === 'document_reference' ? (
+        <div className="grid">
+          <MatchingTable
+            isLoading={isLoading}
+            columns={asocFileConfig}
+            index="document_reference"
+            idField="document_reference_id"
+            data={resData}
+          />
+        </div>
+      ) : (
+        <AssayCheckboxChart data={filteredResourcesTwo} />
+      )}
+    </Stack>
+  );
+};
+export const AssayCheckboxChart = ({ data }: { data: QueryContent }) => {
+  const resData = data.map((obj) => ({
+    family_id: obj.document_reference_specimen_sample_family_id,
+    assay: obj.document_reference_assay,
+  }));
+
+  // Looking at existing deployments, The RPPA assays don't have a sample family ID so it makes sense why they come back NULL
+  // in the table. It doesn't look that great though. Previous deployments merged the rows, but I don't think that makes any sense either.
+  const uniqueAssayValues = Array.from(
+    new Set(resData.map((val) => val['assay'])),
+  );
+
+  const assayHeaders = uniqueAssayValues.map((assayValue) => {
+    const key =
+      typeof assayValue === 'string' || typeof assayValue === 'number'
+        ? assayValue
+        : JSON.stringify(assayValue);
+
+    return <Table.Th key={key}> {assayValue}</Table.Th>;
+  });
+
+  const simplifyList = () => {
+    const grouped: ResourceDict = {};
+    resData.forEach(({ family_id, assay }) => {
+      if (!grouped[family_id]) {
+        grouped[family_id] = [];
+      }
+      if (!grouped[family_id].includes(assay)) {
+        grouped[family_id].push(assay);
+      }
+    });
+
+    return Object.entries(grouped).map(([family_id, assays]) => (
+      <Table.Tr key={family_id}>
+        <Table.Td>{family_id}</Table.Td>
+        {uniqueAssayValues.map((headerValue, index) => {
+          return assays.some((assay: string) => assay === headerValue) ? (
+            <Table.Td>
+              <Checkbox
+                key={`${family_id}-${index}`}
+                checked={true}
+                readOnly
+                color="#32CD32"
+                size="lg"
+              />
+            </Table.Td>
+          ) : (
+            <Table.Td></Table.Td>
+          );
+        })}
+      </Table.Tr>
+    ));
+  };
+
+  return (
+    <Table>
+      <Table.Thead>
+        <Table.Tr>
+          <Table.Th>Sample Family ID</Table.Th>
+          {assayHeaders}
+        </Table.Tr>
+      </Table.Thead>
+      <Table.Tbody>{simplifyList()}</Table.Tbody>
+    </Table>
+  );
+};

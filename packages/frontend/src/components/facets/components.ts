@@ -11,8 +11,7 @@ items-center
 hover:text-primary-lightest
 `;
 
-export const controlsIconStyle =
-  'text-secondary-contrast hover:text-secondary-lighter';
+export const controlsIconStyle = 'text-white hover:bg-primary';
 
 export const FacetText = tw.div`
 text-secondary-contrast-darkest font-heading font-semibold text-sm break-words

@@ -22,32 +22,18 @@ const withMDX = require('@next/mdx')({
 // Next configuration with support for rewriting API to existing common services
 const nextConfig = {
   reactStrictMode: true,
-  images: {
-    remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: 'www.cancerresearchuk.org',
-        port: '',
-        pathname: '/sites/default/files/aced_website_header.jpg',
-      },
-    ],
+  output: 'standalone',
+  allowedDevOrigins: ['local.io', '*.local.io'],
+  eslint: {
+    ignoreDuringBuilds: true,
   },
-  experimental: {
-    esmExternals: true,
-    instrumentationHook: true,
-    optimizePackageImports: ['@gen3/frontend', '@gen3/core'],
-    turbo: {
-      moduleIdStrategy: 'deterministic',
-    },
-  },
+  productionBrowserSourceMaps: true,
   pageExtensions: ['mdx', 'md', 'jsx', 'js', 'tsx', 'ts'],
-  transpilePackages: ['@gen3/frontend'],
   basePath: basePath,
   webpack: (config) => {
     config.infrastructureLogging = {
       level: 'error',
     };
-
     return config;
   },
   async headers() {
@@ -58,6 +44,23 @@ const nextConfig = {
           {
             key: 'X-Frame-Options',
             value: 'SAMEORIGIN',
+          },
+        ],
+      },
+      {
+        source: '/jupyter/(.*)?',
+        headers: [
+          {
+            key: 'X-Frame-Options',
+            value: 'SAMEORIGIN',
+          },
+          {
+            key: 'Cross-Origin-Embedder-Policy',
+            value: 'require-corp',
+          },
+          {
+            key: 'Cross-Origin-Opener-Policy',
+            value: 'same-origin',
           },
         ],
       },

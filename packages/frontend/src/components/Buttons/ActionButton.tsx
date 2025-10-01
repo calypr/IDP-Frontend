@@ -1,6 +1,7 @@
+import React from 'react';
 import { Button, Tooltip } from '@mantine/core';
 import { DownloadButtonProps } from './DropdownButtons';
-import { Icon } from '@iconify/react';
+import { Icon } from '@iconify-icon/react';
 
 const ActionButton = ({
   title,
@@ -19,7 +20,7 @@ const ActionButton = ({
       disabled={tooltipText === undefined}
     >
       <Button
-        color="accent"
+        color="secondary"
         disabled={enabled !== undefined ? !enabled : true}
         leftSection={leftIcon ? <Icon icon={leftIcon} /> : null}
         rightSection={rightIcon ? <Icon icon={rightIcon} /> : null}

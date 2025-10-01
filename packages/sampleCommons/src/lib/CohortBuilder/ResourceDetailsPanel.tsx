@@ -51,8 +51,9 @@ const extractData = (data: QueryResponse, index: string): FileData[] => {
   if (data === undefined || data === null) return [];
   if (data.data === undefined || data.data === null) return [];
 
-  return Array.isArray(data.data['file']) && data.data['file'].length > 0
-    ? data.data['file']
+  return Array.isArray(data.data['document_reference']) &&
+    data.data['document_reference'].length > 0
+    ? data.data['document_reference']
     : [];
 };
 
@@ -100,7 +101,7 @@ export const ResourceDetailsPanel = ({
   if (isError) {
     return <ErrorCard message={'Error occurred while fetching data'} />;
   }
-  const queryData = isQueryResponse(data) ? extractData(data, index) : [];
+  const queryData = isQueryResponse(data) ? extractData(data, index ?? '') : [];
 
   const totalFiles = queryData.length;
   const currentFileData = queryData[currentFileIndex] || {};

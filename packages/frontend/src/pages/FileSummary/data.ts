@@ -8,23 +8,14 @@ import type { NavPageLayoutProps } from '../../features/Navigation';
 export const FileSummaryPageGetServerSideProps: GetServerSideProps<
   NavPageLayoutProps
 > = async (_context) => {
-  try {
-    const summaryPageProps: FileSummaryProps = await ContentSource.get(
-      `config/${GEN3_COMMONS_NAME}/filesummary.json`,
+  const summaryPageProps: FileSummaryProps =
+    await ContentSource.getContentDatabase().get(
+      `${GEN3_COMMONS_NAME}/filesummary.json`,
     );
-    return {
-      props: {
-        ...(await getNavPageLayoutPropsFromConfig()),
-        filesummaryConfig: summaryPageProps,
-      },
-    };
-  } catch (err) {
-    console.error(err);
-    return {
-      props: {
-        ...(await getNavPageLayoutPropsFromConfig()),
-        filesummaryConfig: undefined,
-      },
-    };
-  }
+  return {
+    props: {
+      ...(await getNavPageLayoutPropsFromConfig()),
+      filesummaryConfig: summaryPageProps,
+    },
+  };
 };

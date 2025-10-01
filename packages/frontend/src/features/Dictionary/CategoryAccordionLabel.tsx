@@ -1,3 +1,4 @@
+import React from 'react';
 import { Group, Button, UnstyledButton, Text } from '@mantine/core';
 
 interface CategoryLabelProps {

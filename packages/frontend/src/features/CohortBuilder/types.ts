@@ -1,12 +1,17 @@
 // set of interfaces which follows the current explorer configuration
 
-import { SummaryChart } from '../../components/charts';
+import {
+  CollapsableChartsPanelConfiguration,
+  SummaryChart,
+} from '../../components/charts';
 import { SummaryTable } from './ExplorerTable/types';
-import { FieldToName } from '../../components/facets/types';
+import { FacetSortType, FieldToName } from '../../components/facets/types';
 import { DownloadButtonProps } from '../../components/Buttons/DropdownButtons';
 import { Dispatch, SetStateAction } from 'react';
-import { Modals, FacetDefinition } from '@gen3/core';
+import { Modals, SharedFieldMapping } from '@gen3/core';
 import { StylingOverride } from '../../types/styling';
+import { Gen3AppConfigData } from '../../lib/content/types';
+import { FacetDefinition } from '@gen3/core';
 
 export type FacetType =
   | 'enum'
@@ -19,9 +24,10 @@ export type FacetType =
 
 export interface TabConfig {
   title: string;
-  fields: ReadonlyArray<string>;
-  fieldsConfig: Record<string, FacetDefinition>;
+  fields: ReadonlyArray<string>; // list of fields
+  fieldsConfig: Record<string, FacetDefinition>; // extra/override configuration
   classNames?: StylingOverride;
+  defaultSort?: FacetSortType;
 }
 
 export interface TabsConfig {
@@ -39,13 +45,16 @@ export interface ManifestFieldsConfig {
 
 export interface DataTypeConfig {
   dataType: string;
-  nodeCountTitle: string;
-  fieldMapping: ReadonlyArray<FieldToName>;
-  manifestMapping?: ManifestFieldsConfig;
+  nodeCountTitle?: string;
   accessibleFieldCheckList?: string[];
   accessibleValidationField?: string;
   tierAccessLevel?: 'libre' | 'regular' | 'private'; // TODO See if guppy can serve this
   tierAccessLimit?: number; // TODO: same
+}
+
+export interface DataTypeConfigWithManifest extends DataTypeConfig {
+  manifestMapping?: ManifestFieldsConfig;
+  fieldMapping?: ReadonlyArray<FieldToName>; // TODO: depreciate this field and use FacetDefinition instead
 }
 
 export interface DownloadButtonConfig extends DownloadButtonProps {
@@ -60,25 +69,47 @@ export interface DropdownsWithButtonsProps extends DropdownButtonsConfig {
   dropdownItems: ReadonlyArray<DownloadButtonProps>;
 }
 
-export interface CohortPanelConfig {
-  readonly guppyConfig: DataTypeConfig; // guppy config
-  readonly tabTitle: string; // title of the tab
-  readonly charts?: Record<string, SummaryChart>; // grid of charts
-  readonly table?: SummaryTable; // table configuration
-  readonly filters?: TabsConfig; // filters for the fields
-  readonly dropdowns?: Record<string, DropdownsWithButtonsProps>; // dropdown menu of action buttons
-  readonly buttons?: ReadonlyArray<DownloadButtonConfig>; // row of action buttons
-  readonly loginForDownload?: boolean; // login required for download
+export interface CohortPanelConfiguration {
+  guppyConfig: DataTypeConfigWithManifest; // guppy config
+  tabTitle: string; // title of the tab
+  tabType?: 'pills' | 'outline';
+  chartsSection?: CollapsableChartsPanelConfiguration; // grid of charts within an accordion
+  charts?: Record<string, SummaryChart>; // grid of charts
+  table?: SummaryTable; // table configuration
+  filters?: TabsConfig; // filters for the fields
+  dropdowns?: Record<string, DropdownsWithButtonsProps>; // dropdown menu of action buttons
+  buttons?: ReadonlyArray<DownloadButtonConfig>; // row of action buttons
+  loginForDownload?: boolean; // login required for download
+  sharedFiltersMap?: SharedFieldMapping;
 }
 
-export interface CohortBuilderConfiguration {
-  explorerConfig: Array<CohortPanelConfig>;
+export interface SharedFieldConfiguration {
+  defined?: SharedFieldMapping;
+  autoCreate?: boolean;
 }
 
-// to do add buttons, options,  menus, etc
+export enum GuppyDataAccessMode {
+  REGULAR = 'regular',
+  LIBRE = 'libre',
+  PRIVATE = 'private',
+}
 
-export interface CohortConfig {
-  tabs: TabConfig[];
+export interface AccessControlConfiguration {
+  dataMode: GuppyDataAccessMode;
+  tierLimit?: number;
+  showAccessLevelControl?: boolean;
+}
+
+export interface CohortBuilderConfiguration extends Gen3AppConfigData {
+  tabsLayout?: 'left' | 'right' | 'center'; // top level tabs layout
+  sharedFilters?: SharedFieldConfiguration; // enabled for sharing filters across indexes for denormalized data.
+  explorerConfig: Array<CohortPanelConfiguration>;
+  accessControl?: AccessControlConfiguration;
+}
+
+export interface CohortBuilderProps
+  extends Omit<CohortBuilderConfiguration, 'sharedFilters'> {
+  sharedFiltersMap: SharedFieldMapping | null;
 }
 
 export enum DownloadFileFormats {

@@ -1,5 +1,4 @@
 import {
-  useUser,
   useUserAuth,
   resetUserState,
   fetchUserState,
@@ -17,6 +16,7 @@ import {
   selectUserDetails,
   selectUserAuthStatus,
   useGetCSRFQuery,
+  useLazyGetCSRFQuery,
   selectCSRFToken,
   selectCSRFTokenData,
   selectHeadersWithCSRFToken,
@@ -38,6 +38,8 @@ import {
   type JWTSessionStatus,
 } from './types';
 
+import { getFederatedLoginStatus, useGetFederatedLoginStatus } from './hooks';
+
 export {
   type Gen3User,
   type LoginStatus,
@@ -46,7 +48,6 @@ export {
   type CSRFToken,
   type ExternalProvider,
   type NamedURL,
-  useUser,
   useUserAuth,
   selectUser,
   selectUserData,
@@ -57,15 +58,18 @@ export {
   useIsUserLoggedIn,
   resetUserState,
   useGetExternalLoginsQuery,
+  useFetchUserDetailsQuery,
+  useLazyFetchUserDetailsQuery,
   useLazyGetExternalLoginsQuery,
   useLazyIsExternalConnectedQuery,
   useIsExternalConnectedQuery,
-  useFetchUserDetailsQuery,
-  useLazyFetchUserDetailsQuery,
   selectUserDetails,
   selectUserAuthStatus,
   useGetCSRFQuery,
+  useLazyGetCSRFQuery,
   selectCSRFToken,
   selectCSRFTokenData,
   selectHeadersWithCSRFToken,
+  getFederatedLoginStatus,
+  useGetFederatedLoginStatus,
 };
