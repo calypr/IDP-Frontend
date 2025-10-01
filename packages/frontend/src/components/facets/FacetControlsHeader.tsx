@@ -134,7 +134,7 @@ const FacetControlsHeader = ({
                   <Badge
                     variant="outline"
                     radius="sm"
-                    color="accent.3"
+                    color="white"
                     key={x.index}
                   >
                     {x.indexAlias}
