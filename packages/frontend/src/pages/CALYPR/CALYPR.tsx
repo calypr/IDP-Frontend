@@ -49,7 +49,7 @@ const CalyprPage = ({ headerProps, footerProps }: Props) => {
   return (
     <NavPageLayout
       {...{ headerProps, footerProps }}
-      headerData={{
+      headerMetadata={{
         title: 'CALYPR Landing Page',
         content: 'Landing Page',
         key: 'calypr-landing-page',

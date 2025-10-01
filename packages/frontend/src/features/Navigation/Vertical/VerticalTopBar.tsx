@@ -1,13 +1,12 @@
 import React from 'react';
 import { NavigationProps } from '../types';
 import NavigationLogo from '../NavigationLogo';
-import { TopBarProps } from '../TopBar';
+import { TopBarProps } from '../TopBar/TopBar';
 import LoginButton from '../../../components/Login/LoginButton';
 import { BiLogInCircle as LoginIcon } from 'react-icons/bi';
 import { extractClassName } from '../utils';
 import ActionMenu from '../ActionMenu';
 import { mergeDefaultTailwindClassnames } from '../../../utils/mergeDefaultTailwindClassnames';
-import { Tooltip } from '@mantine/core';
 import { LoginButtonVisibility } from '../../../components/Login/types';
 
 export interface VerticalTopBarProps

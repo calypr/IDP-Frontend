@@ -4,6 +4,7 @@ import {
   Equals,
   ExcludeIfAny,
   Excludes,
+  Exists,
   FilterSet,
   FilterValue,
   GreaterThan,
@@ -12,6 +13,7 @@ import {
   Intersection,
   LessThan,
   LessThanOrEquals,
+  Missing,
   NestedFilter,
   NotEquals,
   Operation,
@@ -20,11 +22,36 @@ import {
   Union,
 } from './types';
 
+export type OperatorWithFieldAndArrayOfOperands =
+  | Includes
+  | Excludes
+  | ExcludeIfAny;
+
 export const isOperationWithField = (
   operation: OperationWithField | Operation,
 ): operation is OperationWithField => {
   return (operation as OperationWithField)?.field !== undefined;
 };
+
+export const isOperatorWithFieldAndArrayOfOperands = (
+  operation: unknown,
+): operation is OperatorWithFieldAndArrayOfOperands => {
+  if (
+    typeof operation === 'object' &&
+    operation !== null &&
+    'operands' in operation &&
+    Array.isArray(operation.operands) &&
+    'field' in operation &&
+    typeof operation.field === 'string' // Assuming `field` should be a string
+  ) {
+    const { operator } = (operation as any).operator;
+    return (
+      operator === 'in' || operator === 'exclude' || operator === 'excludeifany'
+    );
+  }
+  return false;
+};
+
 export const extractFilterValue = (op: Operation): FilterValue => {
   const valueExtractorHandler = new ValueExtractorHandler();
   return handleOperation<FilterValue>(valueExtractorHandler, op);
@@ -66,11 +93,16 @@ export const handleOperation = <T>(
     case 'nested':
       return handler.handleNestedFilter(op);
     case 'in':
+    case 'includes':
       return handler.handleIncludes(op);
     case 'excludeifany':
       return handler.handleExcludeIfAny(op);
     case 'excludes':
       return handler.handleExcludes(op);
+    case 'exists':
+      return handler.handleExists(op);
+    case 'missing':
+      return handler.handleMissing(op);
     default:
       return assertNever(op);
   }
@@ -135,11 +167,48 @@ export interface GQLExcludes {
   };
 }
 
+export interface GQLExists {
+  not: {
+    [key: string]: string | number;
+  };
+}
+
+export interface GQLMissing {
+  is: {
+    [key: string]: 'MISSING';
+  };
+}
+
 export interface GQLExcludeIfAny {
   excludeifany: {
     [key: string]: ReadonlyArray<string | number>;
   };
 }
+
+export interface NumericFromTo {
+  readonly from: number;
+  readonly to: number;
+}
+
+export interface GQLRange {
+  range: {
+    [key: string]: ReadonlyArray<{ ranges: NumericFromTo[] }>;
+  };
+}
+
+/**
+ * Type guard to check if an object is a GQLIntersection
+ * @param value - The value to check
+ * @returns True if the value is a GQLIntersection
+ */
+export const isGQLIntersection = (value: unknown): value is GQLIntersection => {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'and' in value &&
+    Array.isArray((value as GQLIntersection).and)
+  );
+};
 
 export interface GQLIntersection {
   and: ReadonlyArray<GQLFilter>;
@@ -148,6 +217,20 @@ export interface GQLIntersection {
 export interface GQLUnion {
   or: ReadonlyArray<GQLFilter>;
 }
+
+/**
+ * Type guard to check if an object is a GQLIntersection
+ * @param value - The value to check
+ * @returns True if the value is a GQLIntersection
+ */
+export const isGQLUnion = (value: unknown): value is GQLUnion => {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'or' in value &&
+    Array.isArray((value as GQLUnion).or)
+  );
+};
 
 type NestedContents = GQLFilter & {
   path: string;
@@ -169,6 +252,8 @@ export type GQLFilter =
   | GQLExcludeIfAny
   | GQLIntersection
   | GQLUnion
+  | GQLExists
+  | GQLMissing
   | GQLNestedFilter;
 
 export class ToGqlHandler implements OperationHandler<GQLFilter> {
@@ -233,6 +318,18 @@ export class ToGqlHandler implements OperationHandler<GQLFilter> {
     or: op.operands.map((x) => convertFilterToGqlFilter(x)),
   });
 
+  handleMissing = (op: Missing): GQLMissing => ({
+    is: {
+      [op.field]: 'MISSING',
+    },
+  });
+
+  handleExists = (op: Exists): GQLExists => ({
+    not: {
+      [op.field]: op?.operand ?? null,
+    },
+  });
+
   handleNestedFilter = (op: NestedFilter): GQLNestedFilter => {
     const child: GQLFilter = convertFilterToGqlFilter(op.operand);
     return {
@@ -244,7 +341,7 @@ export class ToGqlHandler implements OperationHandler<GQLFilter> {
   };
 }
 
-const convertFilterToGqlFilter = (filter: Operation): GQLFilter => {
+export const convertFilterToGqlFilter = (filter: Operation): GQLFilter => {
   const handler: OperationHandler<GQLFilter> = new ToGqlHandler();
   return handleOperation(handler, filter);
 };
@@ -262,8 +359,191 @@ export const convertFilterSetToGqlFilter = (
     : { or: fsKeys.map((key) => convertFilterToGqlFilter(fs.root[key])) };
 };
 
+export interface GqlOperationHandler<T> {
+  handleEquals: (op: GQLEqual) => T;
+  handleNotEquals: (op: GQLNotEqual) => T;
+  handleLessThan: (op: GQLLessThan) => T;
+  handleLessThanOrEquals: (op: GQLLessThanOrEquals) => T;
+  handleGreaterThan: (op: GQLGreaterThan) => T;
+  handleGreaterThanOrEquals: (op: GQLGreaterThanOrEquals) => T;
+  handleIncludes: (op: GQLIncludes) => T;
+  handleExcludes: (op: GQLExcludes) => T;
+  handleExcludeIfAny: (op: GQLExcludeIfAny) => T;
+  handleIntersection: (op: GQLIntersection) => T;
+  handleUnion: (op: GQLUnion) => T;
+  handleNestedFilter: (op: GQLNestedFilter) => T;
+  handleExists: (op: GQLExists) => T;
+  handleMissing: (op: GQLMissing) => T;
+}
+
+export const handleGqlOperation = <T>(
+  handler: GqlOperationHandler<T>,
+  op: GQLFilter,
+): T => {
+  const operationKeys = Object.keys(op);
+
+  if (operationKeys.includes('=')) {
+    return handler.handleEquals(op as GQLEqual);
+  }
+  if (operationKeys.includes('!=')) {
+    return handler.handleNotEquals(op as GQLNotEqual);
+  }
+  if (operationKeys.includes('<')) {
+    return handler.handleLessThan(op as GQLLessThan);
+  }
+  if (operationKeys.includes('<=')) {
+    return handler.handleLessThanOrEquals(op as GQLLessThanOrEquals);
+  }
+  if (operationKeys.includes('>')) {
+    return handler.handleGreaterThan(op as GQLGreaterThan);
+  }
+  if (operationKeys.includes('>=')) {
+    return handler.handleGreaterThanOrEquals(op as GQLGreaterThanOrEquals);
+  }
+  if (operationKeys.includes('in')) {
+    return handler.handleIncludes(op as GQLIncludes);
+  }
+  if (operationKeys.includes('exclude')) {
+    return handler.handleExcludes(op as GQLExcludes);
+  }
+  if (operationKeys.includes('excludeifany')) {
+    return handler.handleExcludeIfAny(op as GQLExcludeIfAny);
+  }
+  if (operationKeys.includes('and')) {
+    return handler.handleIntersection(op as GQLIntersection);
+  }
+  if (operationKeys.includes('or')) {
+    return handler.handleUnion(op as GQLUnion);
+  }
+  if (operationKeys.includes('nested')) {
+    return handler.handleNestedFilter(op as GQLNestedFilter);
+  }
+  if (operationKeys.includes('is')) {
+    return handler.handleExists(op as GQLExists);
+  }
+  if (operationKeys.includes('not')) {
+    return handler.handleMissing(op as GQLMissing);
+  }
+  return assertNever(op as never);
+};
+
+export const convertGqlFilterToFilter = (gqlFilter: GQLFilter): Operation => {
+  const handler: GqlOperationHandler<Operation> = new ToOperationHandler();
+  return handleGqlOperation(handler, gqlFilter);
+};
+
 /**
- * Extract the operand values, if operands themselves have values,  otherwise undefined.
+ * Convert GQL to Filterset
+ * Note assumes all GqlOperators have one field: value
+ */
+class ToOperationHandler implements GqlOperationHandler<Operation> {
+  handleEquals = (op: GQLEqual): Equals => {
+    const [field, value] = Object.entries(op['='])[0];
+    return {
+      operator: '=',
+      field: field,
+      operand: value,
+    };
+  };
+  handleNotEquals = (op: GQLNotEqual): NotEquals => {
+    const [field, value] = Object.entries(op['!='])[0];
+    return {
+      operator: '!=',
+      field: field,
+      operand: value,
+    };
+  };
+  handleLessThan = (op: GQLLessThan): LessThan => {
+    const [field, value] = Object.entries(op['<'])[0];
+    return {
+      operator: '<',
+      field: field,
+      operand: value,
+    };
+  };
+  handleLessThanOrEquals = (op: GQLLessThanOrEquals): LessThanOrEquals => {
+    const [field, value] = Object.entries(op['<='])[0];
+    return {
+      operator: '<=',
+      field: field,
+      operand: value,
+    };
+  };
+  handleGreaterThan = (op: GQLGreaterThan): GreaterThan => {
+    const [field, value] = Object.entries(op['>'])[0];
+    return {
+      operator: '>',
+      field: field,
+      operand: value,
+    };
+  };
+  handleGreaterThanOrEquals = (
+    op: GQLGreaterThanOrEquals,
+  ): GreaterThanOrEquals => {
+    const [field, value] = Object.entries(op['>='])[0];
+    return {
+      operator: '>=',
+      field: field,
+      operand: value,
+    };
+  };
+  handleIncludes = (op: GQLIncludes): Includes => {
+    const [field, value] = Object.entries(op.in)[0];
+    return {
+      operator: 'in',
+      field: field,
+      operands: value,
+    };
+  };
+  handleExcludes = (op: GQLExcludes): Excludes => {
+    const [field, value] = Object.entries(op.exclude)[0];
+    return {
+      operator: 'excludes',
+      field: field,
+      operands: value,
+    };
+  };
+  handleExcludeIfAny = (op: GQLExcludeIfAny): ExcludeIfAny => {
+    const [field, value] = Object.entries(op.excludeifany)[0];
+
+    return {
+      operator: 'excludeifany',
+      field: field,
+      operands: value,
+    };
+  };
+  handleIntersection = (op: GQLIntersection): Intersection => ({
+    operator: 'and',
+    operands: op.and.map(convertGqlFilterToFilter),
+  });
+  handleUnion = (op: GQLUnion): Union => ({
+    operator: 'or',
+    operands: op.or.map(convertGqlFilterToFilter),
+  });
+  handleExists = (op: GQLExists): Exists => {
+    const [field, value] = Object.entries(op.not)[0];
+    return {
+      operator: 'exists',
+      field: field,
+      operand: value,
+    };
+  };
+  handleMissing = (op: GQLMissing): Missing => {
+    const field = Object.keys(op.is)[0];
+    return {
+      operator: 'missing',
+      field: field,
+    };
+  };
+  handleNestedFilter = (op: GQLNestedFilter): NestedFilter => ({
+    operator: 'nested',
+    path: op.nested.path,
+    operand: convertGqlFilterToFilter(op.nested),
+  });
+}
+
+/**
+ * Extract the operand values, if operands themselves have values, otherwise undefined.
  */
 export class ValueExtractorHandler implements OperationHandler<FilterValue> {
   handleEquals: (op: Equals) => string | number = (op: Equals) => op.operand;
@@ -288,15 +568,17 @@ export class ValueExtractorHandler implements OperationHandler<FilterValue> {
   handleLessThanOrEquals: (op: LessThanOrEquals) => string | number = (
     op: LessThanOrEquals,
   ) => op.operand;
-  handleIntersection: (op: Intersection) => undefined = (_: Intersection) =>
+  handleIntersection: (op: Intersection) => undefined = (_arg: Intersection) =>
     undefined;
   handleUnion: (op: Union) => undefined = (_: Union) => undefined;
   handleNestedFilter: (op: NestedFilter) => undefined = (_: NestedFilter) =>
     undefined;
+  handleExists: (op: Exists) => undefined = (_: Exists) => undefined;
+  handleMissing: (op: Missing) => undefined = (_: Missing) => undefined;
 }
 
 /**
- * Extract the operand values, if operands themselves have values,  otherwise undefined.
+ * Extract the operand values, if operands themselves have values, otherwise undefined.
  */
 export class EnumValueExtractorHandler
   implements OperationHandler<EnumFilterValue | undefined>
@@ -329,4 +611,37 @@ export class EnumValueExtractorHandler
   ) => {
     return extractEnumFilterValue(op.operand);
   };
+  handleExists: (op: Exists) => undefined = (_: Exists) => undefined;
+  handleMissing: (op: Missing) => undefined = (_: Missing) => undefined;
 }
+
+export const appendFilterToOperation = (
+  filter: Intersection | Union | undefined,
+  addition: Intersection | Union | undefined,
+): Intersection | Union => {
+  if (filter === undefined && addition === undefined)
+    return { operator: 'and', operands: [] };
+  if (addition === undefined && filter) return filter;
+  if (filter === undefined && addition) return addition;
+  return { ...filter, operands: [...(filter?.operands || []), addition] } as
+    | Intersection
+    | Union;
+};
+
+export const filterSetToOperation = (
+  fs: FilterSet | undefined,
+): Operation | undefined => {
+  if (!fs) return undefined;
+  switch (fs.mode) {
+    case 'and':
+      return Object.keys(fs.root).length == 0
+        ? undefined
+        : {
+            operator: fs.mode,
+            operands: Object.keys(fs.root).map((k): Operation => {
+              return fs.root[k];
+            }),
+          };
+  }
+  return undefined;
+};

@@ -1,4 +1,3 @@
-import terser from '@rollup/plugin-terser';
 import dts from 'rollup-plugin-dts';
 import json from '@rollup/plugin-json';
 import peerDepsExternal from 'rollup-plugin-peer-deps-external';
@@ -17,13 +16,20 @@ const globals = {
   lodash: 'lodash',
   immer: 'immer',
   'react-cookie': 'reactCookie',
-  'swr': 'swr',
+  swr: 'swr',
   'jsonpath-plus': 'jsonpathPlus',
-  'flat': 'flat',
-  'papaparse': 'papaparse',
+  flat: 'flat',
+  papaparse: 'papaparse',
   'redux-persist': 'reduxPersist',
+  'redux-persist/integration/react': 'redux-persist-integration-react',
+  'redux-persist/lib/storage/createWebStorage':
+    'redux-persist-createWebStorage',
   'cookies-next': 'cookies-next',
-  "queue": "queue"
+  queue: 'queue',
+  idb: 'idb',
+  'use-deep-compare': 'use-deep-compare',
+  graphql: 'graphql',
+  nanoid: 'nanoid',
 };
 
 const config = [
@@ -41,7 +47,8 @@ const config = [
         format: 'esm',
         globals,
         sourcemap: true,
-      }],
+      },
+    ],
     external: Object.keys(globals),
     plugins: [
       peerDepsExternal(),

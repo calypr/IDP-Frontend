@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { processLabel, truncateString } from '../utils';
 import ReactECharts, { ReactEChartsProps } from './ReactECharts';
-import { ChartProps } from '../types';
+import { CustomChartProps } from '../types';
 
 interface PieChartData {
   value: number;
@@ -25,13 +25,9 @@ const processChartData = (
   return results;
 };
 
-const PieChart = ({ data }: ChartProps) => {
+const PieChart = ({ data, label }: CustomChartProps) => {
   const chartDefinition = useMemo((): ReactEChartsProps['option'] => {
     return {
-      label: {
-        show: true,
-        fontSize: '14',
-      },
       emphasis: {
         label: {
           show: true,
@@ -47,6 +43,7 @@ const PieChart = ({ data }: ChartProps) => {
           radius: '60%',
           data: processChartData(data),
           label: {
+            show: label?.show !== undefined ? label.show : true,
             fontSize: '14',
             fontWeight: 'bold',
             overflow: 'break',

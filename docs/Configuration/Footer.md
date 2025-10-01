@@ -16,7 +16,7 @@ Here's an overview of the main configuration option:
 The `rightSection` contain an array of columns. Each column contains an array of rows of footer items.
 Footer items can be:
 * Icon - image file to display
-* Text - text to display
+* Label - text to display
 * Link - link to a page
 * Links - a row of links
 * Section - which allows for rows of columns allowing more complex layouts
@@ -28,6 +28,31 @@ Each logo within row can be configured with the following properties:
 - **width**: Width of the logo in pixels.
 - **height**: Height of the logo in pixels.
 - **description**: A text description of the logo, which can be used for accessibility features like alt text.
+- **href**: Optional Link to a page (target _blank).
+
+### Label
+- **text**: Text to display.
+- **className**: CSS class name for the text.
+
+### Link
+- **text**: Text to display.
+- **href**: Link to a page.
+- **className**: CSS class name for the link.
+
+### Links
+An array of link in one row separated by ```|```
+- *links**: array of Links
+- **className**: CSS class name for the link.
+
+Styling:
+
+The className or classNames is used control the styling of the individual elements of the footer.
+The styling can either be tailwind styling keywords or a custom css class.
+
+Note: tailwind's arbitrary items (like ```top-[117px] lg:top-[344px]``) are not supported, as these are considered
+dynamic styling which tailwind does not support. In order to achieve the same result, you can use a custom css class
+and define the styling in your own css file.
+
 
 ### Label
 - **text**: Text to display.

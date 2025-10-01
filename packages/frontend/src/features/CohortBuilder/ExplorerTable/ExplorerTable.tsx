@@ -1,9 +1,8 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { useDeepCompareMemo } from 'use-deep-compare';
 import {
-  Accessibility,
   CoreState,
-  fieldNameToTitle,
+  isJSONValue,
   JSONObject,
   selectIndexFilters,
   useCoreSelector,
@@ -11,47 +10,24 @@ import {
 } from '@gen3/core';
 import {
   MantineReactTable,
-  type MRT_Column,
   type MRT_PaginationState,
   type MRT_Row,
   type MRT_RowSelectionState,
   type MRT_SortingState,
   useMantineReactTable,
 } from 'mantine-react-table';
-import { jsonPathAccessor } from '../../../components/Tables/utils';
 import { TableIcons } from '../../../components/Tables/TableIcons';
-import {
-  ExplorerTableProps,
-  SummaryTable,
-  CellRendererFunctionProps,
-} from './types';
-import {
-  CellRendererFunction,
-  ExplorerTableCellRendererFactory,
-} from './ExplorerTableCellRenderers';
-import {
-  ExplorerTableDetailsPanelFactory,
-  type TableDetailsPanelProps,
-} from './ExploreTableDetails';
-import { DetailsModal } from '../../../components/Details';
+import type { ExplorerTableProps, SummaryTable } from './types';
+import { type TableDetailsPanelProps } from './ExploreTableDetails';
+import { DetailsModal, DetailsDrawer } from '../../../components/Details';
+import { createTableColumns } from './utils';
+import SubtableStack from './SubTables/SubtableStack';
+import { JSONPath } from 'jsonpath-plus';
+import { StudyProvider } from '../../Study';
+import QueryRowDetailsPanel from './ExploreTableDetails/QueryRowDetailsPanel';
 
 const DEFAULT_PAGE_LIMIT_LABEL = 'Rows per Page (Limited to 10,0000):';
 const DEFAULT_PAGE_LIMIT = 10000;
-
-const isRecordAny = (obj: unknown): obj is Record<string, any> => {
-  if (Array.isArray(obj)) return false;
-
-  return obj !== null && typeof obj === 'object';
-};
-
-interface ExplorerColumn {
-  field: string;
-  accessorKey: never;
-  header: string;
-  accessorFn?: (originalRow: ExplorerColumn) => any;
-  Cell?: CellRendererFunction;
-  size?: number;
-}
 
 /**
  * Main table component for the explorer page. Fetches data from guppy using
@@ -59,86 +35,57 @@ interface ExplorerColumn {
  *
  * @param index - Offset to use for fetching/displaying pages of rows
  * @param tableConfig - Inherited from ExplorerPageGetServerSideProps
+ * @param accessibility - set the access level for the cohort data
  */
-const ExplorerTable = ({ index, tableConfig }: ExplorerTableProps) => {
+const ExplorerTable = ({
+  index,
+  tableConfig,
+  accessibility,
+  classNames,
+  size = 'sm',
+}: ExplorerTableProps) => {
   const [pagination, setPagination] = useState<MRT_PaginationState>({
     pageIndex: 0,
     pageSize: 10,
   });
 
-  const DetailsComponent = DetailsModal<TableDetailsPanelProps>;
+  const DetailsComponent = useMemo(() => {
+    if (
+      !tableConfig?.detailsConfig ||
+      !tableConfig?.detailsConfig?.panel ||
+      tableConfig?.detailsConfig?.mode === 'none'
+    )
+      return null;
+    return tableConfig?.detailsConfig?.panelContainer === 'drawer'
+      ? DetailsDrawer<TableDetailsPanelProps>
+      : DetailsModal<TableDetailsPanelProps>;
+  }, []);
 
   const [sorting, setSorting] = useState<MRT_SortingState>([]);
   const [rowSelection, setRowSelection] = useState<MRT_RowSelectionState>({});
   const [selectedRow, setSelectedRow] = useState<
     MRT_Row<Record<string, any>> | undefined
   >(undefined);
-  const DetailsPanel = useMemo(
-    () =>
-      ExplorerTableDetailsPanelFactory().getRenderer(
-        'tableDetails',
-        tableConfig?.detailsConfig?.panel ?? 'default',
-      ),
-    [],
-  );
 
-  const cols = useDeepCompareMemo(() => {
-    // setup table columns at the same time
-    // TODO: refactor to support more complex table configs
-    return tableConfig.fields.map((field) => {
-      const columnDef = tableConfig?.columns?.[field];
+  // const DetailsPanel = useMemo(
+  //   () =>
+  //     ExplorerTableDetailsPanelFactory().getRenderer(
+  //       'tableDetails',
+  //       tableConfig?.detailsConfig?.panel ?? 'default',
+  //     ),
+  //   [tableConfig?.detailsConfig?.panel],
+  // );
 
-      const cellRendererFunc = columnDef?.type
-        ? ExplorerTableCellRendererFactory().getRenderer(
-            columnDef?.type,
-            columnDef?.cellRenderFunction ?? 'default',
-          )
-        : undefined;
+  const DetailsPanel = useMemo(() => QueryRowDetailsPanel, []);
 
-      const cellRendererFuncParams =
-        columnDef?.params && isRecordAny(columnDef?.params)
-          ? columnDef?.params
-          : {};
-      return {
-        id: field,
-        field: field,
-        accessorKey: field as never,
-        header: columnDef?.title ?? fieldNameToTitle(field),
-        accessorFn: columnDef?.accessorPath
-          ? jsonPathAccessor(columnDef.accessorPath)
-          : undefined,
-        Cell:
-          cellRendererFunc && columnDef?.params
-            ? (cell: CellRendererFunctionProps) =>
-                cellRendererFunc(cell, cellRendererFuncParams)
-            : cellRendererFunc
-              ? cellRendererFunc
-              : undefined,
-
-        size: columnDef?.width,
-        enableSorting: columnDef?.sortable ?? undefined,
-      };
-    }, [] as MRT_Column<ExplorerColumn>[]);
+  const tableColumns = useDeepCompareMemo(() => {
+    return createTableColumns(tableConfig);
   }, [tableConfig]);
 
   // TODO: add support for nested fields
-  const fields = useMemo(() => cols.map((column) => column.field), [cols]);
-
-  const getRowId = useCallback((tableConfig: SummaryTable) => {
-    const { detailsConfig } = tableConfig || {};
-    const idField: string | undefined = detailsConfig?.idField;
-    return (
-      originalRow: JSONObject,
-      _index: number,
-      _parentRow: MRT_Row<JSONObject>,
-    ) =>
-      idField && Object.keys(originalRow).includes(idField)
-        ? (originalRow[idField] as string)
-        : undefined;
-  }, []);
-
-  const cohortFilters = useCoreSelector((state: CoreState) =>
-    selectIndexFilters(state, index),
+  const fields = useMemo(
+    () => tableColumns.map((column) => column.field),
+    [tableColumns],
   );
 
   // Returns a value in the selected table row
@@ -166,6 +113,25 @@ const ExplorerTable = ({ index, tableConfig }: ExplorerTableProps) => {
     },
     [],
   );
+  const getRowId = useCallback((tableConfig: SummaryTable) => {
+    const { detailsConfig } = tableConfig || {};
+    const idField: string | undefined = detailsConfig?.idField;
+    if (!idField) return undefined;
+
+    return (originalRow: JSONObject) => {
+      const id = JSONPath({ json: originalRow, path: idField });
+
+      if (id.length > 0) {
+        return id[0];
+      } else {
+        return undefined;
+      }
+    };
+  }, []);
+
+  const cohortFilters = useCoreSelector((state: CoreState) =>
+    selectIndexFilters(state, index),
+  );
 
   const { data, isLoading, isError, isFetching } =
     useGetRawDataAndTotalCountsQuery({
@@ -180,7 +146,7 @@ const ExplorerTable = ({ index, tableConfig }: ExplorerTableProps) => {
               return { [x.id]: x.desc ? 'desc' : 'asc' };
             }) as Record<string, 'desc' | 'asc'>[])
           : undefined,
-      accessibility: Accessibility.ACCESSIBLE,
+      accessibility: accessibility,
     });
 
   const { totalRowCount, limitLabel } = useDeepCompareMemo(() => {
@@ -190,9 +156,9 @@ const ExplorerTable = ({ index, tableConfig }: ExplorerTableProps) => {
     const totalRowCount = tableConfig?.pageLimit
       ? Math.min(
           pageLimit,
-          data?.data._aggregation?.[index]._totalCount ?? pagination.pageSize,
+          data?.data?._aggregation?.[index]._totalCount ?? pagination.pageSize,
         )
-      : (data?.data._aggregation?.[index]._totalCount ?? pagination.pageSize);
+      : (data?.data?._aggregation?.[index]._totalCount ?? pagination.pageSize);
     const limitLabel = tableConfig?.pageLimit
       ? (tableConfig?.pageLimit?.label ?? DEFAULT_PAGE_LIMIT_LABEL)
       : 'Rows per Page:';
@@ -218,7 +184,7 @@ const ExplorerTable = ({ index, tableConfig }: ExplorerTableProps) => {
    */
 
   const table = useMantineReactTable<JSONObject>({
-    columns: cols as any[], //TODO: fix this
+    columns: tableColumns as any[], //TODO: fix this
     data: data?.data?.[index] ?? [],
     enableColumnFilters: false,
     manualSorting: true,
@@ -228,21 +194,46 @@ const ExplorerTable = ({ index, tableConfig }: ExplorerTableProps) => {
     onPaginationChange: setPagination,
     onSortingChange: setSorting,
     enableTopToolbar: false,
+    enableExpandAll: false,
+    displayColumnDefOptions: {
+      'mrt-row-expand': {
+        enableHiding: true, //now row numbers are hidable too
+      },
+    },
+    enableExpanding: !!tableConfig?.detailsConfig,
     getRowId: getRowId(tableConfig),
     rowCount: totalRowCount,
     icons: TableIcons,
     paginationDisplayMode: 'pages',
     enableRowSelection: tableConfig?.selectableRows ?? false,
     localization: { rowsPerPage: limitLabel },
-
+    // mantineExpandAllButtonProps: {
+    //   style: {
+    //     visibility: 'hidden',
+    //   },
+    // },
+    // mantineExpandButtonProps: {
+    //   style: {
+    //     visibility: 'hidden',
+    //   },
+    // },
+    mantineTableProps: {
+      style: {
+        backgroundColor: 'var(--mantine-color-base-1)',
+        '--mrt-striped-row-background-color': 'var(--mantine-color-base-3)',
+        fontSize: `var(--mantine-font-size-${size})`,
+        zIndex: 10,
+      },
+    },
     mantinePaginationProps: {
       rowsPerPageOptions: ['5', '10', '20', '40', '100'],
       withEdges: false, //note: changed from `showFirstLastButtons` in v1.0
     },
+
     mantineTableHeadCellProps: {
       style: {
         '--mrt-base-background-color': 'var(--mantine-color-table-1)',
-        color: "var(--mantine-color-table-contrast-5')",
+        color: `var(--mantine-color-table-contrast-5')`,
       },
       // sx: (theme) => {
       //   return {
@@ -263,6 +254,7 @@ const ExplorerTable = ({ index, tableConfig }: ExplorerTableProps) => {
       showAlertBanner: isError,
       density: 'xs',
       rowSelection: rowSelection,
+      columnVisibility: { 'mrt-row-expand': false },
     },
     mantineTableBodyRowProps:
       tableConfig.detailsConfig?.mode === 'click'
@@ -273,7 +265,7 @@ const ExplorerTable = ({ index, tableConfig }: ExplorerTableProps) => {
                 setSelectedRow(undefined);
               } else {
                 setRowSelection({ [row.id as string]: true });
-                setSelectedRow(row as MRT_Row<Record<string, any>>);
+                setSelectedRow(row as any); // TODO: fix this typecast
               }
             },
             sx: {
@@ -281,42 +273,68 @@ const ExplorerTable = ({ index, tableConfig }: ExplorerTableProps) => {
             },
           })
         : {},
+    renderDetailPanel:
+      tableConfig.detailsConfig?.mode === 'expand' || tableConfig?.subTables
+        ? ({ row }) => {
+            const val = tableConfig?.subTables?.some((subTable) => {
+              if (
+                subTable.root in row.original &&
+                isJSONValue(row.original[subTable.root])
+              ) {
+                return (
+                  Object.values(row.original[subTable.root] as JSONObject)
+                    .length > 0
+                );
+              } else return false;
+            });
+            if (tableConfig?.subTables && val) {
+              return (
+                <SubtableStack
+                  subTables={tableConfig.subTables}
+                  data={row.original ?? []}
+                />
+              );
+            } else return null;
+          }
+        : undefined,
   });
   return (
     <React.Fragment>
-      {Object.keys(rowSelection).length > 0 ? (
-        <DetailsComponent
-          title={`${String(tableConfig?.detailsConfig?.nodeType).charAt(0).toUpperCase() + String(tableConfig?.detailsConfig?.nodeType).slice(1)} / ${getFieldValue(
-            tableConfig,
-            rowSelection,
-            data?.data?.[index] ?? [],
-            'project_id',
-          )} / ${getFieldValue(
-            tableConfig,
-            rowSelection,
-            data?.data?.[index] ?? [],
-            tableConfig?.detailsConfig?.title as string,
-          )}`}
-          id={
-            Object.keys(rowSelection).length > 0
-              ? Object.keys(rowSelection).at(0)
-              : undefined
-          }
-          onClose={() => setRowSelection({})}
-          row={selectedRow}
-          panel={DetailsPanel}
-          classNames={tableConfig?.detailsConfig?.classNames}
-          panelProps={{
-            index,
-            tableConfig,
-            ...(tableConfig?.detailsConfig?.params ?? {}),
-          }}
-        />
-      ) : null}
-
-      <div className="inline-block overflow-x-scroll">
-        <MantineReactTable table={table} />
-      </div>
+      <StudyProvider>
+        {DetailsComponent && (
+          <DetailsComponent
+            title={`${String(tableConfig?.detailsConfig?.nodeType).charAt(0).toUpperCase() + String(tableConfig?.detailsConfig?.nodeType).slice(1)} / ${getFieldValue(
+              tableConfig,
+              rowSelection,
+              data?.data?.[index] ?? [],
+              'project_id',
+            )} / ${getFieldValue(
+              tableConfig,
+              rowSelection,
+              data?.data?.[index] ?? [],
+              tableConfig?.detailsConfig?.title as string,
+            )}`}
+            id={
+              Object.keys(rowSelection).length > 0
+                ? Object.keys(rowSelection).at(0)
+                : undefined
+            }
+            row={selectedRow}
+            onClose={() => setRowSelection({})}
+            panel={DetailsPanel}
+            classNames={tableConfig?.detailsConfig?.classNames}
+            panelProps={{
+              index,
+              tableConfig,
+              ...(tableConfig?.detailsConfig?.params ?? {}),
+              accessibility,
+            }}
+          />
+        )}
+        <div className="inline-block overflow-x-scroll">
+          <MantineReactTable table={table} />
+        </div>
+      </StudyProvider>
     </React.Fragment>
   );
 };

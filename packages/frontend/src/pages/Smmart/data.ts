@@ -8,23 +8,14 @@ import type { NavPageLayoutProps } from '../../features/Navigation';
 export const SmmartPageGetServerSideProps: GetServerSideProps<
   NavPageLayoutProps
 > = async () => {
-  try {
-    const smmartConfig: SmmartProps = await ContentSource.get(
-      `config/${GEN3_COMMONS_NAME}/smmartLandingPage.json`,
+  const smmartConfig: SmmartProps =
+    await ContentSource.getContentDatabase().get(
+      `${GEN3_COMMONS_NAME}/smmartLandingPage.json`,
     );
-    return {
-      props: {
-        ...(await getNavPageLayoutPropsFromConfig()),
-        smmartConfig: smmartConfig ? smmartConfig : null,
-      },
-    };
-  } catch (err) {
-    console.error(err);
-    return {
-      props: {
-        ...(await getNavPageLayoutPropsFromConfig()),
-        smmartConfig: undefined,
-      },
-    };
-  }
+  return {
+    props: {
+      ...(await getNavPageLayoutPropsFromConfig()),
+      smmartConfig: smmartConfig ? smmartConfig : null,
+    },
+  };
 };

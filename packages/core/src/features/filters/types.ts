@@ -21,7 +21,7 @@ export interface NotEquals {
 }
 
 export interface Includes {
-  operator: 'in';
+  operator: 'in' | 'includes';
   field: string;
   operands: ReadonlyArray<string | number>;
 }
@@ -50,6 +50,7 @@ export interface GreaterThanOrEquals extends Comparison {
 export interface Exists {
   readonly operator: 'exists';
   readonly field: string;
+  readonly operand: string | number;
 }
 
 export interface Missing {
@@ -86,7 +87,9 @@ export type Operation =
   | GreaterThan
   | GreaterThanOrEquals
   | NestedFilter
+  | Exists
   | ExcludeIfAny
+  | Missing
   | Excludes;
 
 export type OperationWithField =
@@ -98,12 +101,56 @@ export type OperationWithField =
   | GreaterThan
   | GreaterThanOrEquals
   | ExcludeIfAny
-  | Excludes;
+  | Excludes
+  | Missing
+  | Exists;
+
+type OperandsType = Includes | Excludes | ExcludeIfAny | Intersection | Union;
 
 export interface FilterSet {
   readonly root: Record<string, Operation>;
   readonly mode: 'and' | 'or';
 }
+
+export const isFilterSet = (input: any): input is FilterSet => {
+  if (typeof input !== 'object' || input === null) {
+    return false;
+  }
+  const { root, mode } = input;
+
+  if (typeof root !== 'object' || root === null) {
+    return false;
+  }
+
+  if (!['and', 'or'].includes(mode)) {
+    return false;
+  }
+
+  return true;
+};
+
+export const isUnion = (value: unknown): value is Union => {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as Union).operator === 'or' &&
+    Array.isArray((value as Union).operands)
+  );
+};
+export const isIntersection = (value: unknown): value is Intersection => {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as Intersection).operator === 'and' &&
+    Array.isArray((value as Intersection).operands)
+  );
+};
+
+export const isOperandsType = (
+  operation: Operation,
+): operation is OperandsType => {
+  return (operation as OperandsType)?.operands !== undefined;
+};
 
 export interface OperationHandler<T> {
   handleEquals: (op: Equals) => T;
@@ -118,6 +165,8 @@ export interface OperationHandler<T> {
   handleIntersection: (op: Intersection) => T;
   handleUnion: (op: Union) => T;
   handleNestedFilter: (op: NestedFilter) => T;
+  handleExists: (op: Exists) => T;
+  handleMissing: (op: Missing) => T;
 }
 
 /**
@@ -142,33 +191,13 @@ export type HistogramBucket = {
   count: number;
 };
 
-export type FacetType =
-  | 'enum'
-  | 'exact'
-  | 'range'
-  | 'age'
-  | 'year'
-  | 'years'
-  | 'days'
-  | 'percent'
-  | 'datetime'
-  | 'toggle' // Note these support alternative UIs
-  | 'multiselect';
-
-export interface AllowableRange {
-  readonly minimum?: number;
-  readonly maximum?: number;
-}
-
-export interface FacetDefinition {
-  readonly description?: string; //description from _mapping
-  readonly field: string; // full name of field
-  readonly dataField: string; //
-  readonly index: string; // what dataType is this facet for
-  readonly type: FacetType; // classified type based on type + name: e.g. age, year, enumeration, etc
-  readonly range?: AllowableRange; // range of value types
-  readonly hasData?: boolean; // does this facet have data
-  readonly label?: string; // label for facet
-}
-
 export type IndexedFilterSet = Record<string, FilterSet>;
+
+export const isIndexedFilterSetEmpty = (filters: IndexedFilterSet): boolean =>
+  Object.values(filters).every(
+    (filterSet) => Object.keys(filterSet).length === 0,
+  );
+
+export type UnionOrIntersection = Union | Intersection;
+
+export const EmptyFilterSet: FilterSet = { mode: 'and', root: {} };

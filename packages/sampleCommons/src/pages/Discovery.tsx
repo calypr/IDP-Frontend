@@ -96,7 +96,7 @@ const DiscoveryPage = ({ headerProps, footerProps }: NavPageLayoutProps) => {
   return (
     <NavPageLayout
       {...{ headerProps, footerProps }}
-      headerData={{
+      headerMetadata={{
         title: 'CALYPR Discovery Page',
         content: 'Discovery Page',
         key: 'discovery-page',

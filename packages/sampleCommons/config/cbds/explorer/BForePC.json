@@ -1,0 +1,569 @@
+{
+  "sharedFilters": {
+    "defined": {
+      "project_id": [
+        { "index": "research_subject", "field": "project_id" },
+        { "index": "specimen", "field": "project_id" },
+        { "index": "document_reference", "field": "project_id" }
+      ],
+      "research_subject_identifier": [
+        { "index": "research_subject", "field": "research_subject_identifier" },
+        { "index": "specimen", "field": "specimen_patient_identifier" }
+      ],
+      "specimen_patient_identifier": [
+        { "index": "research_subject", "field": "research_subject_identifier" },
+        { "index": "specimen", "field": "specimen_patient_identifier" }
+      ],
+      "specimen_identifier": [
+        {
+          "index": "document_reference",
+          "field": "document_reference_specimen_identifier"
+        },
+        {
+          "index": "specimen",
+          "field": "specimen_identifier"
+        }
+      ]
+    }
+  },
+  "explorerConfig": [
+    {
+      "tabTitle": "Research Subject",
+      "filters": {
+        "tabs": [
+          {
+            "fields": [
+              "project_id",
+              "research_subject_identifier",
+              "research_subject_patient_us_core_ethnicity",
+              "research_subject_patient_us_core_birthsex",
+              "research_subject_patient_us_core_race",
+              "research_subject_condition_code",
+              "research_subject_patient_deceasedBoolean"
+            ],
+            "fieldsConfig": {
+              "research_subject_identifier": {
+                "label": "Patient ID"
+              },
+              "research_subject_condition_code": {
+                "label": "Diagnosis"
+              },
+              "research_subject_patient_us_core_ethnicity": {
+                "label": "Ethnicity"
+              },
+              "research_subject_patient_us_core_birthsex": {
+                "label": "Birth Sex"
+              },
+              "research_subject_patient_us_core_race": {
+                "label": "Race"
+              },
+              "research_subject_patient_deceasedBoolean": {
+                "label": "Deceased"
+              }
+            }
+          }
+        ]
+      },
+      "table": {
+        "enabled": true,
+        "columns": {
+          "research_subject_condition_code": {
+            "title": "Diagnosis"
+          },
+          "research_subject_patient_identifier": {
+            "title": "Patient ID"
+          },
+          "research_subject_patient_us_core_ethnicity": {
+            "title": "Ethnicity"
+          },
+          "research_subject_patient_us_core_birthsex": {
+            "title": "Birth Sex"
+          },
+          "research_subject_patient_us_core_race": {
+            "title": "Race"
+          },
+          "research_subject_patient_deceasedBoolean": {
+            "title": "Deceased"
+          }
+        },
+        "fields": [
+          "research_subject_patient_identifier",
+          "research_subject_patient_us_core_ethnicity",
+          "research_subject_patient_us_core_birthsex",
+          "research_subject_patient_us_core_race",
+          "research_subject_condition_code",
+          "research_subject_patient_deceasedBoolean"
+        ]
+      },
+      "dropdowns": {},
+      "guppyConfig": {
+        "dataType": "research_subject",
+        "nodeCountTitle": "Research Subjects",
+        "fieldMapping": []
+      },
+      "charts": {
+        "research_subject_condition_code": {
+          "chartType": "fullPie",
+          "title": "Diagnosis"
+        }
+      }
+    },
+    {
+      "tabTitle": "Specimen",
+      "charts": {
+        "specimen_Tumor_Tissue_Type": {
+          "chartType": "fullPie",
+          "title": "Tumor Tissue Type"
+        },
+        "specimen_Storage_Method": {
+          "chartType": "fullPie",
+          "title": "Storage Method"
+        }
+      },
+      "filters": {
+        "tabs": [
+          {
+            "fields": [
+              "project_id",
+              "specimen_identifier",
+              "specimen_patient_identifier",
+              "specimen_Storage_Method",
+              "specimen_Tumor_Tissue_Type",
+              "specimen_Fixative_Type",
+              "specimen_collection",
+              "specimen_index_date_collection_days",
+              "specimen_id"
+            ],
+            "fieldsConfig": {
+              "specimen_patient_identifier": {
+                "label": "Patient ID"
+              },
+              "specimen_identifier": {
+                "label": "Biospecimen ID"
+              },
+              "specimen_collection": {
+                "label": "Site of Resection or Biopsy"
+              },
+              "specimen_processing": {
+                "label": "Processing Method"
+              },
+              "specimen_index_date_collection_days": {
+                "label": "Index Date Collection Days"
+              },
+              "specimen_Tumor_Tissue_Type": {
+                "label": "Tumor Tissue Type"
+              },
+              "specimen_Storage_Method": {
+                "label": "Storage Method"
+              },
+              "specimen_Fixative_Type": {
+                "label": "Fixative Type"
+              }
+            }
+          }
+        ]
+      },
+      "table": {
+        "enabled": true,
+        "columns": {
+          "specimen_identifier": {
+            "title": "Biospecimen ID"
+          },
+          "specimen_processing": {
+            "title": "Processing Method"
+          },
+          "specimen_collection": {
+            "title": "Site of Resection or Biopsy"
+          },
+          "specimen_index_date_collection_days": {
+            "title": "Index Date Collection Days"
+          },
+          "specimen_patient_identifier": {
+            "title": "Patient ID"
+          },
+          "specimen_sample_family_id": {
+            "title": "Sample Family ID"
+          },
+          "specimen_type": {
+            "title": "Type"
+          },
+          "specimen_Tumor_Tissue_Type": {
+            "title": "Tumor Tissue Type"
+          },
+          "specimen_Fixative_Type": {
+            "title": "Fixative Type"
+          },
+          "specimen_Storage_Method": {
+            "title": "Storage Method"
+          },
+          "specimen_id": {
+            "title": "Specimen Id"
+          }
+        },
+        "fields": [
+          "specimen_identifier",
+          "specimen_patient_identifier",
+          "specimen_type",
+          "specimen_Tumor_Tissue_Type",
+          "specimen_Fixative_Type",
+          "specimen_Storage_Method",
+          "specimen_collection",
+          "specimen_processing",
+          "specimen_index_date_collection_days",
+          "specimen_id"
+        ]
+      },
+      "dropdowns": {},
+      "guppyConfig": {
+        "dataType": "specimen",
+        "fieldMapping": [],
+        "nodeCountTitle": "Specimens",
+        "manifestMapping": {
+          "resourceIndexType": "Specimen",
+          "resourceIdField": "_id",
+          "referenceIdFieldInResourceIndex": "object_id",
+          "referenceIdFieldInDataIndex": "object_id"
+        },
+        "accessibleFieldCheckList": ["project_id"],
+        "accessibleValidationField": "project_id"
+      }
+    },
+    {
+      "tabTitle": "File",
+      "charts": {
+        "document_reference_Assay": {
+          "chartType": "fullPie"
+        },
+        "document_reference_Level": {
+          "chartType": "fullPie"
+        }
+      },
+      "filters": {
+        "tabs": [
+          {
+            "fields": [
+              "project_id",
+              "document_reference_specimen_identifier",
+              "document_reference_Assay",
+              "document_reference_Level",
+              "document_reference_File_Format",
+              "document_reference_Microscope",
+              "document_reference_Cell_Morphology_Assessment"
+            ],
+            "fieldsConfig": {
+              "document_reference_Assay": {
+                "label": "Assay"
+              },
+              "document_reference_Level": {
+                "label": "Level"
+              },
+              "document_reference_File_Format": {
+                "label": "File Format"
+              },
+              "document_reference_Microscope": {
+                "label": "Microscope"
+              },
+              "document_reference_Cell_Morphology_Assessment": {
+                "label": "Cell Morphology Assessment"
+              },
+              "document_reference_specimen_identifier": {
+                "label": "Specimen Identifier"
+              },
+              "document_reference_NominalMagnification": {
+                "label": "Nominal Magnification"
+              },
+              "document_reference_Immersion": {
+                "label": "Immersion"
+              },
+              "document_reference_Pyramid": {
+                "label": "Pyramid"
+              },
+              "document_reference_Zstack": {
+                "label": "Zstack"
+              },
+              "document_reference_Tseries": {
+                "label": "Tseries"
+              },
+              "document_reference_DimensionOrder": {
+                "label": "Dimension Order"
+              },
+              "document_reference_PhysicalSizeX": {
+                "label": "Physical Size X"
+              },
+              "document_reference_PhysicalSizeXUnit": {
+                "label": "Physical Size X Unit"
+              },
+              "document_reference_PhysicalSizeY": {
+                "label": "Physical Size Y"
+              },
+              "document_reference_PhysicalSizeYUnit": {
+                "label": "Physical Size Y Unit"
+              },
+              "document_reference_Pixels_BigEndian": {
+                "label": "Pixels Big Endian"
+              },
+              "document_reference_SizeC": {
+                "label": "Size C"
+              },
+              "document_reference_SizeT": {
+                "label": "Size T"
+              },
+              "document_reference_SizeX": {
+                "label": "Size X"
+              },
+              "document_reference_SizeY": {
+                "label": "Size Y"
+              },
+              "document_reference_SizeZ": {
+                "label": "Size Z"
+              },
+              "document_reference_PixelType": {
+                "label": "Pixel Type"
+              },
+              "document_reference_SiteDataSource": {
+                "label": "Site Data Source"
+              },
+              "document_reference_Organization": {
+                "label": "Organization"
+              },
+              "document_reference_TumorTissueType": {
+                "label": "Tumor Tissue Type"
+              },
+              "document_reference_BiospecimenType": {
+                "label": "Biospecimen Type"
+              },
+              "document_reference_CollectionDaysfromIndex": {
+                "label": "Collection Days from Index"
+              }
+            }
+          }
+        ]
+      },
+      "table": {
+        "enabled": true,
+        "fields": [
+          "document_reference_title",
+          "document_reference_size",
+          "document_reference_File_Format",
+          "document_reference_Assay",
+          "document_reference_Level",
+          "document_reference_Cell_Morphology_Assessment",
+          "document_reference_Microscope",
+          "document_reference_NominalMagnification",
+          "document_reference_Immersion",
+          "document_reference_Pyramid",
+          "document_reference_Zstack",
+          "document_reference_Tseries",
+          "document_reference_Image_ID",
+          "document_reference_DimensionOrder",
+          "document_reference_PhysicalSizeX",
+          "document_reference_PhysicalSizeXUnit",
+          "document_reference_PhysicalSizeY",
+          "document_reference_PhysicalSizeYUnit",
+          "document_reference_Pixels_BigEndian",
+          "document_reference_SizeC",
+          "document_reference_SizeT",
+          "document_reference_SizeX",
+          "document_reference_SizeY",
+          "document_reference_SizeZ",
+          "document_reference_PixelType",
+          "document_reference_TumorTissueType",
+          "document_reference_BiospecimenType",
+          "document_reference_CollectionDaysfromIndex",
+          "document_reference_specimen_identifier",
+          "document_reference_specimen_collection",
+          "document_reference_specimen_processing",
+          "document_reference_source_path",
+          "document_reference_creation",
+          "project_id",
+          "document_reference_specimen_id",
+          "document_reference_id"
+        ],
+        "columns": {
+          "document_reference_id": {
+            "title": "File Actions",
+            "type": "link",
+            "accessorPath": "document_reference_id",
+            "cellRenderFunction": "DicomLink",
+            "width": "32px",
+            "params": {
+              "baseURL": "",
+              "imageURL": "/image-viewer/view",
+              "downloadURL": "/user/data/download"
+            }
+          },
+          "document_reference_size": {
+            "title": "File Size",
+            "type": "string",
+            "accessorPath": "document_reference_size",
+            "cellRenderFunction": "HumanReadableString",
+            "width": "32px",
+            "params": {}
+          },
+          "document_reference_contentType": {
+            "title": "Content Type"
+          },
+          "document_reference_specimen_collection": {
+            "title": "Specimen Site of Resection or Biopsy"
+          },
+          "document_reference_specimen_processing": {
+            "title": "Specimen Processing Method"
+          },
+          "document_reference_NominalMagnification": {
+            "title": "Nominal Magnification"
+          },
+          "document_reference_Immersion": {
+            "title": "Immersion"
+          },
+          "document_reference_Pyramid": {
+            "title": "Pyramid"
+          },
+          "document_reference_Zstack": {
+            "title": "Zstack"
+          },
+          "document_reference_Tseries": {
+            "title": "Tseries"
+          },
+          "document_reference_DimensionOrder": {
+            "title": "Dimension Order"
+          },
+          "document_reference_PhysicalSizeX": {
+            "title": "Physical Size X"
+          },
+          "document_reference_PhysicalSizeXUnit": {
+            "title": "Physical Size X Unit"
+          },
+          "document_reference_PhysicalSizeY": {
+            "title": "Physical Size Y"
+          },
+          "document_reference_PhysicalSizeYUnit": {
+            "title": "Physical Size Y Unit"
+          },
+          "document_reference_Pixels_BigEndian": {
+            "title": "Pixels Big Endian"
+          },
+          "document_reference_SizeC": {
+            "title": "Size C"
+          },
+          "document_reference_SizeT": {
+            "title": "Size T"
+          },
+          "document_reference_SizeX": {
+            "title": "Size X"
+          },
+          "document_reference_SizeY": {
+            "title": "Size Y"
+          },
+          "document_reference_SizeZ": {
+            "title": "Size Z"
+          },
+          "document_reference_PixelType": {
+            "title": "Pixel Type"
+          },
+          "document_reference_SiteDataSource": {
+            "title": "Site Data Source"
+          },
+          "document_reference_Organization": {
+            "title": "Organization"
+          },
+          "document_reference_TumorTissueType": {
+            "title": "Tumor Tissue Type"
+          },
+          "document_reference_BiospecimenType": {
+            "title": "Biospecimen Type"
+          },
+          "document_reference_title": {
+            "title": "Title"
+          },
+          "document_reference_File_Format": {
+            "title": "File Format"
+          },
+          "document_reference_Assay": {
+            "title": "Assay"
+          },
+          "document_reference_Level": {
+            "title": "Level"
+          },
+          "document_reference_Cell_Morphology_Assessment": {
+            "title": "Cell Morphology Assessment"
+          },
+          "document_reference_Microscope": {
+            "title": "Microscope"
+          },
+          "document_reference_Image_ID": {
+            "title": "Image Id"
+          },
+          "document_reference_specimen_identifier": {
+            "title": "Specimen Identifier"
+          },
+          "document_reference_source_path": {
+            "title": "Source Path"
+          },
+          "document_reference_creation": {
+            "title": "Creation"
+          },
+          "document_reference_specimen_id": {
+            "title": "Specimen Id"
+          },
+          "document_reference_CollectionDaysfromIndex": {
+            "title": "Collection Days From Index"
+          }
+        }
+      },
+      "dropdowns": {},
+      "guppyConfig": {
+        "dataType": "document_reference",
+        "fieldMapping": [
+          {
+            "field": "document_reference_object_id",
+            "name": "Download ID"
+          },
+          {
+            "field": "document_reference_file_name",
+            "name": "Name"
+          },
+          {
+            "field": "document_reference_data_type",
+            "name": "Type"
+          },
+          {
+            "field": "document_reference_data_format",
+            "name": "document_reference_Format"
+          }
+        ],
+        "nodeCountTitle": "Files",
+        "manifestMapping": {
+          "resourceIndexType": "Observation",
+          "resourceIdField": "document_reference_patient_id",
+          "referenceIdFieldInResourceIndex": "document_reference_id",
+          "referenceIdFieldInDataIndex": "document_reference_id"
+        },
+        "accessibleFieldCheckList": ["project_id"],
+        "accessibleValidationField": "project_id",
+        "downloadAccessor": "document_reference_id"
+      },
+      "buttons": [
+        {
+          "enabled": true,
+          "type": "manifest",
+          "action": "manifest",
+          "title": "Download Manifest",
+          "leftIcon": "gen3:datafile",
+          "rightIcon": "gen3:download",
+          "fileName": "manifest.json",
+          "actionArgs": {
+            "resourceIndexType": "document_reference",
+            "resourceIdField": "document_reference_id",
+            "referenceIdFieldInDataIndex": "document_reference_id",
+            "referenceIdFieldInResourceIndex": "document_reference_id",
+            "fileFields": [
+              "document_reference_id",
+              "document_reference_title",
+              "document_reference_size"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

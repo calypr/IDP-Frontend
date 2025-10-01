@@ -15,10 +15,10 @@ import { useGeneralGQLQuery } from '@gen3/core';
 export const useFileTypesFiles = () => {
   const { data, isLoading, isError } = useGeneralGQLQuery({
     query: `query($filter:JSON){
-      file(filter: $filter, first: 10000){
-        id
-        source_path
-        size
+      document_reference(filter: $filter, first: 10000){
+        document_reference_id
+        document_reference_source_path
+        document_reference_size
         project_id
       }
     }`,
@@ -27,7 +27,7 @@ export const useFileTypesFiles = () => {
         AND: [
           {
             EQ: {
-              contentType: 'image/tiff',
+              document_reference_contentType: 'image/tiff',
             },
           },
         ],
@@ -53,29 +53,30 @@ const AvailableImagesPage = ({
   const { data, isLoading, isError } = useFileTypesFiles();
 
   const imageViewerTableConfig: Record<string, SummaryTableColumn> = {
-    id: {
-      title: 'View Image',
-      field: 'id',
+    document_reference_id: {
+      title: 'Download / View',
+      field: 'document_reference_id',
       type: 'link',
-      accessorPath: 'id',
-      cellRenderFunction: 'DiacomLink',
+      accessorPath: 'document_reference_id',
+      cellRenderFunction: 'DicomLink',
       width: 32,
       params: {
-        baseURL: '/image-viewer/view',
+        imageURL: '/image-viewer/view',
+        downloadURL: '/user/data/download',
       },
     },
     project_id: {
       title: 'Project Id',
       field: 'project_id',
     },
-    source_path: {
+    document_reference_source_path: {
       title: 'Source Path',
-      field: 'source_path',
+      field: 'document_reference_source_path',
     },
-    size: {
+    document_reference_size: {
       title: 'File Size',
-      field: 'size',
-      accessorPath: 'size',
+      field: 'document_reference_size',
+      accessorPath: 'document_reference_size',
       cellRenderFunction: 'HumanReadableString',
       type: 'string',
     },
@@ -88,7 +89,7 @@ const AvailableImagesPage = ({
   return (
     <NavPageLayout
       {...{ headerProps, footerProps }}
-      headerData={{
+      headerMetadata={{
         title: 'CALYPR Image Viewer Page',
         content: 'CALYPR Image Viewer Page',
         key: 'available-images-page',
@@ -104,7 +105,7 @@ const AvailableImagesPage = ({
               <MatchingTable
                 isLoading={isLoading}
                 columns={imageViewerTableConfig ?? {}}
-                index={'file'}
+                index={'document_reference'}
                 idField={''}
                 data={data}
               />

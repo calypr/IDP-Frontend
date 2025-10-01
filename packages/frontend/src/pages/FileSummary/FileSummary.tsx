@@ -75,7 +75,7 @@ export const FileSummaryPage = ({
   return (
     <NavPageLayout
       {...{ headerProps, footerProps }}
-      headerData={{
+      headerMetadata={{
         title: 'CALYPR File Summary Page',
         content: 'File Summary',
         key: 'calypr-file-summary',

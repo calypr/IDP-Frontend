@@ -1,35 +1,46 @@
 import React, { useMemo, useState } from 'react';
-import { Tabs } from '@mantine/core';
 import { partial } from 'lodash';
 import {
-  type FacetDefinition,
+  Accessibility,
+  AggregationsData,
+  CombineMode,
+  CoreState,
+  extractEnumFilterValue,
+  FacetDefinition,
+  FacetType,
+  isIntersection,
+  selectCurrentCohortId,
   selectIndexFilters,
+  selectSharedFilters,
   useCoreSelector,
   useGetAggsQuery,
-  FacetType,
-  extractEnumFilterValue,
-  CoreState,
   useGetCountsQuery,
 } from '@gen3/core';
-import { type CohortPanelConfig, type TabConfig, TabsConfig } from './types';
+import { type CohortPanelConfiguration } from './types';
 import { type SummaryChart } from '../../components/charts/types';
-import ErrorCard from '../../components/ErrorCard';
+import { ErrorCard } from '../../components/MessageCards';
 import { useMediaQuery } from '@mantine/hooks';
+import {
+  EnumFacetDataHooks,
+  FacetDataHooks,
+} from '../../components/facets/types';
 
+import { Gen3Button } from '../../components/Buttons';
 import {
   classifyFacets,
   extractRangeValues,
   getAllFieldsFromFilterConfigs,
   processBucketData,
   processRangeData,
+  removeIntersectionFromEnum,
   useGetFacetFilters,
   useUpdateFilters,
 } from '../../components/facets/utils';
-import { useClearFilters } from '../../components/facets/hooks';
-import { FacetDataHooks } from '../../components/facets/types';
-import { FiltersPanel } from './FiltersPanel';
-import CohortManager from './CohortManager';
-import { Charts } from '../../components/charts';
+import {
+  useClearFilters,
+  useFieldNameToTitle,
+} from '../../components/facets/hooks';
+import { Charts, CollapsableCharts } from '../../components/charts';
 import ExplorerTable from './ExplorerTable/ExplorerTable';
 import CountsValue from '../../components/counts/CountsValue';
 import DownloadsPanel from './DownloadsPanel';
@@ -38,114 +49,57 @@ import {
   useDeepCompareEffect,
   useDeepCompareMemo,
 } from 'use-deep-compare';
-import { Gen3Button } from '../../components/Buttons/Gen3Button';
+import { toDisplayName } from '../../utils';
+import {
+  useCohortFilterCombineState,
+  useFilterExpandedState,
+  useSetCohortFilterCombineState,
+  useToggleExpandFilter,
+} from './hooks';
+import DropdownPanel from '../../components/facets/Panels/DropdownPanel';
+import QueryExpression from './QueryExpression';
 
 const EmptyData = {};
 
-interface TabbablePanelProps {
-  filters: TabsConfig;
-  tabTitle: string;
-  facetDefinitions: Record<string, FacetDefinition>;
-  facetDataHooks: Record<FacetType, FacetDataHooks>;
+interface CohortPanelConfigurationWithAccessLevel
+  extends CohortPanelConfiguration {
+  showAccessLevel?: boolean;
 }
 
-const TabbedPanel = ({
-  filters,
-  tabTitle,
-  facetDefinitions,
-  facetDataHooks,
-}: TabbablePanelProps) => {
-  return (
-    <div>
-      <Tabs
-        variant="pills"
-        orientation="vertical"
-        keepMounted={false}
-        defaultValue={filters?.tabs[0].title ?? 'Filters'}
-      >
-        <Tabs.List>
-          {filters.tabs.map((tab: TabConfig) => {
-            return (
-              <Tabs.Tab value={tab.title} key={`${tab.title}-tab`}>
-                {tab.title}
-              </Tabs.Tab>
-            );
-          })}
-        </Tabs.List>
-
-        {filters.tabs.map((tab: TabConfig) => {
-          return (
-            <Tabs.Panel
-              value={tab.title}
-              key={`filter-${tab.title}-tabPanel`}
-              className="w-1/4"
-            >
-              {Object.keys(facetDefinitions).length > 0 ? (
-                <FiltersPanel
-                  fields={tab.fields.reduce((acc, field) => {
-                    return [...acc, facetDefinitions[field]];
-                  }, [] as FacetDefinition[])}
-                  dataFunctions={facetDataHooks}
-                  valueLabel={tabTitle}
-                />
-              ) : null}
-            </Tabs.Panel>
-          );
-        })}
-      </Tabs>
-    </div>
-  );
-};
-
-const SinglePanel = ({
-  filters,
-  tabTitle,
-  facetDefinitions,
-  facetDataHooks,
-}: TabbablePanelProps) => {
-  return (
-    <div>
-      {Object.keys(facetDefinitions).length > 0 ? (
-        <FiltersPanel
-          fields={filters.tabs[0].fields.reduce((acc, field) => {
-            return [...acc, facetDefinitions[field]];
-          }, [] as FacetDefinition[])}
-          dataFunctions={facetDataHooks}
-          valueLabel={tabTitle}
-        />
-      ) : null}
-    </div>
-  );
-};
-
-/**
- * The main component that houses the charts, tabs, modals
- * filters, tables, buttons of the exploration page.
- *
- * All of these params come directly from the top level exploration page configuration file or
- * explorer config in legacy gitops.json file.
- * @example see packages/sampleCommons/config/gen3/explorer.json
- */
 export const CohortPanel = ({
   guppyConfig,
   filters,
   charts = {},
+  chartsSection = undefined,
   table,
   tabTitle,
   dropdowns,
   buttons,
   loginForDownload,
-}: CohortPanelConfig): JSX.Element => {
+  showAccessLevel = false,
+}: CohortPanelConfigurationWithAccessLevel): JSX.Element => {
   const isSm = useMediaQuery('(min-width: 639px)');
   const isMd = useMediaQuery('(min-width: 1373px)');
   const isXl = useMediaQuery('(min-width: 1600px)');
-
-  let numCols = 3;
-  if (isSm) numCols = 1;
-  if (isMd) numCols = 2;
-  if (isXl) numCols = 4;
-
   const [showCharts, setShowCharts] = useState(false);
+  const [accessLevel, setAccessLevel] = useState<Accessibility>(
+    Accessibility.ALL,
+  );
+
+  const sharedFiltersMap = useCoreSelector((state: CoreState) =>
+    selectSharedFilters(state),
+  );
+
+  const defaultDropdowns = useMemo(() => dropdowns ?? {}, [dropdowns]);
+  const defaultButtons = useMemo(() => buttons ?? [], [buttons]);
+
+  const numCols = useMemo(() => {
+    if (isSm) return 1;
+    if (isMd) return 2;
+    if (isXl) return 4;
+    return 3;
+  }, [isSm, isMd, isXl]);
+
   const index = guppyConfig.dataType;
   const fields = useMemo(
     () => getAllFieldsFromFilterConfigs(filters?.tabs ?? []),
@@ -155,7 +109,6 @@ export const CohortPanel = ({
   const [facetDefinitions, setFacetDefinitions] = useState<
     Record<string, FacetDefinition>
   >({});
-
   const [summaryCharts, setSummaryCharts] = useState<
     Record<string, SummaryChart>
   >({});
@@ -163,54 +116,117 @@ export const CohortPanel = ({
   const cohortFilters = useCoreSelector((state: CoreState) =>
     selectIndexFilters(state, index),
   );
+  const cohortId = useCoreSelector((state: CoreState) =>
+    selectCurrentCohortId(state),
+  );
 
   const {
     data,
     isSuccess,
+    isFetching: isAggsQueryFetching,
     isError: isAggsQueryError,
   } = useGetAggsQuery({
     type: index,
-    fields: fields,
+    fields,
     filters: cohortFilters,
+    accessibility: accessLevel,
+    queryId: cohortId,
   });
+
+  const chartKeys = useDeepCompareMemo(
+    () => [...Object.keys(chartsSection?.charts ?? {}), ...Object.keys(charts)],
+    [chartsSection?.charts, charts],
+  );
+
+  const {
+    data: chartData,
+    isSuccess: isChartSuccess,
+    isFetching: isChartFetching,
+    isError: isChartError,
+  } = useGetAggsQuery(
+    {
+      type: index,
+      fields: chartKeys,
+      filters: cohortFilters,
+      accessibility: accessLevel,
+      filterSelf: true,
+      queryId: cohortId,
+    },
+    { skip: chartKeys.length === 0 },
+  );
+
+  const cleanChartData = useDeepCompareMemo(() => {
+    if (isChartSuccess && chartData) {
+      const cleanedData: AggregationsData = {};
+      Object.keys(summaryCharts).forEach((key) => {
+        cleanedData[key] = chartData[key].filter((x) =>
+          typeof x.key !== 'string' ? true : x.key !== '',
+        );
+        const facetDef = facetDefinitions?.[key];
+        if (facetDef?.excludeValues) {
+          cleanedData[key] = cleanedData[key].filter((x) =>
+            typeof x.key !== 'string'
+              ? true
+              : facetDef?.excludeValues?.includes(String(x.key)) === false,
+          );
+        }
+      });
+      return cleanedData;
+    }
+    return chartData;
+  }, [chartData, isChartSuccess, summaryCharts]);
 
   const getEnumFacetData = useDeepCompareCallback(
     (field: string) => {
+      let filters = undefined;
+      let combineMode: CombineMode = 'or';
+      if (field in cohortFilters.root) {
+        if (isIntersection(cohortFilters.root[field])) {
+          const intersectionFilters = removeIntersectionFromEnum(
+            cohortFilters.root[field],
+          );
+          if (intersectionFilters) {
+            filters = extractEnumFilterValue(intersectionFilters);
+            combineMode = 'and';
+          }
+        } else {
+          filters = extractEnumFilterValue(cohortFilters.root[field]);
+        }
+      }
       return {
         data: processBucketData(data?.[field]),
-        enumFilters:
-          field in cohortFilters.root
-            ? extractEnumFilterValue(cohortFilters.root[field])
-            : undefined,
-        isSuccess: isSuccess,
+        enumFilters: filters,
+        combineMode,
+        isSuccess,
       };
     },
-    [cohortFilters, data, isSuccess],
+    [cohortFilters.root, data, isSuccess],
   );
 
   const getRangeFacetData = useDeepCompareCallback(
-    (field: string) => {
-      return {
-        data: processRangeData(data?.[field]),
-        filters: extractRangeValues(cohortFilters.root[field]),
-        isSuccess: isSuccess,
-      };
-    },
+    (field: string) => ({
+      data: processRangeData(data?.[field]),
+      filters: extractRangeValues(cohortFilters.root[field]),
+      isSuccess,
+    }),
     [data, cohortFilters.root, isSuccess],
   );
 
-  // Set up the hooks for the facet components to use based on the required index
   // eslint-disable-next-line @typescript-eslint/ban-ts-comment
   // @ts-ignore
-  const facetDataHooks: Record<FacetType, FacetDataHooks> =
+  const facetDataHooks: Record<FacetType, FacetDataHooks | EnumFacetDataHooks> =
     useDeepCompareMemo(() => {
       return {
-        // TODO: see if there a better way to do this
         enum: {
           useGetFacetData: getEnumFacetData,
           useUpdateFacetFilters: partial(useUpdateFilters, index),
           useGetFacetFilters: partial(useGetFacetFilters, index),
           useClearFilter: partial(useClearFilters, index),
+          useFilterExpanded: partial(useFilterExpandedState, index),
+          useToggleExpandFilter: partial(useToggleExpandFilter, index),
+          useGetCombineMode: partial(useCohortFilterCombineState, index),
+          useSetCombineMode: partial(useSetCohortFilterCombineState, index),
+          useFieldNameToTitle,
           useTotalCounts: undefined,
         },
         exact: {
@@ -218,6 +234,7 @@ export const CohortPanel = ({
           useUpdateFacetFilters: partial(useUpdateFilters, index),
           useGetFacetFilters: partial(useGetFacetFilters, index),
           useClearFilter: partial(useClearFilters, index),
+          useFieldNameToTitle,
           useTotalCounts: undefined,
         },
         multiselect: {
@@ -225,6 +242,7 @@ export const CohortPanel = ({
           useUpdateFacetFilters: partial(useUpdateFilters, index),
           useGetFacetFilters: partial(useGetFacetFilters, index),
           useClearFilter: partial(useClearFilters, index),
+          useFieldNameToTitle,
           useTotalCounts: undefined,
         },
         range: {
@@ -232,47 +250,48 @@ export const CohortPanel = ({
           useUpdateFacetFilters: partial(useUpdateFilters, index),
           useGetFacetFilters: partial(useGetFacetFilters, index),
           useClearFilter: partial(useClearFilters, index),
+          useFilterExpanded: partial(useFilterExpandedState, index),
+          useToggleExpandFilter: partial(useToggleExpandFilter, index),
+          useFieldNameToTitle,
           useTotalCounts: undefined,
         },
       };
     }, [getEnumFacetData, getRangeFacetData, index]);
 
-  // Set the facet definitions based on the data only the first time the data is loaded
   useDeepCompareEffect(() => {
     if (isSuccess && Object.keys(facetDefinitions).length === 0) {
       const configFacetDefs = filters?.tabs.reduce(
-        (acc: Record<string, FacetDefinition>, tab) => {
-          return { ...tab.fieldsConfig, ...acc };
-        },
+        (acc: Record<string, FacetDefinition>, tab) => ({
+          ...tab.fieldsConfig,
+          ...acc,
+        }),
         {},
       );
-
       const facetDefs = classifyFacets(
         data,
         index,
-        guppyConfig.fieldMapping,
+        guppyConfig?.fieldMapping ?? [],
         configFacetDefs ?? {},
+        sharedFiltersMap,
       );
       setFacetDefinitions(facetDefs);
 
-      // setup summary charts since nested fields can be listed by the split field name
-
-      const summaryCharts = Object.keys(charts).reduce((acc, field) => {
-        let chartField = field;
-        if (facetDefs?.[field] === undefined) {
-          const res = Object.values(facetDefs).filter((def) => {
-            return def.dataField === field;
-          });
-          if (res.length > 0) {
-            chartField = res[0].field;
+      const chartDefinitions = chartsSection?.charts ?? charts;
+      const summaryCharts = Object.keys(chartDefinitions).reduce(
+        (acc, field) => {
+          let chartField = field;
+          if (facetDefs?.[field] === undefined) {
+            const res = Object.values(facetDefs).filter(
+              (def) => def.dataField === field,
+            );
+            if (res.length > 0) {
+              chartField = res[0].field;
+            }
           }
-        }
-        return {
-          ...acc,
-          [chartField]: charts[field],
-        };
-      }, {});
-
+          return { ...acc, [chartField]: chartDefinitions[field] };
+        },
+        {},
+      );
       setSummaryCharts(summaryCharts);
     }
   }, [
@@ -282,47 +301,61 @@ export const CohortPanel = ({
     index,
     guppyConfig.fieldMapping,
     charts,
+    chartsSection,
   ]);
 
   const {
     data: counts,
+    isFetching: isCountsFetching,
     isSuccess: isCountSuccess,
-    isError,
+    isError: isCountsError,
   } = useGetCountsQuery({
     type: index,
     filters: cohortFilters,
+    accessibility: accessLevel,
+    queryId: cohortId,
   });
 
-  if (isError || isAggsQueryError) {
-    return <ErrorCard message="Unable to fetch data from server" />; // TODO: replace with configurable message
+  if (isCountsError || isAggsQueryError) {
+    return <ErrorCard message="Unable to fetch data from server" />;
   }
   return (
-    <div className="flex mt-3 relative">
-      <div>
-        {filters?.tabs === undefined ? null : filters?.tabs.length > 1 ? (
-          <TabbedPanel
-            filters={filters}
-            tabTitle={tabTitle}
-            facetDefinitions={facetDefinitions}
-            facetDataHooks={facetDataHooks}
-          />
-        ) : (
-          <SinglePanel
-            filters={filters}
-            tabTitle={tabTitle}
-            facetDefinitions={facetDefinitions}
-            facetDataHooks={facetDataHooks}
-          />
-        )}
-      </div>
-      <div className="w-full relative ml-2 mr-4">
-        <div className="flex flex-col">
-          <CohortManager index={index} />
+    <div className="flex flex-col mt-3 relative px-4 bg-base-lightest w-full">
+      {/* Main flex container for filters and content */}
+      <div className="flex w-full">
+        {/* Left panel for filters */}
+        <div
+          id="cohort-builder-filters"
+          className="flex-shrink-0 md:w-1/4 lg:w-1/5"
+        >
+          {filters?.tabs && (
+            <DropdownPanel
+              index={index}
+              filters={filters}
+              tabTitle={tabTitle}
+              facetDefinitions={facetDefinitions}
+              facetDataHooks={facetDataHooks}
+              onAccessChange={setAccessLevel}
+              accessLevel={accessLevel}
+              showAccessLevel={showAccessLevel}
+            />
+          )}
+        </div>
 
-          <div className="flex justify-between">
+        {/* Right panel for query expression + content */}
+        <div
+          id="cohort-builder-content"
+          className="flex flex-col md:w-3/4 lg:w-4/5 pl-4"
+        >
+          {/* Put QueryExpression at the top of content panel */}
+          <div className="mb-2">
+            <QueryExpression index={index} />
+          </div>
+
+          <div className="flex justify-between my-2">
             <DownloadsPanel
-              dropdowns={dropdowns ?? {}}
-              buttons={buttons ?? []}
+              dropdowns={defaultDropdowns}
+              buttons={defaultButtons}
               loginForDownload={loginForDownload}
               index={index}
               totalCount={counts ?? 0}
@@ -334,35 +367,38 @@ export const CohortPanel = ({
                 <Gen3Button
                   colors="primary"
                   onClick={() => setShowCharts(!showCharts)}
-                  className="px-2 py-1 text-primary-contrast rounded mr-4 hover:bg-secondary active:scale-95"
+                  className="px-2 py-1 text-primary-contrast rounded mr-4 active:scale-95"
                 >
                   {showCharts ? 'Hide Charts' : 'Show Charts'}
                 </Gen3Button>
               )}
               <CountsValue
-                label={guppyConfig.nodeCountTitle}
+                label={guppyConfig.nodeCountTitle ?? ''}
                 counts={counts}
-                isSuccess={isCountSuccess}
+                isFetching={isCountsFetching}
+                isError={isCountsError}
               />
             </div>
           </div>
+
           {showCharts && (
             <Charts
-              index={index}
               charts={summaryCharts}
               data={data ?? EmptyData}
               counts={counts}
-              isSuccess={isSuccess}
+              isSuccess={isChartSuccess}
+              numCols={numCols}
             />
           )}
-          {table?.enabled ? (
+
+          {table?.enabled && (
             <div className="mt-2 flex flex-col">
-              <div className="grid">
-                <ExplorerTable index={index} tableConfig={table} />
-              </div>
+              <ExplorerTable
+                index={index}
+                tableConfig={table}
+                accessibility={accessLevel}
+              />
             </div>
-          ) : (
-            false
           )}
         </div>
       </div>

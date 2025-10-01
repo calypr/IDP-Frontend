@@ -105,7 +105,7 @@ const MatchingTable = ({
     const pageLimit = DEFAULT_PAGE_LIMIT;
     const totalRowCount = Math.min(
       pageLimit,
-      data?.data._aggregation?.[index]._totalCount,
+      data?.data?._aggregation?.[index]._totalCount,
     );
     const limitLabel = DEFAULT_PAGE_LIMIT_LABEL;
     return { totalRowCount, limitLabel };

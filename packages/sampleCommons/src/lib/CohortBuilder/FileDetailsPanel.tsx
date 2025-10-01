@@ -1,3 +1,4 @@
+import React from 'react';
 import {
   Anchor,
   Group,
@@ -16,7 +17,6 @@ import {
   type TableDetailsPanelProps,
   ExplorerTableDetailsPanelFactory,
 } from '@gen3/frontend';
-import { FiDownload } from 'react-icons/fi';
 import {
   MdContentCopy as IconCopy,
   MdCheck as IconCheck,
@@ -100,52 +100,48 @@ export const FileDetailsPanel = ({
   }
 
   // process guppy response
-  const queryData = isQueryResponse(data) ? extractData(data, index) : {};
+  const queryData = isQueryResponse(data)
+    ? extractData(data, index ?? 'document_reference')
+    : {};
 
   // create the rows for the table
   const rows = Object.entries(queryData).map(([field, value]) => (
-    <Table.Tr key={field}>
-      <Table.Td>
+    <tr key={field}>
+      <td>
         <Text fw={700}>{field}</Text>
-      </Table.Td>
-      <Table.Td>
+      </td>
+      <td>
         {/*
           if field is one that we want a link for make it an Anchor otherwise
           render as text.
          */}
-        {field === 'id' ? (
-          <div className="flex">
-            <div className="px-2">
-              <FiDownload title="download" className="float-start" size={16} />
-            </div>
-            <Anchor
-              c="accent.1"
-              href={`${GEN3_FENCE_API}/user/data/download/${
-                value ? (value as string) : ''
-              }?redirect=true`}
-              target="_blank"
-            >
-              {value ? (value as string) : ''}
-            </Anchor>
-          </div>
+        {field === 'object_id' ? (
+          <Anchor
+            href={`${GEN3_FENCE_API}/data/download/${
+              value ? (value as string) : ''
+            }?redirect=true`}
+            target="_blank"
+          >
+            {value ? (value as string) : ''}
+          </Anchor>
         ) : (
           <Text>{value ? (value as string) : ''}</Text>
         )}
-      </Table.Td>
-    </Table.Tr>
+      </td>
+    </tr>
   ));
   return (
     <Stack>
       <LoadingOverlay visible={isLoading} />
       <Text c="primary.4">Results for {id}</Text>
-      <Table withTableBorder withColumnBorders>
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th>Field</Table.Th>
-            <Table.Th>Value</Table.Th>
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>{rows}</Table.Tbody>
+      <Table withColumnBorders>
+        <thead>
+          <tr>
+            <th>Field</th>
+            <th>Value</th>
+          </tr>
+        </thead>
+        <tbody>{rows}</tbody>
       </Table>
       <Group justify="flex-end">
         <CopyButton value={JSON.stringify(queryData)} timeout={2000}>

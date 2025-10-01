@@ -13,6 +13,7 @@ const NavigationLogo = ({
   height,
   divider = false,
   basePath = '',
+  noBasePath = undefined,
   classNames = {},
   href,
   basepage,
@@ -24,11 +25,10 @@ const NavigationLogo = ({
     title: 'border-solid border-base-darker ml-1 mr-3',
     divider:
       'border-solid border-gen3-smoke border-l-1 ml-[2px] mr-[7px] h-[64px] w-1',
-
     titleLink:
       basepage === true
         ? 'font-heading text-md pt-2 text-black hover:text-black hover:border-black hover:border-b-3'
-        : 'font-heading text-md pt-2 text-white hover:text-white hover:border-white hover:border-b-3',
+        : 'font-heading text-md pt-2 text-white hover:text-white border-black hover:border-white hover:border-b-3',
   };
 
   const mergedClassnames = mergeDefaultTailwindClassnames(
@@ -44,6 +44,7 @@ const NavigationLogo = ({
       <HoverLink
         className={extractClassName('link', mergedClassnames)}
         href={href}
+        noBasePath={noBasePath}
       >
         <Image
           className={extractClassName('logo', mergedClassnames)}

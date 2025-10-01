@@ -1,10 +1,12 @@
 import {
+  type BannerProps,
   type FooterProps,
+  type HeaderMetadata,
   type HeaderProps,
+  isHeaderMetadata,
   type NavigationProps,
   type NavPageLayoutProps,
   type TopBarProps,
-  type BannerProps,
 } from '../../features/Navigation';
 import ContentSource from '../content';
 import { GEN3_COMMONS_NAME } from '@gen3/core';
@@ -16,22 +18,47 @@ import { GEN3_COMMONS_NAME } from '@gen3/core';
  */
 export const getNavPageLayoutPropsFromConfig =
   async (): Promise<NavPageLayoutProps> => {
-    const navigationConfigJSON = await ContentSource.get(
-      `config/${GEN3_COMMONS_NAME}/navigation.json`,
+    const navigationConfigJSON = await ContentSource.getContentDatabase().get(
+      `${GEN3_COMMONS_NAME}/navigation.json`,
     );
 
-    let bannerConfigJSON: Array<BannerProps> = [];
+    const bannerConfigJSON: Array<BannerProps> = [];
+    // TODO: enable later
+    // try {
+    //   bannerConfigJSON = await ContentSource.getContentDatabase().get(
+    //     `${GEN3_COMMONS_NAME}/banner.json`,
+    //   );
+    // } catch (error: unknown) {
+    //   console.warn(
+    //     'No banner config found at: ',
+    //     `${GEN3_COMMONS_NAME}/banner.json`,
+    //   );
+    // }
+    const { topBar, navigation, type = 'original' } = navigationConfigJSON;
+
+    let headerMetadata: HeaderMetadata = {
+      title: 'Gen3 Frontend Framework Page',
+      content: 'Gen3 Frontend Framework Page',
+      key: 'gen3-common-page',
+    };
+
     try {
-      bannerConfigJSON = await ContentSource.get(
-        `config/${GEN3_COMMONS_NAME}/banner.json`,
+      const loadedHeaderMetadata = await ContentSource.getContentDatabase().get(
+        `${GEN3_COMMONS_NAME}/headerMetadata.json`,
       );
-    } catch (e) {
-      console.log(
-        'No banner config found at: ',
-        `config/${GEN3_COMMONS_NAME}/banner.json`,
+
+      if (isHeaderMetadata(loadedHeaderMetadata)) {
+        headerMetadata = loadedHeaderMetadata;
+      } else {
+        console.log('loadedHeaderMetadata', loadedHeaderMetadata);
+        console.warn('headerMetadata is not a valid HeaderMetadata object');
+      }
+    } catch (error: unknown) {
+      console.warn(
+        'No headerMetadata config found at: ',
+        `${GEN3_COMMONS_NAME}/headerMetadata.json`,
       );
     }
-    const { topBar, navigation, type = 'original' } = navigationConfigJSON;
 
     const headerProps: HeaderProps = {
       top: topBar as unknown as TopBarProps,
@@ -39,16 +66,13 @@ export const getNavPageLayoutPropsFromConfig =
       banners: bannerConfigJSON,
       type,
     };
-    const footerProps: FooterProps = await ContentSource.get(
-      `config/${GEN3_COMMONS_NAME}/footer.json`,
-    );
+    const footerProps: FooterProps =
+      await ContentSource.getContentDatabase().get(
+        `${GEN3_COMMONS_NAME}/footer.json`,
+      );
     return {
       headerProps,
       footerProps,
-      headerData: {
-        title: 'Gen3 Frontend Framework Page',
-        content: 'Gen3 Frontend Framework Page',
-        key: 'gen3-common-page',
-      },
+      headerMetadata,
     };
   };

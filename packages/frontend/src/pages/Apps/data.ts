@@ -8,23 +8,13 @@ import type { NavPageLayoutProps } from '../../features/Navigation';
 export const AppsPageGetServerSideProps: GetServerSideProps<
   NavPageLayoutProps
 > = async () => {
-  try {
-    const appsPageProps: AppsProps = await ContentSource.get(
-      `config/${GEN3_COMMONS_NAME}/appsPage.json`,
-    );
-    return {
-      props: {
-        ...(await getNavPageLayoutPropsFromConfig()),
-        appsConfig: appsPageProps,
-      },
-    };
-  } catch (err) {
-    console.error(err);
-    return {
-      props: {
-        ...(await getNavPageLayoutPropsFromConfig()),
-        appsConfig: undefined,
-      },
-    };
-  }
+  const appsPageProps: AppsProps = await ContentSource.getContentDatabase().get(
+    `${GEN3_COMMONS_NAME}/appsPage.json`,
+  );
+  return {
+    props: {
+      ...(await getNavPageLayoutPropsFromConfig()),
+      appsConfig: appsPageProps,
+    },
+  };
 };
