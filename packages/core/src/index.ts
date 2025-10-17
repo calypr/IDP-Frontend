@@ -46,6 +46,8 @@ export * from './features/sower';
 export * from './features/submission';
 export * from './features/workspace';
 export * from './features/grip';
+export * from './features/configurator';
+export * from './features/Directory';
 
 export {
   type CoreState,

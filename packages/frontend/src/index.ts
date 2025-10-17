@@ -51,7 +51,7 @@ import { CalyprPageGetServerSideProps } from './pages/CALYPR';
 import FileSummaryPage from './pages/FileSummary/FileSummary';
 import { FileSummaryPageGetServerSideProps } from './pages/FileSummary';
 
-import ConfiguratorPage from './pages/Configurator/Configurator';
+import Configurator from './pages/Configurator';
 import { ConfiguratorPageGetServerSideProps } from './pages/Configurator';
 
 import AppsPage from './pages/Apps/Apps';
@@ -146,6 +146,8 @@ import analysisApiCohortDiscovery from './features/CohortDiscovery/api/analysisA
 import staticNotebookAPI from './features/StaticNotebook/api/staticNotebookAPI';
 
 export {
+  Configurator,
+  ConfiguratorPageGetServerSideProps,
   ContentSource,
   type Fonts,
   type RegisteredIcons,

@@ -69,7 +69,7 @@ const Configurator = ({
   return (
     <NavPageLayout
       {...{ headerProps, footerProps }}
-      headerData={{
+      headerMetadata={{
         title: 'Gen3 Explorer Builder Page',
         content: 'Explorer Builder Page',
         key: 'explorer-builder-page',

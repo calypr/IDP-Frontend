@@ -24,7 +24,7 @@ export type TableItem = {
 export type ChartItem = {
   id: number;
   field: string;
-  title: string;
+  title?: string;
   chartType: string;
 };
 

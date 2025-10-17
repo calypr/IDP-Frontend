@@ -6,13 +6,15 @@ import {
   type FlexibleColumns,
 } from './types';
 import {
-  type CohortPanelConfig,
+  type CohortPanelConfiguration,
   SummaryTableColumn,
 } from '../../features/CohortBuilder';
 import { type SummaryChart } from '../../components/charts';
 import { type FacetDefinition } from '@gen3/core';
 
-export const buildConfigFromTabs = (tabs: Tab[]): CohortPanelConfig[] => {
+export const buildConfigFromTabs = (
+  tabs: Tab[],
+): CohortPanelConfiguration[] => {
   return tabs.map((tab) => {
     const columnOrder = ['col1', 'col2', 'col3', 'col4'] as const;
     const tableItems: TableItem[] = [];
@@ -86,8 +88,10 @@ export const buildConfigFromTabs = (tabs: Tab[]): CohortPanelConfig[] => {
   });
 };
 
-export const transformConfigToTabs = (content: CohortPanelConfig[]): Tab[] => {
-  return content.map((tabConfig: CohortPanelConfig, index: number) => {
+export const transformConfigToTabs = (
+  content: CohortPanelConfiguration[],
+): Tab[] => {
+  return content.map((tabConfig: CohortPanelConfiguration, index: number) => {
     const tableItems = Object.entries(tabConfig?.table?.columns || {}).map(
       ([field, col]) => ({
         id: Date.now() + Math.random(),

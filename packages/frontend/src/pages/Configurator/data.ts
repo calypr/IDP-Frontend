@@ -9,9 +9,10 @@ export const ConfiguratorPageGetServerSideProps: GetServerSideProps<
   NavPageLayoutProps
 > = async (_context) => {
   try {
-    const configuratorPageProps: ConfiguratorProps = await ContentSource.get(
-      `config/${GEN3_COMMONS_NAME}/configurator.json`,
-    );
+    const configuratorPageProps: ConfiguratorProps =
+      await ContentSource.getContentDatabase().get(
+        `config/${GEN3_COMMONS_NAME}/configurator.json`,
+      );
     return {
       props: {
         ...(await getNavPageLayoutPropsFromConfig()),

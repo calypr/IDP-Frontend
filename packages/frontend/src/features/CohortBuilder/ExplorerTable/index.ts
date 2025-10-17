@@ -15,6 +15,4 @@ export {
   registerExplorerDefaultCellRenderers,
   type ColumnDefinition,
   type CellRendererFunctionProps,
-  type SummaryTable,
-  type SummaryTableColumnType,
 };
