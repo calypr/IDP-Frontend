@@ -6,7 +6,6 @@ import {
 import { ActionIcon, Text } from '@mantine/core';
 import { FaExternalLinkAlt, FaImage, FaFileDownload } from 'react-icons/fa';
 
-/* Used for research_subject, medication_administration, and specimen indices */
 const RenderReportsLink = (
   { cell, row }: CellRendererFunctionProps,
   ...args: Array<Record<string, unknown>>
@@ -35,35 +34,23 @@ const RenderReportsLink = (
   return <span></span>;
 };
 
-/* Used for document_reference indices */
+/* Used for research_subject, medication_administration, and specimen indices */
 const RenderDicomLink = (
   { cell, row }: CellRendererFunctionProps,
   ...args: Array<Record<string, unknown>>
 ) => {
-  if (
-    !cell?.getValue() ||
-    cell?.getValue() === '' ||
-    (!(row.getValue('document_reference_source_path') as string)?.endsWith(
-      '.tiff',
-    ) &&
-      !(row.getValue('document_reference_source_path') as string)?.endsWith(
-        '.tif',
-      ))
-  ) {
-    return (
-      <a
-        href={`${args[0]?.downloadURL}/${cell.getValue()}?redirect=true`}
-        rel="noreferrer"
-        target="_blank"
-      >
-        <ActionIcon color="primary.0" size="md" variant="filled">
-          <FaFileDownload />
-        </ActionIcon>
-      </a>
-    );
-  } else
-    return (
-      <div className="flex space-x-2">
+  if (Number(row.getValue('document_reference_size') as number) !== 0) {
+    if (
+      !cell?.getValue() ||
+      cell?.getValue() === '' ||
+      (!(row.getValue('document_reference_source_path') as string)?.endsWith(
+        '.tiff',
+      ) &&
+        !(row.getValue('document_reference_source_path') as string)?.endsWith(
+          '.tif',
+        ))
+    ) {
+      return (
         <a
           href={`${args[0]?.downloadURL}/${cell.getValue()}?redirect=true`}
           rel="noreferrer"
@@ -73,17 +60,31 @@ const RenderDicomLink = (
             <FaFileDownload />
           </ActionIcon>
         </a>
-        <a
-          href={`${args[0]?.imageURL}/${cell.getValue()}`}
-          target="_blank"
-          rel="noreferrer"
-        >
-          <ActionIcon color="primary.0" size="md" variant="filled">
-            <FaImage />
-          </ActionIcon>
-        </a>
-      </div>
-    );
+      );
+    } else
+      return (
+        <div className="flex space-x-2">
+          <a
+            href={`${args[0]?.downloadURL}/${cell.getValue()}?redirect=true`}
+            rel="noreferrer"
+            target="_blank"
+          >
+            <ActionIcon color="primary.0" size="md" variant="filled">
+              <FaFileDownload />
+            </ActionIcon>
+          </a>
+          <a
+            href={`${args[0]?.imageURL}/${cell.getValue()}`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            <ActionIcon color="primary.0" size="md" variant="filled">
+              <FaImage />
+            </ActionIcon>
+          </a>
+        </div>
+      );
+  }
 };
 
 const JoinFields = (

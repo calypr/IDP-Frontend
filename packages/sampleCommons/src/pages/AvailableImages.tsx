@@ -30,6 +30,16 @@ export const useFileTypesFiles = () => {
               document_reference_contentType: 'image/tiff',
             },
           },
+          {
+            '!=': {
+              document_reference_size: null,
+            },
+          },
+          {
+            GT: {
+              document_reference_size: 0,
+            },
+          },
         ],
       },
     },
