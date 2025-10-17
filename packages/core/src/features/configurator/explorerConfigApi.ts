@@ -91,7 +91,7 @@ export const explorerConfigApi = createApi({
         url: '/list',
         method: 'GET',
       }),
-      transformResponse: (response: any) => ({
+      transformResponse: (response: ConfigResponse) => ({
         success: true,
         data: response,
       }),
@@ -105,7 +105,7 @@ export const explorerConfigApi = createApi({
         url: `/${name}`,
         method: 'GET',
       }),
-      transformResponse: (response: any) => ({
+      transformResponse: (response: ConfigResponse) => ({
         success: true,
         data: response,
       }),

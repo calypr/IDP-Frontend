@@ -96,7 +96,7 @@ export const dirSearchApi = gen3Api.injectEndpoints({
       { readonly projectId: string; readonly path: readonly string[] }
     >({
       query: (params) => {
-        const directoryPath = `/${params.path.join('/')}` || '/';
+        const directoryPath = `/${params.path.join('/')}`;
         return {
           url: `${DIR_SEARCH_API}/${params.projectId}?directory=${directoryPath}`,
           method: 'GET',

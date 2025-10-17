@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Center, Box, Text } from '@mantine/core';
 import { NavPageLayout } from '../../features/Navigation';
 import { useGetSchemaQuery } from './hooks';

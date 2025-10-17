@@ -1,3 +1,4 @@
+import React from 'react';
 import { Droppable, Draggable } from '@hello-pangea/dnd';
 import { type ColumnProps, type ChartItem, type TableItem } from './types';
 import { Box, Button } from '@mantine/core';
