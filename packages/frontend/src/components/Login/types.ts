@@ -1,14 +1,23 @@
 import { TextContentProps } from '../Content/TextContent';
+import { Gen3AppConfigData } from '../../lib/content/types';
 import { StylingOverrideWithMergeControl } from '../../types';
 
 export interface Gen3LoginPanelConfig {
-  title: string;
-  subtitle: string;
-  text: string;
-  contact: string;
+  title: string; // Main title for Login page
+  subtitle: string; // a sub title
+  text: string; // text string below the login buttons
+  contact: string; // contact message
   email: string;
   image: string;
   className: string;
+}
+
+export interface LoginConfig
+  extends Partial<Gen3LoginPanelConfig>,
+    Gen3AppConfigData {
+  topContent?: ReadonlyArray<TextImageContentProps>;
+  bottomContent?: ReadonlyArray<TextImageContentProps>;
+  showCredentialsLogin?: boolean;
 }
 
 interface TextImageContentProps extends TextContentProps {
@@ -17,12 +26,6 @@ interface TextImageContentProps extends TextContentProps {
     readonly alt: string;
   };
   readonly className: string;
-}
-
-export interface LoginConfig extends Partial<Gen3LoginPanelConfig> {
-  topContent?: ReadonlyArray<TextImageContentProps>;
-  bottomContent?: ReadonlyArray<TextImageContentProps>;
-  showCredentialsLogin?: boolean;
 }
 
 export interface LoginSelectedProps {

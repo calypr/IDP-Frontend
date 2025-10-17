@@ -11,10 +11,11 @@ const QueryPage = ({
   return (
     <NavPageLayout
       {...{ headerProps, footerProps }}
-      headerData={{
-        title: 'CALIPER Query Page',
+      headerMetadata={{
+        title: 'Gen3 Query Page',
         content: 'Query page',
-        key: 'caliper-query-page',
+        key: 'gen3-query-page',
+        ...(queryProps?.headerMetadata ? queryProps.headerMetadata : {}),
       }}
     >
       <QueryPanel graphQLEndpoint={queryProps.graphQLEndpoint} />

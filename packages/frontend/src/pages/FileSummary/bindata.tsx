@@ -17,14 +17,14 @@ export const convertSlicePointsToRangeMap = (
   return rangeMap;
 };
 
-type FileData = { size: string };
+type FileData = { document_reference_size: string };
 
 export function binDataWithCustomBoundaries(
   data: FileData[],
   boundaries: number[],
 ): { key: string; count: number }[] {
   const sizes = data
-    .map((file) => parseFloat(file.size))
+    .map((file) => parseFloat(file.document_reference_size))
     .filter((size) => !isNaN(size));
 
   const sortedBoundaries = [...boundaries].sort((a, b) => a - b);

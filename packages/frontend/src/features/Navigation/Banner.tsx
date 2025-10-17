@@ -1,3 +1,4 @@
+import React from 'react';
 import {
   FaQuestion as InfoIcon,
   FaExclamation as WarningIcon,
@@ -6,9 +7,11 @@ import {
 } from 'react-icons/fa';
 import Markdown from 'react-markdown';
 
+export type BannerLevelCategories = 'INFO' | 'WARNING' | 'ERROR';
+
 export interface BannerProps {
   readonly message: string;
-  readonly level: 'INFO' | 'WARNING' | 'ERROR';
+  readonly level: BannerLevelCategories;
   readonly dismissible: boolean;
   readonly isExternalLink: boolean;
   readonly id: number;
@@ -41,14 +44,12 @@ const icon = {
   ),
 };
 
-
-
 export const Banner: React.FC<BannerProps> = ({
   message,
   level,
-  isExternalLink
+  isExternalLink,
 }: BannerProps) => {
-  const linkTarget = isExternalLink ? '_blank': '_self';
+  const linkTarget = isExternalLink ? '_blank' : '_self';
   return (
     <div
       className={`w-full p-1 flex justify-between ${backgroundColor[level]}`}
@@ -58,11 +59,20 @@ export const Banner: React.FC<BannerProps> = ({
         <span className={`pl-4 ${textColor[level]}`}>
           <Markdown
             components={{
-              // eslint-disable-next-line react/prop-types
               a: ({ children, ...props }) => (
-                <a className="underline" {...props} target={linkTarget} rel="noreferrer">
+                <a
+                  className="underline"
+                  {...props}
+                  target={linkTarget}
+                  rel="noreferrer"
+                >
                   {children}
-                  {isExternalLink && <FaExternalLinkAlt className="pl-1 inline-block" title="External Link"/>}
+                  {isExternalLink && (
+                    <FaExternalLinkAlt
+                      className="pl-1 inline-block"
+                      title="External Link"
+                    />
+                  )}
                 </a>
               ),
             }}
@@ -71,24 +81,6 @@ export const Banner: React.FC<BannerProps> = ({
           </Markdown>
         </span>
       </div>
-      {/*dismissible && (
-        <div className="flex items-center pl-1">
-          <Button
-            onClick={() => dispatch(dismissNotification(id))}
-            rightIcon={<MdClose className={`${textColor[level]}`} />}
-            styles={{
-              root: {
-                background: "transparent",
-                "&:hover": {
-                  backgroundColor: "transparent",
-                },
-              },
-            }}
-          >
-            <div className={`${textColor[level]}`}>Dismiss</div>
-          </Button>
-        </div>
-          )*/}
     </div>
   );
 };

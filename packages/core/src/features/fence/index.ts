@@ -4,6 +4,8 @@ import {
   type NameUrl,
   logoutFence,
   useGetLoginProvidersQuery,
+  useGetDownloadQuery,
+  useLazyGetDownloadQuery,
 } from './fenceApi';
 
 import {
@@ -17,7 +19,7 @@ import {
 
 import { useGetJWKKeysQuery } from './jwtApi';
 import { FetchError, Gen3FenceResponse } from './types';
-import { fetchFence } from './utils';
+import { fetchFence, isFetchError } from './utils';
 
 export {
   type Gen3FenceResponse,
@@ -29,7 +31,10 @@ export {
   type NameUrl,
   fetchFence,
   logoutFence,
+  isFetchError,
   useGetCredentialsQuery,
+  useGetDownloadQuery,
+  useLazyGetDownloadQuery,
   useAddNewCredentialMutation,
   useRemoveCredentialMutation,
   useGetLoginProvidersQuery,

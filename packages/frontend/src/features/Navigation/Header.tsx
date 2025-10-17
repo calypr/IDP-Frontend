@@ -1,30 +1,22 @@
 import React from 'react';
-import TopBar from './TopBar';
+import TopBar from './TopBar/TopBar';
 import NavigationBar from './NavigationBar';
 import { Banner } from './Banner';
-import { HeaderProps, HeaderData } from './types';
+import { HeaderProps, HeaderMetadata } from './types';
 import HorizontalNavigationBar from './HorizontalClean/HorizontalNavigationBar';
-import { useGetCSRFQuery } from '@gen3/core';
 
-/**
- * Header component.
- *
- * @param {object} props - The properties for the Header component.
- * @param {object} props.top - The top bar items and configuration.
- * @param {object} props.navigation - The navigation bar items and configuration.
- * @param {string} props.type - The type of header to render. Default value is 'original'.
- * @returns {JSX.Element} - The rendered Header component.
- */
 const Header = ({
   top,
   navigation,
   banners,
   type = 'original',
   title,
-}: HeaderProps & Pick<HeaderData, 'title'>) => {
+}: HeaderProps & Pick<HeaderMetadata, 'title'>) => {
   return type === 'horizontal' ? (
     <div className="w-full">
-      {banners?.map((banner) => <Banner {...banner} key={banner.id} />)}
+      {banners?.map((banner) => (
+        <Banner {...banner} key={banner.id} />
+      ))}
       <HorizontalNavigationBar
         logo={navigation.logo}
         title={navigation.title}
@@ -35,7 +27,9 @@ const Header = ({
     </div>
   ) : type === 'vertical' ? (
     <div>
-      {banners?.map((banner) => <Banner {...banner} key={banner.id} />)}
+      {banners?.map((banner) => (
+        <Banner {...banner} key={banner.id} />
+      ))}
       <HorizontalNavigationBar
         logo={navigation.logo}
         title={navigation.title}
@@ -44,15 +38,19 @@ const Header = ({
       />
     </div>
   ) : (
-    <div className="w-100">
+    <div className="w-full">
       <TopBar
-        title={title}
-        logo={navigation.logo}
         items={top.items}
         loginButtonVisibility={top?.loginButtonVisibility}
+        externalLoginUrl={top?.externalLoginUrl}
         classNames={{ ...top.classNames }}
+        itemClassnames={{ ...top.itemClassnames }}
+        logo={navigation.logo}
+        title={title}
       />
-      {banners?.map((banner) => <Banner {...banner} key={banner.id} />)}
+      {banners?.map((banner) => (
+        <Banner {...banner} key={banner.id} />
+      ))}
     </div>
   );
 };

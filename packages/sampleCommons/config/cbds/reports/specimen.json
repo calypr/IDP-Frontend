@@ -1,0 +1,24 @@
+{
+  "Title": "Sample Dynamic  Reports Page",
+  "tableConfig": {
+    "enabled": true,
+    "detailsConfig": {
+      "classNames": "px-5",
+      "panel": "specimenDetails",
+      "mode": "click",
+      "idField": "document_reference_id",
+      "filterField": "document_reference_specimen_id",
+      "title": "document_reference_identifier",
+      "nodeType": "document_reference",
+      "nodeFields": {
+        "document_reference_title": "File Name",
+        "document_reference_size": "size",
+        "document_reference_contentType": "File Format",
+        "document_reference_assay": "Assay",
+        "document_reference_level": "Level",
+        "document_reference_molecule_type": "Molecule Type",
+        "document_reference_data_category": "Data Category"
+      }
+    }
+  }
+}

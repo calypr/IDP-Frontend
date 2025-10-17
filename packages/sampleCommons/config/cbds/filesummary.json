@@ -1,30 +1,25 @@
 {
   "config": {
-    "title": {
+    "document_reference_title": {
       "title": "Title",
-      "field": "title"
+      "field": "document_reference_title"
     },
-    "size": {
+    "document_reference_size": {
       "cellRenderFunction": "HumanReadableString",
       "type": "string",
       "title": "File Size",
-      "field": "size"
+      "field": "document_reference_size"
     },
-    "source_path": {
+    "document_reference_source_path": {
       "title": "Source Path",
-      "field": "source_path"
+      "field": "document_reference_source_path"
     }
   },
   "binslicePoints": [
-    0,
-    1048576,
-    524288000,
-    1073741824,
-    107374182400,
-    9007199254740991
+    0, 1048576, 524288000, 1073741824, 107374182400, 9007199254740991
   ],
   "barChartColor": "#e9724d",
   "defaultProject": "gdc-esca",
-  "idField": "id",
-  "index": "file"
+  "idField": "document_reference_id",
+  "index": "document_reference"
 }

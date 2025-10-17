@@ -1,4 +1,4 @@
-import React, { FC } from 'react';
+import React from 'react';
 import Image from 'next/image';
 import {
   FooterColumnProps,
@@ -9,8 +9,10 @@ import {
   FooterLinks,
   FooterSectionProps,
 } from './types';
-import { JSONObject } from '@gen3/core';
-import { mergeDefaultTailwindClassnames } from '../../../utils/mergeDefaultTailwindClassnames';
+import {
+  mergeDefaultTailwindClassnames,
+  mergeTailwindClassnameWithDefault,
+} from '../../../utils/mergeDefaultTailwindClassnames';
 import { extractClassName } from '../utils';
 import { extractObjectKey } from '../../../utils/values';
 
@@ -54,8 +56,13 @@ const FooterRowComponent: React.FC<FooterRowComponentProps> = ({
 
     case 'Links': {
       const links = item[itemType] as FooterLinks;
+      const mergedClassname = mergeTailwindClassnameWithDefault(
+        className,
+        'flex space-x-1',
+      );
+
       return (
-        <div className={`flex flex-no-wrap space-x-4 ${className ?? ''}`}>
+        <div className={mergedClassname}>
           {links?.links.map((link, i) => {
             return (
               <React.Fragment key={link.href}>
@@ -79,6 +86,24 @@ const FooterRowComponent: React.FC<FooterRowComponentProps> = ({
 
     case 'Icon': {
       const logo = item[itemType] as FooterLogo;
+      if (logo.href) {
+        return (
+          <a
+            key={`icons-${logo.logo}`}
+            href={logo.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={className}
+          >
+            <Image
+              src={`${logo.logo}`}
+              width={logo.width}
+              height={logo.height}
+              alt={logo.description}
+            />
+          </a>
+        );
+      }
       return (
         <Image
           key={`icons-${logo.logo}`}

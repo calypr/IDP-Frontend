@@ -1,38 +1,53 @@
-import { CohortBuilder } from './CohortBuilder';
+import CohortBuilder from './CohortBuilder';
 import {
   type CohortBuilderConfiguration,
-  type CohortPanelConfig,
-  type FacetType,
-  type TabsConfig,
+  type CohortBuilderProps,
+  type CohortPanelConfiguration,
 } from './types';
 
-import type {
-  SummaryTableColumn,
-  SummaryTable,
-  SummaryTableColumnType,
-} from './ExplorerTable';
 import {
-  ExplorerTableCellRendererFactory,
-  registerExplorerDefaultCellRenderers,
-  registerCohortBuilderDefaultPreviewRenderers,
-  type TableDetailsPanelProps,
   type CellRendererFunctionProps,
+  ExplorerTableCellRendererFactory,
   ExplorerTableDetailsPanelFactory,
+  registerCohortBuilderDefaultPreviewRenderers,
+  registerExplorerDefaultCellRenderers,
+  type TableDetailsPanelProps,
+  type TableDetailsReportPanelProps,
 } from './ExplorerTable';
 
+import { QueryExpressionContext } from './QueryExpression/QueryExpressionContext';
+import QueryExpressionSection from './QueryExpression/QueryExpressionSection';
+import QueryExpression from './QueryExpression/QueryExpression';
+import CohortManager from './CohortManager/CohortManager';
+
+import CohortManagerAndExpression from './CohortManagerAndExpression';
+import TabbedCohortBuilder, {
+  type CohortBuilderTabCategoryConfig,
+  type TabbedCohortBuilderConfiguration,
+  type TabbedCohortBuilderFacetConfig,
+} from './TabbedCohortBuilder';
+
+import { SummaryTableColumn } from './ExplorerTable';
 export {
-  CohortBuilder,
-  type CohortBuilderConfiguration,
   type SummaryTableColumn,
+  type CohortBuilderConfiguration,
+  type CohortBuilderProps,
   type TableDetailsPanelProps,
+  type TableDetailsReportPanelProps,
   type CellRendererFunctionProps,
+  type CohortPanelConfiguration,
+  CohortBuilder,
+  CohortManager,
+  CohortManagerAndExpression,
   ExplorerTableCellRendererFactory,
   ExplorerTableDetailsPanelFactory,
   registerExplorerDefaultCellRenderers,
   registerCohortBuilderDefaultPreviewRenderers,
-  type CohortPanelConfig,
-  type SummaryTable,
-  type TabsConfig,
-  type FacetType,
-  type SummaryTableColumnType,
+  QueryExpressionContext,
+  QueryExpression,
+  QueryExpressionSection,
+  TabbedCohortBuilder,
+  type TabbedCohortBuilderFacetConfig,
+  type CohortBuilderTabCategoryConfig,
+  type TabbedCohortBuilderConfiguration,
 };

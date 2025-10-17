@@ -1,15 +1,18 @@
+import React from 'react';
 import DataLibraryActionButton from './DataLibraryActionButton';
-import { ActionButtonProps } from './types';
+import { ExportActionButtonProps } from './types';
 import { FiDownload as DownloadIcon } from 'react-icons/fi';
 
-const MANIFEST_FILENAME = 'manifest.json';
-
-const DownloadAsZipButton = ({ selectedResources }: ActionButtonProps) => {
+const DownloadAsZipButton = ({
+  buttonConfig,
+  selectedResources,
+  exportDataFields,
+}: ExportActionButtonProps) => {
   return (
     <DataLibraryActionButton
       label="Download Zip"
       icon={<DownloadIcon />}
-      toolTip="Download Zip"
+      tooltip="Download Zip"
       onClick={() => {
         console.log('Download Zip');
       }}

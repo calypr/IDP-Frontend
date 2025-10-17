@@ -1,13 +1,23 @@
 import React from 'react';
+import dynamic from 'next/dynamic';
 import { NavPageLayout } from '../../features/Navigation';
-import { CohortBuilder } from '../../features/CohortBuilder';
 import { ExplorerPageProps } from './types';
 import { Center } from '@mantine/core';
+
+const CohortBuilder = dynamic(
+  () => import('../../features/CohortBuilder/CohortBuilder'),
+  {
+    ssr: false,
+  },
+);
 
 const ExplorerPage = ({
   headerProps,
   footerProps,
   explorerConfig,
+  headerMetadata,
+  tabsLayout,
+  sharedFiltersMap,
 }: ExplorerPageProps): JSX.Element => {
   if (explorerConfig === undefined) {
     return (
@@ -20,13 +30,18 @@ const ExplorerPage = ({
   return (
     <NavPageLayout
       {...{ headerProps, footerProps }}
-      headerData={{
-        title: 'CALIPER Explorer Page',
+      headerMetadata={{
+        title: 'Gen3 Explorer Page',
         content: 'Explorer Page',
-        key: 'caliper-explorer-page',
+        key: 'gen3-explorer-page',
+        ...(headerMetadata ? headerMetadata : {}),
       }}
     >
-      <CohortBuilder explorerConfig={explorerConfig} />
+      <CohortBuilder
+        tabsLayout={tabsLayout}
+        explorerConfig={explorerConfig}
+        sharedFiltersMap={sharedFiltersMap}
+      />
     </NavPageLayout>
   );
 };

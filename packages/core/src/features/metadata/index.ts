@@ -3,6 +3,7 @@ import {
   useGetMDSQuery,
   useGetTagsQuery,
   useGetDataQuery,
+  useGetMetadataByIdQuery,
   useGetCrosswalkDataQuery,
   useLazyGetCrosswalkDataQuery,
   useGetIndexAggMDSQuery,
@@ -17,6 +18,8 @@ import {
   type IndexedMetadataFilters,
 } from './types';
 
+import { queryMultipleMDSRecords } from './utils';
+
 export {
   type MetadataPaginationParams,
   type MetadataRequestParams,
@@ -28,7 +31,9 @@ export {
   useGetMDSQuery,
   useGetTagsQuery,
   useGetDataQuery,
+  useGetMetadataByIdQuery,
   useGetCrosswalkDataQuery,
   useLazyGetCrosswalkDataQuery,
   useGetIndexAggMDSQuery,
+  queryMultipleMDSRecords,
 };

@@ -1,7 +1,10 @@
 # Setting up Kind
 To use kind instead of rancher-desktop.
 
-- Install kind
+- Install kind: https://kind.sigs.k8s.io/docs/user/quick-start
+
+There are kind config files in ```packages/tools/localDev/kind``` or:
+
 - Add the following config file (```kind-config.yaml```):
 ```yaml
 kind: Cluster
@@ -53,12 +56,13 @@ confirm secret:
 ```
 kubectl get secrets --namespace default
 ```
-Create a file ```ingress.yaml```:
+
+use ```packages/tools/localDev/kind/ingress-kind.yaml``` or create a file ```ingress-kind.yaml```:
 ```yaml
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: ngress-nginx-controller
+  name: ingress-nginx-controller
   namespace: default
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /
@@ -82,6 +86,103 @@ spec:
 ```
 add to cluster:
 ```bash
-  kubectl apply -f ingress.yaml
+  kubectl apply -f ingress-kind.yaml
 ```
+
+### Workspace support
+
+If you are running frontend development on https://localhost:3010 you will need to follow
+these instructions to update the Content-Security-Policy:
+```
+ kubectl edit configmap ingress-nginx-controller -n ingress-nginx
+```
+add to the end of the file:
+```
+data:
+  allow-snippet-annotations: "true"
+  annotations-risk-level: Critical
+```
+
+write the config and exit: It will reload and allow snippets used
+by running
+```bash
+ :qingress-local-dev.yaml
+```
+or use in the alternate config below:
+
+```
+#
+# Version to support development with iframes which add https://localhost:3010
+# to the Content-Security-Policy for iframes
+# before this is uses you will need to:
+#
+#   kubectl edit configmap ingress-nginx-controller -n ingress-nginx
+#   add:
+#     apiVersion: v1
+#     data:
+#       allow-snippet-annotations: "true"
+#       annotations-risk-level: Critical
+#
+#   write the config and exit: It will reload and allow snippets used below.
+#
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ngress-nginx-controller
+  namespace: default
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      more_set_headers "Content-Security-Policy: frame-ancestors self https://localhost https://localhost:3010";
+spec:
+  tls:
+  - hosts:
+    - localhost
+    secretName: localhost-gen3
+  rules:
+  - host: "localhost"
+    http:
+      paths:
+        - pathType: Prefix
+          path: "/"
+          backend:
+            service:
+              name: revproxy-service
+              port:
+                number: 80
+```
+
+## Gen3 Helm
 start gen3-helm
+
+
+## Additional Notes
+To check the contents of a certificate:
+```bash
+kubectl get secret localhost-gen3 -n default -o json | jq '."data"."tls.crt"'| sed 's/"//g'| base64 -d | openssl x509  -text -noout
+```
+
+To get all ingresses
+```bash
+kubectl get ingress --all-namespaces
+```
+
+Ingress configuration
+```bash
+ kubectl get ingress revproxy-dev -o yaml
+```
+
+delete ingress
+```bash
+kubectl delete ingress revproxy-dev
+```
+
+delete secret
+```bash
+ kubectl delete secret gen3-certs --namespace default
+```
+
+If you have certificate issues confirm secret is correct by
+viewing the ingress config and confirm the secret name is the same in the
+configuration

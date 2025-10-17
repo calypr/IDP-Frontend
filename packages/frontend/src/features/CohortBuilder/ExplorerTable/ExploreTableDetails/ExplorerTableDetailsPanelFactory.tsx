@@ -1,7 +1,7 @@
 import { RenderFactoryTypedInstance } from '../../../../utils/RendererFactory';
 import { TableDetailsPanelProps } from './types';
 import QueryRowDetailsPanel from './QueryRowDetailsPanel';
-import RowTableDetailsPanel from './RowDetailsPanel';
+import RowTableDetailsPanel from './RowTableDetailsPanel';
 
 let instance: RenderFactoryTypedInstance<TableDetailsPanelProps>;
 

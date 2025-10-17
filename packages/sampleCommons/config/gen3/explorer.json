@@ -45,7 +45,7 @@
         "panel": "default",
         "mode" : "click",
         "idField": "submitter_id",
-        "title": "Details"
+        "title": "Row Details"
       },
       "pageLimit": {
         "limit": 10000
@@ -229,11 +229,6 @@
       "accessibleFieldCheckList": ["subject_id"],
       "accessibleValidationField": "subject_id",
       "downloadAccessor": "subject_id"
-    },
-    "dropdowns": {
-      "download-table": {
-        "title": "Download Table"
-      }
     },
     "buttons": [
       {

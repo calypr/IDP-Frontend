@@ -7,10 +7,10 @@
     },
     "logo": {
       "src": "/icons/ohsu.svg",
-      "width": 75,
-      "height": 60,
+      "width": 52.5,
+      "height": 40,
       "href": "/Apps",
-      "title": "CALIPER"
+      "title": "CALYPR"
     },
     "items": [
       {
@@ -34,8 +34,8 @@
         "name": "CBDS",
         "classNames": {
           "root": "",
-          "label": "border-primary hover:border-white",
-          "button": "border-primary hover:border-white"
+          "label": "",
+          "button": ""
         }
       }
     ],

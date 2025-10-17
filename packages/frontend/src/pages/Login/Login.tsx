@@ -11,10 +11,11 @@ const LoginPage = ({
   return (
     <NavPageLayout
       {...{ headerProps, footerProps }}
-      headerData={{
-        title: 'CALIPER Login Page',
+      headerMetadata={{
+        title: 'Gen3 Login Page',
         content: 'Login page',
-        key: 'caliper-login-page',
+        key: 'gen3-login-page',
+        ...(loginConfig?.headerMetadata ? loginConfig.headerMetadata : {}),
       }}
     >
       <LoginPanel {...loginConfig} />

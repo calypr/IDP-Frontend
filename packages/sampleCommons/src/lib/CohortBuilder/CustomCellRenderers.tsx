@@ -1,49 +1,90 @@
+import React, { ReactNode } from 'react';
 import {
   ExplorerTableCellRendererFactory,
   type CellRendererFunctionProps,
 } from '@gen3/frontend';
 import { ActionIcon, Text } from '@mantine/core';
-import React from 'react';
-import { FaExternalLinkAlt } from 'react-icons/fa';
+import { FaExternalLinkAlt, FaImage, FaFileDownload } from 'react-icons/fa';
 
-const RenderDiacomLink = (
+const RenderReportsLink = (
   { cell, row }: CellRendererFunctionProps,
   ...args: Array<Record<string, unknown>>
 ) => {
+  const cellValue = cell?.getValue();
+  const projectId = row.getValue('project_id') as string;
+  const baseUrl = args[0]?.baseURL;
   if (
-    !cell?.getValue() ||
-    cell?.getValue() === '' ||
-    (!(row.getValue('source_path') as string)?.endsWith('.tiff') &&
-      !(row.getValue('source_path') as string)?.endsWith('.tif'))
+    cellValue &&
+    cellValue !== '' &&
+    // since this only designed for 1 project
+    // might as well hardcode it into the renderer for now
+    projectId === 'cbds-smmart_labkey_demo' &&
+    baseUrl
   ) {
-    return <span></span>;
-  } else
     return (
-      <a
-        href={`${args[0].baseURL}/${cell.getValue()}`}
-        target="_blank"
-        rel="noreferrer"
-      >
+      <a href={`${baseUrl}/${cellValue}`} target="_blank" rel="noreferrer">
         <ActionIcon color="primary.0" size="md" variant="filled">
           <FaExternalLinkAlt />
         </ActionIcon>
       </a>
     );
+  }
+
+  // If any condition fails, return an empty span to render nothing
+  return <span></span>;
 };
 
-const RenderHumanReadableString = (
+/* Used for research_subject, medication_administration, and specimen indices */
+const RenderDicomLink = (
   { cell, row }: CellRendererFunctionProps,
   ...args: Array<Record<string, unknown>>
 ) => {
-  if (!cell?.getValue() || cell?.getValue() === '') {
-    return <span></span>;
+  if (Number(row.getValue('document_reference_size') as number) !== 0) {
+    if (
+      !cell?.getValue() ||
+      cell?.getValue() === '' ||
+      (!(row.getValue('document_reference_source_path') as string)?.endsWith(
+        '.tiff',
+      ) &&
+        !(row.getValue('document_reference_source_path') as string)?.endsWith(
+          '.tif',
+        ))
+    ) {
+      return (
+        <a
+          href={`${args[0]?.downloadURL}/${cell.getValue()}?redirect=true`}
+          rel="noreferrer"
+          target="_blank"
+        >
+          <ActionIcon color="primary.0" size="md" variant="filled">
+            <FaFileDownload />
+          </ActionIcon>
+        </a>
+      );
+    } else
+      return (
+        <div className="flex space-x-2">
+          <a
+            href={`${args[0]?.downloadURL}/${cell.getValue()}?redirect=true`}
+            rel="noreferrer"
+            target="_blank"
+          >
+            <ActionIcon color="primary.0" size="md" variant="filled">
+              <FaFileDownload />
+            </ActionIcon>
+          </a>
+          <a
+            href={`${args[0]?.imageURL}/${cell.getValue()}`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            <ActionIcon color="primary.0" size="md" variant="filled">
+              <FaImage />
+            </ActionIcon>
+          </a>
+        </div>
+      );
   }
-  const bytes = Number(row.getValue('size'));
-  if (bytes === 0) return '0 B';
-  const humanReadable = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(1024));
-  const round = bytes / Math.pow(1024, i);
-  return `${round.toFixed(2)} ${humanReadable[i]}`;
 };
 
 const JoinFields = (
@@ -67,11 +108,52 @@ const JoinFields = (
   return <span>Not configured</span>;
 };
 
+const RenderLinkCell = ({ cell }: CellRendererFunctionProps) => {
+  return (
+    <a href={`${cell.getValue()}`} target="_blank" rel="noreferrer">
+      <Text c="blue" td="underline" fw={700}>
+        {' '}
+        {cell.getValue() as ReactNode}{' '}
+      </Text>
+    </a>
+  );
+};
+
+const RenderHumanReadableString = (
+  { cell, row }: CellRendererFunctionProps,
+  ...args: Array<Record<string, unknown>>
+) => {
+  if (!cell?.getValue() || cell?.getValue() === '') {
+    return <span></span>;
+  }
+  const bytes = Number(row.getValue('document_reference_size'));
+  if (bytes === 0) return '0 B';
+  const humanReadable = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  const round = bytes / Math.pow(1024, i);
+  return `${round.toFixed(2)} ${humanReadable[i]}`;
+};
+
 export const registerCohortTableCustomCellRenderers = () => {
   ExplorerTableCellRendererFactory().registerRenderer(
     'link',
-    'DiacomLink',
-    RenderDiacomLink,
+    'ReportsLink',
+    RenderReportsLink,
+  );
+  ExplorerTableCellRendererFactory().registerRenderer(
+    'link',
+    'DicomLink',
+    RenderDicomLink,
+  );
+  ExplorerTableCellRendererFactory().registerRenderer(
+    'string',
+    'JoinFields',
+    JoinFields,
+  );
+  ExplorerTableCellRendererFactory().registerRenderer(
+    'link',
+    'linkURL',
+    RenderLinkCell,
   );
   ExplorerTableCellRendererFactory().registerRenderer(
     'string',

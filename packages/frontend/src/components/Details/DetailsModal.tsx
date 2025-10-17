@@ -1,3 +1,4 @@
+import React from 'react';
 import { useDisclosure } from '@mantine/hooks';
 import { Modal } from '@mantine/core';
 import { DetailsComponentProps, DetailsPanelComponentProps } from './types';
@@ -43,7 +44,7 @@ export const DetailsModal = <
       opened={opened}
       onClose={() => {
         close();
-        onClose && onClose(id);
+        if (onClose) onClose(id);
       }}
       title={title}
       withinPortal={true}

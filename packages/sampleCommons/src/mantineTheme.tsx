@@ -1,0 +1,27 @@
+import { createTheme, mergeThemeOverrides } from '@mantine/core';
+
+import { TenStringArray, createMantineTheme } from '@gen3/frontend';
+
+export const GEN3_COMMONS_NAME =
+  process.env.NEXT_PUBLIC_GEN3_COMMONS_NAME || 'gen3';
+
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const themeColors: Record<string, TenStringArray> = require(
+  `../config/${GEN3_COMMONS_NAME}/themeColors.json`,
+);
+
+const gen3Theme = createMantineTheme(
+  {
+    heading: ['Lato', 'sans-serif'],
+    content: ['Lato', 'sans-serif'],
+    fontFamily: 'Lato',
+  },
+  themeColors,
+);
+const localTheme = createTheme({
+  components: {
+    /*Add components overrides here},*/
+  },
+});
+
+export default mergeThemeOverrides(gen3Theme, localTheme);

@@ -75,10 +75,10 @@ export const FileSummaryPage = ({
   return (
     <NavPageLayout
       {...{ headerProps, footerProps }}
-      headerData={{
-        title: 'CALIPER File Summary Page',
+      headerMetadata={{
+        title: 'CALYPR File Summary Page',
         content: 'File Summary',
-        key: 'caliper-file-summary',
+        key: 'calypr-file-summary',
       }}
     >
       {fisLoading || isLoading || fbinisLoading || ftisLoading ? (

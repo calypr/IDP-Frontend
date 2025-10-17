@@ -7,8 +7,8 @@ import {
   showModal,
   useCoreDispatch,
   useCoreSelector,
-  useGetCSRFQuery,
   useGetAuthzMappingsQuery,
+  useGetCSRFQuery,
 } from '@gen3/core';
 import { FirstTimeModal } from './FirstTimeModal';
 import { SessionExpiredModal } from './SessionExpiredModal';
@@ -36,7 +36,12 @@ const getModal = (
       break;
     }
     case Modals.SessionExpireModal: {
-      res = <SessionExpiredModal openModal={true} />;
+      res = (
+        <SessionExpiredModal
+          openModal={true}
+          config={config.sessionExpiredModal}
+        />
+      );
       break;
     }
   }
@@ -62,7 +67,8 @@ const Gen3ModalsProvider = ({
   config,
   children,
 }: Gen3StandardModalsProviderProps) => {
-  useGetCSRFQuery(undefined, { refetchOnFocus: true });
+  // TODO: move this to another
+  const { isError } = useGetCSRFQuery(undefined, { refetchOnFocus: true });
   useGetAuthzMappingsQuery();
 
   const [cookie] = useCookies(['Gen3-first-time-use']);
@@ -81,13 +87,21 @@ const Gen3ModalsProvider = ({
     if (!cookie['Gen3-first-time-use'] && modalsConfig.systemUseModal.enabled) {
       if (modalsConfig.systemUseModal.showOnlyOnLogin && !isAuthenticated)
         return;
-      dispatch && dispatch(showModal({ modal: Modals.FirstTimeModal }));
+      if (dispatch) dispatch(showModal({ modal: Modals.FirstTimeModal }));
     }
   }, [
     cookie['Gen3-first-time-use'],
     dispatch,
     modalsConfig.systemUseModal.enabled,
   ]);
+
+  if (isError) {
+    return (
+      <div className="w-full m-20">
+        Error Getting status check from commons.
+      </div>
+    );
+  }
 
   return (
     <div className="bg-base-max">
