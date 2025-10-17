@@ -34,6 +34,13 @@ import { buildNested } from '../../../components/facets';
 import { useDeepCompareEffect } from 'use-deep-compare';
 import { QueryExpressionContext } from './QueryExpressionContext';
 import { useClearFilters } from '../../CohortDiscovery/hooks';
+
+const getFieldTitle = (field: string, columnTitles?: Record<string, string>): string => {
+  if (columnTitles?.[field]) {
+    return columnTitles[field];
+  }
+  return fieldNameToTitle(field);
+};
 const RemoveButton = ({ value }: { value: string }) => (
   <ActionIcon
     size="xs"
@@ -153,7 +160,8 @@ const IncludeExcludeQueryElement = ({
   ]);
 
   const expanded = get(queryExpressionsExpanded, field, true);
-  const fieldName = fieldNameToTitle(field);
+  const { columnTitles } = useContext(QueryExpressionContext);
+  const fieldName = getFieldTitle(field, columnTitles);
   const operandsArray = isArray(operands) ? operands : [operands];
 
   return (
@@ -261,7 +269,7 @@ const ComparisonElement = ({
   showLabel = true,
   displayOnly = false,
 }: ComparisonElementProps) => {
-  const { useUpdateFilters } = useContext(QueryExpressionContext);
+  const { useUpdateFilters, columnTitles } = useContext(QueryExpressionContext);
   const updateCohortFilter = useUpdateFilters();
 
   // fix the code below
@@ -272,7 +280,7 @@ const ComparisonElement = ({
   return (
     <React.Fragment>
       {showLabel ? (
-        <QueryFieldLabel>{fieldNameToTitle(filter.field)}</QueryFieldLabel>
+        <QueryFieldLabel>{getFieldTitle(filter.field, columnTitles)}</QueryFieldLabel>
       ) : null}
       <div className="flex flex-row items-center">
         <button
@@ -291,9 +299,10 @@ const ComparisonElement = ({
 };
 
 const ExistsElement = ({ field, operator }: Exists | Missing) => {
+  const { columnTitles } = useContext(QueryExpressionContext);
   return (
     <div className="flex flex-row items-center">
-      {fieldNameToTitle(field)} is
+      {getFieldTitle(field, columnTitles)} is
       <span className="px-1 underline">{operator}</span>
     </div>
   );

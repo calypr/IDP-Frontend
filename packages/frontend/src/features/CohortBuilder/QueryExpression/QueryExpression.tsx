@@ -20,9 +20,10 @@ import { useCohortFacetFilters } from '../hooks';
 
 interface QueryExpressionProps {
   index: string;
+  columnTitles?: Record<string, string>;
 }
 
-const QueryExpression = ({ index }: QueryExpressionProps) => {
+const QueryExpression = ({ index, columnTitles = {} }: QueryExpressionProps) => {
   const currentCohortId = useCoreSelector((state: CoreState) =>
     selectCurrentCohortId(state),
   );
@@ -36,6 +37,7 @@ const QueryExpression = ({ index }: QueryExpressionProps) => {
         cohortName: currentCohortName,
         cohortId: currentCohortId,
         displayOnly: false,
+        columnTitles,
         useClearCohortFilters: () => {
           const dispatch = useCoreDispatch();
           const shouldShareFilters = useCoreSelector((state) =>

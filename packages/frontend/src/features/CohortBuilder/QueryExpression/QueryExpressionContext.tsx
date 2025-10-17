@@ -25,6 +25,7 @@ export interface QueryExpressionContextProps extends QueryExpressionHooks {
   displayOnly: boolean;
   cohortName: string;
   cohortId: string | null;
+  columnTitles?: Record<string, string>;
 }
 
 export const QueryExpressionContext =
@@ -32,6 +33,7 @@ export const QueryExpressionContext =
     displayOnly: false,
     cohortId: null,
     cohortName: 'default',
+    columnTitles: {},
     useClearCohortFilters: () => {
       const dispatch = useCoreDispatch();
       return (index: string) => dispatch(clearCohortFilters({ index }));
