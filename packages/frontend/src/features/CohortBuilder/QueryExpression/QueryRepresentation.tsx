@@ -212,7 +212,7 @@ const IncludeExcludeQueryElement = ({
                   color="primary.0"
                   radius="sm"
                   size="md"
-                  className={`normal-case items-center max-w-[162px] cursor-pointer hover:bg-secondary px-1 ${displayOnly ? 'pr-3' : 'pr-0'}`}
+                  className={`normal-case items-center max-w-[162px] cursor-pointer px-1 ${displayOnly ? 'pr-3' : 'pr-0'}`}
                   rightSection={!displayOnly && <RemoveButton value={value} />}
                   onClick={() => {
                     if (displayOnly) return;
@@ -420,6 +420,8 @@ class CohortFilterToComponent implements OperationHandler<ReactElement> {
     this.displayOnly = displayOnly;
   }
 
+  filterValueDisplayOnly = true;
+
   handleIncludes = (f: Includes) => (
     <QueryElement
       key={f.field}
@@ -432,7 +434,7 @@ class CohortFilterToComponent implements OperationHandler<ReactElement> {
         {...f}
         index={this.index}
         path={this.path}
-        displayOnly={this.displayOnly}
+        displayOnly={this.filterValueDisplayOnly}
       />
     </QueryElement>
   );
@@ -442,13 +444,13 @@ class CohortFilterToComponent implements OperationHandler<ReactElement> {
       {...f}
       index={this.index}
       path={this.path}
-      displayOnly={this.displayOnly}
+      displayOnly={this.filterValueDisplayOnly}
     >
       <IncludeExcludeQueryElement
         {...f}
         index={this.index}
         path={this.path}
-        displayOnly={this.displayOnly}
+        displayOnly={this.filterValueDisplayOnly}
       />
     </QueryElement>
   );
@@ -458,12 +460,12 @@ class CohortFilterToComponent implements OperationHandler<ReactElement> {
       {...f}
       index={this.index}
       path={this.path}
-      displayOnly={this.displayOnly}
+      displayOnly={this.filterValueDisplayOnly}
     >
       <ComparisonElement
         filter={f}
         index={this.index}
-        displayOnly={this.displayOnly}
+        displayOnly={this.filterValueDisplayOnly}
       />
     </QueryElement>
   );
@@ -473,12 +475,12 @@ class CohortFilterToComponent implements OperationHandler<ReactElement> {
       {...f}
       index={this.index}
       path={this.path}
-      displayOnly={this.displayOnly}
+      displayOnly={this.filterValueDisplayOnly}
     >
       <ComparisonElement
         filter={f}
         index={this.index}
-        displayOnly={this.displayOnly}
+        displayOnly={this.filterValueDisplayOnly}
       />
     </QueryElement>
   );
@@ -488,12 +490,12 @@ class CohortFilterToComponent implements OperationHandler<ReactElement> {
       {...f}
       index={this.index}
       path={this.path}
-      displayOnly={this.displayOnly}
+      displayOnly={this.filterValueDisplayOnly}
     >
       <ComparisonElement
         filter={f}
         index={this.index}
-        displayOnly={this.displayOnly}
+        displayOnly={this.filterValueDisplayOnly}
       />
     </QueryElement>
   );
@@ -503,12 +505,12 @@ class CohortFilterToComponent implements OperationHandler<ReactElement> {
       {...f}
       index={this.index}
       path={this.path}
-      displayOnly={this.displayOnly}
+      displayOnly={this.filterValueDisplayOnly}
     >
       <ComparisonElement
         filter={f}
         index={this.index}
-        displayOnly={this.displayOnly}
+        displayOnly={this.filterValueDisplayOnly}
       />
     </QueryElement>
   );
@@ -518,12 +520,12 @@ class CohortFilterToComponent implements OperationHandler<ReactElement> {
       {...f}
       index={this.index}
       path={this.path}
-      displayOnly={this.displayOnly}
+      displayOnly={this.filterValueDisplayOnly}
     >
       <ComparisonElement
         filter={f}
         index={this.index}
-        displayOnly={this.displayOnly}
+        displayOnly={this.filterValueDisplayOnly}
       />
     </QueryElement>
   );
