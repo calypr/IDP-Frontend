@@ -43,10 +43,10 @@ interface FacetEnumListProps {
 }
 
 const FacetEnumList: React.FC<FacetEnumListProps> = ({
-  field,
-  facetName,
+  field, // actual field name
+  facetName, // title
   hooks,
-  valueLabel,
+  valueLabel, // resource type
   isSettings = false,
   isFacetView = true,
   isSearching = false,

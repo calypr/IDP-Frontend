@@ -14,15 +14,17 @@ import {
   useCoreDispatch,
   useCoreSelector,
 } from '@gen3/core';
+import { useRemoveFilterWithSharingForContext } from '../../../components/facets/hooks';
 import QueryExpressionSection from './QueryExpressionSection';
 import { QueryExpressionContext } from './QueryExpressionContext';
 import { useCohortFacetFilters } from '../hooks';
 
 interface QueryExpressionProps {
   index: string;
+  columnTitles?: Record<string, string>;
 }
 
-const QueryExpression = ({ index }: QueryExpressionProps) => {
+const QueryExpression = ({ index, columnTitles = {} }: QueryExpressionProps) => {
   const currentCohortId = useCoreSelector((state: CoreState) =>
     selectCurrentCohortId(state),
   );
@@ -36,6 +38,7 @@ const QueryExpression = ({ index }: QueryExpressionProps) => {
         cohortName: currentCohortName,
         cohortId: currentCohortId,
         displayOnly: false,
+        columnTitles,
         useClearCohortFilters: () => {
           const dispatch = useCoreDispatch();
           const shouldShareFilters = useCoreSelector((state) =>
@@ -64,32 +67,7 @@ const QueryExpression = ({ index }: QueryExpressionProps) => {
           };
         },
         useRemoveFilter: () => {
-          const dispatch = useCoreDispatch();
-          const shouldShareFilters = useCoreSelector((state) =>
-            selectShouldShareFilters(state),
-          );
-          const sharedFilters = useCoreSelector((state) =>
-            selectSharedFilters(state),
-          );
-
-          return (index: string, field: string) => {
-            if (shouldShareFilters && field in sharedFilters) {
-              sharedFilters[field].forEach((x) => {
-                dispatch(
-                  removeCohortFilter({
-                    index: x.index,
-                    field: field,
-                  }),
-                );
-              });
-            } else
-              dispatch(
-                removeCohortFilter({
-                  index: index,
-                  field: field,
-                }),
-              );
-          };
+          return useRemoveFilterWithSharingForContext();
         },
         useUpdateFilters: () => {
           const dispatch = useCoreDispatch();
