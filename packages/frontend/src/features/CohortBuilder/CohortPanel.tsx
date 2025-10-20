@@ -304,6 +304,20 @@ export const CohortPanel = ({
     chartsSection,
   ]);
 
+  const columnTitles = useMemo(
+    () =>
+      table?.columns
+        ? Object.entries(table.columns).reduce(
+            (acc, [field, column]) => ({
+              ...acc,
+              [field]: column.title,
+            }),
+            {},
+          )
+        : {},
+    [table?.columns],
+  );
+  
   const {
     data: counts,
     isFetching: isCountsFetching,
@@ -319,6 +333,7 @@ export const CohortPanel = ({
   if (isCountsError || isAggsQueryError) {
     return <ErrorCard message="Unable to fetch data from server" />;
   }
+
   return (
     <div className="flex flex-col mt-3 relative px-4 bg-base-lightest w-full">
       {/* Main flex container for filters and content */}
@@ -349,7 +364,7 @@ export const CohortPanel = ({
         >
           {/* Put QueryExpression at the top of content panel */}
           <div className="mb-2">
-            <QueryExpression index={index} />
+            <QueryExpression index={index} columnTitles={columnTitles} />
           </div>
 
           <div className="flex justify-between my-2">

@@ -8,13 +8,29 @@
       ],
       "research_subject_identifier": [
         { "index": "research_subject", "field": "research_subject_identifier" },
-        { "index": "specimen", "field": "specimen_patient_identifier" }
+        { "index": "specimen", "field": "specimen_patient_identifier" },
+        { "index": "document_reference", "field": "document_reference_patient_identifier" }
       ],
       "specimen_patient_identifier": [
         { "index": "research_subject", "field": "research_subject_identifier" },
         { "index": "specimen", "field": "specimen_patient_identifier" }
       ],
+      "document_reference_patient_identifier": [
+        { "index": "research_subject", "field": "research_subject_identifier" },
+        { "index": "specimen", "field": "specimen_patient_identifier" },
+        { "index": "document_reference", "field": "document_reference_patient_identifier" }
+      ],
       "specimen_identifier": [
+        {
+          "index": "document_reference",
+          "field": "document_reference_specimen_identifier"
+        },
+        {
+          "index": "specimen",
+          "field": "specimen_identifier"
+        }
+      ],
+      "document_reference_specimen_identifier": [
         {
           "index": "document_reference",
           "field": "document_reference_specimen_identifier"
@@ -67,6 +83,9 @@
       "table": {
         "enabled": true,
         "columns": {
+          "research_subject_identifier": {
+            "title": "Patient ID"
+          },
           "research_subject_condition_code": {
             "title": "Diagnosis"
           },
@@ -84,6 +103,9 @@
           },
           "research_subject_patient_deceasedBoolean": {
             "title": "Deceased"
+          },
+          "research_subject_Days_between_Diagnosis_and_Death": {
+            "title": "Days between Diagnosis and Death"
           }
         },
         "fields": [
@@ -92,7 +114,8 @@
           "research_subject_patient_us_core_birthsex",
           "research_subject_patient_us_core_race",
           "research_subject_condition_code",
-          "research_subject_patient_deceasedBoolean"
+          "research_subject_patient_deceasedBoolean",
+          "research_subject_Days_between_Diagnosis_and_Death"
         ]
       },
       "dropdowns": {},
@@ -131,7 +154,7 @@
               "specimen_Tumor_Tissue_Type",
               "specimen_Fixative_Type",
               "specimen_collection",
-              "specimen_index_date_collection_days",
+              "specimen_identifier_CollectionDaysfromIndex",
               "specimen_id"
             ],
             "fieldsConfig": {
@@ -147,8 +170,8 @@
               "specimen_processing": {
                 "label": "Processing Method"
               },
-              "specimen_index_date_collection_days": {
-                "label": "Index Date Collection Days"
+              "specimen_identifier_CollectionDaysfromIndex": {
+                "label": "Collection Days from Index"
               },
               "specimen_Tumor_Tissue_Type": {
                 "label": "Tumor Tissue Type"
@@ -175,8 +198,8 @@
           "specimen_collection": {
             "title": "Site of Resection or Biopsy"
           },
-          "specimen_index_date_collection_days": {
-            "title": "Index Date Collection Days"
+          "specimen_identifier_CollectionDaysfromIndex": {
+            "title": "Collection Days from Index"
           },
           "specimen_patient_identifier": {
             "title": "Patient ID"
@@ -197,7 +220,7 @@
             "title": "Storage Method"
           },
           "specimen_id": {
-            "title": "Specimen Id"
+            "title": "Specimen UUID"
           }
         },
         "fields": [
@@ -209,7 +232,7 @@
           "specimen_Storage_Method",
           "specimen_collection",
           "specimen_processing",
-          "specimen_index_date_collection_days",
+          "specimen_identifier_CollectionDaysfromIndex",
           "specimen_id"
         ]
       },
@@ -243,6 +266,7 @@
           {
             "fields": [
               "project_id",
+              "document_reference_patient_identifier",
               "document_reference_specimen_identifier",
               "document_reference_Assay",
               "document_reference_Level",
@@ -266,8 +290,11 @@
               "document_reference_Cell_Morphology_Assessment": {
                 "label": "Cell Morphology Assessment"
               },
+              "document_reference_patient_identifier": {
+                "label": "Patient ID"
+              },
               "document_reference_specimen_identifier": {
-                "label": "Specimen Identifier"
+                "label": "Specimen ID"
               },
               "document_reference_NominalMagnification": {
                 "label": "Nominal Magnification"
@@ -332,7 +359,7 @@
               "document_reference_BiospecimenType": {
                 "label": "Biospecimen Type"
               },
-              "document_reference_CollectionDaysfromIndex": {
+              "document_reference_specimen_identifier_CollectionDaysfromIndex": {
                 "label": "Collection Days from Index"
               }
             }
@@ -369,7 +396,7 @@
           "document_reference_PixelType",
           "document_reference_TumorTissueType",
           "document_reference_BiospecimenType",
-          "document_reference_CollectionDaysfromIndex",
+          "document_reference_specimen_identifier_CollectionDaysfromIndex",
           "document_reference_specimen_identifier",
           "document_reference_specimen_collection",
           "document_reference_specimen_processing",
@@ -391,6 +418,9 @@
               "imageURL": "/image-viewer/view",
               "downloadURL": "/user/data/download"
             }
+          },
+          "document_reference_patient_identifier": {
+            "title": "Patient ID"
           },
           "document_reference_size": {
             "title": "File Size",
@@ -494,19 +524,19 @@
             "title": "Image Id"
           },
           "document_reference_specimen_identifier": {
-            "title": "Specimen Identifier"
+            "title": "Specimen ID"
           },
           "document_reference_source_path": {
             "title": "Source Path"
           },
           "document_reference_creation": {
-            "title": "Creation"
+            "title": "Creation Date"
           },
           "document_reference_specimen_id": {
-            "title": "Specimen Id"
+            "title": "Specimen UUID"
           },
-          "document_reference_CollectionDaysfromIndex": {
-            "title": "Collection Days From Index"
+          "document_reference_specimen_identifier_CollectionDaysfromIndex": {
+            "title": "Collection Days from Index"
           }
         }
       },
