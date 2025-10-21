@@ -1,5 +1,3 @@
-'use client';
-
 import React, { useMemo, PropsWithChildren } from 'react';
 import Head from 'next/head';
 import Footer from './Footer/Footer';
@@ -22,11 +20,7 @@ const NavPageLayout = ({
 
   const mainPadding = useMemo(() => {
     if (leftNavDisabled) return '';
-    return finalState === 'expanded'
-      ? 'lg:pl-8'
-      : finalState === 'collapsed'
-        ? 'lg:pl-8'
-        : 'lg:pl-0';
+    return finalState === 'open' ? 'pl-48' : 'pl-0';
   }, [finalState, leftNavDisabled]);
 
   return (
@@ -55,7 +49,7 @@ const NavPageLayout = ({
       )}
 
       {/* BODY */}
-      <div className="flex flex-1 mt-16">
+      <div className="flex flex-1">
         {/* Sidebar */}
         {!leftNavDisabled && (
           <Sidebar items={headerProps.leftnav} state={finalState} />

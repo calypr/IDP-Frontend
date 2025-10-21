@@ -113,7 +113,7 @@ export interface SidebarProps {
   state: SidebarState;
 }
 
-export type SidebarState = 'expanded' | 'collapsed' | 'closed';
+export type SidebarState = 'open' | 'closed';
 
 export interface UseResponsiveSidebarResult {
   finalState: SidebarState;

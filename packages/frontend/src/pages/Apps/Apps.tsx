@@ -57,11 +57,6 @@ const AppsPage = ({ headerProps, footerProps, appsConfig }: AppsPageProps) => {
       <div>
         <div className="flex flex-col">
           <SummaryStatsBanner authz={authzMapping} />
-          <Alert className="bg-base-max" variant="filled">
-            <div className="text-black text-4xl text-center font-semibold">
-              Apps
-            </div>
-          </Alert>
         </div>
         <div className="grid grid-cols-4 gap-6 px-8 my-4 auto-rows-auto">
           {appsConfig?.appCards

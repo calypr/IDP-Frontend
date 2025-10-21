@@ -262,9 +262,9 @@ const SamplePage = ({ headerProps, footerProps }: NavPageLayoutProps) => {
         key: 'calypr-gripref-page',
       }}
     >
-      <div className="min-h-screen w-full flex flex-col items-center justify-center p-4">
-        <div className="w-full max-w-7xl bg-white rounded-xl shadow-lg overflow-hidden">
-          <div className="p-4 border-b">
+      <div className="min-h-screen w-full flex flex-col items-center justify-start">
+        <div className="w-full bg-white overflow-hidden p-2">
+          <div className="p-2 border-b">
             <h1 className="text-2xl font-bold text-gray-800">Finder</h1>
             <p className="text-gray-600">View directory structure </p>
           </div>

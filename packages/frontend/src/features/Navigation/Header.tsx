@@ -13,14 +13,8 @@ const Header = ({
   onToggle,
   basePage,
 }: HeaderToggleProps & Pick<HeaderMetadata, 'title'>) => {
-  const accentColor = basePage ? 'bg-white' : 'bg-accent';
-
   return (
-    <header
-      className={`
-        fixed top-0 left-0 right-0 h-16 z-50 shadow-md ${accentColor}
-      `}
-    >
+    <div>
       {type === 'horizontal' ? (
         <div className="w-full h-full">
           {banners?.map((banner) => (
@@ -36,7 +30,7 @@ const Header = ({
           />
         </div>
       ) : type === 'vertical' ? (
-        <div className="w-full h-full">
+        <div className={`w-full h-full`}>
           {banners?.map((banner) => (
             <Banner {...banner} key={banner.id * 100} />
           ))}
@@ -68,7 +62,7 @@ const Header = ({
           ))}
         </div>
       )}
-    </header>
+    </div>
   );
 };
 

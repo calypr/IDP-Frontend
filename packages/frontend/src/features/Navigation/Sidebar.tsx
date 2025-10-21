@@ -1,105 +1,92 @@
 import Image from 'next/image';
-import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { SidebarProps, SidebarState } from './types';
-import { UseResponsiveSidebarResult } from './types';
+import React, { useEffect, useState, useCallback } from 'react';
+import type { SidebarProps, SidebarState } from './types';
+import type { UseResponsiveSidebarResult } from './types';
 
 export function useResponsiveSidebar(
   leftNavDisabled: boolean,
 ): UseResponsiveSidebarResult {
-  const [buttonState, setButtonState] = useState<'expanded' | 'collapsed'>(
-    'expanded',
-  );
+  // Tracks if the user has manually opened the sidebar
   const [userOpened, setUserOpened] = useState(false);
-  const prevResizeState = useRef<SidebarState>('expanded'); // Track previous
+  // Tracks the state from the button click, defaults to 'open'
+  const [buttonState, setButtonState] = useState<SidebarState>('open');
 
-  const getResizeState = useCallback(() => {
-    if (typeof window === 'undefined') return 'expanded';
+  // Define the breakpoint for automatic closing
+  const CLOSE_BREAKPOINT = 1024;
+
+  // Determines the size-based state
+  const getResizeState = useCallback((): SidebarState => {
+    if (typeof window === 'undefined') return 'open';
     const width = window.innerWidth;
-    if (width < 1024) return 'closed';
-    if (width < 1280) return 'collapsed';
-    return 'expanded';
+    // Sidebar closes automatically below the breakpoint
+    return width < CLOSE_BREAKPOINT ? 'closed' : 'open';
   }, []);
 
   const [resizeState, setResizeState] = useState<SidebarState>(getResizeState);
 
+  // --- Revised useEffect Logic ---
   useEffect(() => {
     const handleResize = () => {
       const newState = getResizeState();
-      const oldState = prevResizeState.current;
-
       setResizeState(newState);
-
-      // Only reset userOpened when ENTERING 'closed' from another state
-      if (newState === 'closed' && oldState !== 'closed') {
-        setUserOpened(false);
-        setButtonState('expanded');
+      if (newState === 'closed') {
+        setButtonState('closed');
+      } else {
+        setButtonState('open');
       }
-      // Entering 'collapsed' or 'expanded' — preserve user state
-      else if (newState === 'collapsed' && oldState === 'closed') {
-        // Just left closed — keep userOpened if they opened it
-      }
-      // Entering expanded — always full
-      else if (newState === 'expanded') {
-        setButtonState('expanded');
-      }
-      prevResizeState.current = newState;
     };
 
     handleResize();
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+    // Re-run whenever the user's intent (userOpened) changes
   }, [getResizeState]);
 
   const toggleButton = useCallback(() => {
-    if (resizeState === 'closed') {
-      // ALLOW OPEN FROM CLOSED
-      setUserOpened(true);
-      setButtonState('collapsed');
-    } else {
-      // NORMAL TOGGLE
-      setButtonState((prev) =>
-        prev === 'expanded' ? 'collapsed' : 'expanded',
-      );
-    }
-  }, [resizeState]);
+    setButtonState((prev) => {
+      const newState = prev === 'open' ? 'closed' : 'open';
+      // Track the user's intention
+      setUserOpened(newState === 'open');
+      return newState;
+    });
+  }, []);
 
+  // Determine the final visible state:
   const finalState: SidebarState = leftNavDisabled
     ? 'closed'
-    : resizeState === 'closed' && !userOpened
+    : // 1. Force close if screen is small AND user hasn't opened it.
+      resizeState === 'closed' && !userOpened
       ? 'closed'
-      : buttonState === 'expanded'
-        ? 'expanded'
-        : 'collapsed';
+      : // 2. Otherwise, respect the button's last state.
+        buttonState;
 
-  return { buttonState, resizeState, finalState, toggleButton };
+  return { finalState, toggleButton };
 }
 
 export const Sidebar = ({ items, state }: SidebarProps) => {
   if (state === 'closed') return null;
 
-  const widthClass = state === 'expanded' ? 'w-48' : 'w-16';
-  const showText = state === 'expanded';
   return (
     <aside
-      className={`
+      className={`fixed top-16 bottom-24
         flex flex-col bg-white dark:bg-gray-800
         border-r border-gray-200 dark:border-gray-700
         transition-all duration-300 ease-in-out shadow-xl overflow-hidden
-        ${widthClass}
       `}
     >
       <nav className="flex flex-col flex-1 p-2">
         <ul className="space-y-1">
           {items.map((item) => {
-            const iconOnly = state === 'collapsed';
             return (
-              <li key={item.title} className="relative group">
+              <li key={item.title} className="relative">
                 <a
                   href={item.href}
                   className={`
                     flex items-center p-2 rounded-lg text-gray-900 dark:text-white
                     hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors
-                    ${iconOnly ? 'justify-center' : 'justify-start'}
+                    justify-start
                   `}
                 >
                   <span className="shrink-0 w-6 h-6 relative">
@@ -111,25 +98,11 @@ export const Sidebar = ({ items, state }: SidebarProps) => {
                     />
                   </span>
 
-                  {showText && (
-                    <span className="ml-3 text-sm truncate transition-opacity duration-200">
-                      {item.title}
-                    </span>
-                  )}
-                </a>
-
-                {iconOnly && (
-                  <span
-                    className="
-                      absolute left-full ml-2 top-1/2 -translate-y-1/2
-                      px-2 py-1 bg-gray-800 text-white text-xs rounded
-                      opacity-0 group-hover:opacity-100 transition-opacity duration-200
-                      pointer-events-none whitespace-nowrap z-50
-                    "
-                  >
+                  {/* Always show text since there's no collapsed state */}
+                  <span className="ml-3 text-sm truncate transition-opacity duration-200">
                     {item.title}
                   </span>
-                )}
+                </a>
               </li>
             );
           })}
