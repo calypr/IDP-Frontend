@@ -16,13 +16,16 @@ type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
   args: {
+    basePage: false,
     classNames: {
       root: 'bg-base-min',
       layout: 'flex items-center justify-end',
     },
     rightSection: {
+      basePage: false,
       columns: [
         {
+          basePage: false,
           rows: [
             {
               Icon: {
@@ -30,11 +33,14 @@ export const Default: Story = {
                 width: 132,
                 height: 60,
                 description: 'Gen3 Logo',
+                logolight: '/icons/gen3_light.png',
+                basePage: false,
               },
             },
           ],
         },
         {
+          basePage: false,
           rows: [
             {
               Icon: {
@@ -42,6 +48,8 @@ export const Default: Story = {
                 width: 170,
                 height: 60,
                 description: 'Created by CTDS',
+                logolight: '/icons/gen3_light.png',
+                basePage: false,
               },
             },
           ],

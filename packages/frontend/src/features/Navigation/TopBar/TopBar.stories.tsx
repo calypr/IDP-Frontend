@@ -16,6 +16,7 @@ type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
   args: {
+    onToggle: () => undefined,
     items: [
       {
         rightIcon: 'gen3:video',

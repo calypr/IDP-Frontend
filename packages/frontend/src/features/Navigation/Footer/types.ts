@@ -43,6 +43,7 @@ export interface FooterLink extends FooterText {
 }
 
 export interface FooterLogo {
+  logolight: string;
   logo: string;
   description: string;
   width: number;
@@ -62,11 +63,13 @@ export interface FooterColumnProps {
   heading?: string;
   rows: Array<Record<string, FooterRow>>;
   classNames?: StylingOverrideWithMergeControl;
+  basePage: boolean;
 }
 
 export interface FooterSectionProps {
   columns: ReadonlyArray<FooterColumnProps>;
   className?: string;
+  basePage: boolean;
 }
 
 export interface FooterProps {
@@ -78,4 +81,5 @@ export interface FooterProps {
   leftSection?: FooterSectionProps;
   classNames?: StylingOverrideWithMergeControl;
   customFooter?: ReactElement;
+  basePage: boolean;
 }

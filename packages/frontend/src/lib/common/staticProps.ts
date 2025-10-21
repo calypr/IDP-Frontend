@@ -8,6 +8,10 @@ import {
   type NavPageLayoutProps,
   type TopBarProps,
 } from '../../features/Navigation';
+import {
+  HeaderToggleProps,
+  LeftNavBarProps,
+} from '../../features/Navigation/types';
 import ContentSource from '../content';
 import { GEN3_COMMONS_NAME } from '@gen3/core';
 
@@ -34,7 +38,12 @@ export const getNavPageLayoutPropsFromConfig =
     //     `${GEN3_COMMONS_NAME}/banner.json`,
     //   );
     // }
-    const { topBar, navigation, type = 'original' } = navigationConfigJSON;
+    const {
+      topBar,
+      navigation,
+      type = 'original',
+      leftnav,
+    } = navigationConfigJSON;
 
     let headerMetadata: HeaderMetadata = {
       title: 'Gen3 Frontend Framework Page',
@@ -65,6 +74,8 @@ export const getNavPageLayoutPropsFromConfig =
       navigation: navigation as unknown as NavigationProps,
       banners: bannerConfigJSON,
       type,
+      leftnav: leftnav as unknown as Array<LeftNavBarProps>,
+      basePage: false,
     };
     const footerProps: FooterProps =
       await ContentSource.getContentDatabase().get(

@@ -60,6 +60,7 @@ export interface TopBarProps {
   readonly classNames?: StylingOverrideWithMergeControl;
   readonly itemClassnames?: StylingOverrideWithMergeControl;
   readonly logo?: NavigationBarLogo;
+  onToggle: () => void;
 }
 
 const TopBar = ({
@@ -70,16 +71,17 @@ const TopBar = ({
   classNames = {},
   itemClassnames = {},
   logo,
+  onToggle,
 }: TopBarProps) => {
   logo!.basepage = title === 'CALYPR Landing Page';
 
   const isLandingPage = title === 'CALYPR Landing Page';
 
   const classNamesDefaults = {
-    root: `flex items-center align-middle px-2 border-r-2 ${
+    root: `flex items-center align-middle border-r-2 ${
       isLandingPage
         ? 'bg-white text-black border-black'
-        : 'bg-primary text-white border-white'
+        : 'bg-primary text-white'
     }`,
     login: isLandingPage
       ? 'font-content text-black hover:border-black'
@@ -127,7 +129,7 @@ const TopBar = ({
         <div
           className={extractClassName('logoAndTitlePanel', mergedClassnames)}
         >
-          {logo && <NavigationLogo {...{ ...logo }} />}
+          {logo && <NavigationLogo {...{ ...logo }} onToggle={onToggle} />}
         </div>
         <div
           role="navigation"
