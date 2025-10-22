@@ -45,6 +45,9 @@ import '@gen3/core';
 import SmmartPage from './pages/Smmart/Smmart';
 import CalyprPage from './pages/CALYPR/CALYPR';
 
+import MillerPage from './pages/Miller';
+import { MillerPageGetServerSideProps } from './pages/Miller';
+
 import { SmmartPageGetServerSideProps } from './pages/Smmart';
 import { CalyprPageGetServerSideProps } from './pages/CALYPR';
 
@@ -176,6 +179,8 @@ export {
   SmmartPageGetServerSideProps,
   CalyprPage,
   CalyprPageGetServerSideProps,
+  MillerPage,
+  MillerPageGetServerSideProps,
   FileSummaryPage,
   FileSummaryPageGetServerSideProps,
   AppsPage,

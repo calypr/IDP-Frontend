@@ -22,7 +22,7 @@ interface DirectoryData {
   readonly resourceType: 'Directory';
 }
 
-interface DocumentReferenceData {
+export interface DocumentReferenceData {
   readonly auth_resource_path?: string;
   readonly content?: ReadonlyArray<{
     readonly attachment?: {

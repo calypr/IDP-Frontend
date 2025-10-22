@@ -2,6 +2,7 @@
 import {
   useGetDirectoryContentsQuery,
   useGetDirectoryProjectsQuery,
+  type DocumentReferenceData,
   type DirItem,
   type ProjectItem,
 } from './dirSearchSlice';
@@ -11,4 +12,5 @@ export {
   useGetDirectoryProjectsQuery,
   type DirItem,
   type ProjectItem,
+  type DocumentReferenceData,
 };
