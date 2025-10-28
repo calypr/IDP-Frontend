@@ -1,4 +1,4 @@
-import React, { useMemo, PropsWithChildren } from 'react';
+import React, { useMemo, PropsWithChildren, useRef } from 'react';
 import Head from 'next/head';
 import Footer from './Footer/Footer';
 import Header from './Header';
@@ -15,12 +15,19 @@ const NavPageLayout = ({
   children,
 }: PropsWithChildren<NavPageLayoutProps>) => {
   const leftNavDisabled = headerMetadata.title === 'CALYPR Landing Page';
+  const footerRef = useRef<HTMLDivElement>(null);
 
   const { finalState, toggleButton } = useResponsiveSidebar(leftNavDisabled);
 
   const mainPadding = useMemo(() => {
-    if (leftNavDisabled) return '';
-    return finalState === 'open' ? 'pl-48' : 'pl-0';
+    let paddingTop = 'pt-16'; // For 64px header height
+    let paddingBottom = 'pb-20'; // Fallback for ~80px footer height
+    if (footerRef.current) {
+      paddingBottom = `pb-[${footerRef.current.offsetHeight}px]`; // Dynamic footer height
+    }
+    const padding = `${paddingTop} ${paddingBottom}`;
+    if (leftNavDisabled) return padding;
+    return finalState === 'open' ? `${padding} pl-48` : `${padding} pl-0`;
   }, [finalState, leftNavDisabled]);
 
   return (
@@ -49,7 +56,7 @@ const NavPageLayout = ({
       )}
 
       {/* BODY */}
-      <div className="flex flex-1">
+      <div className="flex flex-1 relative">
         {/* Sidebar */}
         {!leftNavDisabled && (
           <Sidebar items={headerProps.leftnav} state={finalState} />
@@ -68,11 +75,13 @@ const NavPageLayout = ({
       </div>
 
       {/* FOOTER */}
-      {CustomFooterComponent ? (
-        <CustomFooterComponent {...footerProps} />
-      ) : (
-        <Footer {...footerProps} basePage={leftNavDisabled} />
-      )}
+      <div ref={footerRef}>
+        {CustomFooterComponent ? (
+          <CustomFooterComponent {...footerProps} />
+        ) : (
+          <Footer {...footerProps} basePage={leftNavDisabled} />
+        )}
+      </div>
     </div>
   );
 };

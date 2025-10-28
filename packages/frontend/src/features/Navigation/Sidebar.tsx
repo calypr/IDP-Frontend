@@ -70,42 +70,40 @@ export const Sidebar = ({ items, state }: SidebarProps) => {
 
   return (
     <aside
-      className={`fixed top-16 bottom-24
-        flex flex-col bg-white dark:bg-gray-800
+      className={`
+        fixed top-16 bottom-0 left-0
+        w-48 flex flex-col bg-white dark:bg-gray-800
         border-r border-gray-200 dark:border-gray-700
         transition-all duration-300 ease-in-out shadow-xl overflow-hidden
+        z-0
       `}
     >
       <nav className="flex flex-col flex-1 p-2">
         <ul className="space-y-1">
-          {items.map((item) => {
-            return (
-              <li key={item.title} className="relative">
-                <a
-                  href={item.href}
-                  className={`
-                    flex items-center p-2 rounded-lg text-gray-900 dark:text-white
-                    hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors
-                    justify-start
-                  `}
-                >
-                  <span className="shrink-0 w-6 h-6 relative">
-                    <Image
-                      src={item.icon}
-                      alt={item.title}
-                      fill
-                      className="object-contain"
-                    />
-                  </span>
-
-                  {/* Always show text since there's no collapsed state */}
-                  <span className="ml-3 text-sm truncate transition-opacity duration-200">
-                    {item.title}
-                  </span>
-                </a>
-              </li>
-            );
-          })}
+          {items.map((item) => (
+            <li key={item.title} className="relative">
+              <a
+                href={item.href}
+                className={`
+                  flex items-center p-2 rounded-lg text-gray-900 dark:text-white
+                  hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors
+                  justify-start
+                `}
+              >
+                <span className="shrink-0 w-6 h-6 relative">
+                  <Image
+                    src={item.icon}
+                    alt={item.title}
+                    fill
+                    className="object-contain"
+                  />
+                </span>
+                <span className="ml-3 text-sm truncate transition-opacity duration-200">
+                  {item.title}
+                </span>
+              </a>
+            </li>
+          ))}
         </ul>
       </nav>
     </aside>

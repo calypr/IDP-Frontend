@@ -78,11 +78,12 @@ const TopBar = ({
   const isLandingPage = title === 'CALYPR Landing Page';
 
   const classNamesDefaults = {
-    root: `flex items-center align-middle border-b-8 ${
-      isLandingPage
-        ? 'bg-white text-black border-white'
-        : 'bg-primary text-white border-accent'
-    }`,
+    root: `flex items-center align-middle border-b-8 fixed top-0 left-0 right-0 w-full z-10
+   ${
+     isLandingPage
+       ? 'bg-white text-black border-white'
+       : 'bg-primary text-white border-accent'
+   }`,
     login: isLandingPage
       ? 'font-content text-black hover:border-black'
       : 'font-content text-white hover:border-white',
