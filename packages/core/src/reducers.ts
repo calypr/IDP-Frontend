@@ -16,11 +16,6 @@ import {
 import { cohortReducers } from './features/cohort/reducers';
 
 import {
-  explorerConfigReducer,
-  explorerConfigReducerPath,
-} from './features/configurator/explorerConfigApi';
-
-import {
   gripApiReducer,
   gripApiSliceReducerPath,
 } from './features/grip/gripApi';
@@ -34,7 +29,6 @@ export const rootReducer = combineReducers({
   cohorts: cohortReducers,
   activeWorkspace: activeWorkspaceReducer,
   [guppyApiSliceReducerPath]: guppyApiReducer,
-  [explorerConfigReducerPath]: explorerConfigReducer,
   [gripApiSliceReducerPath]: gripApiReducer,
   [userAuthApiReducerPath]: userAuthApiReducer,
 });

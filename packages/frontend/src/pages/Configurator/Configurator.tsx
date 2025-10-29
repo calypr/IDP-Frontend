@@ -9,11 +9,7 @@ import { buildConfigFromTabs } from './utils';
 import { ConfiguratorPageProps, type Tab } from './types';
 import { GraphQLSchema } from 'graphql';
 
-const Configurator = ({
-  headerProps,
-  footerProps,
-  configuratorConfig,
-}: ConfiguratorPageProps) => {
+const Configurator = ({ headerProps, footerProps }: ConfiguratorPageProps) => {
   const { sdata, sisLoading } = useGetSchemaQuery();
   const [tabs, setTabs] = useState<Tab[]>([]);
   const [allTabsTitle, setAllTabsTitle] = useState('');
@@ -75,16 +71,15 @@ const Configurator = ({
         key: 'explorer-builder-page',
       }}
     >
-      <div className="w-full m-10">
-        <Center>
-          <Box className="p-4 border border-gray-300 rounded-lg max-w-screen-xl">
+      <Center>
+        <div className="max-w-screen-xl my-10">
+          <div className="p-4 border border-gray-300 rounded-lg">
             <Text className="text-xl text-center m-2">
               Explorer Configuration Builder
             </Text>
             <ConfigControls
               tabs={tabs}
               setTabs={setTabs}
-              allTabsTitle={allTabsTitle}
               setAllTabsTitle={setAllTabsTitle}
               setActiveTab={setActiveTab}
               onCopyConfig={copyAllContent}
@@ -99,7 +94,7 @@ const Configurator = ({
               sdata={sdata as GraphQLSchema}
               sisLoading={sisLoading}
             />
-            <Box className="p-2">
+            <div className="p-2">
               {tabs.map(
                 (tab) =>
                   activeTab === tab.id.toString() && (
@@ -135,10 +130,10 @@ const Configurator = ({
                     </Box>
                   ),
               )}
-            </Box>
-          </Box>
-        </Center>
-      </div>
+            </div>
+          </div>
+        </div>
+      </Center>
     </NavPageLayout>
   );
 };

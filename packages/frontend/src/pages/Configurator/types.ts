@@ -1,6 +1,18 @@
 import { NavPageLayoutProps } from '../../features/Navigation';
 import { GraphQLSchema } from 'graphql';
 
+export interface FieldReference {
+  index: string;
+  field: string;
+}
+export interface IndexMap {
+  [identifierName: string]: FieldReference[];
+}
+
+export interface SchemaDefinition {
+  defined: IndexMap;
+}
+
 /* boiler plate */
 interface ConfiguratorConfig {
   readonly textBoxes: ReadonlyArray<{

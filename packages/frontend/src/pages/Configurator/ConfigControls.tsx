@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, Dispatch, SetStateAction } from 'react';
 import {
   Box,
   Button,
@@ -11,114 +11,125 @@ import {
   Loader,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { type Tab } from './types';
+import type { Tab } from './types';
 import {
-  ApiResponse,
   useGetConfigContentQuery,
   useUpdateConfigContentMutation,
-  useGetConfigListQuery,
 } from '@gen3/core';
-import { transformConfigToTabs } from './utils';
+import { transformConfigToTabs, buildConfigFromTabs } from './utils';
+import { useConfigList } from './hooks';
+import { SerializedError } from '@reduxjs/toolkit';
+import { FetchBaseQueryError } from '@reduxjs/toolkit/query';
+
+// Define JSONObject to match hook's expectation
+interface JSONObject {
+  [key: string]: any; // Relaxed type to allow any JSON-like structure
+}
 
 interface ConfigControlsProps {
   tabs: Tab[];
-  setTabs: React.Dispatch<React.SetStateAction<Tab[]>>;
-  allTabsTitle: string;
-  setAllTabsTitle: React.Dispatch<React.SetStateAction<string>>;
-  setActiveTab: React.Dispatch<React.SetStateAction<string>>;
+  setTabs: Dispatch<SetStateAction<Tab[]>>;
+  allTabsTitle?: string; // Made optional to fix TS2741
+  setAllTabsTitle: Dispatch<SetStateAction<string>>;
+  setActiveTab: Dispatch<SetStateAction<string>>;
   onCopyConfig: () => void;
   onReset: () => void;
 }
 
-const ConfigControls: React.FC<ConfigControlsProps> = ({
+const ConfigControls = ({
   tabs,
   setTabs,
-  allTabsTitle,
   setAllTabsTitle,
   setActiveTab,
   onCopyConfig,
   onReset,
-}) => {
+}: ConfigControlsProps) => {
   const [postModalOpened, { open: openPostModal, close: closePostModal }] =
     useDisclosure(false);
   const [loadModalOpened, { open: openLoadModal, close: closeLoadModal }] =
     useDisclosure(false);
-  const [newConfigName, setNewConfigName] = useState<string>('');
+  const [newConfigName, setNewConfigName] = useState('');
   const [selectedConfig, setSelectedConfig] = useState<string | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [postError, setPostError] = useState<string | null>(null);
-  const [postStatus, setPostStatus] = useState<{
-    success: boolean;
-    message?: string;
-  } | null>(null);
 
-  // Fetch the list of available configs
-  const { data: configListData, isLoading: configListIsLoading } =
-    useGetConfigListQuery('');
-  const configList = configListData?.data as string[] | undefined;
+  const {
+    configList,
+    configListData,
+    configListIsLoading,
+    configListError,
+    refetchConfigList,
+  } = useConfigList();
 
-  // Fetch config content when a config is selected
   const {
     data: configData,
     error: configError,
     isFetching: configIsFetching,
-  } = useGetConfigContentQuery(selectedConfig || '', {
+  } = useGetConfigContentQuery(selectedConfig as string, {
     skip: !selectedConfig,
   });
 
-  // Mutation for posting/updating config
-  const [updateConfig, { isLoading: isUpdating }] =
-    useUpdateConfigContentMutation();
+  const [
+    updateConfig,
+    { data: postData, error: postErrorResponse, isLoading: isUpdating },
+  ] = useUpdateConfigContentMutation();
 
-  // Handle posting a new config
-  const handlePost = async () => {
-    if (!newConfigName.trim()) {
-      setPostError('Please enter a config name');
-      return;
+  // Handle loading configuration
+  useEffect(() => {
+    if (configData?.success && configData.data && selectedConfig) {
+      const configContent = configData?.data?.content?.explorerConfig ?? [];
+      console.log('CONFIG DATdsfsdfA: ', configContent);
+      const loadedTabs = transformConfigToTabs(configContent);
+      setTabs(loadedTabs);
+      setAllTabsTitle(selectedConfig); // selectedConfig is string here due to skip: !selectedConfig
+      if (loadedTabs.length > 0) setActiveTab(loadedTabs[0].id.toString());
+      closeLoadModal();
+      setSelectedConfig(null);
     }
-    setPostError(null);
-    setAllTabsTitle(newConfigName.trim());
-    setPostStatus(null);
+  }, [
+    configData,
+    selectedConfig,
+    setTabs,
+    setAllTabsTitle,
+    setActiveTab,
+    closeLoadModal,
+  ]);
 
-    try {
-      const result = await updateConfig({
-        name: newConfigName.trim(),
-        configData: tabs.map((tab) => ({
-          /* Transform tab to config data */
-        })),
-      }).unwrap();
-      setPostStatus({
-        success: result.success,
-        message: result.success ? 'Config posted successfully' : result.error,
-      });
-      setNewConfigName('');
-      closePostModal();
-      setTimeout(() => setPostStatus(null), 3000);
-    } catch (err) {
-      setPostError('Failed to post configuration');
-    }
+  // Handle posting configuration
+  const handlePost = () => {
+    if (!newConfigName.trim()) return;
+    const config = buildConfigFromTabs(tabs);
+    const configDataToPost: JSONObject = {
+      sharedFilters: config.sharedFilters || {}, // Replace undefined with empty object
+      explorerConfig: config.explorerConfig || [],
+    };
+    updateConfig({
+      name: newConfigName.trim(),
+      configData: configDataToPost,
+    }).then((result) => {
+      if (result.data?.success) {
+        closePostModal();
+        setNewConfigName('');
+        refetchConfigList();
+      }
+    });
   };
 
-  // Handle loading a selected config
-  const handleLoad = async () => {
-    if (!selectedConfig) {
-      setLoadError('Please select a configuration');
-      return;
-    }
-    setLoadError(null);
+  const handleLoad = () => {
+    if (!selectedConfig) return;
+    // Loading handled by useEffect
+  };
 
-    if (configData?.success && configData.data) {
-      setAllTabsTitle(configData.data.Name || '');
-      const loadedTabs = transformConfigToTabs(configData.data.content);
-      setTabs(loadedTabs);
-      if (loadedTabs.length > 0) setActiveTab(loadedTabs[0].id.toString());
-      setSelectedConfig(null);
-      closeLoadModal();
-    } else if (configError) {
-      setLoadError(
-        (configError as any).error || 'Failed to load configuration',
-      );
+  // Helper to extract error message
+  const getErrorMessage = (
+    error: SerializedError | FetchBaseQueryError | undefined,
+  ): string => {
+    if (!error) return 'Unknown error';
+    if ('status' in error) {
+      // FetchBaseQueryError
+      const errorData = (error.data as { error?: string }) || {};
+      return errorData.error || `Error (Status: ${error.status})`;
     }
+    // SerializedError
+    return error.message || 'Unknown error';
   };
 
   return (
@@ -145,7 +156,7 @@ const ConfigControls: React.FC<ConfigControlsProps> = ({
         opened={postModalOpened}
         onClose={() => {
           closePostModal();
-          setPostError(null);
+          setNewConfigName('');
         }}
         title="Post Configuration"
         centered
@@ -156,8 +167,17 @@ const ConfigControls: React.FC<ConfigControlsProps> = ({
           placeholder="Enter config name"
           label="Config Name"
           required
-          error={postError}
+          error={
+            newConfigName && !newConfigName.trim()
+              ? 'Config name cannot be empty'
+              : null
+          }
         />
+        {postErrorResponse && (
+          <Alert color="red" mt="md" title="Error">
+            {getErrorMessage(postErrorResponse)}
+          </Alert>
+        )}
         <Group justify="flex-end" mt="md">
           <Button onClick={closePostModal} variant="subtle" color="gray">
             Cancel
@@ -165,25 +185,18 @@ const ConfigControls: React.FC<ConfigControlsProps> = ({
           <Button
             onClick={handlePost}
             color="primary.0"
-            disabled={!newConfigName || isUpdating}
+            disabled={!newConfigName.trim() || isUpdating}
           >
             {isUpdating ? <Loader size="sm" /> : 'Post'}
           </Button>
         </Group>
       </Modal>
-      {postStatus && (
-        <Alert
-          color={postStatus.success ? 'green' : 'red'}
-          title={postStatus.success ? 'Success' : 'Error'}
-          mt="xs"
-          withCloseButton
-          onClose={() => setPostStatus(null)}
-        >
-          <Text size="sm">{postStatus.message}</Text>
-        </Alert>
-      )}
+
       <Button
-        onClick={openLoadModal}
+        onClick={() => {
+          openLoadModal();
+          refetchConfigList();
+        }}
         variant="outline"
         color="primary.0"
         className="px-4 py-2"
@@ -194,7 +207,6 @@ const ConfigControls: React.FC<ConfigControlsProps> = ({
         opened={loadModalOpened}
         onClose={() => {
           closeLoadModal();
-          setLoadError(null);
           setSelectedConfig(null);
         }}
         title="Load Configuration"
@@ -202,19 +214,24 @@ const ConfigControls: React.FC<ConfigControlsProps> = ({
       >
         {configListIsLoading ? (
           <Loader />
+        ) : configListError ? (
+          <Alert color="red" title="Error">
+            {getErrorMessage(configListError)}
+          </Alert>
+        ) : configList.length === 0 ? (
+          <Text>No configurations available</Text>
         ) : (
-          <Select
-            label="Select Configuration"
-            placeholder="Choose a config"
-            data={
-              configList?.map((config) => ({ value: config, label: config })) ||
-              []
-            }
-            value={selectedConfig}
-            onChange={setSelectedConfig}
-            error={loadError}
-            searchable
-          />
+          <>
+            <Select
+              label="Select Configuration"
+              placeholder="Choose a config"
+              data={configList}
+              value={selectedConfig}
+              onChange={setSelectedConfig}
+              searchable
+              error={configError ? getErrorMessage(configError) : null}
+            />
+          </>
         )}
         <Group justify="flex-end" mt="md">
           <Button onClick={closeLoadModal} variant="subtle" color="gray">

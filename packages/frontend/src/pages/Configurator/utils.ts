@@ -4,6 +4,7 @@ import {
   type TableItem,
   type ChartItem,
   type FlexibleColumns,
+  type SchemaDefinition,
 } from './types';
 import {
   type CohortPanelConfiguration,
@@ -12,10 +13,12 @@ import {
 import { type SummaryChart } from '../../components/charts';
 import { type FacetDefinition } from '@gen3/core';
 
-export const buildConfigFromTabs = (
-  tabs: Tab[],
-): CohortPanelConfiguration[] => {
-  return tabs.map((tab) => {
+export interface ExplorerPageConfig {
+  sharedFilters?: SchemaDefinition;
+  explorerConfig: CohortPanelConfiguration[];
+}
+export const buildConfigFromTabs = (tabs: Tab[]): ExplorerPageConfig => {
+  const explorerConfigs: CohortPanelConfiguration[] = tabs.map((tab) => {
     const columnOrder = ['col1', 'col2', 'col3', 'col4'] as const;
     const tableItems: TableItem[] = [];
     const filterItems: TableItem[] = [];
@@ -86,6 +89,9 @@ export const buildConfigFromTabs = (
       loginForDownload: false,
     };
   });
+  return {
+    explorerConfig: explorerConfigs,
+  };
 };
 
 export const transformConfigToTabs = (
