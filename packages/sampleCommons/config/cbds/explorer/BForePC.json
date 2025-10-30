@@ -58,6 +58,9 @@
               "research_subject_patient_deceasedBoolean"
             ],
             "fieldsConfig": {
+              "project_id": {
+                "label": "Project ID"
+              },
               "research_subject_identifier": {
                 "label": "Patient ID"
               },
@@ -148,8 +151,8 @@
           {
             "fields": [
               "project_id",
-              "specimen_identifier",
               "specimen_patient_identifier",
+              "specimen_identifier",
               "specimen_Storage_Method",
               "specimen_Tumor_Tissue_Type",
               "specimen_Fixative_Type",
@@ -158,11 +161,14 @@
               "specimen_id"
             ],
             "fieldsConfig": {
+              "project_id": {
+                "label": "Project ID"
+              },
               "specimen_patient_identifier": {
                 "label": "Patient ID"
               },
               "specimen_identifier": {
-                "label": "Biospecimen ID"
+                "label": "Specimen ID"
               },
               "specimen_collection": {
                 "label": "Site of Resection or Biopsy"
@@ -190,7 +196,7 @@
         "enabled": true,
         "columns": {
           "specimen_identifier": {
-            "title": "Biospecimen ID"
+            "title": "Specimen ID"
           },
           "specimen_processing": {
             "title": "Processing Method"
@@ -275,6 +281,9 @@
               "document_reference_Cell_Morphology_Assessment"
             ],
             "fieldsConfig": {
+              "project_id": {
+                "label": "Project ID"
+              },
               "document_reference_Assay": {
                 "label": "Assay"
               },
@@ -369,6 +378,7 @@
       "table": {
         "enabled": true,
         "fields": [
+          "document_reference_HTANDataFileID",
           "document_reference_title",
           "document_reference_size",
           "document_reference_File_Format",
@@ -407,6 +417,9 @@
           "document_reference_id"
         ],
         "columns": {
+          "document_reference_HTANDataFileID": {
+            "title": "Data File ID"
+          },
           "document_reference_id": {
             "title": "File Actions",
             "type": "link",
