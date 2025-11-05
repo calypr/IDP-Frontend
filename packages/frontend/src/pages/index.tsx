@@ -4,7 +4,7 @@ import { Header, Footer } from '../features/Navigation';
 import { HeaderToggleProps } from '../features/Navigation/types';
 
 const IndexPage = ({
-  top,
+  topBar,
   navigation,
   basePage,
   leftnav,
@@ -13,7 +13,7 @@ const IndexPage = ({
   return (
     <div className="flex flex-col">
       <Header
-        top={top}
+        topBar={topBar}
         navigation={navigation}
         title=""
         basePage={basePage}

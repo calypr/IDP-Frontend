@@ -5,7 +5,7 @@ import { HeaderToggleProps, HeaderMetadata } from './types';
 import HorizontalNavigationBar from './HorizontalClean/HorizontalNavigationBar';
 
 const Header = ({
-  top,
+  topBar,
   navigation,
   banners,
   type = 'original',
@@ -25,7 +25,7 @@ const Header = ({
             title={navigation.title}
             items={navigation.items}
             classNames={{ ...navigation.classNames }}
-            actions={top}
+            actions={topBar}
             onToggle={onToggle}
           />
         </div>
@@ -35,11 +35,11 @@ const Header = ({
             <Banner {...banner} key={banner.id * 100} />
           ))}
           <TopBar
-            items={top?.items || []}
-            loginButtonVisibility={top?.loginButtonVisibility}
-            externalLoginUrl={top?.externalLoginUrl}
-            classNames={{ ...top?.classNames }}
-            itemClassnames={{ ...top?.itemClassnames }}
+            items={topBar?.items || []}
+            loginButtonVisibility={topBar?.loginButtonVisibility}
+            externalLoginUrl={topBar?.externalLoginUrl}
+            classNames={{ ...topBar?.classNames }}
+            itemClassnames={{ ...topBar?.itemClassnames }}
             logo={navigation.logo}
             title={title}
             onToggle={onToggle}
@@ -48,11 +48,11 @@ const Header = ({
       ) : (
         <div className="w-full h-full">
           <TopBar
-            items={top?.items || []}
-            loginButtonVisibility={top?.loginButtonVisibility}
-            externalLoginUrl={top?.externalLoginUrl}
-            classNames={{ ...top?.classNames }}
-            itemClassnames={{ ...top?.itemClassnames }}
+            items={topBar?.items || []}
+            loginButtonVisibility={topBar?.loginButtonVisibility}
+            externalLoginUrl={topBar?.externalLoginUrl}
+            classNames={{ ...topBar?.classNames }}
+            itemClassnames={{ ...topBar?.itemClassnames }}
             logo={navigation.logo}
             title={title}
             onToggle={onToggle}

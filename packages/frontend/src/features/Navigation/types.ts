@@ -87,7 +87,7 @@ interface CommonsData {
 
 export interface HeaderProps {
   children?: React.ReactNode; // Add this line
-  top: TopBarProps;
+  topBar: TopBarProps;
   navigation: NavigationProps;
   banners?: Array<BannerProps>;
   type?: 'horizontal' | 'vertical' | 'original';
