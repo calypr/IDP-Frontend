@@ -42,9 +42,10 @@ export const LandingPageGetServerSideProps: GetServerSideProps = async () => {
       GEN3_COMMONS_NAME,
       'smmartLandingPage.json',
     );
-    smmartConfig = await ContentSource.getContentDatabase().get(
-      `${smmartConfigPath}`,
-    );
+    smmartConfig =
+      await ContentSource.getContentDatabase().get<SmmartConfig>(
+        smmartConfigPath,
+      );
   } catch (err) {
     // Gracefully handle the error if the config file is not found.
     console.error('Error fetching smmartConfig:', err);

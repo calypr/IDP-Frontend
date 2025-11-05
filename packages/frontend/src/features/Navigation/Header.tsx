@@ -35,11 +35,11 @@ const Header = ({
             <Banner {...banner} key={banner.id * 100} />
           ))}
           <TopBar
-            items={top.items}
+            items={top?.items || []}
             loginButtonVisibility={top?.loginButtonVisibility}
             externalLoginUrl={top?.externalLoginUrl}
-            classNames={{ ...top.classNames }}
-            itemClassnames={{ ...top.itemClassnames }}
+            classNames={{ ...top?.classNames }}
+            itemClassnames={{ ...top?.itemClassnames }}
             logo={navigation.logo}
             title={title}
             onToggle={onToggle}
@@ -48,11 +48,11 @@ const Header = ({
       ) : (
         <div className="w-full h-full">
           <TopBar
-            items={top.items}
+            items={top?.items || []}
             loginButtonVisibility={top?.loginButtonVisibility}
             externalLoginUrl={top?.externalLoginUrl}
-            classNames={{ ...top.classNames }}
-            itemClassnames={{ ...top.itemClassnames }}
+            classNames={{ ...top?.classNames }}
+            itemClassnames={{ ...top?.itemClassnames }}
             logo={navigation.logo}
             title={title}
             onToggle={onToggle}

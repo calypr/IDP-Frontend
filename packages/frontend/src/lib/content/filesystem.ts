@@ -1,47 +1,36 @@
-import { ContentSource } from './types';
+import { ContentStore } from './types';
 import fs from 'fs';
 import path from 'path';
 
-const myGlob = (dir: string, filter: string) => {
-  try {
-    const files = fs.readdirSync(dir);
-    return files.filter((file) => file.search(filter) !== -1);
-  } catch (error: any) {
-    console.log('myGlob error', error, dir);
-  }
-  return [];
-};
+export class FilesystemContent implements ContentStore {
+  constructor(public rootPath: string = '') {}
 
-export class FilesystemContent implements ContentSource {
-  rootPath: string;
-  constructor({ rootPath }: { rootPath?: string }) {
-    this.rootPath = rootPath || '';
+  private log(msg: string) {
+    console.log('[Filesystem]', msg);
   }
 
   public async get<T extends Record<string, any>>(
     filepath: string,
   ): Promise<T> {
+    const clean = filepath.replace(/^\/+/, '');
+    const full = path.join(this.rootPath, clean);
+    this.log(`Reading ${full}`);
+
     try {
-      return await JSON.parse(
-        fs.readFileSync(path.join(this.rootPath, filepath)).toString('utf8'),
-      );
-    } catch (err: unknown) {
-      throw new Error(`Cannot process ${path.join(this.rootPath, filepath)} `);
+      const txt = fs.readFileSync(full, 'utf8');
+      return JSON.parse(txt) as T;
+    } catch (e) {
+      this.log(`ERROR ${full}`);
+      throw new Error(`Cannot process ${full}`);
     }
   }
+
   public async getAll<T extends Record<string, any>>(
     filepath: string,
     filter: string,
   ): Promise<Array<T>> {
-    try {
-      const files = myGlob(path.join(this.rootPath, filepath), filter);
-      return Promise.all(
-        files.map((file) => this.get<T>(path.join(filepath, file))),
-      );
-    } catch (_err: unknown) {
-      throw new Error(
-        `getAllCannot process ${path.join(this.rootPath, filepath)}/${filter}`,
-      );
-    }
+    const dir = path.join(this.rootPath, filepath.replace(/^\/+/, ''));
+    const files = fs.readdirSync(dir).filter((f) => f.includes(filter));
+    return Promise.all(files.map((f) => this.get<T>(path.join(filepath, f))));
   }
 }
