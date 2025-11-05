@@ -1,426 +1,408 @@
-[
-  {
-    "tabTitle": "Research Subject",
-    "filters": {
-      "tabs": [
-        {
-          "fields": [
-            "project_id",
-            "condition_Diagnosis"
-          ],
-          "fieldsConfig": {
-            "condition_Diagnosis": {
-              "label": "Enrollment Diagnosis"
+{
+  "explorerConfig": [
+    {
+      "tabTitle": "Research Subject",
+      "filters": {
+        "tabs": [
+          {
+            "fields": ["project_id", "condition_Diagnosis"],
+            "fieldsConfig": {
+              "condition_Diagnosis": {
+                "label": "Enrollment Diagnosis"
+              }
             }
           }
-        }
-      ]
-    },
-    "table": {
-      "enabled": true,
-      "columns": {
-        "project_id": {
-          "title": "Clinical Trial"
-        },
-        "identifier": {
-          "title": "Participant ID"
-        },
-        "patient_id": {
-          "title": "Patient ID"
-        },
-        "condition_Diagnosis": {
-          "title": "Enrollment Diagnosis"
-        }
+        ]
       },
-      "fields": [
-        "project_id",
-        "identifier",
-        "condition_Diagnosis",
-        "patient_id",
-        "id"
-      ],
-      "detailsConfig": {
-        "panel": "researchSubject",
-        "mode": "click",
-        "idField": "patient_id",
-        "filterField": "patient_id",
-        "title": "identifier",
-        "nodeType": "specimen",
-        "nodeFields": {
-          "identifier": "identifier",
-          "sample_type": "sample_type",
-          "collection": "Metastasis Site",
-          "indexed_collection_date_days": "indexed_collection_date_days",
-          "sample_family_id": "Sample Family ID",
-          "histology": "histology",
-          "percent_tumor": "percent_tumor",
-          "biopsy_procedure_type": "biopsy_procedure_type",
-          "processing": "processing",
-          "id": "ID"
-        }
-      }
-    },
-    "dropdowns": {},
-    "guppyConfig": {
-      "dataType": "researchsubject",
-      "nodeCountTitle": "Research Subjects",
-      "fieldMapping": []
-    }
-  },
-  {
-    "tabTitle": "Specimen",
-    "charts": {
-      "histology": {
-        "chartType": "fullPie",
-        "title": "Histology"
-      },
-      "collection": {
-        "chartType": "fullPie",
-        "title": "Metastasis Site"
-      }
-    },
-    "filters": {
-      "tabs": [
-        {
-          "fields": [
-            "project_id",
-            "identifier",
-            "histology",
-            "collection",
-            "sample_type",
-            "tissue_type",
-            "biopsy_event_tag",
-            "anatomical_location",
-            "allocated_for_site",
-            "clinical_event",
-            "treatments",
-            "patient_identifier"
-          ],
-          "fieldsConfig": {
-            "identifier": {
-              "label": "BEMS ID"
-            },
-            "collection": {
-              "label": "Metastasis Site"
-            },
-            "biopsy_event_tag": {
-              "label": "Biopsy Event"
-            }
+      "table": {
+        "enabled": true,
+        "columns": {
+          "project_id": {
+            "title": "Clinical Trial"
+          },
+          "identifier": {
+            "title": "Participant ID"
+          },
+          "patient_id": {
+            "title": "Patient ID"
+          },
+          "condition_Diagnosis": {
+            "title": "Enrollment Diagnosis"
+          }
+        },
+        "fields": [
+          "project_id",
+          "identifier",
+          "condition_Diagnosis",
+          "patient_id",
+          "id"
+        ],
+        "detailsConfig": {
+          "panel": "researchSubject",
+          "mode": "click",
+          "idField": "patient_id",
+          "filterField": "patient_id",
+          "title": "identifier",
+          "nodeType": "specimen",
+          "nodeFields": {
+            "identifier": "identifier",
+            "sample_type": "sample_type",
+            "collection": "Metastasis Site",
+            "indexed_collection_date_days": "indexed_collection_date_days",
+            "sample_family_id": "Sample Family ID",
+            "histology": "histology",
+            "percent_tumor": "percent_tumor",
+            "biopsy_procedure_type": "biopsy_procedure_type",
+            "processing": "processing",
+            "id": "ID"
           }
         }
-      ]
+      },
+      "dropdowns": {},
+      "guppyConfig": {
+        "dataType": "researchsubject",
+        "nodeCountTitle": "Research Subjects",
+        "fieldMapping": []
+      }
     },
-    "table": {
-      "enabled": true,
-      "columns": {
-        "identifier": {
-          "title": "BEMS ID"
-        },
-        "processing": {
-          "title": "Processing Method"
+    {
+      "tabTitle": "Specimen",
+      "charts": {
+        "histology": {
+          "chartType": "fullPie",
+          "title": "Histology"
         },
         "collection": {
+          "chartType": "fullPie",
           "title": "Metastasis Site"
-        },
-        "indexed_collection_date_days": {
-          "title": "Collection Date"
-        },
-        "biopsy_event_tag": {
-          "title": "Biopsy Event"
-        },
-        "patient_identifier": {
-          "title": "Participant ID"
-        },
-        "sample_family_id": {
-          "title": "Sample Family ID"
         }
       },
-      "fields": [
-        "patient_identifier",
-        "indexed_collection_date_days",
-        "identifier",
-        "biopsy_event_tag",
-        "sample_family_id",
-        "collection",
-        "histology",
-        "sample_type",
-        "tissue_type",
-        "percent_tumor",
-        "biopsy_procedure_type",
-        "anatomical_location",
-        "pathology_record_number",
-        "treatments",
-        "clinical_event",
-        "alias",
-        "allocated_for_site",
-        "patient_id",
-        "project_id",
-        "id"
-      ],
-      "detailsConfig": {
-        "classNames": "px-5",
-        "panel": "resourceDetails",
-        "mode": "click",
-        "idField": "id",
-        "filterField": "specimen_id",
-        "title": "identifier",
-        "nodeType": "file",
-        "nodeFields": {
-          "Title": "title",
-          "Content_Type": "contentType",
-          "File_Size": "size",
-          "Md5sum": "md5",
-          "Source_Path": "source_path",
-          "Project_Id": "project_id",
-          "Creation_Date": "creation",
-          "Specimen_BEMS_Identifier": "specimen_identifier",
-          "File_Download": "id",
-          "Identifier": "identifier"
-        }
-      }
-    },
-    "dropdowns": {},
-    "guppyConfig": {
-      "dataType": "specimen",
-      "fieldMapping": [],
-      "nodeCountTitle": "Specimens",
-      "manifestMapping": {
-        "resourceIndexType": "Specimen",
-        "resourceIdField": "_id",
-        "referenceIdFieldInResourceIndex": "object_id",
-        "referenceIdFieldInDataIndex": "object_id"
-      },
-      "accessibleFieldCheckList": [
-        "project_id"
-      ],
-      "accessibleValidationField": "project_id"
-    }
-  },
-  {
-    "tabTitle": "PatientMedication",
-    "filters": {
-      "tabs": [
-        {
-          "fields": [
-            "medication",
-            "dosage",
-            "reason",
-            "statusReason"
-          ]
-        }
-      ]
-    },
-    "table": {
-      "enabled": true,
-      "fields": [
-        "patient_identifier",
-        "medication",
-        "dosage",
-        "reason",
-        "regimen_id",
-        "index_date_start_days",
-        "index_date_end_days",
-        "statusReason",
-        "status",
-        "patient_id",
-        "project_id"
-      ],
-      "detailsConfig": {
-        "panel": "medicationAdministration",
-        "mode": "click",
-        "idField": "patient_id",
-        "filterField": "patient_id",
-        "title": "patient_identifier",
-        "nodeType": "medicationadministration",
-        "nodeFields": {
-          "Medication": "medication",
-          "Dosage": "dosage",
-          "Index_Date_Start_Days": "index_date_start_days",
-          "Index_Date_End_Days": "index_date_end_days"
-        }
-      }
-    },
-    "dropdowns": {},
-    "guppyConfig": {
-      "dataType": "medicationadministration",
-      "fieldMapping": [],
-      "nodeCountTitle": "MedicationAdministration",
-      "manifestMapping": {
-        "resourceIndexType": "MedicationAdministration",
-        "resourceIdField": "_id",
-        "referenceIdFieldInResourceIndex": "object_id",
-        "referenceIdFieldInDataIndex": "object_id"
-      },
-      "accessibleFieldCheckList": [
-        "project_id"
-      ],
-      "accessibleValidationField": "project_id"
-    }
-  },
-  {
-    "tabTitle": "File",
-    "filters": {
-      "tabs": [
-        {
-          "fields": [
-            "project_id",
-            "molecule_type",
-            "data_category",
-            "assay",
-            "level",
-            "instrument",
-            "sequencing_site",
-            "contentType",
-            "specimen_identifier",
-            "enrollment_diagnosis"
-          ],
-          "fieldsConfig": {
-            "contentType": {
-              "label": "Content Type"
-            },
-            "sequencing_site": {
-              "label": "Site"
-            },
-            "specimen_identifier": {
-              "label": "BEMS ID"
+      "filters": {
+        "tabs": [
+          {
+            "fields": [
+              "project_id",
+              "identifier",
+              "histology",
+              "collection",
+              "sample_type",
+              "tissue_type",
+              "biopsy_event_tag",
+              "anatomical_location",
+              "allocated_for_site",
+              "clinical_event",
+              "treatments",
+              "patient_identifier"
+            ],
+            "fieldsConfig": {
+              "identifier": {
+                "label": "BEMS ID"
+              },
+              "collection": {
+                "label": "Metastasis Site"
+              },
+              "biopsy_event_tag": {
+                "label": "Biopsy Event"
+              }
             }
           }
-        }
-      ]
-    },
-    "table": {
-      "enabled": true,
-      "fields": [
-        "title",
-        "size",
-        "contentType",
-        "specimen_identifier",
-        "parent_bems_id",
-        "assay",
-        "level",
-        "molecule_type",
-        "data_category",
-        "instrument",
-        "sequencing_site",
-        "enrollment_diagnosis",
-        "md5",
-        "source_path",
-        "creation",
-        "project_id",
-        "specimen_id",
-        "id"
-      ],
-      "columns": {
-        "id": {
-          "title": "View Image",
-          "type": "link",
-          "accessorPath": "id",
-          "cellRenderFunction": "DiacomLink",
-          "width": "32px",
-          "params": {
-            "baseURL": "/image-viewer/view"
+        ]
+      },
+      "table": {
+        "enabled": true,
+        "columns": {
+          "identifier": {
+            "title": "BEMS ID"
+          },
+          "processing": {
+            "title": "Processing Method"
+          },
+          "collection": {
+            "title": "Metastasis Site"
+          },
+          "indexed_collection_date_days": {
+            "title": "Collection Date"
+          },
+          "biopsy_event_tag": {
+            "title": "Biopsy Event"
+          },
+          "patient_identifier": {
+            "title": "Participant ID"
+          },
+          "sample_family_id": {
+            "title": "Sample Family ID"
           }
         },
-        "size": {
-          "title": "File Size",
-          "type": "string",
-          "accessorPath": "size",
-          "cellRenderFunction": "HumanReadableString",
-          "width": "32px",
-          "params": {}
-        },
-        "specimen_identifier": {
-          "title": "BEMS ID"
-        },
-        "allocated_for_site": {
-          "title": "Site"
-        },
-        "title": {
-          "title": "Filename"
+        "fields": [
+          "patient_identifier",
+          "indexed_collection_date_days",
+          "identifier",
+          "biopsy_event_tag",
+          "sample_family_id",
+          "collection",
+          "histology",
+          "sample_type",
+          "tissue_type",
+          "percent_tumor",
+          "biopsy_procedure_type",
+          "anatomical_location",
+          "pathology_record_number",
+          "treatments",
+          "clinical_event",
+          "alias",
+          "allocated_for_site",
+          "patient_id",
+          "project_id",
+          "id"
+        ],
+        "detailsConfig": {
+          "panel": "resourceDetails",
+          "mode": "click",
+          "idField": "id",
+          "filterField": "specimen_id",
+          "title": "identifier",
+          "nodeType": "file",
+          "nodeFields": {
+            "Title": "title",
+            "Content_Type": "contentType",
+            "File_Size": "size",
+            "Md5sum": "md5",
+            "Source_Path": "source_path",
+            "Project_Id": "project_id",
+            "Creation_Date": "creation",
+            "Specimen_BEMS_Identifier": "specimen_identifier",
+            "File_Download": "id",
+            "Identifier": "identifier"
+          }
         }
       },
-      "detailsConfig": {
-        "panel": "resourceDetails",
-        "mode": "click",
-        "idField": "id",
-        "filterField": "id",
-        "nodeType": "file",
-        "title": "title",
-        "nodeFields": {
-          "File_Name": "title",
-          "Content_Type": "contentType",
-          "File_Size": "size",
-          "Md5sum": "md5",
-          "Source_Path": "source_path",
-          "Project_ID": "project_id",
-          "Creation_Date": "creation",
-          "BEMS_ID": "specimen_identifier",
-          "Instrument": "instrument",
-          "Site": "allocated_for_site",
-          "Assay": "assay",
-          "Level": "level",
-          "Molecule_Type": "molecule_type",
-          "Data_Category": "data_category",
-          "File_Download": "id",
-          "Identifier": "identifier"
-        }
+      "dropdowns": {},
+      "guppyConfig": {
+        "dataType": "specimen",
+        "fieldMapping": [],
+        "nodeCountTitle": "Specimens",
+        "manifestMapping": {
+          "resourceIndexType": "Specimen",
+          "resourceIdField": "_id",
+          "referenceIdFieldInResourceIndex": "object_id",
+          "referenceIdFieldInDataIndex": "object_id"
+        },
+        "accessibleFieldCheckList": ["project_id"],
+        "accessibleValidationField": "project_id"
       }
     },
-    "dropdowns": {},
-    "guppyConfig": {
-      "dataType": "file",
-      "fieldMapping": [
-        {
-          "field": "object_id",
-          "name": "Download ID"
-        },
-        {
-          "field": "file_name",
-          "name": "Name"
-        },
-        {
-          "field": "data_type",
-          "name": "Type"
-        },
-        {
-          "field": "data_format",
-          "name": "Format"
-        }
-      ],
-      "nodeCountTitle": "Files",
-      "manifestMapping": {
-        "resourceIndexType": "Observation",
-        "resourceIdField": "_patient_id",
-        "referenceIdFieldInResourceIndex": "id",
-        "referenceIdFieldInDataIndex": "id"
+    {
+      "tabTitle": "PatientMedication",
+      "filters": {
+        "tabs": [
+          {
+            "fields": ["medication", "dosage", "reason", "statusReason"]
+          }
+        ]
       },
-      "accessibleFieldCheckList": [
-        "project_id"
-      ],
-      "accessibleValidationField": "project_id",
-      "downloadAccessor": "id"
-    },
-    "buttons": [
-      {
+      "table": {
         "enabled": true,
-        "type": "manifest",
-        "action": "manifest",
-        "title": "Download Manifest",
-        "leftIcon": "gen3:datafile",
-        "rightIcon": "gen3:download",
-        "fileName": "manifest.json",
-        "actionArgs": {
-          "resourceIndexType": "file",
-          "resourceIdField": "id",
-          "referenceIdFieldInDataIndex": "id",
-          "referenceIdFieldInResourceIndex": "id",
-          "fileFields": [
-            "id",
-            "title",
-            "size"
-          ]
+        "fields": [
+          "patient_identifier",
+          "medication",
+          "dosage",
+          "reason",
+          "regimen_id",
+          "index_date_start_days",
+          "index_date_end_days",
+          "statusReason",
+          "status",
+          "patient_id",
+          "project_id"
+        ],
+        "detailsConfig": {
+          "panel": "medicationAdministration",
+          "mode": "click",
+          "idField": "patient_id",
+          "filterField": "patient_id",
+          "title": "patient_identifier",
+          "nodeType": "medicationadministration",
+          "nodeFields": {
+            "Medication": "medication",
+            "Dosage": "dosage",
+            "Index_Date_Start_Days": "index_date_start_days",
+            "Index_Date_End_Days": "index_date_end_days"
+          }
         }
+      },
+      "dropdowns": {},
+      "guppyConfig": {
+        "dataType": "medicationadministration",
+        "fieldMapping": [],
+        "nodeCountTitle": "MedicationAdministration",
+        "manifestMapping": {
+          "resourceIndexType": "MedicationAdministration",
+          "resourceIdField": "_id",
+          "referenceIdFieldInResourceIndex": "object_id",
+          "referenceIdFieldInDataIndex": "object_id"
+        },
+        "accessibleFieldCheckList": ["project_id"],
+        "accessibleValidationField": "project_id"
       }
-    ]
-  }
-]
+    },
+    {
+      "tabTitle": "File",
+      "filters": {
+        "tabs": [
+          {
+            "fields": [
+              "project_id",
+              "molecule_type",
+              "data_category",
+              "assay",
+              "level",
+              "instrument",
+              "sequencing_site",
+              "contentType",
+              "specimen_identifier",
+              "enrollment_diagnosis"
+            ],
+            "fieldsConfig": {
+              "contentType": {
+                "label": "Content Type"
+              },
+              "sequencing_site": {
+                "label": "Site"
+              },
+              "specimen_identifier": {
+                "label": "BEMS ID"
+              }
+            }
+          }
+        ]
+      },
+      "table": {
+        "enabled": true,
+        "fields": [
+          "title",
+          "size",
+          "contentType",
+          "specimen_identifier",
+          "parent_bems_id",
+          "assay",
+          "level",
+          "molecule_type",
+          "data_category",
+          "instrument",
+          "sequencing_site",
+          "enrollment_diagnosis",
+          "md5",
+          "source_path",
+          "creation",
+          "project_id",
+          "specimen_id",
+          "id"
+        ],
+        "columns": {
+          "id": {
+            "title": "View Image",
+            "type": "link",
+            "accessorPath": "id",
+            "cellRenderFunction": "DiacomLink",
+            "width": "32px",
+            "params": {
+              "baseURL": "/image-viewer/view"
+            }
+          },
+          "size": {
+            "title": "File Size",
+            "type": "string",
+            "accessorPath": "size",
+            "cellRenderFunction": "HumanReadableString",
+            "width": "32px",
+            "params": {}
+          },
+          "specimen_identifier": {
+            "title": "BEMS ID"
+          },
+          "allocated_for_site": {
+            "title": "Site"
+          },
+          "title": {
+            "title": "Filename"
+          }
+        },
+        "detailsConfig": {
+          "panel": "resourceDetails",
+          "mode": "click",
+          "idField": "id",
+          "filterField": "id",
+          "nodeType": "file",
+          "title": "title",
+          "nodeFields": {
+            "File_Name": "title",
+            "Content_Type": "contentType",
+            "File_Size": "size",
+            "Md5sum": "md5",
+            "Source_Path": "source_path",
+            "Project_ID": "project_id",
+            "Creation_Date": "creation",
+            "BEMS_ID": "specimen_identifier",
+            "Instrument": "instrument",
+            "Site": "allocated_for_site",
+            "Assay": "assay",
+            "Level": "level",
+            "Molecule_Type": "molecule_type",
+            "Data_Category": "data_category",
+            "File_Download": "id",
+            "Identifier": "identifier"
+          }
+        }
+      },
+      "dropdowns": {},
+      "guppyConfig": {
+        "dataType": "file",
+        "fieldMapping": [
+          {
+            "field": "object_id",
+            "name": "Download ID"
+          },
+          {
+            "field": "file_name",
+            "name": "Name"
+          },
+          {
+            "field": "data_type",
+            "name": "Type"
+          },
+          {
+            "field": "data_format",
+            "name": "Format"
+          }
+        ],
+        "nodeCountTitle": "Files",
+        "manifestMapping": {
+          "resourceIndexType": "Observation",
+          "resourceIdField": "_patient_id",
+          "referenceIdFieldInResourceIndex": "id",
+          "referenceIdFieldInDataIndex": "id"
+        },
+        "accessibleFieldCheckList": ["project_id"],
+        "accessibleValidationField": "project_id"
+      },
+      "buttons": [
+        {
+          "enabled": true,
+          "type": "manifest",
+          "action": "manifest",
+          "title": "Download Manifest",
+          "leftIcon": "gen3:datafile",
+          "rightIcon": "gen3:download",
+          "fileName": "manifest.json",
+          "actionArgs": {
+            "resourceIndexType": "file",
+            "resourceIdField": "id",
+            "referenceIdFieldInDataIndex": "id",
+            "referenceIdFieldInResourceIndex": "id",
+            "fileFields": ["id", "title", "size"]
+          }
+        }
+      ]
+    }
+  ]
+}

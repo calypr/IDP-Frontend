@@ -20,6 +20,7 @@ import {
   AccessControlConfiguration,
   GuppyDataAccessMode,
 } from '../../features/CohortBuilder/types';
+import { microserviceDb } from '../../lib/content';
 
 const DefaultHeaderMetadata = {
   title: 'Gen3 Explorer Page',
@@ -149,10 +150,9 @@ export const ExplorerPageGetServerSidePropsForConfigId: GetServerSideProps<
   const configId = context.query.configId as string;
   try {
     const cohortBuilderConfiguration: CohortBuilderConfiguration =
-      await ContentSource.getContentDatabase().get(
-        `${GEN3_COMMONS_NAME}/explorer/${configId}.json`,
+      await microserviceDb.get<CohortBuilderConfiguration>(
+        `explorer/${configId}`,
       );
-
     if (isArray(cohortBuilderConfiguration)) {
       // older config layout
       // TODO: remove this
