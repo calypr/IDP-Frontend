@@ -44,7 +44,7 @@
   },
   "explorerConfig": [
     {
-      "tabTitle": "Research Subject",
+      "tabTitle": "Patient",
       "filters": {
         "tabs": [
           {
@@ -157,8 +157,7 @@
               "specimen_Tumor_Tissue_Type",
               "specimen_Fixative_Type",
               "specimen_collection",
-              "specimen_identifier_CollectionDaysfromIndex",
-              "specimen_id"
+              "specimen_identifier_CollectionDaysfromIndex"
             ],
             "fieldsConfig": {
               "project_id": {
@@ -382,6 +381,7 @@
           "document_reference_title",
           "document_reference_size",
           "document_reference_File_Format",
+          "document_reference_id",
           "document_reference_Assay",
           "document_reference_Level",
           "document_reference_Cell_Morphology_Assessment",
@@ -413,8 +413,7 @@
           "document_reference_source_path",
           "document_reference_creation",
           "project_id",
-          "document_reference_specimen_id",
-          "document_reference_id"
+          "document_reference_specimen_id"
         ],
         "columns": {
           "document_reference_HTANDataFileID": {
