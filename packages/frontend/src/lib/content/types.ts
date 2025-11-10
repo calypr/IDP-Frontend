@@ -2,10 +2,14 @@ import { JSONObject } from '@gen3/core';
 import { HeaderMetadata } from '../../features/Navigation/types';
 
 export interface ContentStore {
-  get<T extends Record<string, any>>(filepath: string): Promise<T>;
+  get<T extends Record<string, any>>(
+    filepath: string,
+    headers?: Record<string, string>,
+  ): Promise<T>;
   getAll<T extends Record<string, any>>(
     filepath: string,
     filter: string,
+    headers?: Record<string, string>,
   ): Promise<Array<T>>;
 }
 

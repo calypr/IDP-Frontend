@@ -37,7 +37,7 @@ export const explorerConfigApi = gen3Api.injectEndpoints({
     }),
     getConfigContent: builder.query<ConfigResponse, string>({
       query: (name) => ({
-        url: `${CALYPR_EXPLORER_CONFIG_API}/${name}`,
+        url: `${CALYPR_EXPLORER_CONFIG_API}/explorer/${name}`,
         method: 'GET',
       }),
       transformResponse: (response: any) => ({
@@ -58,7 +58,7 @@ export const explorerConfigApi = gen3Api.injectEndpoints({
       { name: string; configData: JSONObject }
     >({
       query: ({ name, configData }) => ({
-        url: `${CALYPR_EXPLORER_CONFIG_API}/${name}`,
+        url: `${CALYPR_EXPLORER_CONFIG_API}/explorer/${name}`,
         method: 'PUT',
         body: configData,
       }),

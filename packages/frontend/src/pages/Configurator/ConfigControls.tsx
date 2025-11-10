@@ -21,7 +21,6 @@ import { useConfigList } from './hooks';
 import { SerializedError } from '@reduxjs/toolkit';
 import { FetchBaseQueryError } from '@reduxjs/toolkit/query';
 
-// Define JSONObject to match hook's expectation
 interface JSONObject {
   [key: string]: any; // Relaxed type to allow any JSON-like structure
 }
@@ -29,7 +28,7 @@ interface JSONObject {
 interface ConfigControlsProps {
   tabs: Tab[];
   setTabs: Dispatch<SetStateAction<Tab[]>>;
-  allTabsTitle?: string; // Made optional to fix TS2741
+  allTabsTitle?: string;
   setAllTabsTitle: Dispatch<SetStateAction<string>>;
   setActiveTab: Dispatch<SetStateAction<string>>;
   onCopyConfig: () => void;
@@ -48,6 +47,8 @@ const ConfigControls = ({
     useDisclosure(false);
   const [loadModalOpened, { open: openLoadModal, close: closeLoadModal }] =
     useDisclosure(false);
+  const [programName, setProgramName] = useState('');
+  const [projectName, setProjectName] = useState('');
   const [newConfigName, setNewConfigName] = useState('');
   const [selectedConfig, setSelectedConfig] = useState<string | null>(null);
 
@@ -75,8 +76,8 @@ const ConfigControls = ({
   // Handle loading configuration
   useEffect(() => {
     if (configData?.success && configData.data && selectedConfig) {
-      const configContent = configData?.data?.content?.explorerConfig ?? [];
-      console.log('CONFIG DATdsfsdfA: ', configContent);
+      const configContent = configData?.data?.explorerConfig ?? [];
+      console.log('CONFIG DATdsfsdfA: ', configData);
       const loadedTabs = transformConfigToTabs(configContent);
       setTabs(loadedTabs);
       setAllTabsTitle(selectedConfig); // selectedConfig is string here due to skip: !selectedConfig
@@ -157,27 +158,53 @@ const ConfigControls = ({
         onClose={() => {
           closePostModal();
           setNewConfigName('');
+          setProgramName('');
+          setProjectName('');
         }}
         title="Post Configuration"
         centered
       >
         <TextInput
-          value={newConfigName}
-          onChange={(e) => setNewConfigName(e.target.value)}
-          placeholder="Enter config name"
-          label="Config Name"
+          value={programName} // Use a new state variable
+          onChange={(e) => {
+            const newProgramName = e.target.value;
+            setProgramName(newProgramName); // Update program state
+            setNewConfigName(`${newProgramName.trim()}-${projectName.trim()}`);
+          }}
+          placeholder="Enter program name"
+          label="Program Name"
           required
           error={
-            newConfigName && !newConfigName.trim()
-              ? 'Config name cannot be empty'
+            programName && !programName.trim()
+              ? 'Program name cannot be empty'
               : null
           }
         />
+
+        <TextInput
+          mt="md"
+          value={projectName}
+          onChange={(e) => {
+            const newProjectName = e.target.value;
+            setProjectName(newProjectName); // Update project state
+            setNewConfigName(`${programName.trim()}-${newProjectName.trim()}`);
+          }}
+          placeholder="Enter project name"
+          label="Project Name"
+          required
+          error={
+            projectName && !projectName.trim()
+              ? 'Project name cannot be empty'
+              : null
+          }
+        />
+
         {postErrorResponse && (
           <Alert color="red" mt="md" title="Error">
             {getErrorMessage(postErrorResponse)}
           </Alert>
         )}
+
         <Group justify="flex-end" mt="md">
           <Button onClick={closePostModal} variant="subtle" color="gray">
             Cancel
@@ -185,7 +212,12 @@ const ConfigControls = ({
           <Button
             onClick={handlePost}
             color="primary.0"
-            disabled={!newConfigName.trim() || isUpdating}
+            disabled={
+              !programName.trim() ||
+              !projectName.trim() ||
+              !newConfigName.trim() ||
+              isUpdating
+            }
           >
             {isUpdating ? <Loader size="sm" /> : 'Post'}
           </Button>

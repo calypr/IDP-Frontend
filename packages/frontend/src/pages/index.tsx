@@ -28,8 +28,6 @@ const IndexPage = ({
   );
 };
 
-// todo
-
 const getServerSideProps: GetServerSideProps = async () => {
   return {
     redirect: {
