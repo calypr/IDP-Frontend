@@ -40,6 +40,16 @@ export const useFileTypesFiles = () => {
               document_reference_size: 0,
             },
           },
+          {
+            '!=': {
+              document_reference_size: null,
+            },
+          },
+          {
+            GT: {
+              document_reference_size: 0,
+            },
+          },
         ],
       },
     },

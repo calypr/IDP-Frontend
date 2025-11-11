@@ -19,8 +19,22 @@ export function SummaryStatsBanner(authz: any) {
 
   // Don't bother with displaying Banner if query errors out
   if (!visible || isError) return null;
-  const len_access_projects = Object.keys(authz.authz).filter(
-    (resource) => resource.split('/')?.length === 5,
+  const authzMap = authz?.authz ?? {};
+  const len_access_projects = Object.entries(authzMap).filter(
+    ([resource, perms]) => {
+      // normalize and split, remove empty segments so both "/programs/..." and "programs/..." work
+      const parts = String(resource).split('/').filter(Boolean);
+      
+      // expect ["programs", "<programId>", "projects", "<projectId>"]
+      if (parts.length !== 4) return false;
+      if (parts[0] !== 'programs' || parts[2] !== 'projects') return false;
+      if (!Array.isArray(perms)) return false;
+
+      // require an explicit { method: "read", service: "*" } entry in the perms array
+      return perms.some(
+        (p: any) => p?.method === 'read' && p?.service === '*'
+      );
+    },
   ).length;
 
   const message =
