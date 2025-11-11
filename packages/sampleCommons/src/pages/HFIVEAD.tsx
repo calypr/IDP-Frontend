@@ -2,7 +2,13 @@ import { getNavPageLayoutPropsFromConfig } from '@gen3/frontend';
 import type { NavPageLayoutProps } from '@gen3/frontend';
 import type { GetServerSideProps } from 'next';
 import { NavPageLayout } from '@gen3/frontend';
-import React, { useState, useEffect, useRef } from 'react';
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useMemo,
+  useCallback,
+} from 'react';
 import {
   Upload,
   ZoomIn,
@@ -11,58 +17,100 @@ import {
   Download,
   Info,
 } from 'lucide-react';
+// @ts-ignore - Assuming PapaParse is correctly installed and its types might be separate/optional
 import Papa from 'papaparse';
 
+interface UMAPPoint {
+  id: string;
+  x: number;
+  y: number;
+  metadata: Record<string, string | number | boolean | null | undefined>;
+}
+
+interface FileInfo {
+  name: string;
+  cells: number;
+  xCol: string;
+  yCol: string;
+  idCol: string;
+}
+
+interface DetectedColumns {
+  xCol: string | null;
+  yCol: string | null;
+  idCol: string;
+  metadataCols: string[];
+}
+
 const UMAPViewer = ({ headerProps, footerProps }: NavPageLayoutProps) => {
-  const [data, setData] = useState([]);
-  const [columns, setColumns] = useState([]);
-  const [colorByColumn, setColorByColumn] = useState(null);
-  const [uniqueValues, setUniqueValues] = useState([]);
-  const [selectedValue, setSelectedValue] = useState('all');
-  const [hoveredCell, setHoveredCell] = useState(null);
-  const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const [fileInfo, setFileInfo] = useState(null);
-  const canvasRef = useRef(null);
-  const fileInputRef = useRef(null);
+  // State variables with defined types
+  const [data, setData] = useState<UMAPPoint[]>([]);
+  const [columns, setColumns] = useState<string[]>([]);
+  const [colorByColumn, setColorByColumn] = useState<string | null>(null);
+  const [uniqueValues, setUniqueValues] = useState<(string | number)[]>([]); // Values from the selected color column
+  const [selectedValue, setSelectedValue] = useState<'all' | string | number>(
+    'all',
+  );
+  const [hoveredCell, setHoveredCell] = useState<UMAPPoint | null>(null);
+  const [zoom, setZoom] = useState<number>(1);
+  const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+  const [dragStart, setDragStart] = useState<{ x: number; y: number }>({
+    x: 0,
+    y: 0,
+  });
+  const [fileInfo, setFileInfo] = useState<FileInfo | null>(null);
 
-  const colorPalettes = {
-    categorical: [
-      '#e74c3c',
-      '#3498db',
-      '#2ecc71',
-      '#f39c12',
-      '#9b59b6',
-      '#1abc9c',
-      '#e67e22',
-      '#34495e',
-      '#95a5a6',
-      '#c0392b',
-      '#16a085',
-      '#27ae60',
-      '#2980b9',
-      '#8e44ad',
-      '#f1c40f',
-      '#e8672e',
-      '#d35400',
-      '#c0392b',
-      '#7f8c8d',
-      '#2c3e50',
-    ],
-  };
+  // Ref types
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const getColor = (value, index) => {
-    return colorPalettes.categorical[index % colorPalettes.categorical.length];
-  };
+  const colorPalettes = useMemo(
+    () => ({
+      categorical: [
+        '#e74c3c',
+        '#3498db',
+        '#2ecc71',
+        '#f39c12',
+        '#9b59b6',
+        '#1abc9c',
+        '#e67e22',
+        '#34495e',
+        '#95a5a6',
+        '#c0392b',
+        '#16a085',
+        '#27ae60',
+        '#2980b9',
+        '#8e44ad',
+        '#f1c40f',
+        '#e8672e',
+        '#d35400',
+        '#c0392b',
+        '#7f8c8d',
+        '#2c3e50',
+      ],
+    }),
+    [],
+  );
 
-  const detectColumns = (headers) => {
-    const h = headers.map((h) => h.toLowerCase().trim());
+  // Changed to useCallback for memoization and proper typing
+  const getColor = useCallback(
+    (_: string | number, index: number): string => {
+      return colorPalettes.categorical[
+        index % colorPalettes.categorical.length
+      ];
+    },
+    [colorPalettes],
+  );
+
+  // Added return type and non-null assertion for headers
+  const detectColumns = (headers: string[] | undefined): DetectedColumns => {
+    const safeHeaders = headers || [];
+    const h = safeHeaders.map((col) => col.toLowerCase().trim());
 
     // Try to detect UMAP coordinate columns
-    let xCol = null,
-      yCol = null;
+    let xCol: string | null = null;
+    let yCol: string | null = null;
 
     // Patterns for X coordinate
     const xPatterns = ['x_umap_1', 'umap_1', 'umap1', 'x_umap', 'umap_x', 'x'];
@@ -71,7 +119,7 @@ const UMAPViewer = ({ headerProps, footerProps }: NavPageLayoutProps) => {
         (col) => col === pattern || col.includes(pattern),
       );
       if (idx !== -1) {
-        xCol = headers[idx];
+        xCol = safeHeaders[idx];
         break;
       }
     }
@@ -83,39 +131,41 @@ const UMAPViewer = ({ headerProps, footerProps }: NavPageLayoutProps) => {
         (col) => col === pattern || col.includes(pattern),
       );
       if (idx !== -1) {
-        yCol = headers[idx];
+        yCol = safeHeaders[idx];
         break;
       }
     }
 
     // Detect ID column
-    let idCol = headers[0]; // Default to first column
+    let idCol: string = safeHeaders[0] || ''; // Default to first column or empty string
     const idPatterns = ['cellid', 'cell_id', 'id', 'barcode', 'cell'];
     for (const pattern of idPatterns) {
       const idx = h.findIndex((col) => col.includes(pattern));
       if (idx !== -1) {
-        idCol = headers[idx];
+        idCol = safeHeaders[idx] || '';
         break;
       }
     }
 
     // Find metadata columns (exclude coordinates and ID)
-    const metadataCols = headers.filter(
+    const metadataCols = safeHeaders.filter(
       (col) => col !== xCol && col !== yCol && col !== idCol,
     );
 
     return { xCol, yCol, idCol, metadataCols };
   };
 
-  const handleFileUpload = (event) => {
-    const file = event.target.files[0];
+  // Explicitly typed event
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]; // Use optional chaining
     if (!file) return;
 
+    // PapaParse typing is tricky, but results structure can be typed
     Papa.parse(file, {
       header: true,
       dynamicTyping: true,
       skipEmptyLines: true,
-      complete: (results) => {
+      complete: (results: Papa.ParseResult<Record<string, unknown>>) => {
         const headers = results.meta.fields;
         const detected = detectColumns(headers);
 
@@ -126,38 +176,63 @@ const UMAPViewer = ({ headerProps, footerProps }: NavPageLayoutProps) => {
           return;
         }
 
-        // Parse data
-        const parsedData = results.data
-          .map((row, idx) => {
-            const point = {
-              id: row[detected.idCol] || `cell_${idx}`,
-              x: parseFloat(row[detected.xCol]),
-              y: parseFloat(row[detected.yCol]),
+        // Use detected column names and map data to UMAPPoint[]
+        const xColName = detected.xCol;
+        const yColName = detected.yCol;
+        const idColName = detected.idCol;
+
+        const parsedData: UMAPPoint[] = results.data
+          .map((row: Record<string, unknown>, idx): UMAPPoint | null => {
+            const xVal = row[xColName];
+            const yVal = row[yColName];
+
+            // Check if coordinates are valid numbers
+            const x =
+              typeof xVal === 'number' ? xVal : parseFloat(String(xVal));
+            const y =
+              typeof yVal === 'number' ? yVal : parseFloat(String(yVal));
+
+            if (isNaN(x) || isNaN(y)) return null;
+
+            const point: UMAPPoint = {
+              id: String(row[idColName] || `cell_${idx}`),
+              x: x,
+              y: y,
               metadata: {},
             };
 
             // Add all metadata
             detected.metadataCols.forEach((col) => {
-              point.metadata[col] = row[col];
+              point.metadata[col] = row[col] as
+                | string
+                | number
+                | boolean
+                | null
+                | undefined;
             });
 
             return point;
           })
-          .filter((d) => !isNaN(d.x) && !isNaN(d.y));
+          .filter((d): d is UMAPPoint => d !== null); // Filter out invalid points
 
         setData(parsedData);
         setColumns(detected.metadataCols);
 
         // Auto-select first categorical column for coloring
-        let defaultColorCol = null;
+        let defaultColorCol: string | null = null;
         for (const col of detected.metadataCols) {
           const values = parsedData.map((d) => d.metadata[col]);
-          const uniqueVals = [...new Set(values)].filter((v) => v != null);
+          // Filter null/undefined values and ensure they are compatible with Set
+          const uniqueVals = [...new Set(values)].filter(
+            (v): v is string | number => v != null,
+          );
+
           if (uniqueVals.length > 1 && uniqueVals.length < 100) {
             // Convert numeric cluster IDs to strings for proper categorical handling
             parsedData.forEach((point) => {
-              if (typeof point.metadata[col] === 'number') {
-                point.metadata[col] = String(point.metadata[col]);
+              const val = point.metadata[col];
+              if (typeof val === 'number') {
+                point.metadata[col] = String(val);
               }
             });
             defaultColorCol = col;
@@ -168,63 +243,79 @@ const UMAPViewer = ({ headerProps, footerProps }: NavPageLayoutProps) => {
         if (defaultColorCol) {
           setColorByColumn(defaultColorCol);
           updateUniqueValues(parsedData, defaultColorCol);
+        } else {
+          // Reset if no suitable column is found
+          setColorByColumn(null);
+          setUniqueValues([]);
         }
 
         setFileInfo({
           name: file.name,
           cells: parsedData.length,
-          xCol: detected.xCol,
-          yCol: detected.yCol,
-          idCol: detected.idCol,
+          xCol: xColName,
+          yCol: yColName,
+          idCol: idColName,
         });
       },
     });
   };
 
-  const updateUniqueValues = (dataPoints, column) => {
+  // Added return type and typed arguments
+  const updateUniqueValues = (
+    dataPoints: UMAPPoint[],
+    column: string | null,
+  ) => {
     if (!column) {
       setUniqueValues([]);
       return;
     }
 
     const values = dataPoints.map((d) => d.metadata[column]);
-    const unique = [...new Set(values)].filter((v) => v != null);
+    // Filter out null/undefined values and ensure only string/number are used for uniqueValues
+    const unique = [...new Set(values)].filter(
+      (v): v is string | number => v != null,
+    );
 
     // Sort: if all values look like numbers, sort numerically, otherwise alphabetically
     const allNumeric = unique.every((v) => !isNaN(Number(v)));
     if (allNumeric) {
       unique.sort((a, b) => Number(a) - Number(b));
     } else {
-      unique.sort();
+      unique.sort((a, b) => String(a).localeCompare(String(b)));
     }
 
     setUniqueValues(unique);
   };
 
-  const handleColorByChange = (column) => {
+  // Typed argument
+  const handleColorByChange = (column: string) => {
     setColorByColumn(column);
     setSelectedValue('all');
 
     // Convert numeric values to strings for categorical handling
-    const processedData = data.map((point) => ({
-      ...point,
-      metadata: {
-        ...point.metadata,
-        [column]:
-          typeof point.metadata[column] === 'number'
-            ? String(point.metadata[column])
-            : point.metadata[column],
-      },
-    }));
+    const processedData = data.map((point) => {
+      const value = point.metadata[column];
+      return {
+        ...point,
+        metadata: {
+          ...point.metadata,
+          [column]: typeof value === 'number' ? String(value) : value,
+        },
+      };
+    });
+    // The state setter needs a UMAPPoint[] which is what is created above
     setData(processedData);
     updateUniqueValues(processedData, column);
   };
 
+  // Drawing logic useEffect
   useEffect(() => {
-    if (data.length === 0) return;
-
     const canvas = canvasRef.current;
+    if (data.length === 0 || !canvas) return;
+
     const ctx = canvas.getContext('2d');
+    if (!ctx) return; // Null check for context
+
     const width = canvas.width;
     const height = canvas.height;
 
@@ -233,6 +324,9 @@ const UMAPViewer = ({ headerProps, footerProps }: NavPageLayoutProps) => {
     // Calculate bounds
     const xValues = data.map((d) => d.x);
     const yValues = data.map((d) => d.y);
+    // Use proper checks for min/max
+    if (xValues.length === 0 || yValues.length === 0) return;
+
     const xMin = Math.min(...xValues);
     const xMax = Math.max(...xValues);
     const yMin = Math.min(...yValues);
@@ -240,13 +334,14 @@ const UMAPViewer = ({ headerProps, footerProps }: NavPageLayoutProps) => {
 
     const xRange = xMax - xMin;
     const yRange = yMax - yMin;
-    const maxRange = Math.max(xRange, yRange);
+    const maxRange = Math.max(xRange, yRange) || 1; // Avoid division by zero
 
     const padding = 50;
-    const scale =
-      (Math.min(width - padding * 2, height - padding * 2) / maxRange) * zoom;
+    const availableSize = Math.min(width - padding * 2, height - padding * 2);
+    const scale = (availableSize / maxRange) * zoom;
 
-    const transform = (x, y) => {
+    // Typed transform function
+    const transform = (x: number, y: number): [number, number] => {
       const cx = (x - xMin - xRange / 2) * scale + width / 2 + pan.x;
       const cy = (y - yMin - yRange / 2) * scale + height / 2 + pan.y;
       return [cx, cy];
@@ -256,10 +351,14 @@ const UMAPViewer = ({ headerProps, footerProps }: NavPageLayoutProps) => {
     const filteredData =
       selectedValue === 'all'
         ? data
-        : data.filter((d) => d.metadata[colorByColumn] === selectedValue);
+        : data.filter((d) => {
+            // Type guard for colorByColumn
+            if (!colorByColumn) return true;
+            return d.metadata[colorByColumn] === selectedValue;
+          });
 
     // Create color map
-    const colorMap = {};
+    const colorMap: Record<string | number, string> = {};
     uniqueValues.forEach((val, idx) => {
       colorMap[val] = getColor(val, idx);
     });
@@ -271,12 +370,17 @@ const UMAPViewer = ({ headerProps, footerProps }: NavPageLayoutProps) => {
       ctx.beginPath();
       ctx.arc(cx, cy, 3, 0, Math.PI * 2);
 
-      if (colorByColumn && point.metadata[colorByColumn]) {
-        ctx.fillStyle = colorMap[point.metadata[colorByColumn]] || '#7f8c8d';
-      } else {
-        ctx.fillStyle = '#3498db';
+      let fillStyle = '#3498db'; // Default color
+
+      if (colorByColumn) {
+        const metadataValue = point.metadata[colorByColumn];
+        // Check if value is in colorMap (which only holds string|number keys)
+        if (metadataValue !== null && metadataValue !== undefined) {
+          fillStyle = colorMap[metadataValue as string | number] || '#7f8c8d';
+        }
       }
 
+      ctx.fillStyle = fillStyle;
       ctx.fill();
 
       if (hoveredCell && hoveredCell.id === point.id) {
@@ -293,15 +397,19 @@ const UMAPViewer = ({ headerProps, footerProps }: NavPageLayoutProps) => {
     selectedValue,
     hoveredCell,
     uniqueValues,
+    getColor, // Dependency for memoized function
   ]);
 
-  const handleMouseDown = (e) => {
+  // Typed event handlers
+  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     setIsDragging(true);
     setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
   };
 
-  const handleMouseMove = (e) => {
+  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
+    if (!canvas) return; // Null check
+
     const rect = canvas.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
@@ -314,24 +422,26 @@ const UMAPViewer = ({ headerProps, footerProps }: NavPageLayoutProps) => {
     } else if (data.length > 0) {
       const xValues = data.map((d) => d.x);
       const yValues = data.map((d) => d.y);
+      if (xValues.length === 0 || yValues.length === 0) return; // Safety check
+
       const xMin = Math.min(...xValues);
       const yMin = Math.min(...yValues);
       const xRange = Math.max(...xValues) - xMin;
       const yRange = Math.max(...yValues) - yMin;
-      const maxRange = Math.max(xRange, yRange);
+      const maxRange = Math.max(xRange, yRange) || 1; // Avoid division by zero
       const padding = 50;
       const scale =
         (Math.min(canvas.width - padding * 2, canvas.height - padding * 2) /
           maxRange) *
         zoom;
 
-      const transform = (x, y) => {
+      const transform = (x: number, y: number): [number, number] => {
         const cx = (x - xMin - xRange / 2) * scale + canvas.width / 2 + pan.x;
         const cy = (y - yMin - yRange / 2) * scale + canvas.height / 2 + pan.y;
         return [cx, cy];
       };
 
-      let found = null;
+      let found: UMAPPoint | null = null;
       for (const point of data) {
         const [cx, cy] = transform(point.x, point.y);
         const dist = Math.sqrt((mouseX - cx) ** 2 + (mouseY - cy) ** 2);
@@ -354,6 +464,8 @@ const UMAPViewer = ({ headerProps, footerProps }: NavPageLayoutProps) => {
 
   const exportImage = () => {
     const canvas = canvasRef.current;
+    if (!canvas) return; // Null check
+
     const url = canvas.toDataURL('image/png');
     const link = document.createElement('a');
     link.download = 'umap_plot.png';
@@ -361,10 +473,14 @@ const UMAPViewer = ({ headerProps, footerProps }: NavPageLayoutProps) => {
     link.click();
   };
 
-  const colorMap = {};
-  uniqueValues.forEach((val, idx) => {
-    colorMap[val] = getColor(val, idx);
-  });
+  // Re-calculate colorMap based on state
+  const colorMap: Record<string | number, string> = useMemo(() => {
+    const map: Record<string | number, string> = {};
+    uniqueValues.forEach((val, idx) => {
+      map[val] = getColor(val, idx);
+    });
+    return map;
+  }, [uniqueValues, getColor]);
 
   return (
     <NavPageLayout
@@ -389,8 +505,10 @@ const UMAPViewer = ({ headerProps, footerProps }: NavPageLayoutProps) => {
               className="hidden"
             />
             <button
-              onClick={() => fileInputRef.current.click()}
+              onClick={() => fileInputRef.current?.click()} // Added optional chaining
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
+              // Disable if no ref is available
+              disabled={!fileInputRef.current}
             >
               <Upload size={16} />
               Load CSV
@@ -411,25 +529,28 @@ const UMAPViewer = ({ headerProps, footerProps }: NavPageLayoutProps) => {
                   ))}
                 </select>
 
-                {uniqueValues.length > 0 && (
-                  <select
-                    value={selectedValue}
-                    onChange={(e) => setSelectedValue(e.target.value)}
-                    className="px-4 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="all">All Values ({data.length})</option>
-                    {uniqueValues.map((val) => (
-                      <option key={val} value={val}>
-                        {val} (
-                        {
-                          data.filter((d) => d.metadata[colorByColumn] === val)
-                            .length
-                        }
-                        )
-                      </option>
-                    ))}
-                  </select>
-                )}
+                {uniqueValues.length > 0 &&
+                  colorByColumn && ( // Added colorByColumn check
+                    <select
+                      value={selectedValue}
+                      onChange={(e) => setSelectedValue(e.target.value)}
+                      className="px-4 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="all">All Values ({data.length})</option>
+                      {uniqueValues.map((val) => (
+                        <option key={String(val)} value={val}>
+                          {/* Use String(val) for key and display */}
+                          {val} (
+                          {
+                            data.filter(
+                              (d) => d.metadata[colorByColumn] === val,
+                            ).length
+                          }
+                          )
+                        </option>
+                      ))}
+                    </select>
+                  )}
 
                 <div className="flex gap-2">
                   <button
@@ -519,7 +640,8 @@ const UMAPViewer = ({ headerProps, footerProps }: NavPageLayoutProps) => {
                     {Object.entries(hoveredCell.metadata).map(
                       ([key, value]) => (
                         <div key={key} className="text-sm">
-                          <span className="font-medium">{key}:</span> {value}
+                          <span className="font-medium">{key}:</span>{' '}
+                          {String(value)}
                         </div>
                       ),
                     )}
@@ -535,7 +657,7 @@ const UMAPViewer = ({ headerProps, footerProps }: NavPageLayoutProps) => {
               <h3 className="font-bold mb-3">{colorByColumn}</h3>
               <div className="space-y-2">
                 {uniqueValues.map((val) => (
-                  <div key={val} className="flex items-center gap-2">
+                  <div key={String(val)} className="flex items-center gap-2">
                     <div
                       className="w-4 h-4 rounded flex-shrink-0"
                       style={{ backgroundColor: colorMap[val] }}

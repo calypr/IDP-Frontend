@@ -3,8 +3,6 @@ import { CALYPR_EXPLORER_CONFIG_API } from '@gen3/core';
 import { getCookie } from 'cookies-next'; // Still useful for client-side debugging/fallback
 
 export class MicroserviceContent implements ContentStore {
-  private base = CALYPR_EXPLORER_CONFIG_API;
-
   private log(msg: string) {
     console.log('[Microservice]', msg);
   }
@@ -57,7 +55,8 @@ export class MicroserviceContent implements ContentStore {
     headers?: Record<string, string>,
   ): Promise<T> {
     const clean = filepath.replace(/^\/+/, '');
-    const url = `${this.base}/${clean}`;
+    const url = `${CALYPR_EXPLORER_CONFIG_API}/${clean}`;
+    console.log('URL: ', url);
     return this.fetch<T>(url, headers);
   }
 
