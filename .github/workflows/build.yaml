@@ -2,62 +2,58 @@ name: Build and publish Frontend-Framework Image
 
 on:
   push:
-    # Run on push to develop and feature/cbds
     branches:
-    - develop
-    - feature/cbds
+      - develop
+      - feature/cbds
   pull_request:
-    # Run for any open PR that targets develop or feature/cbds
     branches:
-    - develop
-    - feature/cbds
+      - develop
+      - feature/cbds
   workflow_dispatch:
-    branches:
-    - develop
-    - feature/cbds
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
-    # The image tag will be available as $BRANCH throughout all steps
     env:
-      # Use github.head_ref for PRs (source branch), otherwise use github.ref_name (current branch).
-      # The replace function is key to making the branch name safe for Docker tags.
-      BRANCH: ${{ 
-        github.event_name == 'pull_request' && 
-        replace(github.head_ref, '/', '-') || 
-        replace(github.ref_name, 'refs/heads/', '')
-      }}
       REPO: quay.io/ohsu-comp-bio/gen3-frontend-framework
 
     steps:
-    - name: Check out code
-      uses: actions/checkout@v2
+      - name: Check out code
+        uses: actions/checkout@v4
 
-    - name: Login to Quay.io
-      uses: docker/login-action@v2
-      with:
-        registry: ${{ env.REPO }} # Use the REPO env var for cleaner reference
-        username: ${{ secrets.QUAY_USERNAME }}
-        password: ${{ secrets.QUAY_ROBOT_TOKEN }}
+      - name: Set branch name
+        id: vars
+        run: |
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            BRANCH="${GITHUB_HEAD_REF//\//-}"
+          else
+            BRANCH="${GITHUB_REF_NAME//refs\/heads\//}"
+          fi
+          echo "branch=$BRANCH" >> $GITHUB_OUTPUT
 
-    - name: Display current branch tag
-      run: |
-        echo "Building image with tag: ${{ env.REPO }}:${{ env.BRANCH }}"
+      - name: Login to Quay.io
+        uses: docker/login-action@v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_ROBOT_TOKEN }}
 
-    - name: Build and push image
-      run: |
-        # Variables are automatically available in the shell as $REPO and $BRANCH
-        echo "Setting image tag to $REPO:$BRANCH"
+      - name: Build and push image
+        run: |
+          BRANCH="${{ steps.vars.outputs.branch }}"
+          REPO="${{ env.REPO }}"
+          echo "Building $REPO:$BRANCH"
 
-        # Build image
-        docker build -t $REPO:$BRANCH .
+          docker build -t "$REPO:$BRANCH" .
 
-        # Add 'latest' tag only for the main branch (adjust 'main' if needed)
-        if [[ "$BRANCH" == "feature/cbds" ]]; then
-          docker image tag $REPO:main $REPO:latest
-        fi
+          # Tag as latest only for feature/cbds branch (you can adjust this condition)
+          if [[ "$BRANCH" == "feature-cbds" ]]; then
+            docker tag "$REPO:$BRANCH" "$REPO:latest"
+          fi
 
-        # Push the tagged image to Quay.io
-        docker push --all-tags $REPO
+          docker push "$REPO:$BRANCH"
+
+          if [[ "$BRANCH" == "feature-cbds" ]]; then
+            docker push "$REPO:latest"
+          fi
