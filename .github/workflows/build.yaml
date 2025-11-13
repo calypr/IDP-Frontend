@@ -2,15 +2,35 @@ name: Build and publish Frontend-Framework Image
 
 on:
   push:
+    # Run on push to develop and feature/cbds
     branches:
     - develop
+    - feature/cbds
+  pull_request:
+    # Run for any open PR that targets develop or feature/cbds
+    branches:
+    - develop
+    - feature/cbds
   workflow_dispatch:
     branches:
     - develop
+    - feature/cbds
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
+    # The image tag will be available as $BRANCH throughout all steps
+    env:
+      # Use github.head_ref for PRs (source branch), otherwise use github.ref_name (current branch).
+      # The replace function is key to making the branch name safe for Docker tags.
+      BRANCH: ${{ 
+        github.event_name == 'pull_request' && 
+        replace(github.head_ref, '/', '-') || 
+        replace(github.ref_name, 'refs/heads/', '')
+      }}
+      REPO: quay.io/ohsu-comp-bio/gen3-frontend-framework
+
     steps:
     - name: Check out code
       uses: actions/checkout@v2
@@ -18,26 +38,26 @@ jobs:
     - name: Login to Quay.io
       uses: docker/login-action@v2
       with:
-        registry: quay.io
+        registry: ${{ env.REPO }} # Use the REPO env var for cleaner reference
         username: ${{ secrets.QUAY_USERNAME }}
         password: ${{ secrets.QUAY_ROBOT_TOKEN }}
 
+    - name: Display current branch tag
+      run: |
+        echo "Building image with tag: ${{ env.REPO }}:${{ env.BRANCH }}"
+
     - name: Build and push image
       run: |
-        # Set Image tag to the branch name
-        BRANCH=develop
-        REPO=quay.io/ohsu-comp-bio/gen3-frontend-framework
+        # Variables are automatically available in the shell as $REPO and $BRANCH
         echo "Setting image tag to $REPO:$BRANCH"
 
-        # Login to Quay.io and build image
-        docker login quay.io
+        # Build image
         docker build -t $REPO:$BRANCH .
 
-        # Add 'latest' tag to 'main' image
-        if [[ $BRANCH == 'main' ]]; then
+        # Add 'latest' tag only for the main branch (adjust 'main' if needed)
+        if [[ "$BRANCH" == "feature/cbds" ]]; then
           docker image tag $REPO:main $REPO:latest
         fi
 
         # Push the tagged image to Quay.io
         docker push --all-tags $REPO
-
