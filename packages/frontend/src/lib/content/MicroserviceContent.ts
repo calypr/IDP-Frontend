@@ -55,6 +55,12 @@ export class MicroserviceContent implements ContentStore {
     headers?: Record<string, string>,
   ): Promise<T> {
     const clean = filepath.replace(/^\/+/, '');
+
+    if (CALYPR_EXPLORER_CONFIG_API?.trim() === '/ExplorerConfig') {
+      console.log(`API base missing – returning empty object for ${clean}`);
+      return {} as T; // ← build continues
+    }
+
     const url = `${CALYPR_EXPLORER_CONFIG_API}/${clean}`;
     console.log('URL: ', url);
     return this.fetch<T>(url, headers);

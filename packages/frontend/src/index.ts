@@ -127,7 +127,7 @@ import AiSearchPage from './pages/AiSearch/AiSearch';
 import { AISearchPageGetServerSideProps } from './pages/AiSearch/data';
 
 import NotebookLitePage from './pages/NotebookLite/NotebookLite';
-import { NotebookLitePageGetStaticProps } from './pages/NotebookLite';
+import { NotebookLitePageGetServerSideProps } from './pages/NotebookLite';
 
 import DataLibraryPage, {
   DataLibraryPageGetServerSideProps,
@@ -230,7 +230,7 @@ export {
   DataLibraryPage,
   DataLibraryPageGetServerSideProps,
   NotebookLitePage,
-  NotebookLitePageGetStaticProps,
+  NotebookLitePageGetServerSideProps,
   registerMetadataSchemaApp,
   AnalysisEditorPage,
   AnalysisEditorPageGetServerSideProps,

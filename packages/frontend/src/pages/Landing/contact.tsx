@@ -1,5 +1,5 @@
 import React from 'react';
-import { GetStaticProps } from 'next';
+import { GetServerSideProps } from 'next';
 import NavPageLayout from '../../features/Navigation/NavPageLayout';
 import type { NavPageLayoutProps } from '../../features/Navigation';
 import { getNavPageLayoutPropsFromConfig } from '../../lib/common/staticProps';
@@ -69,7 +69,9 @@ const ContactPage = ({ footerProps, headerProps }: NavPageLayoutProps) => {
 };
 
 // should move this thing into _app.tsx and make a dedicated layout component after https://github.com/vercel/next.js/discussions/10949 is addressed
-export const getStaticProps: GetStaticProps<NavPageLayoutProps> = async () => {
+export const getStaticProps: GetServerSideProps<
+  NavPageLayoutProps
+> = async () => {
   return {
     props: {
       ...(await getNavPageLayoutPropsFromConfig()),

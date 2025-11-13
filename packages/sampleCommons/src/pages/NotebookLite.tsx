@@ -1,7 +1,7 @@
 import {
   NotebookLitePage,
-  NotebookLitePageGetStaticProps as getStaticProps,
+  NotebookLitePageGetServerSideProps as getServerSideProps,
 } from '@gen3/frontend';
 
 export default NotebookLitePage;
-export { getStaticProps };
+export { getServerSideProps };
