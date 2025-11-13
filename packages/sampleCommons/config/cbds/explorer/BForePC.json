@@ -410,7 +410,6 @@
           "document_reference_specimen_identifier",
           "document_reference_specimen_collection",
           "document_reference_specimen_processing",
-          "document_reference_source_path",
           "document_reference_creation",
           "project_id",
           "document_reference_specimen_id"
@@ -537,9 +536,6 @@
           },
           "document_reference_specimen_identifier": {
             "title": "Specimen ID"
-          },
-          "document_reference_source_path": {
-            "title": "Source Path"
           },
           "document_reference_creation": {
             "title": "Creation Date"
