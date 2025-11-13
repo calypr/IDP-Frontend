@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { truncateString } from '../utils';
 import ReactECharts, { ReactEChartsProps } from './ReactECharts';
 import { HistogramDataArray, HistogramData } from '@gen3/core';

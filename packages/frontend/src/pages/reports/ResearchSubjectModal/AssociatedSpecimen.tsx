@@ -1,7 +1,7 @@
 import ErrorCard from '../../../components/ErrorCard';
 import { PieChart } from '../../../components/charts';
 import { Stack, LoadingOverlay, Title } from '@mantine/core';
-import { useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { useFilesQuery } from './AssociatedFiles';
 import { QueryContent, ResourceDict } from '../types';
 

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Box, Button, TextInput, Loader, Text } from '@mantine/core';
 import { GraphQLAutocomplete } from './graphqlAutoComplete';
 import { GraphQLSchema } from 'graphql';

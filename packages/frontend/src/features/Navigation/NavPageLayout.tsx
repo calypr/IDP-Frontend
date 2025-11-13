@@ -20,7 +20,7 @@ const NavPageLayout = ({
   const { finalState, toggleButton } = useResponsiveSidebar(leftNavDisabled);
 
   const mainPadding = useMemo(() => {
-    let paddingTop = 'pt-16'; // For 64px header height
+    const paddingTop = 'pt-16'; // For 64px header height
     let paddingBottom = 'pb-20'; // Fallback for ~80px footer height
     if (footerRef.current) {
       paddingBottom = `pb-[${footerRef.current.offsetHeight}px]`; // Dynamic footer height

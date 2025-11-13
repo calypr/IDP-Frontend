@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { MantineProvider, Loader, Alert } from '@mantine/core';
 import { AppsPageProps } from './types';
 import { NavPageLayout } from '../../features/Navigation';
@@ -24,16 +24,14 @@ export function SummaryStatsBanner(authz: any) {
     ([resource, perms]) => {
       // normalize and split, remove empty segments so both "/programs/..." and "programs/..." work
       const parts = String(resource).split('/').filter(Boolean);
-      
+
       // expect ["programs", "<programId>", "projects", "<projectId>"]
       if (parts.length !== 4) return false;
       if (parts[0] !== 'programs' || parts[2] !== 'projects') return false;
       if (!Array.isArray(perms)) return false;
 
       // require an explicit { method: "read", service: "*" } entry in the perms array
-      return perms.some(
-        (p: any) => p?.method === 'read' && p?.service === '*'
-      );
+      return perms.some((p: any) => p?.method === 'read' && p?.service === '*');
     },
   ).length;
 

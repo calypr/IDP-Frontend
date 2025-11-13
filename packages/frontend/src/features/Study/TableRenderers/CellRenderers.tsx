@@ -5,7 +5,7 @@ import { CellRendererFunction, CellRenderFunctionProps } from './types';
 import { Badge } from '@mantine/core';
 
 // TODO Fix below
-// eslint-disable-next-line react/prop-types
+ 
 export const RenderTagsCell: CellRendererFunction = ({
   value,
 }: CellRenderFunctionProps) => {

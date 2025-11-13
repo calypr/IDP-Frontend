@@ -1,3 +1,4 @@
+import React from 'react';
 import { Menu, UnstyledButton } from '@mantine/core';
 
 import { SessionContext } from '../../lib/session/session';

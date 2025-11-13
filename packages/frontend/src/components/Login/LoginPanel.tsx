@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import React, { useCallback } from 'react';
 import { useRouter } from 'next/router';
 import { showNotification } from '@mantine/notifications';
 import { Center, Stack } from '@mantine/core';

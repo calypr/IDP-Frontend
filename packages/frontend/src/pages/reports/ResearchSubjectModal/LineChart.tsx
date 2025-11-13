@@ -7,6 +7,7 @@ import {
   VictoryScatter,
 } from 'victory';
 
+import React from 'react';
 export const VicLineChart = ({
   lineChartData,
 }: {
@@ -14,16 +15,12 @@ export const VicLineChart = ({
 }) => {
   const data = lineChartData
     .filter(
-      (obj) =>
-        'specimen_indexed_collection_date_days' in obj &&
-        'assay' in obj,
+      (obj) => 'specimen_indexed_collection_date_days' in obj && 'assay' in obj,
     )
-    .map(
-      ({ specimen_indexed_collection_date_days, assay }) => ({
-        y: assay,
-        x: specimen_indexed_collection_date_days,
-      }),
-    );
+    .map(({ specimen_indexed_collection_date_days, assay }) => ({
+      y: assay,
+      x: specimen_indexed_collection_date_days,
+    }));
 
   return (
     <div style={{ height: '70vh', width: '100%' }}>

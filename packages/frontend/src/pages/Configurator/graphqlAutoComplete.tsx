@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { getAutocompleteSuggestions } from 'graphql-language-service-interface';
 import { IPosition } from 'graphql-language-service-types';
 import { Autocomplete } from '@mantine/core';

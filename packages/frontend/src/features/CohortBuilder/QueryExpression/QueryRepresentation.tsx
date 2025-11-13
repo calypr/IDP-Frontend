@@ -603,7 +603,7 @@ class CohortFilterToComponent implements OperationHandler<ReactElement> {
     // TODO: handle deeper nesting
     return null as unknown as ReactElement;
   };
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   handleUnion = (_f: Union) => {
     return <div>Union</div>;
   };

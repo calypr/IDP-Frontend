@@ -4,7 +4,7 @@ import { SmmartLandingPageProps } from './types';
 import LandingPageContent from '../../components/Content/LandingPageContent';
 import { LandingPageProps } from '../../components/Content/LandingPageContent';
 import { Center } from '@mantine/core';
-
+import React from 'react';
 import ProjectCard from './ProjectCard';
 
 const SmmartPage = ({

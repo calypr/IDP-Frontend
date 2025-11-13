@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { DragDropContext, DropResult } from '@hello-pangea/dnd';
 import { UnstyledButton, Text, Box, TextInput } from '@mantine/core';
 import { Column } from './column';

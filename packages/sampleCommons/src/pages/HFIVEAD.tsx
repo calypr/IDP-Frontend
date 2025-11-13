@@ -17,7 +17,6 @@ import {
   Download,
   Info,
 } from 'lucide-react';
-// @ts-ignore - Assuming PapaParse is correctly installed and its types might be separate/optional
 import Papa from 'papaparse';
 
 interface UMAPPoint {

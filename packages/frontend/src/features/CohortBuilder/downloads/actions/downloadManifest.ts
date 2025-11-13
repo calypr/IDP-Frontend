@@ -157,7 +157,7 @@ export const downloadToManifestAction = async (
     resultManifest = resultManifest.filter(
       (x: JSONObject) => !!x[resourceIdField],
     );
-    /* eslint-disable no-param-reassign */
+     
     resultManifest.forEach((x: JSONObject) => {
       if (typeof x[resourceIdField] === 'string') {
         x[resourceIdField] = [x[resourceIdField]];

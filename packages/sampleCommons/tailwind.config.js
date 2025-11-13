@@ -1,5 +1,6 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
+
 /** @type {import('tailwindcss').Config} */
-/* eslint-disable @typescript-eslint/no-var-requires */
 const { GEN3_COMMONS_NAME } = require('@gen3/core');
 const plugin = require('tailwindcss/plugin');
 const themeColors = require(`./config/${GEN3_COMMONS_NAME}/themeColors.json`);

@@ -105,12 +105,12 @@ export const dataLibrarySelectionReducer = (
         },
       };
     case 'DELETE_DATA_LIBRARY_LIST': {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+       
       const { [action.payload.listId]: _unused, ...restState } = selections;
       return restState;
     }
     case 'DELETE_DATA_LIBRARY_LIST_MEMBER': {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+       
       if (!(action.payload.listId in selections)) return selections;
       const {
         [action.payload.listId]: {

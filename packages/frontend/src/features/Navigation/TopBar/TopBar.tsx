@@ -15,7 +15,7 @@ const processTopBarItems = (
   items: TopIconButtonPropsWithLink[],
   classNames: StylingOverrideWithMergeControl,
   dividerClassname: string,
-  isLandingPage: Boolean,
+  isLandingPage: boolean,
 ): ReactElement[] => {
   return items.reduce(
     (acc: ReactElement[], item: TopIconButtonPropsWithLink, index: number) => {

@@ -7,7 +7,6 @@ interface CellRenderFunctionProps {
   cell: MRT_Cell<JSONObject>;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const defaultCellRenderer = (_: CellRenderFunctionProps): ReactElement => (
   <Text>value</Text>
 );

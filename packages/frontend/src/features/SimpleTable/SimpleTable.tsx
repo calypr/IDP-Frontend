@@ -1,3 +1,4 @@
+import React from 'react';
 import { fieldNameToTitle } from '@gen3/core';
 import { Paper, Table, Text } from '@mantine/core';
 
