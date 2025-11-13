@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      REPO: quay.io/ohsu-comp-bio/gen3-frontend-framework
+      REPO: quay.io/ohsu-comp-bio/frontend-framework
 
     steps:
       - name: Check out code
@@ -26,7 +26,7 @@ jobs:
         id: vars
         run: |
           if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
-            BRANCH="${GITHUB_HEAD_REF//\//-}"
+            BRANCH="${GITHUB_HEAD_REF//\//_}"
           else
             BRANCH="${GITHUB_REF_NAME//refs\/heads\//}"
           fi
