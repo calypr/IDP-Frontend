@@ -22,8 +22,8 @@ RUN npm run build
 
 COPY start.sh ./
 
-# Build packages
-RUN lerna run build
+ENV NODE_OPTIONS="--max-old-space-size=4096"
+RUN lerna run build --concurrency=1 --stream
 
 # Production stage
 FROM node:22-alpine3.20 AS runner
