@@ -27,6 +27,7 @@ import {
 } from '@gen3/core';
 import { ColumnItem } from './types';
 import { type DocumentReferenceData } from '@gen3/core';
+
 const ProjectIcon = ({ className = 'w-5 h-5 mr-3 text-purple-500' }) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -115,13 +116,13 @@ const getErrorMessage = (error: unknown): string => {
   }
   return 'An unexpected error occurred.';
 };
+
 type FileMetadataPanelProps = {
   file: DirItem;
 };
 
 export const FileMetadataPanel = ({ file }: FileMetadataPanelProps) => {
   const data = file.rawData as DocumentReferenceData;
-
   // Extract relevant fields from the FHIR structure
   const attachment = data?.content?.[0]?.attachment;
   const title = attachment?.title || '—';
@@ -134,14 +135,12 @@ export const FileMetadataPanel = ({ file }: FileMetadataPanelProps) => {
     )?.valueString || '—';
   const url = attachment?.url || '—';
   const id = data?.id || '—';
-
   return (
     <Card shadow="sm" p="lg" className="w-80 bg-white flex-shrink-0">
       <Title order={4} className="mb-2">
         File Metadata
       </Title>
       <Divider my="sm" />
-
       <div className="space-y-3 text-sm">
         <Group gap="xs">
           <IconFileText size={16} className="text-gray-500" />
@@ -150,7 +149,6 @@ export const FileMetadataPanel = ({ file }: FileMetadataPanelProps) => {
         </Group>
         <Group gap="xs">
           <Text className="font-medium text-gray-600">Download:</Text>
-
           <a
             href={`${GEN3_FENCE_API}/user/data/download/${id}?redirect=true`}
             rel="noreferrer"
@@ -166,13 +164,11 @@ export const FileMetadataPanel = ({ file }: FileMetadataPanelProps) => {
           <Text className="font-medium">Size:</Text>
           <Text>{size.toLocaleString()} bytes</Text>
         </Group>
-
         <Group gap="xs" align="start">
           <IconHash size={16} className="text-gray-500 mt-[2px]" />
           <Text className="font-medium">SHA-256:</Text>
           <Text className="break-all">{sha256}</Text>
         </Group>
-
         <Group gap="xs" align="start">
           <IconLink size={16} className="text-gray-500 mt-[2px]" />
           <Text className="font-medium">URL:</Text>
@@ -209,29 +205,35 @@ const MillerPage = ({ headerProps, footerProps }: NavPageLayoutProps) => {
   const [selectedPath, setSelectedPath] = useState<string[]>([]);
   const [selectedFile, setSelectedFile] = useState<DirItem | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  // Use the RTK Query hook to fetch projects
+
+  // Fetch projects
   const {
     data: projectItems,
     isLoading: isLoadingProjects,
     error: projectsError,
   } = useGetDirectoryProjectsQuery();
-  // Use the RTK Query hook to fetch directory contents
+
+  // Fetch directory contents (skip if no project or file selected)
   const {
     data: dirContents,
     isLoading: isLoadingDirectory,
     error: dirError,
   } = useGetDirectoryContentsQuery(
     { projectId: selectedProject ?? '', path: selectedPath },
-    { skip: !selectedProject },
+    { skip: !selectedProject || !!selectedFile },
   );
-  // Effect to populate the first column once projects are loaded
+
+  // Global loading flag to disable interactions during fetches (hardens against races)
+  const isLoading = isLoadingProjects || isLoadingDirectory;
+
+  // Populate first column with projects
   useEffect(() => {
     if (projectItems && projectItems.length > 0) {
-      // projectItems is ProjectItem[], which is now assignable to ColumnItem[]
       setColumns([{ id: 'root-projects', items: projectItems }]);
     }
   }, [projectItems]);
-  // Effect to add a new column when directory contents are loaded
+
+  // Replace loading column with directory contents when ready
   useEffect(() => {
     if (selectedProject && dirContents && !selectedFile) {
       setColumns((prev) => {
@@ -245,28 +247,33 @@ const MillerPage = ({ headerProps, footerProps }: NavPageLayoutProps) => {
       });
     }
   }, [dirContents, selectedProject, selectedPath, selectedFile]);
-  // Effect to add metadata column when a file is selected
+
+  // Handle file metadata column
   useEffect(() => {
     if (selectedFile) {
       setColumns((prev) => {
-        const newColumn = {
-          id: `file-metadata-${selectedFile.id}`,
-          metadata: selectedFile,
-        };
-        if (prev.length > 0 && prev[prev.length - 1].metadata) {
-          // Replace existing metadata column
-          prev[prev.length - 1] = newColumn;
-          return [...prev];
-        } else {
-          // Add new metadata column
-          return [...prev, newColumn];
+        const lastCol = prev[prev.length - 1];
+        // If we're already showing this exact file, do nothing
+        if (lastCol?.metadata?.id === selectedFile.id) return prev;
+
+        // Otherwise replace or add metadata column
+        if (lastCol?.metadata) {
+          return [
+            ...prev.slice(0, -1),
+            { id: `file-metadata-${selectedFile.id}`, metadata: selectedFile },
+          ];
         }
+        return [
+          ...prev,
+          { id: `file-metadata-${selectedFile.id}`, metadata: selectedFile },
+        ];
       });
     } else {
-      // Clear metadata from columns when no file is selected
       setColumns((prev) => prev.filter((col) => !col.metadata));
     }
   }, [selectedFile]);
+
+  // Auto-scroll to newest column
   const prevColumnCountRef = useRef<number>(0);
   useEffect(() => {
     const container = scrollContainerRef.current;
@@ -285,32 +292,177 @@ const MillerPage = ({ headerProps, footerProps }: NavPageLayoutProps) => {
     }
     prevColumnCountRef.current = currentLen;
   }, [columns]);
+
+  // Handle item clicks (disabled during loading)
   const handleItemClick = (item: ColumnItem, columnIndex: number) => {
+    if (isLoading) return;
+
     if (item.type === 'project') {
-      setColumns((prev) =>
-        prev.slice(0, 1).concat({ id: 'loading-project', loading: true }),
-      );
-      setSelectedPath([]);
       setSelectedProject(item.name);
+      setSelectedPath([]);
       setSelectedFile(null);
+      setColumns((prev) => [
+        ...prev.slice(0, 1),
+        { id: 'loading-project', loading: true },
+      ]);
       return;
     }
+
     if (item.type === 'directory') {
       const newPath = [...selectedPath.slice(0, columnIndex - 1), item.name];
-      setColumns((prev) =>
-        prev
-          .slice(0, columnIndex + 1)
-          .concat({ id: 'loading-dir', loading: true }),
-      );
       setSelectedPath(newPath);
       setSelectedFile(null);
+
+      // Always truncate to the clicked folder + loading column
+      setColumns((prev) => [
+        ...prev.slice(0, columnIndex + 1),
+        { id: 'loading-dir', loading: true },
+      ]);
       return;
     }
+
     if (item.type === 'file') {
+      // THIS IS THE KEY FIX
+      const parentPath = selectedPath.slice(0, columnIndex - 1); // path up to parent folder
+      setSelectedPath(parentPath);
       setSelectedFile(item);
+
+      // Collapse everything after the parent folder, then add metadata
+      setColumns((prev) => {
+        const keepUpToParent = columnIndex + 1; // root + project + folders up to parent
+        return [
+          ...prev.slice(0, keepUpToParent),
+          { id: `file-metadata-${item.id}`, metadata: item },
+        ];
+      });
       return;
     }
   };
+
+  // FinderPathBar (bottom path bar like macOS)
+  const FinderPathBar = () => {
+    const breadcrumbs: {
+      label: string;
+      icon: React.ReactNode;
+      targetDepth: number;
+    }[] = [];
+
+    // Root
+    breadcrumbs.push({
+      label: 'Projects',
+      icon: <ProjectIcon className="w-4 h-4" />,
+      targetDepth: 1,
+    });
+
+    if (selectedProject) {
+      breadcrumbs.push({
+        label: selectedProject,
+        icon: <ProjectIcon className="w-4 h-4" />,
+        targetDepth: 2,
+      });
+
+      selectedPath.forEach((folder, idx) => {
+        breadcrumbs.push({
+          label: folder,
+          icon: <FolderIcon className="w-4 h-4" />,
+          targetDepth: 2 + idx + 1,
+        });
+      });
+
+      if (selectedFile) {
+        breadcrumbs.push({
+          label: selectedFile.name,
+          icon: <FileIcon className="w-4 h-4" />,
+          targetDepth: columns.length,
+        });
+      }
+    }
+
+    const currentDepth = selectedFile
+      ? columns.length // when file selected, depth includes metadata column
+      : selectedPath.length + 2; // normal folder navigation
+
+    const handleCrumbClick = (targetDepth: number) => {
+      if (isLoading) return; // Harden: prevent races from quick clicks
+      if (targetDepth >= currentDepth) {
+        return;
+      }
+
+      if (targetDepth === 1) {
+        setSelectedProject(null);
+        setSelectedPath([]);
+        setSelectedFile(null);
+        setColumns([{ id: 'root-projects', items: projectItems ?? [] }]);
+        return;
+      }
+
+      if (targetDepth === 2) {
+        setSelectedPath([]);
+        setSelectedFile(null);
+        setColumns((prev) => prev.slice(0, 2));
+        return;
+      }
+
+      // Navigate to folder
+      const folderIndex = targetDepth - 3;
+      const newPath = selectedPath.slice(0, folderIndex + 1);
+      setSelectedPath(newPath);
+      setSelectedFile(null);
+
+      setColumns((prev) => {
+        const lastIsMetadata = !!prev[prev.length - 1]?.metadata;
+        const shouldJustTruncate =
+          lastIsMetadata && prev.length === targetDepth + 1;
+        if (shouldJustTruncate) {
+          return prev.slice(0, targetDepth);
+        }
+        return prev.slice(0, targetDepth);
+      });
+    };
+
+    if (breadcrumbs.length <= 1) return null;
+
+    return (
+      <div className="border-t bg-gradient-to-b from-gray-100 to-gray-50 px-6 py-3.5">
+        <div className="flex items-center gap-3 overflow-x-auto">
+          {breadcrumbs.map((crumb, i) => {
+            const isCurrent = crumb.targetDepth === currentDepth;
+
+            return (
+              <div key={i} className="flex items-center">
+                {i > 0 && (
+                  <svg
+                    className="w-5 h-5 text-gray-400 flex-shrink-0"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                  >
+                    <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
+                  </svg>
+                )}
+                <button
+                  onClick={() => handleCrumbClick(crumb.targetDepth)}
+                  disabled={isCurrent || isLoading} // Harden: disable during loads
+                  className={`
+                    flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all select-none
+                    ${
+                      isCurrent
+                        ? 'bg-white shadow-sm ring-1 ring-black/10 font-semibold'
+                        : 'hover:bg-white/90 hover:shadow active:scale-98 text-gray-700'
+                    }
+                    disabled:cursor-default disabled:opacity-60
+                  `}
+                >
+                  {crumb.icon}
+                  <span className="truncate max-w-[200px]">{crumb.label}</span>
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   const errorObject = projectsError || dirError;
   if (errorObject) {
     const errorMessage = getErrorMessage(errorObject);
@@ -331,6 +483,7 @@ const MillerPage = ({ headerProps, footerProps }: NavPageLayoutProps) => {
       </NavPageLayout>
     );
   }
+
   return (
     <NavPageLayout
       {...{ headerProps, footerProps }}
@@ -357,7 +510,7 @@ const MillerPage = ({ headerProps, footerProps }: NavPageLayoutProps) => {
             ) : (
               columns.map((column, colIndex) => (
                 <div
-                  key={`col-${column.id}-${colIndex}`}
+                  key={`col-${column.id}-${colIndex}`} // Harden: unique keys for stable rendering
                   className="w-72 border-r overflow-y-auto flex-shrink-0 bg-white"
                 >
                   {column.loading ? (
@@ -371,14 +524,14 @@ const MillerPage = ({ headerProps, footerProps }: NavPageLayoutProps) => {
                         if (colIndex === 0 && selectedProject) {
                           isSelected = selectedProject === item.name;
                         } else if (colIndex > 0) {
-                          // DirItem checks are safe here
                           isSelected = selectedPath[colIndex - 1] === item.name;
                         }
                         return (
                           <li key={item.id}>
                             <button
+                              disabled={isLoading} // Harden: disable during loads
                               onClick={() => handleItemClick(item, colIndex)}
-                              className={`w-full text-left p-3 flex items-center justify-between transition-colors duration-150 ${
+                              className={`w-full text-left p-3 flex items-center justify-between transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60 ${
                                 isSelected
                                   ? 'bg-blue-500 text-white'
                                   : 'hover:bg-gray-100 text-gray-800'
@@ -416,6 +569,7 @@ const MillerPage = ({ headerProps, footerProps }: NavPageLayoutProps) => {
               ))
             )}
           </div>
+          <FinderPathBar />
         </div>
       </div>
     </NavPageLayout>
