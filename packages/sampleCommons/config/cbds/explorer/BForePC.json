@@ -411,12 +411,16 @@
           "document_reference_specimen_collection",
           "document_reference_specimen_processing",
           "document_reference_creation",
+          "document_reference_source_path",
           "project_id",
           "document_reference_specimen_id"
         ],
         "columns": {
           "document_reference_HTANDataFileID": {
             "title": "Data File ID"
+          },
+          "document_reference_source_path": {
+            "visible": false
           },
           "document_reference_id": {
             "title": "File Actions",
