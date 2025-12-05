@@ -19,7 +19,7 @@
     "build-storybook": "storybook build"
   },
   "dependencies": {
-    "next": "^15.3.3"
+    "next": "^15.5.7"
   },
   "devDependencies": {
     "@chromatic-com/storybook": "^3.2.5",
