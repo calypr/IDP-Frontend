@@ -9,7 +9,7 @@ updates:
     # TODO: Doublecheck that this updates workspace `package.json` files as well...
     directory: "/"
     schedule:
-      interval: "daily"
+      interval: "weekly"
     groups:
       dependabot:
         patterns:
