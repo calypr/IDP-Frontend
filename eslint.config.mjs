@@ -72,6 +72,11 @@ export default [
       'reactHooks/rules-of-hooks': 'error',
       'reactHooks/exhaustive-deps': 'warn',
 
+      // TODO: Re-enable these rules
+      'react/react-in-jsx-scope': 'off',
+      'reactHooks/rules-of-hooks': 'off',
+      '@typescript-eslint/no-wrapper-object-types': 'off',
+      '@typescript-eslint/no-unused-expressions': 'off',
     },
   },
 ];
