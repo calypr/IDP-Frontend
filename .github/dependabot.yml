@@ -10,3 +10,11 @@ updates:
     directory: "/"
     schedule:
       interval: "daily"
+    groups:
+      dependabot:
+        patterns:
+          - "*" 
+        update-types:
+          - "major"
+          - "minor"
+          - "patch"
