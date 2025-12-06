@@ -4,9 +4,8 @@ on:
   push:
     branches:
     - develop
+    - feature/cbds
   workflow_dispatch:
-    branches:
-    - develop
 
 jobs:
   build:
