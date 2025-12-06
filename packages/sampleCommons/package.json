@@ -33,7 +33,7 @@
     "@mdx-js/react": "^3.0.0",
     "@next/mdx": "^15.3.3",
     "@xyflow/react": "^12.8.3",
-    "cookies-next": "^4.3.0",
+    "cookies-next": "^6.1.1",
     "d3": "^7.9.0",
     "echarts-for-react": "^3.0.2",
     "file-system-db": "^2.1.0",
