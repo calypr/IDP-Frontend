@@ -39,7 +39,7 @@
   "license": "Apache-2.0",
   "dependencies": {
     "@fontsource/lato": "^5.2.7",
-    "@grafana/faro-react": "^1.9.1",
+    "@grafana/faro-react": "^2.0.2",
     "@grafana/faro-web-sdk": "^1.9.1",
     "@grafana/faro-web-tracing": "^1.9.1",
     "@iconify/react": "^6.0.0",
