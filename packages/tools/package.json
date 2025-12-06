@@ -30,7 +30,7 @@
     "@iconify/tools": "^4.1.1",
     "axios": "^1.8.2",
     "tinycolor2": "^1.6.0",
-    "undici": "^6.21.1"
+    "undici": "^7.16.0"
   },
   "devDependencies": {
     "rollup-plugin-executable": "^1.6.3"
