@@ -96,7 +96,7 @@
     "postcss-preset-env": "^8.4.2",
     "react-cookie": "^7.2.2",
     "react-fast-compare": "^3.2.2",
-    "react-icons": "^4.10.1",
+    "react-icons": "^5.5.0",
     "react-markdown": "^9.0.1",
     "react-minisearch": "^6.3.0",
     "react-plotly.js": "^2.5.1",
