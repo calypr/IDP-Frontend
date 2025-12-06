@@ -52,7 +52,7 @@
     "@xyflow/react": "^12.8.3",
     "classnames": "^2.3.1",
     "colorette": "^2.0.20",
-    "cookies-next": "4.3.0",
+    "cookies-next": "6.1.1",
     "d3": "^7.9.0",
     "echarts-for-react": "^3.0.2",
     "idb": "^8.0.3",
