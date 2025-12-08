@@ -55,8 +55,10 @@
     "fake-indexeddb": "^6.0.0"
   },
   "dependencies": {
+    "@next/mdx": "^15.5.7",
     "@reduxjs/toolkit": "^2.5.0",
     "flat": "^6.0.1",
+    "next": "^15.5.7",
     "papaparse": "^5.4.1",
     "queue": "6.0.2",
     "react-redux": "^9.2.0",

@@ -9,11 +9,37 @@
       ],
       "research_subject_identifier": [
         { "index": "research_subject", "field": "research_subject_identifier" },
-        { "index": "specimen", "field": "specimen_patient_identifier" }
+        { "index": "specimen", "field": "specimen_patient_identifier" },
+        { "index": "document_reference", "field": "document_reference_patient_identifier" }
       ],
       "specimen_patient_identifier": [
         { "index": "research_subject", "field": "research_subject_identifier" },
         { "index": "specimen", "field": "specimen_patient_identifier" }
+      ],
+      "document_reference_patient_identifier": [
+        { "index": "research_subject", "field": "research_subject_identifier" },
+        { "index": "specimen", "field": "specimen_patient_identifier" },
+        { "index": "document_reference", "field": "document_reference_patient_identifier" }
+      ],
+      "specimen_identifier": [
+        {
+          "index": "document_reference",
+          "field": "document_reference_specimen_identifier"
+        },
+        {
+          "index": "specimen",
+          "field": "specimen_identifier"
+        }
+      ],
+      "document_reference_specimen_identifier": [
+        {
+          "index": "document_reference",
+          "field": "document_reference_specimen_identifier"
+        },
+        {
+          "index": "specimen",
+          "field": "specimen_identifier"
+        }
       ],
       "research_subject_condition_Diagnosis": [
         {
@@ -34,26 +60,6 @@
           "index": "document_reference",
           "field": "document_reference_enrollment_diagnosis"
         }
-      ],
-      "document_reference_specimen_id": [
-        {
-          "index": "document_reference",
-          "field": "document_reference_specimen_id"
-        },
-        {
-          "index": "specimen",
-          "field": "specimen_id"
-        }
-      ],
-      "specimen_id": [
-        {
-          "index": "document_reference",
-          "field": "document_reference_specimen_id"
-        },
-        {
-          "index": "specimen",
-          "field": "specimen_id"
-        }
       ]
     }
   },
@@ -69,6 +75,9 @@
               "research_subject_condition_Diagnosis"
             ],
             "fieldsConfig": {
+              "project_id": {
+                "label": "Project ID"
+              },
               "research_subject_identifier": {
                 "label": "Participant ID"
               },
@@ -156,6 +165,9 @@
               "specimen_treatments"
             ],
             "fieldsConfig": {
+              "project_id": {
+                "label": "Project ID"
+              },
               "specimen_identifier": {
                 "label": "BEMS ID"
               },
@@ -187,7 +199,7 @@
                 "label": "Treatments"
               },
               "specimen_patient_identifier": {
-                "label": "Patient Identifier"
+                "label": "Participant ID"
               }
             }
           }
@@ -196,6 +208,9 @@
       "table": {
         "enabled": true,
         "columns": {
+          "project_id": {
+            "title": "Project ID"
+          },
           "specimen_identifier": {
             "title": "BEMS ID"
           },
@@ -332,6 +347,9 @@
       },
       "table": {
         "columns": {
+          "project_id": {
+            "title": "Project ID"
+          },
           "medication_administration_patient_id": {
             "title": "Open Report",
             "type": "link",
@@ -343,7 +361,7 @@
             }
           },
           "medication_administration_patient_identifier": {
-            "title": "Patient Identifier"
+            "title": "Participant ID"
           },
           "medication_administration_medication": {
             "title": "Medication"
@@ -407,17 +425,25 @@
           {
             "fields": [
               "project_id",
+              "document_reference_patient_identifier",
               "document_reference_enrollment_diagnosis",
+              "document_reference_specimen_identifier",
               "document_reference_molecule_type",
               "document_reference_data_category",
               "document_reference_assay",
               "document_reference_level",
               "document_reference_instrument",
               "document_reference_sequencing_site",
-              "document_reference_contentType",
-              "document_reference_specimen_identifier"
+              "document_reference_contentType"
+              
             ],
             "fieldsConfig": {
+              "project_id": {
+                "label": "Project ID"
+              },
+              "document_reference_patient_identifier": {
+                "label": "Participant ID"
+              },
               "document_reference_enrollment_diagnosis": {
                 "label": "Enrollment Diagnosis"
               },
@@ -472,6 +498,12 @@
           "document_reference_id"
         ],
         "columns": {
+          "project_id": {
+            "title": "Project ID"
+          },
+          "document_reference_patient_identifier": {
+            "title": "Participant ID"
+          },
           "document_reference_assay": {
             "title": "Assay"
           },
