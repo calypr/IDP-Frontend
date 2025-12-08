@@ -22,10 +22,6 @@ RUN npm run build
 
 COPY start.sh ./
 
-# Update dependencies
-RUN npx nx migrate latest
-RUN npx nx migrate --run-migrations
-
 # Build packages
 RUN lerna run build
 
