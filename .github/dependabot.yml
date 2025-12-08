@@ -11,10 +11,6 @@ updates:
     schedule:
       interval: "weekly"
     groups:
-      dependabot:
+      default:
         patterns:
           - "*" 
-        update-types:
-          - "major"
-          - "minor"
-          - "patch"
