@@ -11,7 +11,12 @@ jobs:
       - name: Get Version
         run: npm -v
       - name: Install modules
-
         run: npm ci --include=optional
+
+      - name: Update dependencies
+        run: |
+          npx nx migrate latest
+          npx nx migrate --run-migrations
+
       - name: Run ESLint
         run: npm run lint --verbose
