@@ -4,7 +4,7 @@ import { AccessLevel } from '../../../utils';
 import { Divider, Group, Text, Tooltip } from '@mantine/core';
 import {
   LuClock as PendingIcon,
-  LuUnlock as UnlockedIcon,
+  LuLockOpen as UnlockedIcon,
   LuLock as LockedIcon,
   LuCircleSlash as NotAvailableIcon,
 } from 'react-icons/lu';

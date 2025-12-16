@@ -28,8 +28,8 @@ export default async function (req: NextApiRequest, res: NextApiResponse) {
       }
       // validate the token
       const publicKey = await importSPKI(jwtKey, 'RS256');
-      await jwtVerify(access_token, publicKey);
-      const decodedAccessToken = decodeJwt(access_token) as JWTPayloadAndUser;
+      await jwtVerify(access_token as string, publicKey);
+      const decodedAccessToken = decodeJwt(access_token as string) as JWTPayloadAndUser;
       return res.status(200).json({
         issued: decodedAccessToken.iat,
         expires: decodedAccessToken.exp,
