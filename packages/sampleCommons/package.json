@@ -40,7 +40,7 @@
     "jose": "^4.15.9",
     "jsonpath-plus": "^10.3.0",
     "mantine-react-table": "^2.0.0-beta.9",
-    "next": "^15.5.7",
+    "next": "^16.1.5",
     "react": "^18.3.1",
     "react-complex-tree": "^2.6.0",
     "react-dom": "18.3.1",
