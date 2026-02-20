@@ -150,7 +150,7 @@ export const FileMetadataPanel = ({ file }: FileMetadataPanelProps) => {
         <Group gap="xs">
           <Text className="font-medium text-gray-600">Download:</Text>
           <a
-            href={`${GEN3_FENCE_API}/user/data/download/${downloadIdentifier}?redirect=true`}
+            href={`${GEN3_FENCE_API}/data/download/${downloadIdentifier}?redirect=true`}
             rel="noreferrer"
             target="_blank"
           >
