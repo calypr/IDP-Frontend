@@ -14,6 +14,7 @@ import { LoginButtonVisibility } from '../../../components/Login/types';
 export interface HorizontalNavigationBarProps extends NavigationProps {
   readonly actions: TopBarProps;
   loginIcon?: ReactElement | string;
+  onToggle: () => void;
 }
 
 const HorizontalNavigationBar = ({
@@ -22,6 +23,7 @@ const HorizontalNavigationBar = ({
   logo = undefined,
   loginIcon = <LoginIcon size={'3.15rem'} />,
   classNames = {},
+  onToggle,
 }: HorizontalNavigationBarProps) => {
   const classNamesDefaults = {
     root: 'py-3 border-b-1 border-base-light shadow-sm',
@@ -48,7 +50,7 @@ const HorizontalNavigationBar = ({
           mergedClassnames,
         )}`}
       >
-        {logo && <NavigationLogo {...{ ...logo }} />}
+        {logo && <NavigationLogo {...{ ...logo }} onToggle={onToggle} />}
       </div>
       <div
         className={`flex justify-center items-center align-middle ${extractClassName(

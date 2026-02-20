@@ -1,19 +1,9 @@
-import React, { ComponentType, PropsWithChildren } from 'react';
+import React, { useMemo, PropsWithChildren, useRef } from 'react';
 import Head from 'next/head';
 import Footer from './Footer/Footer';
 import Header from './Header';
-import { HeaderMetadata, HeaderProps, MainContentProps } from './types';
-import LeftSidePanel from './Vertical/LeftSidePanel';
-import { FooterProps } from './Footer/types';
-
-export interface NavPageLayoutProps {
-  headerProps: Readonly<HeaderProps>;
-  footerProps: Readonly<FooterProps>;
-  mainProps?: Partial<MainContentProps>;
-  headerMetadata: HeaderMetadata;
-  CustomHeaderComponent?: ComponentType<HeaderProps>;
-  CustomFooterComponent?: ComponentType<FooterProps>;
-}
+import { Sidebar, useResponsiveSidebar } from './Sidebar';
+import { NavPageLayoutProps } from './types';
 
 const NavPageLayout = ({
   headerProps,
@@ -24,47 +14,74 @@ const NavPageLayout = ({
   CustomFooterComponent,
   children,
 }: PropsWithChildren<NavPageLayoutProps>) => {
-  const mainContentStyle = mainProps?.fixed
-    ? 'flex-1 flex overflow-hidden relative'
-    : 'flex grow relative';
+  const leftNavDisabled = headerMetadata.title === 'CALYPR Landing Page';
+  const footerRef = useRef<HTMLDivElement>(null);
+
+  const { finalState, toggleButton } = useResponsiveSidebar(leftNavDisabled);
+
+  const mainPadding = useMemo(() => {
+    const paddingTop = 'pt-16'; // For 64px header height
+    let paddingBottom = 'pb-20'; // Fallback for ~80px footer height
+    if (footerRef.current) {
+      paddingBottom = `pb-[${footerRef.current.offsetHeight}px]`; // Dynamic footer height
+    }
+    const padding = `${paddingTop} ${paddingBottom}`;
+    if (leftNavDisabled) return padding;
+    return finalState === 'open' ? `${padding} pl-48` : `${padding} pl-0`;
+  }, [finalState, leftNavDisabled]);
+
   return (
-    <div className="flex flex-col justify-between h-screen">
+    <div className="flex flex-col min-h-screen">
       <Head>
-        <title>{headerMetadata.title}</title>
-        <meta
-          property="og:title"
-          content={headerMetadata.content}
-          key={headerMetadata.key}
-        />
-      </Head>
-      {CustomHeaderComponent ? (
-        <CustomHeaderComponent {...headerProps} />
-      ) : (
-        <Header {...headerProps} title={headerMetadata.title}>
-          <title>{headerMetadata.title}</title>
+        <title>{headerMetadata.title || 'App'}</title>
+        {headerMetadata.content && (
           <meta
             property="og:title"
             content={headerMetadata.content}
             key={headerMetadata.key}
           />
-        </Header>
-      )}
-      {headerProps.type === 'vertical' ? (
-        <div className="flex grow">
-          <LeftSidePanel
-            items={headerProps.navigation.items}
-            classNames={headerProps.navigation.classNames}
-          />
-          <main className={mainContentStyle}>{children}</main>
-        </div>
+        )}
+      </Head>
+
+      {/* HEADER */}
+      {CustomHeaderComponent ? (
+        <CustomHeaderComponent {...headerProps} />
       ) : (
-        <main className={mainContentStyle}>{children}</main>
+        <Header
+          {...headerProps}
+          title={headerMetadata.title}
+          onToggle={toggleButton}
+          basePage={leftNavDisabled}
+        />
       )}
-      {CustomFooterComponent ? (
-        <CustomFooterComponent {...footerProps} />
-      ) : (
-        <Footer {...footerProps} />
-      )}
+
+      {/* BODY */}
+      <div className="flex flex-1 relative">
+        {/* Sidebar */}
+        {!leftNavDisabled && (
+          <Sidebar items={headerProps.leftnav} state={finalState} />
+        )}
+
+        {/* Main Content */}
+        <main
+          className={`
+            flex-1 overflow-hidden transition-all duration-300
+            ${mainPadding}
+          `}
+          {...mainProps}
+        >
+          {children}
+        </main>
+      </div>
+
+      {/* FOOTER */}
+      <div ref={footerRef}>
+        {CustomFooterComponent ? (
+          <CustomFooterComponent {...footerProps} />
+        ) : (
+          <Footer {...footerProps} basePage={leftNavDisabled} />
+        )}
+      </div>
     </div>
   );
 };

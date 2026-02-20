@@ -1,11 +1,9 @@
 import {
-  ContentSource,
   getNavPageLayoutPropsFromConfig,
   ExplorerPageGetServerSidePropsForConfigId,
   NavPageLayout,
   NavPageLayoutProps,
 } from '@gen3/frontend';
-
 import React from 'react';
 import {
   CohortBuilder,
@@ -21,7 +19,8 @@ const CohortBuilderPage = ({
   tabsLayout,
   sharedFiltersMap,
 }: ExplorerPageProps): JSX.Element => {
-  if (explorerConfig === undefined) {
+  if (explorerConfig === null) {
+    // Changed from undefined to null
     return (
       <Center maw={400} h={100} mx="auto">
         <div>Explorer config is not defined. Page disabled</div>

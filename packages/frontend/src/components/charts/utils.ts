@@ -22,7 +22,7 @@ export const truncateString = (str: string, n: number): string => {
 };
 
 // from https://stackoverflow.com/questions/33053310/remove-value-from-object-without-mutation
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 export const removeKey = (key: any, { [key]: _, ...rest }) => rest;
 
 export const processLabel = (label: string): string => {

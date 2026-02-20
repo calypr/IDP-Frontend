@@ -1,32 +1,20 @@
-import { ContentSource } from './types';
-
-/**
- *  The Content management "datastore" which is an abstracted interface to
- *  some persistent storage of content needed for Gen3's content management system
- */
-
-export interface CreateDatabase {
-  store: ContentSource;
-}
+import { ContentStore } from './types';
 
 export class ContentDatabase {
-  public store: ContentSource;
-
-  constructor(public config: CreateDatabase) {
-    this.store = config.store;
-  }
+  constructor(public store: ContentStore) {}
 
   public async get<T extends Record<string, any>>(
     filepath: string,
-  ): Promise<T | any> {
-    return this.store.get(filepath);
+    headers?: Record<string, string>,
+  ): Promise<T> {
+    return this.store.get(filepath, headers);
   }
 
   public async getAll<T extends Record<string, any>>(
     filepath: string,
     filter: string,
+    headers?: Record<string, string>,
   ): Promise<Array<T>> {
-    //   Array<Promise<T>>
-    return this.store.getAll(filepath, filter);
+    return this.store.getAll(filepath, filter, headers);
   }
 }

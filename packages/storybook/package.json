@@ -19,6 +19,7 @@
     "build-storybook": "storybook build"
   },
   "dependencies": {
+    "eslint-plugin-storybook": "^10.0.7",
     "next": "^15.5.7"
   },
   "devDependencies": {

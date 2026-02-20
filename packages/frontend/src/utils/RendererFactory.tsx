@@ -13,7 +13,7 @@ export interface RendererFunctionCatalogEntry<T> {
   [key: string]: RendererFunction<T>;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 export function DefaultItemRenderer<T>(_props: T): ReactNode {
   return <span>DefaultRenderer</span>;
 }

@@ -1,33 +1,49 @@
+// src/lib/content/index.ts
 import { FilesystemContent } from './filesystem';
+import { MicroserviceContent } from './MicroserviceContent';
 import { ContentDatabase } from './ContentDatabase';
 import { GEN3_FRONTEND_CONFIGURATION_ROOT } from './constants';
+import { ContentStore } from './types';
 
-export class ContentSource {
-  private static instance: ContentSource | null = null;
-  private contentDatabase: ContentDatabase;
+export class ContentSourceProvider {
+  private static instance: ContentSourceProvider | null = null;
+  private db: ContentDatabase;
 
   private constructor() {
-    const config = {
-      store: new FilesystemContent({
-        rootPath: GEN3_FRONTEND_CONFIGURATION_ROOT,
-      }),
-    };
-    this.contentDatabase = new ContentDatabase(config);
-  }
+    const microUrl = process.env.CONTENT_MICROSERVICE_URL?.trim();
+    let store: ContentStore;
 
-  public static getInstance(): ContentSource {
-    if (!ContentSource.instance) {
-      ContentSource.instance = new ContentSource();
+    if (microUrl) {
+      try {
+        new URL(microUrl);
+      } catch {
+        throw new Error(`Invalid CONTENT_MICROSERVICE_URL: ${microUrl}`);
+      }
+      store = new MicroserviceContent();
+      console.log('[Provider] Using Microservice →', microUrl);
+    } else {
+      const root = GEN3_FRONTEND_CONFIGURATION_ROOT || 'config';
+      store = new FilesystemContent(root);
+      console.log('[Provider] Using Filesystem →', root);
     }
-    return ContentSource.instance;
+
+    this.db = new ContentDatabase(store);
   }
 
-  // Add methods to access the ContentDatabase functionality
-  // For example:
+  public static getInstance(): ContentSourceProvider {
+    if (!ContentSourceProvider.instance) {
+      ContentSourceProvider.instance = new ContentSourceProvider();
+    }
+    return ContentSourceProvider.instance;
+  }
+
   public getContentDatabase(): ContentDatabase {
-    return this.contentDatabase;
+    return this.db;
   }
 }
 
-// Export a singleton instance
-export default ContentSource.getInstance();
+export const filesystemDb = new ContentDatabase(
+  new FilesystemContent(GEN3_FRONTEND_CONFIGURATION_ROOT || 'config'),
+);
+export const microserviceDb = new ContentDatabase(new MicroserviceContent());
+export default ContentSourceProvider.getInstance();

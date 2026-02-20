@@ -1,17 +1,16 @@
+// src/pages/FileSummary/data.ts
 import { GetServerSideProps } from 'next';
 import { getNavPageLayoutPropsFromConfig } from '../../lib/common/staticProps';
-import ContentSource from '../../lib/content';
-import { FileSummaryProps } from './types';
-import { GEN3_COMMONS_NAME } from '@gen3/core';
+import { microserviceDb } from '../../lib/content'; // ← NEW: direct microservice
+import type { FileSummaryProps } from './types';
 import type { NavPageLayoutProps } from '../../features/Navigation';
 
 export const FileSummaryPageGetServerSideProps: GetServerSideProps<
   NavPageLayoutProps
-> = async (_context) => {
+> = async () => {
   const summaryPageProps: FileSummaryProps =
-    await ContentSource.getContentDatabase().get(
-      `${GEN3_COMMONS_NAME}/filesummary.json`,
-    );
+    await microserviceDb.get<FileSummaryProps>('file_summary/1');
+
   return {
     props: {
       ...(await getNavPageLayoutPropsFromConfig()),

@@ -143,7 +143,7 @@ export const DatalistAccordionItem: React.FC<DatalistAccordionProps> = ({
   }, [listId, numberOfItemsInList, selections]);
 
   const removeItemFromList = async (itemId: string) => {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+     
     const { [itemId]: _removedKey, ...newObject } = dataList.items;
     await updateListInDataLibrary({
       id: listId,

@@ -9,7 +9,7 @@ import { fieldNameToTitle, useGeneralGQLQuery } from '@gen3/core';
 import { MatchingTable } from '../../features/MatchingTable';
 import ErrorCard from '../../components/ErrorCard';
 import type { TableDetailsReportPanelProps } from '../../features/CohortBuilder';
-import { useState } from 'react';
+import React, { useState } from 'react';
 import SimpleTable from '../../../../frontend/src/features/SimpleTable/SimpleTable';
 import {
   extractData,

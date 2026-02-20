@@ -1,7 +1,8 @@
-import { ReactElement } from 'react';
+import { ReactElement, ComponentType } from 'react';
 import { TopBarProps } from './TopBar/TopBar';
 import { BannerProps } from './Banner';
 import { StylingOverrideWithMergeControl } from '../../types';
+import { FooterProps } from './Footer/types';
 
 export interface NavigationButtonProps {
   icon: string;
@@ -24,6 +25,7 @@ export interface NavigationBarLogo {
   readonly basePath?: string;
   readonly classNames?: StylingOverrideWithMergeControl;
   readonly href: string;
+  onToggle: () => void;
   basepage?: boolean;
 }
 
@@ -35,6 +37,17 @@ export interface NavigationProps {
   readonly classNames?: StylingOverrideWithMergeControl;
 }
 
+export interface LeftNavBarProps {
+  readonly title: string;
+  readonly description: string;
+  readonly icon: string;
+  readonly href: string;
+  readonly perms: string;
+}
+
+export interface HeaderToggleProps extends HeaderProps {
+  onToggle: () => void;
+}
 export interface HeaderMetadata {
   title: string;
   content: string;
@@ -74,10 +87,12 @@ interface CommonsData {
 
 export interface HeaderProps {
   children?: React.ReactNode; // Add this line
-  top: TopBarProps;
+  topBar: TopBarProps;
   navigation: NavigationProps;
   banners?: Array<BannerProps>;
   type?: 'horizontal' | 'vertical' | 'original';
+  leftnav: Array<LeftNavBarProps>;
+  basePage: boolean;
   readonly siteProps?: CommonsData;
 }
 
@@ -91,4 +106,29 @@ export interface NameAndIcon {
   readonly rightIcon?: string;
   readonly leftIcon?: string;
   readonly classNames?: StylingOverrideWithMergeControl;
+}
+
+export interface SidebarProps {
+  items: LeftNavBarProps[];
+  state: SidebarState;
+}
+
+export type SidebarState = 'open' | 'closed';
+
+export interface UseResponsiveSidebarResult {
+  finalState: SidebarState;
+  toggleButton: () => void;
+}
+
+export interface NavPageLayoutProps {
+  headerProps: HeaderProps;
+  footerProps: FooterProps;
+  mainProps?: Partial<MainContentProps & { fixed?: boolean }>;
+  headerMetadata: HeaderMetadata & {
+    title?: string;
+    content?: string;
+    key?: string;
+  };
+  CustomHeaderComponent?: ComponentType<HeaderProps>;
+  CustomFooterComponent?: ComponentType<FooterProps>;
 }

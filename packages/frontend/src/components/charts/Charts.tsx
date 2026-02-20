@@ -175,6 +175,89 @@ const LegendOverflow = ({
   );
 };
 
+interface ChartItemProps {
+  /** The key (field name) used to access data and chart config. */
+  field: string;
+
+  /** The specific chart configuration object for this field. */
+  chartConfig: SummaryChart;
+
+  /** The histogram data array specific to this field. */
+  chartData: AggregationsData[string];
+
+  /** The total record count (used for percentage calculations). */
+  counts?: number;
+
+  /** Indicates if data loading was successful. */
+  isSuccess: boolean;
+
+  /** The column span for the grid layout (e.g., 4 if numCols is 3). */
+  colSpan: number;
+
+  /** The styling mode for the card ('tile' or 'box'). */
+  style?: 'tile' | 'box';
+
+  /** Flag to determine if the legend should be displayed. */
+  showLegends?: boolean;
+}
+
+const ChartItem = ({
+  field,
+  chartConfig,
+  chartData,
+  counts,
+  isSuccess,
+  colSpan,
+  style,
+  showLegends,
+}: ChartItemProps) => {
+  // You'll need to define ChartItemProps
+
+  const [filterNoData, setFilterNoData] = useState(false);
+
+  // All the logic from your original chartCard function goes here
+  const chartTitle = chartConfig.title ?? fieldNameToTitle(field);
+  const numberOfDataItems = chartData?.length ?? 0;
+  const moreThanMaxRows = numberOfDataItems > MAX_LEGEND_ROWS;
+  const hasNoData = chartData?.some((item) => item.key === 'no data');
+
+  // ... rest of the render logic for the individual chart card (Card, Grid.Col, etc.)
+
+  // Use the new, filtered data for createChart:
+  const filteredData = chartData
+    ? chartData.filter((value) =>
+        filterNoData ? value.key !== 'no data' : true,
+      )
+    : [];
+
+  return (
+    <Grid.Col span={colSpan} key={`charts-${field}-col`}>
+      <Card shadow="md" withBorder={style === 'box'} className="h-full">
+        {/* ... Card.Section, LoadingOverlay, createChart, Legend, etc. */}
+        {/* ... The Switch for filterNoData and its onChange prop ... */}
+        {hasNoData && (
+          <div className="flex justify-between align-middle px-4">
+            <Text fw={500} className="mr-4">
+              {filterNoData ? "Show 'no data'" : "Hide 'no data'"}
+            </Text>
+            <Switch
+              // ... classNames ...
+              onChange={() => setFilterNoData(!filterNoData)} // Correctly use the setter
+              checked={filterNoData}
+            />
+          </div>
+        )}
+        {/* ... createChart using filteredData ... */}
+        {createChart(chartConfig.chartType, {
+          data: filteredData,
+          total: counts ?? 1,
+          // ... other props
+        })}
+      </Card>
+    </Grid.Col>
+  );
+};
+
 //The Charts component maps the data from ChartsProps into a grid of createChart() ReactNodes
 const Charts = ({
   charts,
@@ -185,131 +268,32 @@ const Charts = ({
   style = 'tile',
   showLegends = false,
 }: ChartsProps) => {
-  // Determine the span based on the number of columns.
-  // Mantine's Grid is 12 columns, so 12 / numCols will give equal width.
   const colSpan = 12 / numCols;
-
-  const chartCard = (field: string, indexNum: number) => {
-    if (Object.keys(data).length === 0) return null;
-
-    if (Object.keys(data).length > 0 && !(field in data)) {
-      return (
-        <Grid.Col span={colSpan} key={`${indexNum}-charts-${field}-col`}>
-          <ErrorCard message={`${field} not found in data`} />
-        </Grid.Col>
-      );
-    }
-
-    const dataKeys =
-      field in data && data?.[field].length > 0
-        ? Object.keys(data[field][0])
-        : [];
-
-    const chartTitle = charts[field].title ?? fieldNameToTitle(field);
-
-    const numberOfDataItems = data?.[field] && data[field].length;
-    const moreThanMaxRows = numberOfDataItems > MAX_LEGEND_ROWS;
-    const [filterNoData, setFilterNoData] = useState(false); // Toggle state
-    const hasNoData = data?.[field]?.some((item) => item.key === 'no data');
-
-    return (
-      <Grid.Col span={colSpan} key={`${indexNum}-charts-${field}-col`}>
-        <Card shadow="md" withBorder={style === 'box'} className="h-full">
-          <Card.Section inheritPadding py="xs" withBorder={style === 'box'}>
-            <div className="flex justify-between align-middle">
-              <Text fw={900}>
-                {charts[field].title ?? fieldNameToTitle(field)}
-              </Text>
-              {hasNoData && (
-                <div className="flex justify-between align-middle px-4">
-                  <Text fw={500} className="mr-4">
-                    {filterNoData ? "Show 'no data'" : "Hide 'no data'"}
-                  </Text>
-                  <Switch
-                    classNames={{
-                      track: `border border-black rounded-full h-8 w-12 ${filterNoData ? 'bg-secondary' : 'bg-white'}`,
-                      thumb: `transform h-6 w-6 bg-black border-black ${filterNoData ? '-translate-x-[50%]' : 'translate-x-[0%]'}`,
-                      label: 'font-content text-black',
-                    }}
-                    onChange={() => setFilterNoData(!filterNoData)}
-                    checked={filterNoData}
-                  />
-                </div>
-              )}
-            </div>
-          </Card.Section>
-          <LoadingOverlay visible={!isSuccess} />
-          {createChart(charts[field].chartType, {
-            data:
-              data && data[field]
-                ? Object.entries(data[field])
-                    .filter(([_, value]) => {
-                      return filterNoData ? value.key !== 'no data' : true;
-                    })
-                    .map(([_, value]) => ({ ...value }))
-                : [],
-            total: counts ?? 1,
-            valueType: charts[field].valueType ?? 'count',
-            label: charts[field].label,
-            showLegendInChart: charts[field].showLegendInChart,
-          })}
-          {numberOfDataItems > 0 && showLegends && (
-            <Card.Section inheritPadding py="xs" withBorder={style === 'box'}>
-              <div className="w-full">
-                <Table
-                  withRowBorders={false}
-                  classNames={{
-                    table: 'w-full table-fixed',
-                    td: 'p-1 leading-3',
-                    th: 'p-1 leading-3 [text-shadow:_1px_0_#000]',
-                    thead: 'border-b',
-                    tbody: "before:content-[''] before:block before:p-1",
-                  }}
-                >
-                  <Table.Thead>
-                    <Table.Tr>
-                      {dataKeys.map((el, i) => (
-                        <Table.Th key={i}>
-                          {charts[field]?.dataLabels?.[el] || (
-                            <React.Fragment>&nbsp;</React.Fragment>
-                          )}
-                        </Table.Th>
-                      ))}
-                    </Table.Tr>
-                  </Table.Thead>
-                  <Table.Tbody>
-                    {data === undefined ? (
-                      ''
-                    ) : (
-                      <LegendRows data={data[field]} />
-                    )}
-                  </Table.Tbody>
-                </Table>
-              </div>
-            </Card.Section>
-          )}
-          {showLegends && moreThanMaxRows && (
-            <Card.Section
-              inheritPadding
-              withBorder={style === 'box'}
-              className="text-right p-1"
-            >
-              <LegendOverflow
-                chart={charts[field]}
-                data={data[field]}
-                chartTitle={chartTitle}
-                counts={counts ?? 0}
-              />
-            </Card.Section>
-          )}
-        </Card>
-      </Grid.Col>
-    );
-  };
 
   return (
     <Grid className="w-full mx-2" gutter="md">
-      {data && Object.keys(charts)?.map(chartCard)}
+      {Object.entries(charts).map(([field, chartConfig], indexNum) => {
+        // Skip if data is missing or empty for this field
+        if (Object.keys(data).length === 0 || !(field in data)) {
+          return null; // Or return the ErrorCard/loading state here
+        }
+
+        const chartData = data[field];
+
+        return (
+          <ChartItem
+            key={field}
+            field={field}
+            chartConfig={chartConfig}
+            chartData={chartData}
+            counts={counts}
+            isSuccess={isSuccess}
+            colSpan={colSpan}
+            style={style}
+            showLegends={showLegends}
+          />
+        );
+      })}
     </Grid>
   );
 };

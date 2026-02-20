@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Text, Loader, Center, Switch } from '@mantine/core';
 import { MatchingTable } from '../../features/MatchingTable';
 import { DonutSumChart, BarChart } from '../../components/charts';

@@ -45,11 +45,17 @@ import '@gen3/core';
 import SmmartPage from './pages/Smmart/Smmart';
 import CalyprPage from './pages/CALYPR/CALYPR';
 
+import MillerPage from './pages/Miller';
+import { MillerPageGetServerSideProps } from './pages/Miller';
+
 import { SmmartPageGetServerSideProps } from './pages/Smmart';
 import { CalyprPageGetServerSideProps } from './pages/CALYPR';
 
 import FileSummaryPage from './pages/FileSummary/FileSummary';
 import { FileSummaryPageGetServerSideProps } from './pages/FileSummary';
+
+import Configurator from './pages/Configurator';
+import { ConfiguratorPageGetServerSideProps } from './pages/Configurator';
 
 import AppsPage from './pages/Apps/Apps';
 import { AppsPageGetServerSideProps } from './pages/Apps';
@@ -121,7 +127,7 @@ import AiSearchPage from './pages/AiSearch/AiSearch';
 import { AISearchPageGetServerSideProps } from './pages/AiSearch/data';
 
 import NotebookLitePage from './pages/NotebookLite/NotebookLite';
-import { NotebookLitePageGetStaticProps } from './pages/NotebookLite';
+import { NotebookLitePageGetServerSideProps } from './pages/NotebookLite';
 
 import DataLibraryPage, {
   DataLibraryPageGetServerSideProps,
@@ -143,6 +149,8 @@ import analysisApiCohortDiscovery from './features/CohortDiscovery/api/analysisA
 import staticNotebookAPI from './features/StaticNotebook/api/staticNotebookAPI';
 
 export {
+  Configurator,
+  ConfiguratorPageGetServerSideProps,
   ContentSource,
   type Fonts,
   type RegisteredIcons,
@@ -171,6 +179,8 @@ export {
   SmmartPageGetServerSideProps,
   CalyprPage,
   CalyprPageGetServerSideProps,
+  MillerPage,
+  MillerPageGetServerSideProps,
   FileSummaryPage,
   FileSummaryPageGetServerSideProps,
   AppsPage,
@@ -220,7 +230,7 @@ export {
   DataLibraryPage,
   DataLibraryPageGetServerSideProps,
   NotebookLitePage,
-  NotebookLitePageGetStaticProps,
+  NotebookLitePageGetServerSideProps,
   registerMetadataSchemaApp,
   AnalysisEditorPage,
   AnalysisEditorPageGetServerSideProps,

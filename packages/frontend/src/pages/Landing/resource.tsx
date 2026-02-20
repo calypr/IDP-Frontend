@@ -1,11 +1,10 @@
 import React from 'react';
-import { GetStaticProps } from 'next';
+import { GetServerSideProps } from 'next';
 import ContentSource from '../../lib/content';
 import { GEN3_COMMONS_NAME } from '@gen3/core';
 
-import NavPageLayout, {
-  NavPageLayoutProps,
-} from '../../features/Navigation/NavPageLayout';
+import NavPageLayout from '../../features/Navigation/NavPageLayout';
+import { NavPageLayoutProps } from '../../features/Navigation';
 import ResourcePageContent, {
   ResourcePageConfig,
 } from '../../components/Content/ResourcePageContent';
@@ -39,7 +38,9 @@ const ResourcePage = ({
 };
 
 // should move this thing into _app.tsx and make a dedicated layout component after https://github.com/vercel/next.js/discussions/10949 is addressed
-export const getStaticProps: GetStaticProps<ResourcePageProps> = async () => {
+export const getStaticProps: GetServerSideProps<
+  ResourcePageProps
+> = async () => {
   const navPageLayoutProps = await getNavPageLayoutPropsFromConfig();
   const resourcePageConfig = (await ContentSource.getContentDatabase().get(
     `${GEN3_COMMONS_NAME}/resource.json`,

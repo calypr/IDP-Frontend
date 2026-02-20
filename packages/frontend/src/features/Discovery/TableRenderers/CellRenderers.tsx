@@ -283,7 +283,7 @@ const RenderIfArrayHasData: CellRendererFunction = ({
 };
 
 // TODO Fix below
-// eslint-disable-next-line react/prop-types
+ 
 export const DiscoveryRenderTagsCell: CellRendererFunction = ({
   value,
 }: CellRenderFunctionProps) => {

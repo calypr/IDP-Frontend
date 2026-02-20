@@ -1,3 +1,4 @@
+import React from 'react';
 import { Loader, Menu, UnstyledButton } from '@mantine/core';
 import {
   type Gen3LoginProvider,

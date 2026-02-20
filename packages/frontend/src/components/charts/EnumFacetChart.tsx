@@ -35,7 +35,7 @@ interface FacetChartProps {
 }
 
 // from https://stackoverflow.com/questions/33053310/remove-value-from-object-without-mutation
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 const removeKey = (key : string| number, { [key]: _, ...rest }) : Record<string|number, any> => rest;
 
 const processChartData = (
@@ -277,7 +277,7 @@ const EnumBarChart: React.FC<BarChartProps> = ({
               tabIndex={0}
               ariaLabel={({ datum }) => `x: ${datum.x}, y: ${datum.y}`}
               //  https://github.com/jsx-eslint/eslint-plugin-jsx-a11y/issues/756 https://www.w3.org/TR/graphics-aria-1.0/#graphics-symbol
-              // eslint-disable-next-line
+               
               role="graphics-symbol"
             />
           }

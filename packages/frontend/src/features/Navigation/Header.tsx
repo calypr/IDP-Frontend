@@ -1,56 +1,67 @@
 import React from 'react';
 import TopBar from './TopBar/TopBar';
-import NavigationBar from './NavigationBar';
 import { Banner } from './Banner';
-import { HeaderProps, HeaderMetadata } from './types';
+import { HeaderToggleProps, HeaderMetadata } from './types';
 import HorizontalNavigationBar from './HorizontalClean/HorizontalNavigationBar';
 
 const Header = ({
-  top,
+  topBar,
   navigation,
   banners,
   type = 'original',
   title,
-}: HeaderProps & Pick<HeaderMetadata, 'title'>) => {
-  return type === 'horizontal' ? (
-    <div className="w-full">
-      {banners?.map((banner) => (
-        <Banner {...banner} key={banner.id} />
-      ))}
-      <HorizontalNavigationBar
-        logo={navigation.logo}
-        title={navigation.title}
-        items={navigation.items}
-        classNames={{ ...navigation.classNames }}
-        actions={top}
-      />
-    </div>
-  ) : type === 'vertical' ? (
+  onToggle,
+  basePage,
+}: HeaderToggleProps & Pick<HeaderMetadata, 'title'>) => {
+  return (
     <div>
-      {banners?.map((banner) => (
-        <Banner {...banner} key={banner.id} />
-      ))}
-      <HorizontalNavigationBar
-        logo={navigation.logo}
-        title={navigation.title}
-        classNames={{ ...navigation.classNames }}
-        actions={top}
-      />
-    </div>
-  ) : (
-    <div className="w-full">
-      <TopBar
-        items={top.items}
-        loginButtonVisibility={top?.loginButtonVisibility}
-        externalLoginUrl={top?.externalLoginUrl}
-        classNames={{ ...top.classNames }}
-        itemClassnames={{ ...top.itemClassnames }}
-        logo={navigation.logo}
-        title={title}
-      />
-      {banners?.map((banner) => (
-        <Banner {...banner} key={banner.id} />
-      ))}
+      {type === 'horizontal' ? (
+        <div className="w-full h-full">
+          {banners?.map((banner) => (
+            <Banner {...banner} key={banner.id * 100} />
+          ))}
+          <HorizontalNavigationBar
+            logo={navigation.logo}
+            title={navigation.title}
+            items={navigation.items}
+            classNames={{ ...navigation.classNames }}
+            actions={topBar}
+            onToggle={onToggle}
+          />
+        </div>
+      ) : type === 'vertical' ? (
+        <div className={`w-full h-full`}>
+          {banners?.map((banner) => (
+            <Banner {...banner} key={banner.id * 100} />
+          ))}
+          <TopBar
+            items={topBar?.items || []}
+            loginButtonVisibility={topBar?.loginButtonVisibility}
+            externalLoginUrl={topBar?.externalLoginUrl}
+            classNames={{ ...topBar?.classNames }}
+            itemClassnames={{ ...topBar?.itemClassnames }}
+            logo={navigation.logo}
+            title={title}
+            onToggle={onToggle}
+          />
+        </div>
+      ) : (
+        <div className="w-full h-full">
+          <TopBar
+            items={topBar?.items || []}
+            loginButtonVisibility={topBar?.loginButtonVisibility}
+            externalLoginUrl={topBar?.externalLoginUrl}
+            classNames={{ ...topBar?.classNames }}
+            itemClassnames={{ ...topBar?.itemClassnames }}
+            logo={navigation.logo}
+            title={title}
+            onToggle={onToggle}
+          />
+          {banners?.map((banner) => (
+            <Banner {...banner} key={banner.id * 100} />
+          ))}
+        </div>
+      )}
     </div>
   );
 };

@@ -1,2 +1,2 @@
 export { default } from './NotebookLite';
-export { NotebookLitePageGetStaticProps } from './data';
+export { NotebookLitePageGetServerSideProps } from './data';

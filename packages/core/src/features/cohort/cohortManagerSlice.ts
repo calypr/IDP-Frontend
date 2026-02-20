@@ -275,7 +275,7 @@ export const cohortManagerSlice = createSlice({
       if (!filters) {
         return;
       }
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+       
       const { [field]: _a, ...updated } = filters;
 
       cohortsAdapter.updateOne(state, {

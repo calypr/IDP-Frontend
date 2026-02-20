@@ -26,7 +26,7 @@ import {
 } from './ResearchSubjectModal/tools';
 import { QueryContent, ResourceDict } from './types';
 import { SimpleTable } from '../../features/SimpleTable';
-import { useMemo } from 'react';
+import React, { useMemo } from 'react';
 
 export const ResearchSubjectDetailsPanel = ({
   id,

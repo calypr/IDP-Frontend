@@ -15,7 +15,7 @@ const processTopBarItems = (
   items: TopIconButtonPropsWithLink[],
   classNames: StylingOverrideWithMergeControl,
   dividerClassname: string,
-  isLandingPage: Boolean,
+  isLandingPage: boolean,
 ): ReactElement[] => {
   return items.reduce(
     (acc: ReactElement[], item: TopIconButtonPropsWithLink, index: number) => {
@@ -60,6 +60,7 @@ export interface TopBarProps {
   readonly classNames?: StylingOverrideWithMergeControl;
   readonly itemClassnames?: StylingOverrideWithMergeControl;
   readonly logo?: NavigationBarLogo;
+  onToggle: () => void;
 }
 
 const TopBar = ({
@@ -70,17 +71,19 @@ const TopBar = ({
   classNames = {},
   itemClassnames = {},
   logo,
+  onToggle,
 }: TopBarProps) => {
   logo!.basepage = title === 'CALYPR Landing Page';
 
   const isLandingPage = title === 'CALYPR Landing Page';
 
   const classNamesDefaults = {
-    root: `flex items-center align-middle px-2 border-r-2 ${
-      isLandingPage
-        ? 'bg-white text-black border-black'
-        : 'bg-primary text-white border-white'
-    }`,
+    root: `flex items-center align-middle border-b-8 fixed top-0 left-0 right-0 w-full z-10
+   ${
+     isLandingPage
+       ? 'bg-white text-black border-white'
+       : 'bg-primary text-white border-accent'
+   }`,
     login: isLandingPage
       ? 'font-content text-black hover:border-black'
       : 'font-content text-white hover:border-white',
@@ -127,7 +130,7 @@ const TopBar = ({
         <div
           className={extractClassName('logoAndTitlePanel', mergedClassnames)}
         >
-          {logo && <NavigationLogo {...{ ...logo }} />}
+          {logo && <NavigationLogo {...{ ...logo }} onToggle={onToggle} />}
         </div>
         <div
           role="navigation"

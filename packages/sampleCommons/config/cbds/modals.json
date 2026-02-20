@@ -1,12 +1,13 @@
 {
   "systemUseModal": {
+    "enabled": false,
     "title": "Data Use Agreement for Academic and Institutional Users",
     "content": {
       "text": [
         "Please see the below two Data Use Agreements: the first one is for Academic and Institutional users for non-commercial use; the second agreement is for commercial use.",
         "",
         "",
-        "Data Use Agreement - Non-Commercial Research Use Only",
+        "Data Use Agreemeent - Non-Commercial Research Use Only",
         "This Data Use Agreement for Academic and Institutional Users (this “Agreement”) is by and between you and the University and governs your access to and use of the deidentified imaging and associated demographic and clinical data provided to you by the University. By accessing, using, or downloading any data, you are agreeing to be bound by the terms and conditions of this Agreement.",
         "1. The University is the legal entity that hosts data.",
         "",
@@ -16,6 +17,6 @@
       ]
     },
     "expireDays": 365,
-    "showOnlyOnLogin": true
+    "showOnlyOnLogin": false
   }
 }

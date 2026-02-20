@@ -20,6 +20,7 @@ import {
   AccessControlConfiguration,
   GuppyDataAccessMode,
 } from '../../features/CohortBuilder/types';
+import { microserviceDb } from '../../lib/content';
 
 const DefaultHeaderMetadata = {
   title: 'Gen3 Explorer Page',
@@ -33,9 +34,7 @@ const GetSharedFieldMapping = async (
   let sharedFiltersMap: SharedFieldMapping | null = null;
 
   if (cohortBuilderConfiguration?.sharedFilters) {
-    // have shared filters defined
     if (cohortBuilderConfiguration?.sharedFilters?.autoCreate) {
-      // create shared filter from Gen3 graphql mapping
       const indices = cohortBuilderConfiguration?.explorerConfig.map(
         (tab) => tab.guppyConfig.dataType,
       );
@@ -57,7 +56,7 @@ const GetSharedFieldMapping = async (
       }
     }
     if (cohortBuilderConfiguration?.sharedFilters?.defined) {
-      sharedFiltersMap = cohortBuilderConfiguration?.sharedFilters?.defined; // manually defined mapping
+      sharedFiltersMap = cohortBuilderConfiguration?.sharedFilters?.defined;
     }
     if (sharedFiltersMap) {
       const indexToAlias = Object.values(
@@ -100,8 +99,6 @@ export const ExplorerPageGetServerSideProps: GetServerSideProps<
       );
 
     if (isArray(cohortBuilderConfiguration)) {
-      // older config layout
-      // TODO: remove this
       return {
         props: {
           ...(await getNavPageLayoutPropsFromConfig()),
@@ -123,7 +120,6 @@ export const ExplorerPageGetServerSideProps: GetServerSideProps<
         sharedFiltersMap: sharedFiltersMap,
         tabsLayout: cohortBuilderConfiguration?.tabsLayout ?? 'left',
         explorerConfig: cohortBuilderConfiguration.explorerConfig,
-        //  headerMetadata: cohortBuilderConfiguration.headerMetadata,
         accessControl: {
           ...DefaultAccessControlConfiguration,
           ...(cohortBuilderConfiguration.accessControl ?? {}),
@@ -147,15 +143,21 @@ export const ExplorerPageGetServerSidePropsForConfigId: GetServerSideProps<
   NavPageLayoutProps | CohortBuilderProps
 > = async (context) => {
   const configId = context.query.configId as string;
+
+  const cookieHeader = context.req.headers.cookie;
+  const requestHeaders: Record<string, string> = {};
+  if (cookieHeader) {
+    requestHeaders['Cookie'] = cookieHeader;
+  }
+
   try {
     const cohortBuilderConfiguration: CohortBuilderConfiguration =
-      await ContentSource.getContentDatabase().get(
-        `${GEN3_COMMONS_NAME}/explorer/${configId}.json`,
+      await microserviceDb.get<CohortBuilderConfiguration>(
+        `explorer/${configId}`,
+        requestHeaders,
       );
 
     if (isArray(cohortBuilderConfiguration)) {
-      // older config layout
-      // TODO: remove this
       return {
         props: {
           ...(await getNavPageLayoutPropsFromConfig()),
@@ -177,7 +179,6 @@ export const ExplorerPageGetServerSidePropsForConfigId: GetServerSideProps<
         sharedFiltersMap: sharedFiltersMap,
         tabsLayout: cohortBuilderConfiguration?.tabsLayout ?? 'left',
         explorerConfig: cohortBuilderConfiguration.explorerConfig,
-        // headerMetadata: { ...(cohortBuilderConfiguration?.headerMetadata ? cohortBuilderConfiguration.headerMetadata : {}) },
         accessControl: {
           ...DefaultAccessControlConfiguration,
           ...(cohortBuilderConfiguration.accessControl ?? {}),

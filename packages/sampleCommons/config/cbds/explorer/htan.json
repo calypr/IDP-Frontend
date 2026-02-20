@@ -1,0 +1,93 @@
+[
+  {
+    "tabTitle": "Specimen",
+    "charts": {
+      "processing": {
+        "chartType": "fullPie",
+        "title": "Processing Method"
+      }
+    },
+    "filters": {
+      "tabs": [
+        {
+          "fields": [
+            "project_id",
+            "identifier",
+            "type",
+            "processing",
+            "patient_id",
+            "patient_deceasedBoolean",
+            "patient_us_core_ethnicity",
+            "patient_us_core_race",
+            "Timepoint_Label",
+            "Collection_Days_from_Index",
+            "Adjacent_Biospecimen_IDs",
+            "Acquisition_Method_Type",
+            "Fixative_Type",
+            "Storage_Method",
+            "Processing_Days_from_Index",
+            "Protocol_Link",
+            "Processing_Location",
+            "Analyte_Type",
+            "Fixation_Duration",
+            "Histologic_Morphology_Code",
+            "Section_Number_in_Sequence",
+            "Section_Thickness_Value",
+            "Sectioning_Days_from_Index",
+            "Slide_Charge_Type",
+            "Specimen_Laterality",
+            "Tumor_Tissue_Type",
+            "observation_code"
+          ]
+        }
+      ]
+    },
+    "table": {
+      "enabled": true,
+      "columns": {
+        "identifier": {
+          "title": "BEMS ID"
+        },
+        "processing": {
+          "title": "Processing Method"
+        },
+        "collection": {
+          "title": "Collection Concept"
+        }
+      },
+      "fields": [
+        "project_id",
+        "identifier",
+        "type",
+        "processing",
+        "patient_id",
+        "patient_deceasedBoolean",
+        "patient_us_core_ethnicity",
+        "patient_us_core_race",
+        "Timepoint_Label",
+        "Collection_Days_from_Index",
+        "Adjacent_Biospecimen_IDs",
+        "Acquisition_Method_Type",
+        "Fixative_Type",
+        "Storage_Method",
+        "Processing_Days_from_Index",
+        "Protocol_Link",
+        "Processing_Location",
+        "Analyte_Type",
+        "Fixation_Duration",
+        "Histologic_Morphology_Code",
+        "Section_Number_in_Sequence",
+        "Section_Thickness_Value",
+        "Sectioning_Days_from_Index",
+        "Slide_Charge_Type",
+        "Specimen_Laterality",
+        "Tumor_Tissue_Type",
+        "observation_code"
+      ]
+    },
+    "dropdowns": {},
+    "guppyConfig": {
+      "dataType": "specimen"
+    }
+  }
+]

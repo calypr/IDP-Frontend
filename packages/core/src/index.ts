@@ -15,6 +15,7 @@ import {
   GEN3_SOWER_API,
   GEN3_SUBMISSION_API,
   GEN3_WORKSPACE_API,
+  CALYPR_EXPLORER_CONFIG_API,
 } from './constants';
 import { type CoreState } from './reducers';
 
@@ -46,6 +47,8 @@ export * from './features/sower';
 export * from './features/submission';
 export * from './features/workspace';
 export * from './features/grip';
+export * from './features/configurator';
+export * from './features/Directory';
 
 export {
   type CoreState,
@@ -64,5 +67,6 @@ export {
   GEN3_CROSSWALK_API,
   GEN3_SOWER_API,
   GEN3_MANIFEST_API,
+  CALYPR_EXPLORER_CONFIG_API,
   Accessibility,
 };

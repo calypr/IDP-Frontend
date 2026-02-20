@@ -1,5 +1,4 @@
 import { Text, Button, Card, Image } from '@mantine/core';
-import { useRouter } from 'next/router';
 
 import {
   CoreState,
@@ -7,7 +6,8 @@ import {
   selectUserAuthStatus,
   useCoreSelector,
 } from '@gen3/core';
-import { usePathname } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
+import React, { useCallback } from 'react';
 
 interface HomepageCardProps {
   icon: string;
@@ -20,13 +20,17 @@ const ProjectCard = ({ title, description, icon, href }: HomepageCardProps) => {
   const userStatus = useCoreSelector((state: CoreState) =>
     selectUserAuthStatus(state),
   );
-  const authenticated = isAuthenticated(userStatus);
 
   const router = useRouter();
   const pathname = usePathname();
-  const handleButtonClick = () => {
-    authenticated ? router.push(href) : router.push(`/Login?redirect=${pathname}`);
-  };
+
+  const handleButtonClick = useCallback(() => {
+    if (isAuthenticated(userStatus)) {
+      router.push(href);
+    } else {
+      router.push(`/Login?redirect=${pathname}`);
+    }
+  }, [userStatus, router, pathname, href]);
 
   return (
     <Card className="shadow-lg p-6 text-left flex-1 basis-[20%] m-[13%]">

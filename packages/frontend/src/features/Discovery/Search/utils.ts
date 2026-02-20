@@ -30,7 +30,7 @@ export const getFilterValuesByKey = (
       (study[filtersField] as unknown as SearchKV[]) ?? [];
 
     if (!studyFilters) {
-      // eslint-disable-next-line no-console
+       
       console.warn(
         `Warning: expected to find property '${filtersField}' in study metadata for study ${
           study[uidField] ?? 'unknown'
@@ -45,9 +45,9 @@ export const getFilterValuesByKey = (
         }
       });
     } catch (err) {
-      // eslint-disable-next-line no-console
+       
       console.error(err);
-      // eslint-disable-next-line no-console
+       
       console.error(
         `The above error appeared in study ${study[uidField] ?? 'unknown'}`,
       );

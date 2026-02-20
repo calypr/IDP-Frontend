@@ -19,6 +19,7 @@ import { extractObjectKey } from '../../../utils/values';
 interface FooterRowComponentProps {
   item: Record<string, FooterRow>;
   rowClassname?: string;
+  basePage: boolean;
 }
 
 // Component for rendering a single row in the column
@@ -26,6 +27,7 @@ interface FooterRowComponentProps {
 const FooterRowComponent: React.FC<FooterRowComponentProps> = ({
   item,
   rowClassname,
+  basePage,
 }) => {
   const itemType = extractObjectKey(item);
   if (!itemType) return null;
@@ -96,7 +98,7 @@ const FooterRowComponent: React.FC<FooterRowComponentProps> = ({
             className={className}
           >
             <Image
-              src={`${logo.logo}`}
+              src={basePage ? `${logo.logo}` : `${logo.logolight}`}
               width={logo.width}
               height={logo.height}
               alt={logo.description}
@@ -107,7 +109,7 @@ const FooterRowComponent: React.FC<FooterRowComponentProps> = ({
       return (
         <Image
           key={`icons-${logo.logo}`}
-          src={`${logo.logo}`}
+          src={basePage ? `${logo.logo}` : `${logo.logolight}`}
           width={logo.width}
           height={logo.height}
           alt={logo.description}
@@ -117,7 +119,13 @@ const FooterRowComponent: React.FC<FooterRowComponentProps> = ({
     }
     case 'Section': {
       const section = item[itemType] as FooterSectionProps;
-      return <FooterSection columns={section.columns} className={className} />;
+      return (
+        <FooterSection
+          columns={section.columns}
+          className={className}
+          basePage={basePage}
+        />
+      );
     }
 
     default:
@@ -135,6 +143,7 @@ const FooterColumn: React.FC<FooterColumnProps> = ({
   heading,
   rows,
   classNames = {},
+  basePage,
 }: FooterColumnProps) => {
   const mergedClassNames = mergeDefaultTailwindClassnames(
     FooterColumnTwDefaultStyles,
@@ -156,6 +165,7 @@ const FooterColumn: React.FC<FooterColumnProps> = ({
             key={`footer-row-${index}`}
             item={item}
             rowClassname={rowClassname}
+            basePage={basePage}
           />
         );
       })}
@@ -166,11 +176,12 @@ const FooterColumn: React.FC<FooterColumnProps> = ({
 const FooterSection: React.FC<FooterSectionProps> = ({
   columns,
   className = undefined,
+  basePage,
 }: FooterSectionProps) => {
   return (
     <div className={`${className ?? 'flex items-center justify-center'}`}>
       {columns?.map((col, index) => (
-        <FooterColumn key={`column-${index}`} {...col} />
+        <FooterColumn key={`column-${index}`} {...col} basePage={basePage} />
       ))}
     </div>
   );
