@@ -134,7 +134,7 @@ export const FileMetadataPanel = ({ file }: FileMetadataPanelProps) => {
         'http://caliper-training.ohsu.edu/fhir/StructureDefinition/checksum-sha256',
     )?.valueString || '—';
   const url = attachment?.url || '—';
-  const id = data?.id || '—';
+  const downloadIdentifier = data?.identifier?.[0]?.value || '—';
   return (
     <Card shadow="sm" p="lg" className="w-80 bg-white flex-shrink-0">
       <Title order={4} className="mb-2">
@@ -150,7 +150,7 @@ export const FileMetadataPanel = ({ file }: FileMetadataPanelProps) => {
         <Group gap="xs">
           <Text className="font-medium text-gray-600">Download:</Text>
           <a
-            href={`${GEN3_FENCE_API}/user/data/download/${id}?redirect=true`}
+            href={`${GEN3_FENCE_API}/user/data/download/${downloadIdentifier}?redirect=true`}
             rel="noreferrer"
             target="_blank"
           >
