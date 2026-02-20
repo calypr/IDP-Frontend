@@ -82,6 +82,22 @@ const ExplorerTable = ({
     return createTableColumns(tableConfig);
   }, [tableConfig]);
 
+  const initialColumnVisibility = useDeepCompareMemo(() => {
+    const visibility: Record<string, boolean> = {
+      'mrt-row-expand': false, // Keep expand column hidden by default
+    };
+
+    // Set visibility for each column based on config
+    tableConfig.fields.forEach((field) => {
+      const columnDef = tableConfig.columns?.[field];
+      if (columnDef?.visible === false) {
+        visibility[field] = false;
+      }
+    });
+
+    return visibility;
+  }, [tableConfig]);
+
   // TODO: add support for nested fields
   const fields = useMemo(
     () => tableColumns.map((column) => column.field),
@@ -254,7 +270,7 @@ const ExplorerTable = ({
       showAlertBanner: isError,
       density: 'xs',
       rowSelection: rowSelection,
-      columnVisibility: { 'mrt-row-expand': false },
+      columnVisibility: initialColumnVisibility,
     },
     mantineTableBodyRowProps:
       tableConfig.detailsConfig?.mode === 'click'
