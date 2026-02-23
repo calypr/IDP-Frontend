@@ -1,5 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 /* eslint-disable @typescript-eslint/no-require-imports */
+// @ts-ignore - tailwindcss may not be installed in this workspace context
 import plugin from 'tailwindcss/plugin';
 
 export const TailwindConfig = (themer: any) => {

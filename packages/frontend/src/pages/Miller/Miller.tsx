@@ -12,7 +12,6 @@ import {
 } from '@mantine/core';
 import {
   IconFileText,
-  IconHash,
   IconLink,
   IconFile,
 } from '@tabler/icons-react';
@@ -24,6 +23,7 @@ import {
   useGetDirectoryContentsQuery,
   DirItem,
   GEN3_FENCE_API,
+  GEN3_API,
 } from '@gen3/core';
 import { ColumnItem } from './types';
 import { type DocumentReferenceData } from '@gen3/core';
@@ -123,68 +123,73 @@ type FileMetadataPanelProps = {
 
 export const FileMetadataPanel = ({ file }: FileMetadataPanelProps) => {
   const data = file.rawData as DocumentReferenceData;
-  // Extract relevant fields from the FHIR structure
   const attachment = data?.content?.[0]?.attachment;
-  const title = attachment?.title || '—';
+
+  const rawTitle = attachment?.title || '—';
+  const fileName = rawTitle !== '—' 
+    ? rawTitle.split(/[/\\]/).pop() || rawTitle 
+    : '—';
+  
   const size = attachment?.size || 0;
-  const sha256 =
-    attachment?.extension?.find(
-      (ext: any) =>
-        ext.url ===
-        'http://caliper-training.ohsu.edu/fhir/StructureDefinition/checksum-sha256',
-    )?.valueString || '—';
   const url = attachment?.url || '—';
   const downloadIdentifier = data?.identifier?.[0]?.value || '—';
+
+  const isGithubFile = !!attachment?.extension?.some(
+    (ext: any) => ext.valueString === 'github'
+  );
+
+  const downloadUrl = isGithubFile
+    ? url
+    : `${GEN3_FENCE_API}/data/download/${downloadIdentifier}?redirect=true`;
+
   return (
-    <Card shadow="sm" p="lg" className="w-80 bg-white flex-shrink-0">
+    <Card shadow="sm" p="lg" className="w-80 bg-white flex-shrink-0 border-l border-gray-200 h-full">
       <Title order={4} className="mb-2">
         File Metadata
       </Title>
+      
       <Divider my="sm" />
+      
       <div className="space-y-3 text-sm">
-        <Group gap="xs">
-          <IconFileText size={16} className="text-gray-500" />
-          <Text className="font-medium">Title:</Text>
-          <Text className="truncate">{title}</Text>
+        <Group gap="xs" wrap="nowrap">
+          <IconFileText size={16} className="text-gray-500 flex-shrink-0" />
+          <Text className="font-medium flex-shrink-0">File Name:</Text>
+          <Text className="truncate" title={fileName}>
+            {fileName}
+          </Text>
         </Group>
-        <Group gap="xs">
-          <Text className="font-medium text-gray-600">Download:</Text>
-          <a
-            href={`${GEN3_FENCE_API}/data/download/${downloadIdentifier}?redirect=true`}
-            rel="noreferrer"
-            target="_blank"
-          >
-            <ActionIcon color="primary.0" size="md" variant="filled">
-              <FaFileDownload />
-            </ActionIcon>
-          </a>
-        </Group>
+
         <Group gap="xs">
           <IconFile size={16} className="text-gray-500" />
           <Text className="font-medium">Size:</Text>
           <Text>{size.toLocaleString()} bytes</Text>
         </Group>
-        <Group gap="xs" align="start">
-          <IconHash size={16} className="text-gray-500 mt-[2px]" />
-          <Text className="font-medium">SHA-256:</Text>
-          <Text className="break-all">{sha256}</Text>
-        </Group>
-        <Group gap="xs" align="start">
-          <IconLink size={16} className="text-gray-500 mt-[2px]" />
-          <Text className="font-medium">URL:</Text>
-          {url !== '—' ? (
+
+        <Group gap="xs" align={isGithubFile ? 'start' : 'center'}>
+          {isGithubFile ? (
+            <IconLink size={16} className="text-purple-500 mt-[2px]" />
+          ) : (
+            <FaFileDownload size={16} className="text-gray-500" />
+          )}
+          
+          <Text className="font-medium text-gray-600">
+            {isGithubFile ? 'Source:' : 'Download:'}
+          </Text>
+
+          {isGithubFile ? (
             <Anchor
-              href={url.replace(
-                /^s3:\/\//,
-                'https://s3.console.aws.amazon.com/s3/buckets/',
-              )}
+              href={url}
               target="_blank"
               className="break-all text-blue-600 hover:underline"
             >
               {url}
             </Anchor>
           ) : (
-            <Text>—</Text>
+            <a href={downloadUrl} rel="noreferrer" target="_blank">
+              <ActionIcon color="blue" size="md" variant="filled">
+                <FaFileDownload />
+              </ActionIcon>
+            </a>
           )}
         </Group>
       </div>

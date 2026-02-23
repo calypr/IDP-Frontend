@@ -8,7 +8,7 @@ export const queryMultipleMDSRecords = async (
   signal?: AbortSignal,
 ): Promise<Record<string, unknown>> => {
   const result: Record<string, unknown> = {};
-  const queue = Queue({ concurrency: 15 });
+  const queue = new Queue({ concurrency: 15 });
   for (const id of guids) {
     queue.push(async (callback?: () => void) => {
       try {

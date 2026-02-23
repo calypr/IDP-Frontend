@@ -11,6 +11,7 @@ export interface DirItem {
   readonly id: string;
   readonly name: string;
   readonly type: 'directory' | 'file';
+  readonly isGithub?: boolean;
   readonly rawData?: DocumentReferenceData | DirectoryData; // Store raw data for file metadata display
 }
 
@@ -110,14 +111,22 @@ export const dirSearchApi = gen3Api.injectEndpoints({
             const name = isDirectory
               ? (item.data as DirectoryData).name
               : (
-                  item.data as DocumentReferenceData
-                ).content?.[0]?.attachment?.title
-                  ?.split('/')
-                  .pop() || 'Unknown File';
+                item.data as DocumentReferenceData
+              ).content?.[0]?.attachment?.title
+                ?.split('/')
+                .pop() || 'Unknown File';
+            const isGithub =
+              !isDirectory &&
+              (item.data as DocumentReferenceData).content?.[0]?.attachment?.extension?.some(
+                (ext) =>
+                  ext.url?.endsWith('StructureDefinition/source') &&
+                  ext.valueString === 'github',
+              );
             return {
               id: item.id,
               name,
               type: isDirectory ? 'directory' : ('file' as const),
+              isGithub,
               rawData: item.data, // Store raw data for file metadata
             };
           })

@@ -21,7 +21,7 @@ describe('capitalize', () => {
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore
       capitalize(undefined);
-    }).toThrowError('capitalize: original is undefined');
+    }).toThrow('capitalize: original is undefined');
   });
 
   // Should handle strings with only spaces

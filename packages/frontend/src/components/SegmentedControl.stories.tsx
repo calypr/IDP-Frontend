@@ -38,7 +38,7 @@ const chartButtons: SegmentedControlItem[] = [
 const meta = {
   component: SegmentedControl,
   decorators: [
-    (Story) => (
+    (Story: React.ComponentType) => (
       <div className="bg-base-lightest p-4">
         <Story />
       </div>

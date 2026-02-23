@@ -7,7 +7,7 @@ import {
 } from 'mantine-react-table';
 import { JSONObject } from '@gen3/core';
 
-export type RendererFunction<T> = (props: T, ...params: any[]) => ReactNode;
+export type RendererFunction<T> = (props: T, ...params: any[]) => any;
 
 export interface RendererFunctionCatalogEntry<T> {
   [key: string]: RendererFunction<T>;

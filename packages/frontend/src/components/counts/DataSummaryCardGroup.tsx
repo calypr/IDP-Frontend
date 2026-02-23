@@ -15,10 +15,10 @@ interface Props {
   counts: Array<CountsBarProps>;
 }
 
-const DataSummaryCardGroup: React.FC<Props> = (
-  { counts, countsHook },
-  deprecatedLegacyContext,
-) => {
+const DataSummaryCardGroup: React.FC<Props> = ({
+  counts,
+  countsHook,
+}: Props) => {
   return <Group></Group>;
 };
 

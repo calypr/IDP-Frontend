@@ -53,6 +53,6 @@ describe('useGetExternalLoginsQuery', () => {
     const { result } = renderHook(() => useGetExternalLoginsQuery());
 
     expect(result.current).toEqual(mockReturnValue);
-    expect(useGetExternalLoginsQuery).toBeCalled(); // Optionally check if it was called without specific params
+    expect(useGetExternalLoginsQuery).toHaveBeenCalled(); // Optionally check if it was called without specific params
   });
 });

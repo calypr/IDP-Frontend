@@ -7,7 +7,7 @@
       "esnext"
     ],
     "allowJs": true,
-    "checkJs":  true,
+    "checkJs": true,
     "skipLibCheck": true,
     "strict": true,
     "forceConsistentCasingInFileNames": true,
@@ -17,15 +17,18 @@
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "jsx": "preserve",
+    "jsx": "react-jsx",
     "incremental": true,
     "paths": {
       "@/*": [
-        "./src/*",
-
+        "./src/*"
       ],
-      "@gen3/core/*": ["../core/*"],
-      "@gen3/frontend/*": ["../frontend/*"]
+      "@gen3/core/*": [
+        "../core/*"
+      ],
+      "@gen3/frontend/*": [
+        "../frontend/*"
+      ]
     },
     "plugins": [
       {

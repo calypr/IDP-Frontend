@@ -131,9 +131,9 @@ export const metadataApi = gen3Api.injectEndpoints({
               }
               return firstValue
                 ? {
-                    gen3MDSGUID: objIds.at(0),
-                    ...(firstValue[params.studyField] as Record<string, any>),
-                  }
+                  gen3MDSGUID: objIds.at(0),
+                  ...(firstValue[params.studyField] as Record<string, any>),
+                }
                 : undefined;
             }) as JSONObject[]
           ).filter((x: JSONObject | undefined) => x !== undefined),
@@ -166,7 +166,7 @@ export const metadataApi = gen3Api.injectEndpoints({
       queryFn: async (arg, _queryApi, _extraOptions, fetchWithBQ) => {
         const queryMultiple = async (): Promise<CrosswalkInfo[]> => {
           let result = [] as CrosswalkInfo[];
-          const queue = Queue({ concurrency: 15 });
+          const queue = new Queue({ concurrency: 15 });
           for (const id of arg.ids) {
             queue.push(async (callback?: () => void) => {
               const response = await fetchWithBQ({
