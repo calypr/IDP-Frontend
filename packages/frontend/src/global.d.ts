@@ -10,7 +10,7 @@ declare global {
 }
 
 declare module 'jest' {
-    interface Matchers<R, T = {}> {
+    interface Matchers<R, T = object> {
         toBeInTheDocument(): R;
         toBeVisible(): R;
         toBeDisabled(): R;

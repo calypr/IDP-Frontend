@@ -71,11 +71,12 @@ const ArrayCellFunctionCatalog = {
 
 const RenderLinkCell = (
   { cell }: CellRendererFunctionProps,
-  ...args: Array<Record<string, unknown>>
+  ...args: unknown[]
 ) => {
+  const arg = args[0] as Record<string, unknown>;
   return (
     <a
-      href={`${args[0].baseURL}${cell.getValue()}`}
+      href={`${arg.baseURL}${cell.getValue()}`}
       target="_blank"
       rel="noreferrer"
     >
@@ -89,14 +90,16 @@ const RenderLinkCell = (
 
 const RenderLinkCellUsingValueMap = (
   { cell }: CellRendererFunctionProps,
-  ...args: Array<Record<string, unknown>>
+  ...args: unknown[]
 ) => {
   let href = null;
+  const arg = args[0] as Record<string, unknown>;
   if (
-    typeof args[0] === 'object' &&
-    Object.keys(args[0]).includes('valueToURL')
+    typeof arg === 'object' &&
+    arg !== null &&
+    Object.keys(arg).includes('valueToURL')
   ) {
-    const linkMap = args[0].valueToURL as Record<string, string>;
+    const linkMap = arg.valueToURL as Record<string, string>;
     href = linkMap[cell.getValue() as string] ?? null;
   }
   if (!href) return <Text fw={700}> {cell.getValue() as ReactNode} </Text>;

@@ -35,15 +35,15 @@ const processChartData = (
   if (!facetData) {
     return [];
   }
-  const data = facetData.filter((d: any) => d.key !== '_missing');
+  const data = facetData.filter((d: HistogramData) => d.key !== '_missing');
 
   const dataExtractor =
     valueType === 'count' ? ExtractDataCount : ExtractDataPercent;
 
-  const results = data.slice(0, maxBins).map((d: any) => ({
+  const results = data.slice(0, maxBins).map((d: HistogramData) => ({
     // TODO: fix type of d
     data: [dataExtractor(d, total)] as number[],
-    name: truncateString(processLabel(d.key), 35),
+    name: truncateString(processLabel(d.key as string), 35),
     type: 'bar' as const,
     stack: 'value',
     label: {
@@ -67,7 +67,7 @@ const HorizontalBarChart = ({
       return {
         tooltip: {
           trigger: 'item',
-          formatter: function (param) {
+          formatter: function (param: any) {
             const p: CallbackDataParams =
               isArray(param) && param.length > 0
                 ? param[0]

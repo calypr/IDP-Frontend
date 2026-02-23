@@ -10,12 +10,9 @@ import OverflowTooltippedLabel from '../OverflowTooltippedLabel';
 
 import { useDisclosure } from '@mantine/hooks';
 import {
-  Center,
   Card,
   Grid,
-  Group,
   Text,
-  LoadingOverlay,
   Table,
   ColorSwatch,
   Modal,
@@ -26,9 +23,6 @@ import {
 
 import { createChart } from './createChart';
 import { SummaryChart } from './types';
-
-import { computeRowSpan } from './utils';
-import ErrorCard from '../../components/MessageCards/ErrorCard';
 
 const DEFAULT_COLS = 3;
 const MAX_LEGEND_ROWS = 4;
@@ -217,8 +211,6 @@ const ChartItem = ({
 
   // All the logic from your original chartCard function goes here
   const chartTitle = chartConfig.title ?? fieldNameToTitle(field);
-  const numberOfDataItems = chartData?.length ?? 0;
-  const moreThanMaxRows = numberOfDataItems > MAX_LEGEND_ROWS;
   const hasNoData = chartData?.some((item) => item.key === 'no data');
 
   // ... rest of the render logic for the individual chart card (Card, Grid.Col, etc.)
@@ -272,7 +264,7 @@ const Charts = ({
 
   return (
     <Grid className="w-full mx-2" gutter="md">
-      {Object.entries(charts).map(([field, chartConfig], indexNum) => {
+      {Object.entries(charts).map(([field, chartConfig]) => {
         // Skip if data is missing or empty for this field
         if (Object.keys(data).length === 0 || !(field in data)) {
           return null; // Or return the ErrorCard/loading state here

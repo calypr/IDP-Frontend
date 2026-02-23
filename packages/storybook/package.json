@@ -26,7 +26,6 @@
     "@storybook/addon-a11y": "10.2.10",
     "@storybook/addon-onboarding": "10.2.10",
     "@storybook/nextjs": "10.2.10",
-    "@storybook/react": "10.2.10",
     "axe-playwright": "^2.2.2",
     "dotenv": "^17.3.1",
     "msw": "^2.12.10",

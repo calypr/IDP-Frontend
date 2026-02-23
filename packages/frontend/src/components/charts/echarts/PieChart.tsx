@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { HistogramDataArray, HistogramData } from '@gen3/core';
 import { processLabel, truncateString } from '../utils';
 import ReactECharts, { ReactEChartsProps } from './ReactECharts';
 import { CustomChartProps } from '../types';
@@ -9,18 +10,18 @@ interface PieChartData {
 }
 
 const processChartData = (
-  facetData: Record<string, any>,
+  facetData: HistogramDataArray,
   maxBins = 100,
 ): PieChartData[] => {
   if (!facetData) {
     return [];
   }
 
-  const data = facetData.filter((d: any) => d.key !== '_missing');
+  const data = facetData.filter((d: HistogramData) => d.key !== '_missing');
 
-  const results = data.slice(0, maxBins).map((d: any) => ({
+  const results = data.slice(0, maxBins).map((d: HistogramData) => ({
     value: d.count,
-    name: truncateString(processLabel(d.key), 35),
+    name: truncateString(processLabel(d.key as string), 35),
   }));
   return results;
 };

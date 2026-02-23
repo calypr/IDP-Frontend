@@ -8,11 +8,12 @@ import { FaExternalLinkAlt, FaImage, FaFileDownload } from 'react-icons/fa';
 
 const RenderReportsLink = (
   { cell, row }: CellRendererFunctionProps,
-  ...args: Array<Record<string, unknown>>
+  ...args: unknown[]
 ) => {
   const cellValue = cell?.getValue();
   const projectId = row.getValue('project_id') as string;
-  const baseUrl = args[0]?.baseURL;
+  const arg0 = args[0] as Record<string, unknown>;
+  const baseUrl = arg0?.baseURL;
   if (
     cellValue &&
     cellValue !== '' &&
@@ -37,8 +38,9 @@ const RenderReportsLink = (
 /* Used for research_subject, medication_administration, and specimen indices */
 const RenderDicomLink = (
   { cell, row }: CellRendererFunctionProps,
-  ...args: Array<Record<string, unknown>>
+  ...args: unknown[]
 ) => {
+  const arg0 = args[0] as Record<string, unknown>;
   if (Number(row.getValue('document_reference_size') as number) !== 0) {
     if (
       !cell?.getValue() ||
@@ -52,7 +54,7 @@ const RenderDicomLink = (
     ) {
       return (
         <a
-          href={`${args[0]?.downloadURL}/${cell.getValue()}?redirect=true`}
+          href={`${arg0?.downloadURL}/${cell.getValue()}?redirect=true`}
           rel="noreferrer"
           target="_blank"
         >
@@ -65,7 +67,7 @@ const RenderDicomLink = (
       return (
         <div className="flex space-x-2">
           <a
-            href={`${args[0]?.downloadURL}/${cell.getValue()}?redirect=true`}
+            href={`${arg0?.downloadURL}/${cell.getValue()}?redirect=true`}
             rel="noreferrer"
             target="_blank"
           >
@@ -74,7 +76,7 @@ const RenderDicomLink = (
             </ActionIcon>
           </a>
           <a
-            href={`${args[0]?.imageURL}/${cell.getValue()}`}
+            href={`${arg0?.imageURL}/${cell.getValue()}`}
             target="_blank"
             rel="noreferrer"
           >
@@ -89,16 +91,18 @@ const RenderDicomLink = (
 
 const JoinFields = (
   { cell, row }: CellRendererFunctionProps,
-  ...args: Array<Record<string, unknown>>
+  ...args: unknown[]
 ) => {
+  const arg0 = args[0] as Record<string, unknown>;
   if (!cell?.getValue() || cell?.getValue() === '') {
     return <span></span>;
   } else {
     if (
-      typeof args[0] === 'object' &&
-      Object.keys(args[0]).includes('otherFields')
+      typeof arg0 === 'object' &&
+      arg0 !== null &&
+      Object.keys(arg0).includes('otherFields')
     ) {
-      const otherFields = args[0].otherFields as Array<string>;
+      const otherFields = arg0.otherFields as Array<string>;
       const labels = otherFields.map((field) => {
         return row.getValue(field);
       });
@@ -121,7 +125,7 @@ const RenderLinkCell = ({ cell }: CellRendererFunctionProps) => {
 
 const RenderHumanReadableString = (
   { cell, row }: CellRendererFunctionProps,
-  ...args: Array<Record<string, unknown>>
+  ...args: unknown[]
 ) => {
   if (!cell?.getValue() || cell?.getValue() === '') {
     return <span></span>;

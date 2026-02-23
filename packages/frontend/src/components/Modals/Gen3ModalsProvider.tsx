@@ -79,7 +79,7 @@ const Gen3ModalsProvider = ({
 
   const modalsConfig = useMemo(
     () => defaultComposer(defaultConfig, config),
-    [],
+    [config],
   );
   const { isAuthenticated } = useIsAuthenticated();
 

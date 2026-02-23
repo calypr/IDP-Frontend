@@ -17,7 +17,6 @@ import { notifications } from '@mantine/notifications';
 import { useDeepCompareEffect } from 'use-deep-compare';
 import { convertSecondsToMilliseconds } from '../../utils';
 
-const WORKSPACE_SHUTDOWN_ALERT_LIMIT = 30000; // TODO add to config
 
 enum NotificationStatus {
   Info,

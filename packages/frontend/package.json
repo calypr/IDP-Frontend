@@ -113,7 +113,7 @@
   },
   "devDependencies": {
     "@iconify/types": "^2.0.0",
-    "@storybook/react": "10.2.10",
+    "@storybook/nextjs": "10.2.10",
     "@svgr/webpack": "^8.1.0",
     "@swc/core": "^1.15.11",
     "@swc/jest": "^0.2.39",

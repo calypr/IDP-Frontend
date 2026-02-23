@@ -8,7 +8,6 @@ const DetailsDrawer = <
   T extends DetailsPanelComponentProps = DetailsPanelComponentProps,
 >({
   id,
-  title,
   panel,
   panelProps,
 }: DetailsComponentProps<T>) => {

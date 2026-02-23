@@ -10,6 +10,10 @@ interface DonutChartData {
   name: string;
 }
 
+interface HistogramSumData extends HistogramData {
+  sum?: number;
+}
+
 const processChartData = (
   facetData: HistogramDataArray,
   maxBins = 100,
@@ -17,18 +21,20 @@ const processChartData = (
   if (!facetData) {
     return [];
   }
-  const data = facetData.filter((d: HistogramData) => d.key !== '_missing');
+  const data = (facetData as HistogramSumData[]).filter(
+    (d: HistogramSumData) => d.key !== '_missing',
+  );
 
-  const results = data.slice(0, maxBins).map((d: any) => ({
-    value: d.sum, // Keep value as number
-    name: truncateString(d.key, 35),
+  const results = data.slice(0, maxBins).map((d: HistogramSumData) => ({
+    value: d.sum || 0, // Keep value as number
+    name: truncateString(d.key as string, 35),
   }));
 
   return results;
 };
 
 const tooltipFormatter = (params: any) => {
-  const humanReadableValue = formatBytes(params.value);
+  const humanReadableValue = formatBytes(params.value as number);
   return `${params.name}: ${humanReadableValue}`;
 };
 
@@ -64,7 +70,7 @@ const DonutChart = ({ data, onClick }: CustomChartProps) => {
     };
   }, [data]);
 
-  const handleClick = (params: any) => {
+  const handleClick = (params: { name: string }) => {
     console.log('Clicked item:', params.name);
     if (onClick) {
       onClick(params.name);

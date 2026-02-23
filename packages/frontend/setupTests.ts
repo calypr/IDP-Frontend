@@ -9,7 +9,7 @@ window.ResizeObserver =
     unobserve: jest.fn(),
   }));
 
-window.URL.createObjectURL = (input: any) => '';
+window.URL.createObjectURL = (_input: unknown) => '';
 
 loadEnvConfig(__dirname, true, { info: () => null, error: console.error });
 

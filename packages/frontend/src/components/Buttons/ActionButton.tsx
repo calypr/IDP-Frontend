@@ -6,7 +6,6 @@ import { Icon } from '@iconify-icon/react';
 const ActionButton = ({
   title,
   enabled,
-  type,
   leftIcon,
   rightIcon,
   tooltipText,

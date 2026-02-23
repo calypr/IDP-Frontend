@@ -41,7 +41,7 @@ const ProtectedContent = ({ children, referer }: ProtectedContentProps) => {
       // this prevents flickering of the status
       setStableStatus(status);
     }
-  }, [status, pending]);
+  }, [status, pending, stableStatus]);
 
   if (stableStatus !== 'issued') {
     // not logged in

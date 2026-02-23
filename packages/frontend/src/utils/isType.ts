@@ -1,6 +1,6 @@
 import { CSSProperties } from 'react';
 
-export const isArrayOfString = (value: any): value is Array<string> => {
+export const isArrayOfString = (value: unknown): value is Array<string> => {
   return (
     Array.isArray(value) &&
     value.every((element) => typeof element === 'string')
@@ -23,7 +23,7 @@ const validTextTransforms: Array<CSSProperties['textTransform']> = [
 
 // Type guard function
 export const isTextTransform = (
-  value: any,
+  value: unknown,
 ): value is CSSProperties['textTransform'] => {
-  return validTextTransforms.includes(value);
+  return (validTextTransforms as Array<unknown>).includes(value);
 };

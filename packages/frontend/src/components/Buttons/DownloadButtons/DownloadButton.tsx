@@ -33,7 +33,7 @@ interface DownloadButtonProps {
   inactiveText: string;
   activeText: string;
   format?: string;
-  params: Record<string, any>;
+  params: Record<string, unknown>;
   method?: string;
   customStyle?: string;
   showLoading?: boolean;

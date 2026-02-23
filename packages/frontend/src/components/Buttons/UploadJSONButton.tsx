@@ -13,7 +13,6 @@ const UploadJSONButton: React.FC<UploadJSONButtonProps> = ({
   tooltip,
   icon = 'gen3:upload',
 }) => {
-  const [file, setFile] = useState<File | null>(null);
   const [processingFile, setProcessingFile] = useState(false);
 
   return (
@@ -21,7 +20,6 @@ const UploadJSONButton: React.FC<UploadJSONButtonProps> = ({
       onChange={async (file) => {
         if (file !== null) {
           setProcessingFile(true);
-          setFile(file);
           const contents = await file.text();
           handleFileChange(contents);
           setProcessingFile(false);

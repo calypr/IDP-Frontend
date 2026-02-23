@@ -1,4 +1,4 @@
-import React, { HTMLAttributes, useEffect } from 'react';
+import React, { HTMLAttributes } from 'react';
 import { Card, Text, Stack, Button, Center } from '@mantine/core';
 import { type ExternalProvider, type NamedURL } from '@gen3/core';
 import {
@@ -22,6 +22,7 @@ const openAuthWindow = (
   url: string,
   title: string,
   refetch: () => QueryActionCreatorResult<
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     QueryDefinition<any, any, any, any, string>
   >,
 ): Promise<unknown> => {
@@ -85,6 +86,7 @@ const openAuthWindow = (
 interface ExternalProviderCardProps extends HTMLAttributes<HTMLDivElement> {
   provider: ExternalProvider;
   refetch: () => QueryActionCreatorResult<
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     QueryDefinition<any, any, any, any, string>
   >;
 }
