@@ -90,18 +90,24 @@ const DefaultAccessControlConfiguration: AccessControlConfiguration = {
 };
 
 export const ExplorerPageGetServerSideProps: GetServerSideProps<
-  NavPageLayoutProps | CohortBuilderProps
-> = async () => {
+  NavPageLayoutProps | CohortBuilderProps | { errorStatus?: number }
+> = async (context) => {
+  const cookieHeader = context.req.headers.cookie;
+  const requestHeaders: Record<string, string> = {};
+  if (cookieHeader) {
+    requestHeaders['Cookie'] = cookieHeader;
+  }
   try {
     const cohortBuilderConfiguration: CohortBuilderConfiguration =
       await ContentSource.getContentDatabase().get(
         `${GEN3_COMMONS_NAME}/explorer.json`,
+        requestHeaders,
       );
 
     if (isArray(cohortBuilderConfiguration)) {
       return {
         props: {
-          ...(await getNavPageLayoutPropsFromConfig()),
+          ...(await getNavPageLayoutPropsFromConfig(requestHeaders)),
           explorerConfig: cohortBuilderConfiguration,
           headerMetadata: cohortBuilderConfiguration?.headerMetadata
             ? cohortBuilderConfiguration.headerMetadata
@@ -116,7 +122,7 @@ export const ExplorerPageGetServerSideProps: GetServerSideProps<
 
     return {
       props: {
-        ...(await getNavPageLayoutPropsFromConfig()),
+        ...(await getNavPageLayoutPropsFromConfig(requestHeaders)),
         sharedFiltersMap: sharedFiltersMap,
         tabsLayout: cohortBuilderConfiguration?.tabsLayout ?? 'left',
         explorerConfig: cohortBuilderConfiguration.explorerConfig,
@@ -127,20 +133,20 @@ export const ExplorerPageGetServerSideProps: GetServerSideProps<
       },
     };
   } catch (err: unknown) {
-    if (err instanceof Error) {
-      console.warn('Explorer config cannot be read', err);
-    }
+    const status = (err as any).status || 500;
+    context.res.statusCode = status;
     return {
       props: {
-        ...(await getNavPageLayoutPropsFromConfig()),
-        explorerConfig: undefined,
+        ...(await getNavPageLayoutPropsFromConfig(requestHeaders)),
+        explorerConfig: null,
+        errorStatus: status,
       },
     };
   }
 };
 
 export const ExplorerPageGetServerSidePropsForConfigId: GetServerSideProps<
-  NavPageLayoutProps | CohortBuilderProps
+  NavPageLayoutProps | CohortBuilderProps | { errorStatus?: number }
 > = async (context) => {
   const configId = context.query.configId as string;
 
@@ -160,7 +166,7 @@ export const ExplorerPageGetServerSidePropsForConfigId: GetServerSideProps<
     if (isArray(cohortBuilderConfiguration)) {
       return {
         props: {
-          ...(await getNavPageLayoutPropsFromConfig()),
+          ...(await getNavPageLayoutPropsFromConfig(requestHeaders)),
           explorerConfig: cohortBuilderConfiguration,
           headerMetadata: cohortBuilderConfiguration?.headerMetadata
             ? cohortBuilderConfiguration.headerMetadata
@@ -175,7 +181,7 @@ export const ExplorerPageGetServerSidePropsForConfigId: GetServerSideProps<
 
     return {
       props: {
-        ...(await getNavPageLayoutPropsFromConfig()),
+        ...(await getNavPageLayoutPropsFromConfig(requestHeaders)),
         sharedFiltersMap: sharedFiltersMap,
         tabsLayout: cohortBuilderConfiguration?.tabsLayout ?? 'left',
         explorerConfig: cohortBuilderConfiguration.explorerConfig,
@@ -186,13 +192,13 @@ export const ExplorerPageGetServerSidePropsForConfigId: GetServerSideProps<
       },
     };
   } catch (err: unknown) {
-    if (err instanceof Error) {
-      console.warn('Explorer config cannot be read', err);
-    }
+    const status = (err as any).status || 500;
+    context.res.statusCode = status;
     return {
       props: {
-        ...(await getNavPageLayoutPropsFromConfig()),
-        explorerConfig: undefined,
+        ...(await getNavPageLayoutPropsFromConfig(requestHeaders)),
+        explorerConfig: null,
+        errorStatus: status,
       },
     };
   }

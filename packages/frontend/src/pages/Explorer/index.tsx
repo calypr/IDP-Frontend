@@ -1,4 +1,4 @@
-export { default } from './Explorer';
+export { default, ExplorerMainContent } from './Explorer';
 export * from './types';
 export {
   ExplorerPageGetServerSideProps,

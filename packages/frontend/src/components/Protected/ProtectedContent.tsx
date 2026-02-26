@@ -1,80 +1,72 @@
 import React, { ReactNode, useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { useSession } from '../../lib/session/session';
-import { Center, Loader, Stack, Text } from '@mantine/core';
-import { type JWTSessionStatus } from '@gen3/core';
+import { Loader, Text } from '@mantine/core';
+import {
+  type JWTSessionStatus,
+} from '@gen3/core';
+import { LoginView } from '../Modals/LoginModal';
 
-interface ProtectedContentProps {
+import Custom403Page from '../../pages/403/Custom403Page';
+
+export interface ProtectedContentProps {
   children?: ReactNode;
-  referer?: string;
+  errorStatus?: number;
 }
 
-const ProtectedContent = ({ children, referer }: ProtectedContentProps) => {
+const ProtectedContent = ({ children, errorStatus }: ProtectedContentProps) => {
   const router = useRouter();
+  const [stableStatus, setStableStatus] = useState<
+    JWTSessionStatus | undefined
+  >();
 
-  let redirect = referer;
-  if (!referer && typeof window !== 'undefined') {
-    // route not available on SSR
-    redirect = router.asPath;
-  }
+  const { status, pending } = useSession(true, () => {
+    /* prevent redirect */
+  });
 
-  const onUnauthenticated = () => {
-    if (typeof window !== 'undefined')
-      // route not available on SSR
-      router.push({
-        pathname: '/',
-        query: { referer: redirect },
-      });
-  };
-
-  const delayRedirect = () => {
-    setTimeout(() => {
-      onUnauthenticated();
-    }, 2000);
-  };
-  const [stableStatus, setStableStatus] = useState<JWTSessionStatus | undefined>();
-
-  const { status, pending } = useSession(true, delayRedirect);
   useEffect(() => {
-    if (!pending && (stableStatus !== status)) {
-      // only update stableStatus if session is not pending
-      // this prevents flickering of the status
+    if (!pending && stableStatus !== status) {
       setStableStatus(status);
     }
   }, [status, pending, stableStatus]);
 
-  if (stableStatus !== 'issued') {
-    // not logged in
-    if (pending)
-      return (
-        <div className="flex justify-center w-full mt-10">
-          <Loader />
-        </div>
-      );
-    else
-      return (
-        <div className="w-full h-full relative">
-          <Center>
-            <Stack
-              h={300}
-              align="center"
-              justify="center"
-              gap="md"
-              className="mt-24"
-            >
-              <Text>
-                You are not logged in and cannot access this protected content.
-              </Text>
-              <Text>
-                You will be redirected to the login page in a few seconds..
-              </Text>
-            </Stack>
-          </Center>
-        </div>
-      );
+  if (stableStatus === 'issued') {
+    if (errorStatus === 403) {
+      return <Custom403Page />;
+    }
+    return <React.Fragment>{children}</React.Fragment>;
   }
 
-  return <React.Fragment>{children}</React.Fragment>;
+  if (pending) {
+    return (
+      <div className="flex justify-center w-full mt-10">
+        <Loader />
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-zinc-900/60 py-12 px-4 backdrop-blur-md">
+      <div className="max-w-xl w-full bg-white shadow-2xl rounded-2xl overflow-hidden transition-all scale-110">
+        <div className="bg-primary p-8">
+          <Text className="text-white text-3xl font-bold font-heading text-center tracking-tight">
+            Protected Content
+          </Text>
+        </div>
+        <div className="p-4">
+          <LoginView redirectPath={router.asPath} />
+        </div>
+        <div className="p-6 bg-gray-50/50 text-center border-t border-gray-100">
+          <Text
+            size="xs"
+            className="text-gray-400 uppercase tracking-widest font-bold"
+          >
+            Gen3 Data Security Layer
+          </Text>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 export default ProtectedContent;

@@ -6,11 +6,11 @@ import {
 } from '@gen3/frontend';
 import React from 'react';
 import {
-  CohortBuilder,
+  ProtectedContent,
+  ExplorerMainContent,
   ExplorerPageProps,
   ExplorerPageGetServerSidePropsForConfigId as getServerSideProps,
 } from '@gen3/frontend';
-import { Center } from '@mantine/core';
 
 const CohortBuilderPage = ({
   headerProps,
@@ -18,16 +18,8 @@ const CohortBuilderPage = ({
   explorerConfig,
   tabsLayout,
   sharedFiltersMap,
+  errorStatus,
 }: ExplorerPageProps): JSX.Element => {
-  if (explorerConfig === null) {
-    // Changed from undefined to null
-    return (
-      <Center maw={400} h={100} mx="auto">
-        <div>Explorer config is not defined. Page disabled</div>
-      </Center>
-    );
-  }
-
   return (
     <NavPageLayout
       {...{ headerProps, footerProps }}
@@ -37,11 +29,13 @@ const CohortBuilderPage = ({
         key: 'gen3-cohort-builder-page',
       }}
     >
-      <CohortBuilder
-        tabsLayout={tabsLayout}
-        explorerConfig={explorerConfig}
-        sharedFiltersMap={sharedFiltersMap}
-      />
+      <ProtectedContent errorStatus={errorStatus}>
+        <ExplorerMainContent
+          tabsLayout={tabsLayout}
+          explorerConfig={explorerConfig}
+          sharedFiltersMap={sharedFiltersMap}
+        />
+      </ProtectedContent>
     </NavPageLayout>
   );
 };

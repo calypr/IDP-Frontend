@@ -29,9 +29,15 @@ const filterRedirect = (redirect: string | string[] | undefined) => {
 const LoginMenu = ({
   frontBanner,
   classNames,
+  zIndex,
+  redirectPath: explicitRedirectPath,
+  children,
 }: {
   frontBanner: boolean;
   classNames: StylingOverrideWithMergeControl;
+  zIndex?: number;
+  redirectPath?: string;
+  children?: React.ReactNode;
 }) => {
   const router = useRouter();
   const {
@@ -40,8 +46,9 @@ const LoginMenu = ({
 
   const handleFenceLoginSelected = useCallback(
     async (loginURL: string) => {
+      const targetRedirect = explicitRedirectPath || (referer as string);
       router
-        .push(`${loginURL}?redirect=${filterRedirect(referer)}`)
+        .push(`${loginURL}?redirect=${filterRedirect(targetRedirect)}`)
         .catch((e) => {
           showNotification({
             title: 'Login Error',
@@ -62,6 +69,7 @@ const LoginMenu = ({
         <LoginProvidersMenuPanel
           classNames={classNames}
           handleLoginSelected={handleFenceLoginSelected}
+          zIndex={zIndex}
         />
       ) : frontBanner ? (
         <UnstyledButton className="mx-2" onClick={() => router.push('/Apps')}>

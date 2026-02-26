@@ -7,23 +7,34 @@ import {
   registerDiscoveryDefaultStudyPreviewRenderers,
 } from '../../features/Discovery';
 import { Center } from '@mantine/core';
+import ProtectedContent from '../../components/Protected/ProtectedContent';
+import { useSession } from '../../lib/session/session';
+
 
 registerDiscoveryDefaultCellRenderers();
 registerDiscoveryDefaultStudyPreviewRenderers();
 
-const DiscoveryPage = ({
-  headerProps,
-  footerProps,
-  discoveryConfig,
-}: DiscoveryPageProps): JSX.Element => {
-  if (discoveryConfig === undefined) {
+export const DiscoveryMainContent = ({ discoveryConfig }: any) => {
+  const { status, pending } = useSession();
+  if (pending || status !== 'issued') {
+    return null;
+  }
+  if (!discoveryConfig) {
     return (
       <Center maw={400} h={100} mx="auto">
         <div>Discovery config is not defined. Page disabled</div>
       </Center>
     );
   }
+  return <Discovery discoveryConfig={discoveryConfig} />;
+};
 
+const DiscoveryPage = ({
+  headerProps,
+  footerProps,
+  discoveryConfig,
+  errorStatus,
+}: DiscoveryPageProps): JSX.Element => {
   return (
     <NavPageLayout
       {...{ headerProps, footerProps }}
@@ -36,7 +47,9 @@ const DiscoveryPage = ({
           : {}),
       }}
     >
-      <Discovery discoveryConfig={discoveryConfig} />
+      <ProtectedContent errorStatus={errorStatus}>
+        <DiscoveryMainContent discoveryConfig={discoveryConfig} />
+      </ProtectedContent>
     </NavPageLayout>
   );
 };

@@ -185,7 +185,8 @@ export const SessionProvider = ({
     useGetCSRFQuery();
   useWorkspaceResourceMonitor(monitorWorkspace); // monitor workspaces if any are running or configured
 
-  const [getUserDetails] = useLazyFetchUserDetailsQuery(); // Fetch user details
+  const [getUserDetails, { isLoading: isUserDetailsLoading }] =
+    useLazyFetchUserDetailsQuery(); // Fetch user details
   const userStatus = useCoreSelector((state: CoreState) =>
     selectUserAuthStatus(state),
   );
@@ -244,29 +245,39 @@ export const SessionProvider = ({
   const sessionInfo = useManageSession(userStatus);
 
   // for now, we are using the user status to determine if the user is logged in
+  const endSession = useCallback(
+    async (shouldRedirect = true) => {
+      logoutSession()
+        .then(() => {
+          getUserDetails();
+        })
+        .catch((e) => {
+          showNotification({
+            title: 'Logout Error',
+            message: `error logging in ${e.message}`,
+          });
+        })
+        .finally(() => {
+          if (shouldRedirect) router.push(`${GEN3_REDIRECT_URL}`); // TODO replace with config option
+        });
+    },
+    [getUserDetails, router],
+  );
+
   const updateSession = useCallback(() => {
     const updateSessionWithUserStatus = async () => {
-      await getUserDetails();
+      try {
+        await getUserDetails().unwrap();
+      } catch (err: any) {
+        if (err?.status === 401) {
+          coreDispatch(showModal({ modal: (Modals as any).LoginModal }));
+          endSession(false);
+        }
+      }
     };
 
     updateSessionWithUserStatus();
-  }, [getUserDetails]);
-
-  const endSession = useCallback(async () => {
-    logoutSession()
-      .then(() => {
-        getUserDetails();
-      })
-      .catch((e) => {
-        showNotification({
-          title: 'Logout Error',
-          message: `error logging in ${e.message}`,
-        });
-      })
-      .finally(() => {
-        router.push(`${GEN3_REDIRECT_URL}`); // TODO replace with config option
-      });
-  }, [getUserDetails, router]);
+  }, [getUserDetails, coreDispatch, endSession]);
   /**
    * Update session value every updateSessionInterval seconds
    */
@@ -316,8 +327,8 @@ export const SessionProvider = ({
           timeSinceLastActivity >= inactiveTimeLimitMilliseconds &&
           !isUserOnPage('Workspace')
         ) {
-          coreDispatch(showModal({ modal: Modals.SessionExpireModal }));
-          endSession();
+          coreDispatch(showModal({ modal: (Modals as any).LoginModal }));
+          endSession(false);
           return;
         }
         if (
@@ -325,8 +336,8 @@ export const SessionProvider = ({
           timeSinceLastActivity >= workspaceInactivityTimeLimitMilliseconds &&
           isUserOnPage('Workspace')
         ) {
-          coreDispatch(showModal({ modal: Modals.SessionExpireModal }));
-          endSession();
+          coreDispatch(showModal({ modal: (Modals as any).LoginModal }));
+          endSession(false);
           return;
         }
       }
@@ -346,10 +357,11 @@ export const SessionProvider = ({
   const value: Session = useDeepCompareMemo(() => {
     return {
       ...sessionInfo,
+      pending: sessionInfo.pending || isUserDetailsLoading,
       updateSession,
       endSession,
     };
-  }, [sessionInfo, updateSession, endSession]);
+  }, [sessionInfo, isUserDetailsLoading, updateSession, endSession]);
 
   if (isGetCSRFError) {
     return (

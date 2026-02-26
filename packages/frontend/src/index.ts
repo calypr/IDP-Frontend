@@ -63,7 +63,7 @@ import { AppsPageGetServerSideProps } from './pages/Apps';
 import Gen3Provider, {
   createMantineTheme,
 } from './components/Providers/Gen3Provider';
-import DiscoveryPage from './pages/Discovery/Discovery';
+import DiscoveryPage, { DiscoveryMainContent } from './pages/Discovery/Discovery';
 import { DiscoveryPageGetServerSideProps } from './pages/Discovery/data';
 
 import QueryPage from './pages/Query/Query';
@@ -82,7 +82,7 @@ import {
   type ReportsPageProps,
 } from './pages/reports';
 
-import ExplorerPage from './pages/Explorer/Explorer';
+import ExplorerPage, { ExplorerMainContent } from './pages/Explorer/Explorer';
 import {
   ExplorerPageGetServerSideProps,
   ExplorerPageGetServerSidePropsForConfigId,
@@ -102,6 +102,7 @@ import DictionaryPage, {
 import AuthzPage from './pages/admin/authz/Authz';
 import { AdminAuthZPageGetServerSideProps } from './pages/admin/authz/data';
 
+import Custom403Page from './pages/403/Custom403Page';
 import Custom404Page from './pages/404/Custom404Page';
 
 import SubmissionPage from './pages/Submission/Submission';
@@ -172,6 +173,7 @@ export {
   CountsValue,
   // Pages
   DiscoveryPage,
+  DiscoveryMainContent,
   DiscoveryPageGetServerSideProps,
   QueryPage,
   QueryPageGetServerSideProps,
@@ -192,6 +194,7 @@ export {
   DictionaryPage,
   DictionaryPageGetServerSideProps,
   ExplorerPage,
+  ExplorerMainContent,
   ExplorerPageGetServerSideProps,
   ExplorerPageGetServerSidePropsForConfigId,
   RSReportsPageGetServerSideProps,
@@ -215,6 +218,7 @@ export {
   WorkspaceNoAccessPageServerSideProps,
   AnalysisPage,
   AnalysisPageGetServerSideProps,
+  Custom403Page,
   Custom404Page,
   sessionToken,
   sessionLogout,

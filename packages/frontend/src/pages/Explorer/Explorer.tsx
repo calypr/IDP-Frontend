@@ -3,6 +3,7 @@ import dynamic from 'next/dynamic';
 import { NavPageLayout } from '../../features/Navigation';
 import { ExplorerPageProps } from './types';
 import { Center } from '@mantine/core';
+import ProtectedContent from '../../components/Protected/ProtectedContent';
 
 const CohortBuilder = dynamic(
   () => import('../../features/CohortBuilder/CohortBuilder'),
@@ -11,6 +12,33 @@ const CohortBuilder = dynamic(
   },
 );
 
+import { useSession } from '../../lib/session/session';
+
+export const ExplorerMainContent = ({
+  explorerConfig,
+  tabsLayout,
+  sharedFiltersMap,
+}: any) => {
+  const { status, pending } = useSession();
+  if (pending || status !== 'issued') {
+    return null;
+  }
+  if (!explorerConfig) {
+    return (
+      <Center maw={400} h={100} mx="auto">
+        <div>Explorer config is not defined. Page disabled</div>
+      </Center>
+    );
+  }
+  return (
+    <CohortBuilder
+      tabsLayout={tabsLayout}
+      explorerConfig={explorerConfig}
+      sharedFiltersMap={sharedFiltersMap}
+    />
+  );
+};
+
 const ExplorerPage = ({
   headerProps,
   footerProps,
@@ -18,30 +46,27 @@ const ExplorerPage = ({
   headerMetadata,
   tabsLayout,
   sharedFiltersMap,
+  errorStatus,
 }: ExplorerPageProps): JSX.Element => {
-  if (explorerConfig === undefined) {
-    return (
-      <Center maw={400} h={100} mx="auto">
-        <div>Explorer config is not defined. Page disabled</div>
-      </Center>
-    );
-  }
+  const pageHeaderMetadata = {
+    title: 'Gen3 Explorer Page',
+    content: 'Explorer Page',
+    key: 'gen3-explorer-page',
+    ...(headerMetadata ? headerMetadata : {}),
+  };
 
   return (
     <NavPageLayout
       {...{ headerProps, footerProps }}
-      headerMetadata={{
-        title: 'Gen3 Explorer Page',
-        content: 'Explorer Page',
-        key: 'gen3-explorer-page',
-        ...(headerMetadata ? headerMetadata : {}),
-      }}
+      headerMetadata={pageHeaderMetadata}
     >
-      <CohortBuilder
-        tabsLayout={tabsLayout}
-        explorerConfig={explorerConfig}
-        sharedFiltersMap={sharedFiltersMap}
-      />
+      <ProtectedContent errorStatus={errorStatus}>
+        <ExplorerMainContent
+          explorerConfig={explorerConfig}
+          tabsLayout={tabsLayout}
+          sharedFiltersMap={sharedFiltersMap}
+        />
+      </ProtectedContent>
     </NavPageLayout>
   );
 };

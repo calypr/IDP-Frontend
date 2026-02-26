@@ -114,7 +114,7 @@ export const useManageSession = (
         ...prev,
         userStatus: 'not present',
         status: 'not present',
-        pending: true,
+        pending: false,
       }));
     } else if (userStatus === 'pending') {
       setSession((prev) => ({
