@@ -27,6 +27,8 @@ import {
 } from '@gen3/core';
 import { ColumnItem } from './types';
 import { type DocumentReferenceData } from '@gen3/core';
+import { formatBytes } from '../../utils/labels';
+import FileSaver from 'file-saver';
 
 const ProjectIcon = ({ className = 'w-5 h-5 mr-3 text-purple-500' }) => (
   <svg
@@ -125,10 +127,7 @@ export const FileMetadataPanel = ({ file }: FileMetadataPanelProps) => {
   const data = file.rawData as DocumentReferenceData;
   const attachment = data?.content?.[0]?.attachment;
 
-  const rawTitle = attachment?.title || '—';
-  const fileName = rawTitle !== '—' 
-    ? rawTitle.split(/[/\\]/).pop() || rawTitle 
-    : '—';
+  const fileName = file.name || attachment?.title || 'download';
   
   const size = attachment?.size || 0;
   const url = attachment?.url || '—';
@@ -141,6 +140,55 @@ export const FileMetadataPanel = ({ file }: FileMetadataPanelProps) => {
   const downloadUrl = isGithubFile
     ? url
     : `${GEN3_FENCE_API}/data/download/${downloadIdentifier}?redirect=true`;
+
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  const handleDownload = async () => {
+    if (isGithubFile) {
+      window.open(url, '_blank', 'noreferrer');
+      return;
+    }
+
+    // 1. Chrome/Edge: True Streaming to Disk (Handles GB+ files with 0 RAM buffering)
+    if ('showSaveFilePicker' in window) {
+      setIsDownloading(true);
+      try {
+        const resp = await fetch(downloadUrl, { 
+          credentials: 'include',
+          redirect: 'follow',
+        });
+
+        if (!resp.ok) throw new Error('Download request failed');
+
+        const handle = await (window as any).showSaveFilePicker({
+          suggestedName: fileName,
+        });
+        const writable = await handle.createWritable();
+        
+        if (!resp.body) throw new Error('No response body');
+        
+        // pipeTo is the browser's native, optimized way to stream data from 
+        // network to disk without JavaScript memory buffering.
+        await resp.body.pipeTo(writable);
+      } catch (err: any) {
+        if (err.name === 'AbortError') return; // User cancelled the "Save As" dialog
+        console.error('Streaming download failed:', err);
+      } finally {
+        setIsDownloading(false);
+      }
+    } else {
+      // 2. Safari/Firefox Path: Native Download
+      // Since we can't rename a stream in these browsers without buffering in RAM (bad for GB files),
+      // we use a standard link. It streams to disk safely, but results in the SHA256 name.
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.target = '_blank';
+      link.rel = 'noreferrer';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
 
   return (
     <Card shadow="sm" p="lg" className="w-80 bg-white flex-shrink-0 border-l border-gray-200 h-full">
@@ -162,7 +210,7 @@ export const FileMetadataPanel = ({ file }: FileMetadataPanelProps) => {
         <Group gap="xs">
           <IconFile size={16} className="text-gray-500" />
           <Text className="font-medium">Size:</Text>
-          <Text>{size.toLocaleString()} bytes</Text>
+          <Text>{formatBytes(size)}</Text>
         </Group>
 
         <Group gap="xs" align={isGithubFile ? 'start' : 'center'}>
@@ -185,11 +233,16 @@ export const FileMetadataPanel = ({ file }: FileMetadataPanelProps) => {
               {url}
             </Anchor>
           ) : (
-            <a href={downloadUrl} rel="noreferrer" target="_blank">
-              <ActionIcon color="blue" size="md" variant="filled">
-                <FaFileDownload />
-              </ActionIcon>
-            </a>
+            <ActionIcon 
+              color="blue" 
+              size="md" 
+              variant="filled"
+              onClick={handleDownload}
+              loading={isDownloading}
+              title={`Download ${fileName}`}
+            >
+              <FaFileDownload />
+            </ActionIcon>
           )}
         </Group>
       </div>
