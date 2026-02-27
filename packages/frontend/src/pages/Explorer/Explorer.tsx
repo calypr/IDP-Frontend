@@ -39,6 +39,8 @@ export const ExplorerMainContent = ({
   );
 };
 
+import { useRouter } from 'next/router';
+
 const ExplorerPage = ({
   headerProps,
   footerProps,
@@ -54,6 +56,7 @@ const ExplorerPage = ({
     key: 'gen3-explorer-page',
     ...(headerMetadata ? headerMetadata : {}),
   };
+  const router = useRouter();
 
   return (
     <NavPageLayout
@@ -62,6 +65,7 @@ const ExplorerPage = ({
     >
       <ProtectedContent errorStatus={errorStatus}>
         <ExplorerMainContent
+          key={router.asPath}
           explorerConfig={explorerConfig}
           tabsLayout={tabsLayout}
           sharedFiltersMap={sharedFiltersMap}

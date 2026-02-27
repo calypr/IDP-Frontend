@@ -1,5 +1,5 @@
-import React from 'react';
-import { useDeepCompareMemo } from 'use-deep-compare';
+import React, { useEffect } from 'react';
+import { useDeepCompareMemo, useDeepCompareEffect } from 'use-deep-compare';
 import { CohortBuilderProps, CohortPanelConfiguration } from './types';
 import { Tabs } from '@mantine/core';
 import { CohortPanel } from './CohortPanel';
@@ -23,7 +23,10 @@ const CohortBuilder = ({
   tabsLayout = 'left',
 }: CohortBuilderProps) => {
   const dispatch = useCoreDispatch();
-  dispatch(setSharedFilters(sharedFiltersMap ?? {}));
+  
+  useDeepCompareEffect(() => {
+    dispatch(setSharedFilters(sharedFiltersMap ?? {}));
+  }, [dispatch, sharedFiltersMap]);
 
   const configuration = useDeepCompareMemo(
     () => explorerConfig,
@@ -57,11 +60,11 @@ const CohortBuilder = ({
           {configuration.map((panelConfig: CohortPanelConfiguration) => (
             <Tabs.Panel
               value={panelConfig.tabTitle}
-              key={`${panelConfig.tabTitle}-tabPanel`}
+              key={`${panelConfig.tabTitle}-${panelConfig.guppyConfig.dataType}-tabPanel`}
             >
               <CohortPanel
                 guppyConfig={panelConfig.guppyConfig}
-                key={`${panelConfig.tabTitle}-CohortPanel`}
+                key={`${panelConfig.tabTitle}-${panelConfig.guppyConfig.dataType}-CohortPanel`}
                 chartsSection={panelConfig?.chartsSection}
                 charts={panelConfig.charts}
                 filters={panelConfig.filters}

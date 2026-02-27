@@ -262,7 +262,7 @@ export const CohortPanel = ({
 
   useDeepCompareEffect(() => {
     if (isSuccess && Object.keys(facetDefinitions).length === 0) {
-      const configFacetDefs = filters?.tabs.reduce(
+      const configFacetDefs = (filters?.tabs ?? []).reduce(
         (acc: Record<string, FacetDefinition>, tab) => ({
           ...tab.fieldsConfig,
           ...acc,
