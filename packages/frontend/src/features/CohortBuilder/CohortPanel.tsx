@@ -159,16 +159,18 @@ export const CohortPanel = ({
     if (isChartSuccess && chartData) {
       const cleanedData: AggregationsData = {};
       Object.keys(summaryCharts).forEach((key) => {
-        cleanedData[key] = chartData[key].filter((x) =>
-          typeof x.key !== 'string' ? true : x.key !== '',
-        );
-        const facetDef = facetDefinitions?.[key];
-        if (facetDef?.excludeValues) {
-          cleanedData[key] = cleanedData[key].filter((x) =>
-            typeof x.key !== 'string'
-              ? true
-              : facetDef?.excludeValues?.includes(String(x.key)) === false,
+        if (chartData[key]) {
+          cleanedData[key] = chartData[key].filter((x) =>
+            typeof x.key !== 'string' ? true : x.key !== '',
           );
+          const facetDef = facetDefinitions?.[key];
+          if (facetDef?.excludeValues) {
+            cleanedData[key] = cleanedData[key].filter((x) =>
+              typeof x.key !== 'string'
+                ? true
+                : facetDef?.excludeValues?.includes(String(x.key)) === false,
+            );
+          }
         }
       });
       return cleanedData;
