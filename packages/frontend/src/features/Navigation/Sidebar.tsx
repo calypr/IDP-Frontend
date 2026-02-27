@@ -84,14 +84,7 @@ export const Sidebar = ({ items, state }: SidebarProps) => {
 
   if (state === 'closed') return null;
 
-  const toggleExpand = (title: string, e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setExpandedItems((prev) => ({
-      ...prev,
-      [title]: !prev[title],
-    }));
-  };
+
 
   const hasAccess = (perms: string | undefined) => {
     if (!perms) return true;
@@ -127,16 +120,19 @@ export const Sidebar = ({ items, state }: SidebarProps) => {
             const hasSubItems = item.subItems && item.subItems.length > 0;
             const isExpanded = expandedItems[item.title];
             const isExplorers = item.title.toLowerCase() === 'explorers';
-            const isActive = router.pathname === item.href;
+            const isActive = router.asPath === item.href;
 
             return (
               <li key={item.title} className="flex flex-col">
                 <div className="flex items-center group">
                   <Link
                     href={item.href}
-                    onClick={(e) => {
+                    onClick={() => {
                       if (hasSubItems) {
-                        toggleExpand(item.title, e);
+                        setExpandedItems((prev) => ({
+                          ...prev,
+                          [item.title]: !prev[item.title],
+                        }));
                       }
                     }}
                     className={`
@@ -174,7 +170,7 @@ export const Sidebar = ({ items, state }: SidebarProps) => {
                 {hasSubItems && isExpanded && (
                   <ul className="mt-1 space-y-1">
                     {item.subItems?.map((subItem) => {
-                      const isSubActive = router.pathname === subItem.href;
+                      const isSubActive = router.asPath === subItem.href;
                       return (
                         <li key={subItem.title}>
                           <Link

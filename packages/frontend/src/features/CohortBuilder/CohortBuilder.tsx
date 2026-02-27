@@ -7,6 +7,7 @@ import { ProtectedContent } from '../../components/Protected';
 import {
   selectCurrentCohortId,
   setSharedFilters,
+  createNewCohort,
   useCoreDispatch,
   useCoreSelector,
 } from '@gen3/core';
@@ -23,10 +24,16 @@ const CohortBuilder = ({
   tabsLayout = 'left',
 }: CohortBuilderProps) => {
   const dispatch = useCoreDispatch();
-  
+
   useDeepCompareEffect(() => {
     dispatch(setSharedFilters(sharedFiltersMap ?? {}));
   }, [dispatch, sharedFiltersMap]);
+
+  // Reset cohort when configuration changes (e.g. switching between different project explorers)
+  // this prevents blank pages caused by using a cohort ID that doesn't exist in the new data context
+  useDeepCompareEffect(() => {
+    dispatch(createNewCohort({}));
+  }, [dispatch, explorerConfig]);
 
   const configuration = useDeepCompareMemo(
     () => explorerConfig,
