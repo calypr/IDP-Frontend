@@ -1,5 +1,7 @@
 import Image from 'next/image';
+import Link from 'next/link';
 import React, { useEffect, useState, useCallback } from 'react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import type { SidebarProps, SidebarState } from './types';
 import type { UseResponsiveSidebarResult } from './types';
 
@@ -65,8 +67,49 @@ export function useResponsiveSidebar(
   return { finalState, toggleButton };
 }
 
+
+import { useRouter } from 'next/router';
+import {
+  useGetAuthzMappingsQuery,
+  userHasMethodForServiceOnResource,
+  resourcePathFromProjectID,
+} from '@gen3/core';
+
 export const Sidebar = ({ items, state }: SidebarProps) => {
+  const router = useRouter();
+  const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>(
+    {},
+  );
+  const { data: authzMapping = {} } = useGetAuthzMappingsQuery();
+
   if (state === 'closed') return null;
+
+  const toggleExpand = (title: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setExpandedItems((prev) => ({
+      ...prev,
+      [title]: !prev[title],
+    }));
+  };
+
+  const hasAccess = (perms: string | undefined) => {
+    if (!perms) return true;
+    return userHasMethodForServiceOnResource(
+      'read',
+      '*',
+      resourcePathFromProjectID(perms),
+      authzMapping,
+    );
+  };
+
+  // Filter items and subItems based on permissions
+  const visibleItems = items
+    .filter((item) => hasAccess(item.perms) && item.title.toLowerCase() !== 'home')
+    .map((item) => ({
+      ...item,
+      subItems: item.subItems?.filter((sub) => hasAccess(sub.perms)),
+    }));
 
   return (
     <aside
@@ -78,32 +121,92 @@ export const Sidebar = ({ items, state }: SidebarProps) => {
         z-0
       `}
     >
-      <nav className="flex flex-col flex-1 p-2">
+      <nav className="flex flex-col flex-1 p-2 overflow-y-auto">
         <ul className="space-y-1">
-          {items.map((item) => (
-            <li key={item.title} className="relative">
-              <a
-                href={item.href}
-                className={`
-                  flex items-center p-2 rounded-lg text-gray-900 dark:text-white
-                  hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors
-                  justify-start
-                `}
-              >
-                <span className="shrink-0 w-6 h-6 relative">
-                  <Image
-                    src={item.icon}
-                    alt={item.title}
-                    fill
-                    className="object-contain"
-                  />
-                </span>
-                <span className="ml-3 text-sm truncate transition-opacity duration-200">
-                  {item.title}
-                </span>
-              </a>
-            </li>
-          ))}
+          {visibleItems.map((item) => {
+            const hasSubItems = item.subItems && item.subItems.length > 0;
+            const isExpanded = expandedItems[item.title];
+            const isExplorers = item.title.toLowerCase() === 'explorers';
+            const isActive = router.pathname === item.href;
+
+            return (
+              <li key={item.title} className="flex flex-col">
+                <div className="flex items-center group">
+                  <Link
+                    href={item.href}
+                    onClick={(e) => {
+                      if (hasSubItems) {
+                        toggleExpand(item.title, e);
+                      }
+                    }}
+                    className={`
+                      flex items-center p-2 rounded-lg text-gray-900 dark:text-white
+                      transition-colors justify-start flex-1 min-w-0
+                      ${
+                        isActive
+                          ? 'bg-gray-100 dark:bg-gray-700 font-semibold'
+                          : 'hover:bg-gray-50 dark:hover:bg-gray-800'
+                      }
+                    `}
+                  >
+                    <span className="shrink-0 w-6 h-6 relative">
+                      <Image
+                        src={item.icon}
+                        alt={item.title}
+                        fill
+                        className="object-contain dark:invert"
+                      />
+                    </span>
+                    <span className="ml-3 text-sm truncate">
+                      {item.title}
+                    </span>
+                    {hasSubItems && (
+                      <span className="ml-auto opacity-60">
+                        {isExpanded ? (
+                          <ChevronDown size={18} />
+                        ) : (
+                          <ChevronRight size={18} />
+                        )}
+                      </span>
+                    )}
+                  </Link>
+                </div>
+                {hasSubItems && isExpanded && (
+                  <ul className="mt-1 space-y-1">
+                    {item.subItems?.map((subItem) => {
+                      const isSubActive = router.pathname === subItem.href;
+                      return (
+                        <li key={subItem.title}>
+                          <Link
+                            href={subItem.href}
+                            className={`
+                              flex items-center p-2 rounded-lg transition-colors
+                              text-sm
+                              ${
+                                isSubActive
+                                  ? 'bg-gray-100 dark:bg-gray-700 font-semibold text-gray-900 dark:text-white'
+                                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
+                              }
+                            `}
+                          >
+                            <span className="shrink-0 w-6 h-6 relative">
+                              <Image
+                                src={subItem.icon}
+                                alt={subItem.title}
+                                fill
+                                className="object-contain dark:invert"
+                              />
+                            </span>
+                            <span className="ml-3 truncate">{subItem.title}</span>
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </li>
+            );
+          })}
         </ul>
       </nav>
     </aside>

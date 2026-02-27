@@ -43,6 +43,7 @@ export interface LeftNavBarProps {
   readonly icon: string;
   readonly href: string;
   readonly perms: string;
+  readonly subItems?: ReadonlyArray<LeftNavBarProps>;
 }
 
 export interface HeaderToggleProps extends HeaderProps {
