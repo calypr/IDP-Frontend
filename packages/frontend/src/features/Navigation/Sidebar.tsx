@@ -77,9 +77,25 @@ import {
 
 export const Sidebar = ({ items, state }: SidebarProps) => {
   const router = useRouter();
-  const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>(
-    {},
-  );
+  // Initialize expanded state based on the current path
+  const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>(() => {
+    const initialExpanded: Record<string, boolean> = {};
+    items.forEach((item) => {
+      if (item.subItems?.some((sub) => router.asPath === sub.href)) {
+        initialExpanded[item.title] = true;
+      }
+    });
+    return initialExpanded;
+  });
+
+  // Keep menu expanded if navigating to a sub-item
+  useEffect(() => {
+    items.forEach((item) => {
+      if (item.subItems?.some((sub) => router.asPath === sub.href)) {
+        setExpandedItems((prev) => ({ ...prev, [item.title]: true }));
+      }
+    });
+  }, [router.asPath, items]);
   const { data: authzMapping = {} } = useGetAuthzMappingsQuery();
 
   if (state === 'closed') return null;
@@ -127,8 +143,9 @@ export const Sidebar = ({ items, state }: SidebarProps) => {
                 <div className="flex items-center group">
                   <Link
                     href={item.href}
-                    onClick={() => {
+                    onClick={(e) => {
                       if (hasSubItems) {
+                        e.preventDefault();
                         setExpandedItems((prev) => ({
                           ...prev,
                           [item.title]: !prev[item.title],
