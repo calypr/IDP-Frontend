@@ -44,13 +44,6 @@ if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
   axe(React, ReactDOM, 1000);
 }
 
-if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const ReactDOM = require('react-dom');
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const axe = require('@axe-core/react');
-  axe(React, ReactDOM, 1000);
-}
 
 // TODO fix app registration
 
@@ -89,11 +82,22 @@ const Gen3App = ({
   useEffect(() => {
     setIsClient(true); // Only on client-side
   }, []);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const isAppsPortal = window.location.pathname.startsWith('/Apps');
+      if (isAppsPortal) {
+        document.body.classList.add('bg-gray-100');
+      } else {
+        document.body.classList.remove('bg-gray-100');
+      }
+    }
+  }, []);
   return (
     <React.Fragment>
-      {isClient ? (
-        <Suspense fallback={<Loading />}>
-          <MantineProvider theme={mantinetheme}>
+      <MantineProvider theme={mantinetheme}>
+        {isClient ? (
+          <Suspense fallback={<Loading />}>
             <Gen3Provider
               icons={icons}
               sessionConfig={sessionConfig}
@@ -101,12 +105,12 @@ const Gen3App = ({
             >
               <Component {...pageProps} />
             </Gen3Provider>
-          </MantineProvider>
-        </Suspense>
-      ) : (
-        // Show some fallback UI while waiting for the client to load
-        <Loading />
-      )}
+          </Suspense>
+        ) : (
+          // Show some fallback UI while waiting for the client to load
+          <Loading />
+        )}
+      </MantineProvider>
     </React.Fragment>
   );
 };

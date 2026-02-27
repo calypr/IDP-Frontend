@@ -11,6 +11,7 @@ export interface MillerProps {
   millerConfig?: MillerConfig;
 }
 
-export type MillerPageProps = NavPageLayoutProps & MillerProps;
+export type MillerPageProps = NavPageLayoutProps &
+  MillerProps & { errorStatus?: number };
 
 export type ColumnItem = DirItem | ProjectItem;

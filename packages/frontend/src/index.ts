@@ -5,6 +5,8 @@ export * from './components/Modals';
 export * from './components/charts';
 export * from './components/facets';
 export * from './components/Protected';
+import { VerifyingAccessLoader } from './components/Protected';
+
 // features
 export * from './features/Navigation';
 export * from './features/Discovery';
@@ -160,6 +162,7 @@ export {
   type AnalysisPageLayoutProps,
   type ReportsPageProps,
   // components
+  VerifyingAccessLoader,
   CollapsableSidebar,
   DropdownButton,
   DropdownWithIcon,

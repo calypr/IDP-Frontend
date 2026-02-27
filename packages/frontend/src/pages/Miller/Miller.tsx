@@ -26,7 +26,7 @@ import {
   GEN3_API,
 } from '@gen3/core';
 import ProtectedContent from '../../components/Protected/ProtectedContent';
-import { ColumnItem } from './types';
+import { ColumnItem, type MillerPageProps } from './types';
 import { type DocumentReferenceData } from '@gen3/core';
 import { formatBytes } from '../../utils/labels';
 import FileSaver from 'file-saver';
@@ -251,7 +251,11 @@ export const FileMetadataPanel = ({ file }: FileMetadataPanelProps) => {
   );
 };
 
-const MillerPage = ({ headerProps, footerProps }: NavPageLayoutProps) => {
+const MillerPage = ({
+  headerProps,
+  footerProps,
+  errorStatus,
+}: MillerPageProps) => {
   const [columns, setColumns] = useState<
     {
       id: string;
@@ -523,117 +527,110 @@ const MillerPage = ({ headerProps, footerProps }: NavPageLayoutProps) => {
   };
 
   const errorObject = projectsError || dirError;
-  if (errorObject) {
-    const errorMessage = getErrorMessage(errorObject);
-    return (
-      <NavPageLayout
-        {...{ headerProps, footerProps }}
-        headerMetadata={{
-          title: 'CALYPR GRIPREF Page',
-          content: 'CALYPR GRIPREF Page',
-          key: 'calypr-gripref-page',
-        }}
-      >
-        <Center>
-          <Paper p="md">
-            <Text color="red">Error loading data: {errorMessage}</Text>
-          </Paper>
-        </Center>
-      </NavPageLayout>
-    );
-  }
+  const errorMessage = errorObject ? getErrorMessage(errorObject) : null;
 
   return (
-    <ProtectedContent>
-      <NavPageLayout
-        {...{ headerProps, footerProps }}
-        headerMetadata={{
-          title: 'CALYPR GRIPREF Page',
-          content: 'CALYPR GRIPREF Page',
-          key: 'calypr-gripref-page',
-        }}
-      >
-        <div className="min-h-screen w-full flex flex-col items-center justify-start">
-          <div className="w-full bg-white overflow-hidden p-2">
-            <div className="p-2 border-b">
-              <h1 className="text-2xl font-bold text-gray-800">Finder</h1>
-              <p className="text-gray-600">View directory structure </p>
-            </div>
-            <div
-              className="flex h-[70vh] min-h-[450px] overflow-x-auto"
-              ref={scrollContainerRef}
-            >
-              {columns.length === 0 && isLoadingProjects ? (
-                <div className="w-72 border-r overflow-y-auto flex-shrink-0 bg-white">
-                  <LoadingSpinner />
-                </div>
-              ) : (
-                columns.map((column, colIndex) => (
-                  <div
-                    key={`col-${column.id}-${colIndex}`} // Harden: unique keys for stable rendering
-                    className="w-72 border-r overflow-y-auto flex-shrink-0 bg-white"
-                  >
-                    {column.loading ? (
-                      <LoadingSpinner />
-                    ) : column.metadata ? (
-                      <FileMetadataPanel file={column.metadata as DirItem} />
-                    ) : (
-                      <ul>
-                        {column.items?.map((item) => {
-                          let isSelected = false;
-                          if (colIndex === 0 && selectedProject) {
-                            isSelected = selectedProject === item.name;
-                          } else if (colIndex > 0) {
-                            isSelected = selectedPath[colIndex - 1] === item.name;
-                          }
-                          return (
-                            <li key={item.id}>
-                              <button
-                                disabled={isLoading} // Harden: disable during loads
-                                onClick={() => handleItemClick(item, colIndex)}
-                                className={`w-full text-left p-3 flex items-center justify-between transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60 ${
-                                  isSelected
-                                    ? 'bg-blue-500 text-white'
-                                    : 'hover:bg-gray-100 text-gray-800'
-                                }`}
-                              >
-                                <div className="flex items-center truncate">
-                                  {item.type === 'project' ? (
-                                    <ProjectIcon />
-                                  ) : item.type === 'directory' ? (
-                                    <FolderIcon />
-                                  ) : (
-                                    <FileIcon />
-                                  )}
-                                  <span className="font-medium truncate">
-                                    {item.name}
-                                  </span>
-                                </div>
-                                {(item.type === 'project' ||
-                                  item.type === 'directory') && (
-                                  <div
-                                    className={
-                                      isSelected ? 'text-white' : 'text-gray-400'
-                                    }
-                                  >
-                                    <ChevronRightIcon />
-                                  </div>
-                                )}
-                              </button>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    )}
+    <NavPageLayout
+      {...{ headerProps, footerProps }}
+      headerMetadata={{
+        title: 'CALYPR GRIPREF Page',
+        content: 'CALYPR GRIPREF Page',
+        key: 'calypr-gripref-page',
+      }}
+    >
+      <ProtectedContent errorStatus={errorStatus}>
+        {errorMessage ? (
+          <Center h="100%">
+            <Paper p="md">
+              <Text color="red">Error loading data: {errorMessage}</Text>
+            </Paper>
+          </Center>
+        ) : (
+          <div className="min-h-screen w-full flex flex-col items-center justify-start">
+            <div className="w-full bg-white overflow-hidden p-2">
+              <div className="p-2 border-b">
+                <h1 className="text-2xl font-bold text-gray-800">Finder</h1>
+                <p className="text-gray-600">View directory structure </p>
+              </div>
+              <div
+                className="flex h-[70vh] min-h-[450px] overflow-x-auto"
+                ref={scrollContainerRef}
+              >
+                {columns.length === 0 && isLoadingProjects ? (
+                  <div className="w-72 border-r overflow-y-auto flex-shrink-0 bg-white">
+                    <LoadingSpinner />
                   </div>
-                ))
-              )}
+                ) : (
+                  columns.map((column, colIndex) => (
+                    <div
+                      key={`col-${column.id}-${colIndex}`} // Harden: unique keys for stable rendering
+                      className="w-72 border-r overflow-y-auto flex-shrink-0 bg-white"
+                    >
+                      {column.loading ? (
+                        <LoadingSpinner />
+                      ) : column.metadata ? (
+                        <FileMetadataPanel file={column.metadata as DirItem} />
+                      ) : (
+                        <ul>
+                          {column.items?.map((item) => {
+                            let isSelected = false;
+                            if (colIndex === 0 && selectedProject) {
+                              isSelected = selectedProject === item.name;
+                            } else if (colIndex > 0) {
+                              isSelected =
+                                selectedPath[colIndex - 1] === item.name;
+                            }
+                            return (
+                              <li key={item.id}>
+                                <button
+                                  disabled={isLoading} // Harden: disable during loads
+                                  onClick={() => handleItemClick(item, colIndex)}
+                                  className={`w-full text-left p-3 flex items-center justify-between transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60 ${
+                                    isSelected
+                                      ? 'bg-blue-500 text-white'
+                                      : 'hover:bg-gray-100 text-gray-800'
+                                  }`}
+                                >
+                                  <div className="flex items-center truncate">
+                                    {item.type === 'project' ? (
+                                      <ProjectIcon />
+                                    ) : item.type === 'directory' ? (
+                                      <FolderIcon />
+                                    ) : (
+                                      <FileIcon />
+                                    )}
+                                    <span className="font-medium truncate">
+                                      {item.name}
+                                    </span>
+                                  </div>
+                                  {(item.type === 'project' ||
+                                    item.type === 'directory') && (
+                                    <div
+                                      className={
+                                        isSelected
+                                          ? 'text-white'
+                                          : 'text-gray-400'
+                                      }
+                                    >
+                                      <ChevronRightIcon />
+                                    </div>
+                                  )}
+                                </button>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+              <FinderPathBar />
             </div>
-            <FinderPathBar />
           </div>
-        </div>
-      </NavPageLayout>
-    </ProtectedContent>
+        )}
+      </ProtectedContent>
+    </NavPageLayout>
   );
 };
 

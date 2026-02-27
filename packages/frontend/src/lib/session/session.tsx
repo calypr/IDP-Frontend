@@ -25,10 +25,11 @@ import {
   useLazyFetchUserDetailsQuery,
 } from '@gen3/core';
 
-import { Center, Loader } from '@mantine/core';
+import { Center, Loader, Text } from '@mantine/core';
 
 import { MinutesToMilliseconds } from '../../utils';
 import { useWorkspaceResourceMonitor } from '../../components/Providers/ResourceMonitor';
+import { VerifyingAccessLoader } from '../../components/Protected/VerifyingAccessLoader';
 
 const ACTIVITY_CHANNEL = 'gen3-user-activity';
 
@@ -377,10 +378,10 @@ export const SessionProvider = ({
         {children}
       </SessionContext.Provider>
     );
-  else
-    return (
-      <Center h="100vh">
-        <Loader />
-      </Center>
-    );
+
+  if (router.pathname.startsWith('/Apps')) {
+    return <VerifyingAccessLoader />;
+  }
+
+  return <Center h="100vh" />;
 };

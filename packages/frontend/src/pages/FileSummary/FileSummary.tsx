@@ -81,12 +81,12 @@ export const FileSummaryPage = ({
         key: 'calypr-file-summary',
       }}
     >
-      {fisLoading || isLoading || fbinisLoading || ftisLoading ? (
-        <div className="fixed inset-0 flex justify-center items-center bg-gray-700 bg-opacity-50 z-50">
-          <Loader size={30} />
-        </div>
-      ) : (
-        <ProtectedContent>
+      <ProtectedContent>
+        {fisLoading || isLoading || fbinisLoading || ftisLoading ? (
+          <Center h="50vh">
+            <Loader size={30} />
+          </Center>
+        ) : (
           <div className="grid grid-cols-2 p-10">
             <div className="flex flex-col items-center p-4 bg-white shadow-lg rounded-lg">
               <Text>
@@ -167,8 +167,8 @@ export const FileSummaryPage = ({
               </div>
             </div>
           </div>
-        </ProtectedContent>
-      )}
+        )}
+      </ProtectedContent>
     </NavPageLayout>
   );
 };
