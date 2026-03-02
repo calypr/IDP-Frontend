@@ -16,6 +16,25 @@ export function useResponsiveSidebar(
   // Define the breakpoint for automatic closing
   const CLOSE_BREAKPOINT = 1024;
 
+  // Load from session storage on mount
+  useEffect(() => {
+    const storedUserOpened = sessionStorage.getItem('sidebar_userOpened');
+    const storedButtonState = sessionStorage.getItem('sidebar_buttonState') as SidebarState;
+
+    if (storedUserOpened !== null) {
+      setUserOpened(JSON.parse(storedUserOpened));
+    }
+    if (storedButtonState !== null) {
+      setButtonState(storedButtonState);
+    }
+  }, []);
+
+  // Save to session storage on change
+  useEffect(() => {
+    sessionStorage.setItem('sidebar_userOpened', JSON.stringify(userOpened));
+    sessionStorage.setItem('sidebar_buttonState', buttonState);
+  }, [userOpened, buttonState]);
+
   // Determines the size-based state
   const getResizeState = useCallback((): SidebarState => {
     if (typeof window === 'undefined') return 'open';
@@ -31,11 +50,9 @@ export function useResponsiveSidebar(
     const handleResize = () => {
       const newState = getResizeState();
       setResizeState(newState);
-      if (newState === 'closed') {
-        setButtonState('closed');
-      } else {
-        setButtonState('open');
-      }
+      // We don't automatically overwrite buttonState here anymore,
+      // as it would overwrite user intent on page navigation.
+      // Final visibility is handled by finalState logic.
     };
 
     handleResize();
@@ -77,25 +94,44 @@ import {
 
 export const Sidebar = ({ items, state }: SidebarProps) => {
   const router = useRouter();
-  // Initialize expanded state based on the current path
-  const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>(() => {
-    const initialExpanded: Record<string, boolean> = {};
-    items.forEach((item) => {
-      if (item.subItems?.some((sub) => router.asPath === sub.href)) {
-        initialExpanded[item.title] = true;
-      }
-    });
-    return initialExpanded;
-  });
+  // Expanded state state (initialized to empty, filled by useEffect)
+  const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
 
-  // Keep menu expanded if navigating to a sub-item
+  // Initialize and merge expanded state from session storage and current path
   useEffect(() => {
+    // 1. Calculate from path
+    const pathExpanded: Record<string, boolean> = {};
     items.forEach((item) => {
       if (item.subItems?.some((sub) => router.asPath === sub.href)) {
-        setExpandedItems((prev) => ({ ...prev, [item.title]: true }));
+        pathExpanded[item.title] = true;
       }
     });
-  }, [router.asPath, items]);
+
+    // 2. Load from storage
+    let storedExpanded: Record<string, boolean> = {};
+    const stored = sessionStorage.getItem('sidebar_expandedItems');
+    if (stored) {
+      try {
+        storedExpanded = JSON.parse(stored);
+      } catch (e) {
+        console.error('Error parsing sidebar_expandedItems', e);
+      }
+    }
+
+    // 3. Merge: path priority, then stored
+    setExpandedItems((prev) => ({
+      ...storedExpanded,
+      ...pathExpanded,
+      ...prev, // preserve any changes made in current render cycle
+    }));
+  }, [items, router.asPath]);
+
+  // Persist expanded state to session storage
+  useEffect(() => {
+    if (Object.keys(expandedItems).length > 0) {
+      sessionStorage.setItem('sidebar_expandedItems', JSON.stringify(expandedItems));
+    }
+  }, [expandedItems]);
   const { data: authzMapping = {} } = useGetAuthzMappingsQuery();
 
   if (state === 'closed') return null;

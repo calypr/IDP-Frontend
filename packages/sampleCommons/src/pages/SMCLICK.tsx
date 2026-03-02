@@ -249,7 +249,7 @@ const HorizontalBarChart = ({ headerProps, footerProps }: SamplePageProps) => {
                 </h1>
                 <Button
                   onClick={() => {
-                    router.push('/Explorer/SMMART');
+                    router.push('/Explorer/cbds-smmart_labkey_demo');
                   }}
                   className="bg-primary text-white py-2 px-4 rounded"
                 >
