@@ -4,6 +4,7 @@ import { NavPageLayout } from '../../features/Navigation';
 import { ExplorerPageProps } from './types';
 import { Center } from '@mantine/core';
 import ProtectedContent from '../../components/Protected/ProtectedContent';
+import { VerifyingAccessLoader } from '../../components/Protected/VerifyingAccessLoader';
 
 const CohortBuilder = dynamic(
   () => import('../../features/CohortBuilder/CohortBuilder'),
@@ -20,7 +21,10 @@ export const ExplorerMainContent = ({
   sharedFiltersMap,
 }: any) => {
   const { status, pending } = useSession();
-  if (pending || status !== 'issued') {
+  
+
+
+  if (status !== 'issued') {
     return null;
   }
   if (!explorerConfig) {

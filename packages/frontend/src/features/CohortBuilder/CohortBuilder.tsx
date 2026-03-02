@@ -25,6 +25,8 @@ const CohortBuilder = ({
 }: CohortBuilderProps) => {
   const dispatch = useCoreDispatch();
 
+  const [isTransitioning, setIsTransitioning] = React.useState(false);
+
   useDeepCompareEffect(() => {
     dispatch(setSharedFilters(sharedFiltersMap ?? {}));
   }, [dispatch, sharedFiltersMap]);
@@ -32,13 +34,21 @@ const CohortBuilder = ({
   // Reset cohort when configuration changes (e.g. switching between different project explorers)
   // this prevents blank pages caused by using a cohort ID that doesn't exist in the new data context
   useDeepCompareEffect(() => {
+    setIsTransitioning(true);
     dispatch(createNewCohort({}));
+    // Small delay to allow Redux state to propagate and hooks to reset
+    const timer = setTimeout(() => setIsTransitioning(false), 50);
+    return () => clearTimeout(timer);
   }, [dispatch, explorerConfig]);
 
   const configuration = useDeepCompareMemo(
     () => explorerConfig,
     [explorerConfig],
   );
+
+  if (isTransitioning) {
+    return null; // Return null during the 50ms transition to avoid "double spinner" overlap with child components
+  }
 
   return (
     <ProtectedContent>
