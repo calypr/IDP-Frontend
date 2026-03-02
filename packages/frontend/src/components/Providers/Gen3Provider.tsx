@@ -9,6 +9,7 @@ import { Notifications } from '@mantine/notifications';
 import { addCollection } from '@iconify-icon/react';
 import { SessionConfiguration } from '../../lib/session/types';
 import { Gen3ModalsProvider, type ModalsConfig } from '../Modals';
+import { SidebarProvider } from '../../features/Navigation/SidebarContext';
 
 interface Gen3ProviderProps {
   icons: Array<RegisteredIcons>;
@@ -92,9 +93,11 @@ const Gen3Provider = ({
       <ModalsProvider>
         <Notifications />
         <SessionProvider {...sessionConfig}>
-          <Gen3ModalsProvider config={modalsConfig}>
-            {children}
-          </Gen3ModalsProvider>
+          <SidebarProvider>
+            <Gen3ModalsProvider config={modalsConfig}>
+              {children}
+            </Gen3ModalsProvider>
+          </SidebarProvider>
         </SessionProvider>
       </ModalsProvider>
     </CoreProvider>
