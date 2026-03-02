@@ -44,7 +44,7 @@ export const isOperatorWithFieldAndArrayOfOperands = (
     'field' in operation &&
     typeof operation.field === 'string' // Assuming `field` should be a string
   ) {
-    const { operator } = (operation as any).operator;
+    const { operator } = operation as any;
     return (
       operator === 'in' || operator === 'exclude' || operator === 'excludeifany'
     );
@@ -581,8 +581,7 @@ export class ValueExtractorHandler implements OperationHandler<FilterValue> {
  * Extract the operand values, if operands themselves have values, otherwise undefined.
  */
 export class EnumValueExtractorHandler
-  implements OperationHandler<EnumFilterValue | undefined>
-{
+  implements OperationHandler<EnumFilterValue | undefined> {
   handleEquals: (_: Equals) => undefined = (_: Equals) => undefined;
   handleNotEquals: (_: NotEquals) => undefined = (_: NotEquals) => undefined;
   handleIncludes: (op: Includes) => ReadonlyArray<string | number> = (
@@ -637,11 +636,11 @@ export const filterSetToOperation = (
       return Object.keys(fs.root).length == 0
         ? undefined
         : {
-            operator: fs.mode,
-            operands: Object.keys(fs.root).map((k): Operation => {
-              return fs.root[k];
-            }),
-          };
+          operator: fs.mode,
+          operands: Object.keys(fs.root).map((k): Operation => {
+            return fs.root[k];
+          }),
+        };
   }
   return undefined;
 };

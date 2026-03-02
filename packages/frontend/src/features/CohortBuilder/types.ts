@@ -81,6 +81,7 @@ export interface CohortPanelConfiguration {
   buttons?: ReadonlyArray<DownloadButtonConfig>; // row of action buttons
   loginForDownload?: boolean; // login required for download
   sharedFiltersMap?: SharedFieldMapping;
+  preFilters?: Record<string, any>; // Tab-specific filters (e.g. { project_id: ["HTAN_INT-BForePC"] })
 }
 
 export interface SharedFieldConfiguration {

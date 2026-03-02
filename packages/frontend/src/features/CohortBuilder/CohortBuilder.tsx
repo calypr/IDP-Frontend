@@ -11,7 +11,6 @@ import {
   useCoreDispatch,
   useCoreSelector,
 } from '@gen3/core';
-import CohortManager from './CohortManager/CohortManager';
 import { TabsLayoutToComponentProp } from '../../utils/layout';
 
 export const useGetCurrentCohort = () => {
@@ -35,7 +34,28 @@ const CohortBuilder = ({
   // this prevents blank pages caused by using a cohort ID that doesn't exist in the new data context
   useDeepCompareEffect(() => {
     setIsTransitioning(true);
-    dispatch(createNewCohort({}));
+    
+    // Extensible Fix: Apply preFilters from each tab configuration
+    const initialFilters: any = {};
+    
+    explorerConfig.forEach((panel) => {
+      const index = panel.guppyConfig.dataType;
+      const tabPreFilters = panel.preFilters;
+      
+      if (tabPreFilters) {
+        const indexFilters: any = { mode: 'and', root: {} };
+        Object.entries(tabPreFilters).forEach(([field, values]) => {
+          indexFilters.root[field] = {
+            operator: 'in',
+            field: field,
+            operands: Array.isArray(values) ? values : [values],
+          };
+        });
+        initialFilters[index] = indexFilters;
+      }
+    });
+
+    dispatch(createNewCohort({ filters: initialFilters }));
     // Small delay to allow Redux state to propagate and hooks to reset
     const timer = setTimeout(() => setIsTransitioning(false), 50);
     return () => clearTimeout(timer);
