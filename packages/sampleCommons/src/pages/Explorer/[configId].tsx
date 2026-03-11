@@ -1,10 +1,6 @@
 import {
-  getNavPageLayoutPropsFromConfig,
-  ExplorerPageGetServerSidePropsForConfigId,
   NavPageLayout,
-  NavPageLayoutProps,
 } from '@gen3/frontend';
-import React from 'react';
 import {
   ProtectedContent,
   ExplorerMainContent,
@@ -19,6 +15,7 @@ const CohortBuilderPage = ({
   tabsLayout,
   sharedFiltersMap,
   errorStatus,
+  fileActions,
 }: ExplorerPageProps): JSX.Element => {
   return (
     <NavPageLayout
@@ -34,6 +31,7 @@ const CohortBuilderPage = ({
           tabsLayout={tabsLayout}
           explorerConfig={explorerConfig}
           sharedFiltersMap={sharedFiltersMap}
+          fileActions={fileActions}
         />
       </ProtectedContent>
     </NavPageLayout>

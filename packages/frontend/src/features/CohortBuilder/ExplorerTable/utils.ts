@@ -1,8 +1,6 @@
 import { fieldNameToTitle } from '@gen3/core';
 import type {
   CellRendererFunctionProps,
-  ColumnDefinition,
-  SummaryTableColumn,
   TableColumnsAndFields,
   ExplorerColumn,
   ExplorerTableColumnMRT,
