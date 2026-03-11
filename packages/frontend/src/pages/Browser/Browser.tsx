@@ -26,7 +26,7 @@ import {
   GEN3_FENCE_API,
 } from '@gen3/core';
 import ProtectedContent from '../../components/Protected/ProtectedContent';
-import { ColumnItem, type BrowserPageProps } from './types';
+import { ColumnItem, type BrowserPageProps, FileActionsConfig } from './types';
 import { type DocumentReferenceData } from '@gen3/core';
 import { formatBytes } from '../../utils/labels';
 
@@ -126,7 +126,7 @@ export const FileMetadataPanel = ({
   fileActions 
 }: { 
   file: DirItem, 
-  fileActions?: Record<string, string[]> 
+  fileActions?: FileActionsConfig;
 }) => {
   const data = file.rawData as DocumentReferenceData;
   const attachment = data?.content?.[0]?.attachment;
@@ -145,8 +145,8 @@ export const FileMetadataPanel = ({
     ? url
     : `${GEN3_FENCE_API}/data/download/${downloadIdentifier}?redirect=true`;
 
-  const extension = fileName.split('.').pop()?.toLowerCase() || '';
-  const currentActions = fileActions?.[extension] || fileActions?.['default'] || ['file_download'];
+  const extension = fileName.includes('.') ? fileName.split('.').pop()?.toLowerCase() || '' : '';
+  const currentActions = fileActions?.extensions?.[extension] || fileActions?.extensions?.['default'] || ['file_download'];
 
   const [isDownloading, setIsDownloading] = useState(false);
 
@@ -259,7 +259,8 @@ export const FileMetadataPanel = ({
                   size="md" 
                   variant="filled"
                   onClick={() => {
-                     const imageViewerUrl = `/image-viewer/view/${file.id}`;
+                     const baseActionUrl = fileActions?.actions?.['file_image'] || '/image-viewer/view';
+                     const imageViewerUrl = baseActionUrl.endsWith('/') ? `${baseActionUrl}${file.id}` : `${baseActionUrl}/${file.id}`;
                      window.open(imageViewerUrl, '_blank');
                   }}
                   title={`View Image ${fileName}`}
