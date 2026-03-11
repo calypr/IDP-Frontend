@@ -1,3 +1,4 @@
+import React from 'react';
 import {
   NavPageLayout,
 } from '@gen3/frontend';
