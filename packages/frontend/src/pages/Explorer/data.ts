@@ -130,6 +130,7 @@ export const ExplorerPageGetServerSideProps: GetServerSideProps<
           ...DefaultAccessControlConfiguration,
           ...(cohortBuilderConfiguration.accessControl ?? {}),
         },
+        fileActions: cohortBuilderConfiguration.fileActions ?? null,
       },
     };
   } catch (err: unknown) {
@@ -189,6 +190,7 @@ export const ExplorerPageGetServerSidePropsForConfigId: GetServerSideProps<
           ...DefaultAccessControlConfiguration,
           ...(cohortBuilderConfiguration.accessControl ?? {}),
         },
+        fileActions: cohortBuilderConfiguration.fileActions ?? null,
       },
     };
   } catch (err: unknown) {

@@ -4,6 +4,7 @@ import {
   type CellRendererFunctionProps,
   RenderFileActions,
 } from '@gen3/frontend';
+import { GEN3_FENCE_API } from '@gen3/core';
 import { ActionIcon, Text } from '@mantine/core';
 import { FaExternalLinkAlt, FaImage, FaFileDownload } from 'react-icons/fa';
 
@@ -46,10 +47,12 @@ const RenderFileDownloadLink = (
 ) => {
   const arg0 = args[0] as Record<string, unknown>;
   const fileId = cell?.getValue();
+  const downloadBaseUrl = arg0?.actionUrl || arg0?.downloadURL || `${GEN3_FENCE_API}/data/download`;
+
   if (Number(row.getValue('document_reference_size') as number) !== 0 && fileId) {
     return (
       <a
-        href={`${arg0?.downloadURL}/${fileId}?redirect=true`}
+        href={`${downloadBaseUrl}/${fileId}?redirect=true`}
         rel="noreferrer"
         target="_blank"
       >
@@ -68,10 +71,12 @@ const RenderFileImageLink = (
 ) => {
   const arg0 = args[0] as Record<string, unknown>;
   const fileId = cell?.getValue();
+  const imageBaseUrl = arg0?.actionUrl || arg0?.imageURL || '/image-viewer/view';
+
   if (Number(row.getValue('document_reference_size') as number) !== 0 && fileId) {
     return (
       <a
-        href={`${arg0?.imageURL}/${fileId}`}
+        href={`${imageBaseUrl}/${fileId}`}
         target="_blank"
         rel="noreferrer"
       >

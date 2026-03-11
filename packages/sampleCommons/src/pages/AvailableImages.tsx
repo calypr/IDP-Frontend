@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import {
   NavPageLayout,
   ProtectedContent,
@@ -10,8 +10,8 @@ import {
 import { Text } from '@mantine/core';
 import { GetServerSideProps } from 'next';
 
-import { useGeneralGQLQuery } from '@gen3/core';
-
+import { useGeneralGQLQuery, useGetConfigListQuery, explorerConfigApi } from '@gen3/core';
+import { useDispatch } from 'react-redux';
 export const useFileTypesFiles = () => {
   const { data, isLoading, isError } = useGeneralGQLQuery({
     query: `query($filter:JSON){
@@ -71,19 +71,51 @@ const AvailableImagesPage = ({
   footerProps,
 }: NavPageLayoutProps) => {
   const { data, isLoading, isError } = useFileTypesFiles();
+  const dispatch = useDispatch();
+  const { data: configList } = useGetConfigListQuery();
+  const [fileActionsMap, setFileActionsMap] = useState<Record<string, any>>({});
 
-  const imageViewerTableConfig: Record<string, SummaryTableColumn> = {
+  useEffect(() => {
+    if (configList?.data && Array.isArray(configList.data)) {
+      const fetchConfigs = async () => {
+        const map: Record<string, any> = {};
+        await Promise.all(
+          configList.data.map(async (configId: string) => {
+            try {
+              const result = await (dispatch as any)(
+                explorerConfigApi.endpoints.getConfigContent.initiate(configId)
+              ).unwrap();
+              const configData = result?.data;
+              if (configData?.fileActions) {
+                 const projectIds = configData.preFilters?.project_id;
+                 if (Array.isArray(projectIds)) {
+                     projectIds.forEach((pid: string) => {
+                         map[pid] = configData.fileActions;
+                     });
+                 } else {
+                     map[configId] = configData.fileActions;
+                 }
+              }
+            } catch (e) {
+              console.error(`Failed to fetch config ${configId}`, e);
+            }
+          })
+        );
+        setFileActionsMap(map);
+      };
+      fetchConfigs();
+    }
+  }, [configList, dispatch]);
+
+  const imageViewerTableConfig: Record<string, SummaryTableColumn> = useMemo(() => ({
     document_reference_id: {
       title: 'Download / View',
       field: 'document_reference_id',
-      type: 'link',
+      type: 'string',
       accessorPath: 'document_reference_id',
-      cellRenderFunction: 'DicomLink',
+      cellRenderFunction: 'fileActions',
       width: 32,
-      params: {
-        imageURL: '/image-viewer/view',
-        downloadURL: '/user/data/download',
-      },
+      params: { fileActionsMap },
     },
     project_id: {
       title: 'Project Id',
@@ -100,7 +132,7 @@ const AvailableImagesPage = ({
       cellRenderFunction: 'HumanReadableString',
       type: 'string',
     },
-  };
+  }), [fileActionsMap]);
 
   if (isError) {
     return <Text> Error in underlying query detected </Text>;

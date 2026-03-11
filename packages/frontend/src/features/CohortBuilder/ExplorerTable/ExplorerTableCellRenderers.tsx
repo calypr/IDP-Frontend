@@ -109,26 +109,58 @@ export const RenderFileActions = (
   ...args: unknown[]
 ) => {
   const { cell, row } = props;
-  const arg = args[0] as Record<string, unknown>;
-  // Attempt to read fileActions from the passed args. If not present directly, we might need a context or it's passed down from root.
-  // For now, let's assume it gets passed down in the args (we will update ExplorerTable next if needed).
-  const fileActionsConfig = arg.fileActions as Record<string, string[]> | undefined;
+  const arg = (args[0] || {}) as Record<string, unknown>;
+  let fileActionsConfig = arg.fileActions as {
+    extensions: Record<string, string[]>;
+    actions: Record<string, string>;
+  } | undefined;
 
-  const fileName = cell.getValue();
-  const fileNameStr = typeof fileName === 'string' ? fileName : '';
+  const fileActionsMap = arg.fileActionsMap as Record<string, any> | undefined;
 
-  // Get extension from filename
+  let projectId = '';
+  try {
+    const val = row.getValue('project_id');
+    if (typeof val === 'string') projectId = val;
+  } catch (e) {
+    if (row.original && typeof (row.original as any).project_id === 'string') {
+      projectId = (row.original as any).project_id;
+    }
+  }
+
+  if (!fileActionsConfig && fileActionsMap && projectId && fileActionsMap[projectId]) {
+    fileActionsConfig = fileActionsMap[projectId];
+  }
+
+  let fileNameStr = '';
+  try {
+    const sourcePath = row.getValue('document_reference_source_path');
+    if (typeof sourcePath === 'string') fileNameStr = sourcePath;
+  } catch (e) {
+    // ignore if column doesn't exist
+  }
+
+  if (!fileNameStr) {
+    try {
+      const fn = row.getValue('file_name');
+      if (typeof fn === 'string') fileNameStr = fn;
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  if (!fileNameStr) {
+    const cellRef = cell.getValue();
+    fileNameStr = typeof cellRef === 'string' ? cellRef : '';
+  }
+
   const extension = fileNameStr.includes('.') ? fileNameStr.split('.').pop()?.toLowerCase() || '' : '';
+  const actionsList = fileActionsConfig?.extensions?.[extension] || fileActionsConfig?.extensions?.['default'] || ['file_download'];
 
-  // Get actions for this extension
-  const actions = fileActionsConfig?.[extension] || ['file_download'];
-
-  if (actions.length === 0) return <React.Fragment />;
+  if (actionsList.length === 0) return <React.Fragment />;
 
   return (
     <div className="flex space-x-2">
-      {actions.map((actionName, index) => {
-        // Look up the action in all possible catalogs in the main factory
+      {actionsList.map((actionName, index) => {
         const factory = ExplorerTableCellRendererFactory();
         let actionRenderer: CellRendererFunction | undefined;
         
@@ -141,9 +173,10 @@ export const RenderFileActions = (
         }
 
         if (actionRenderer && actionRenderer !== DefaultItemRenderer) {
+          const actionUrl = fileActionsConfig?.actions?.[actionName];
           return (
             <React.Fragment key={`${actionName}-${index}`}>
-              {actionRenderer(props, ...args)}
+              {actionRenderer(props, { ...arg, actionUrl }, ...args.slice(1))}
             </React.Fragment>
           );
         }
