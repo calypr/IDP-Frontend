@@ -12,6 +12,7 @@ import {
   ExplorerTableCellRendererFactory,
   RenderArrayCell,
 } from './ExplorerTableCellRenderers';
+import { FileActionsConfig } from '../types';
 import { jsonPathAccessor } from '../../../components/Tables/utils';
 import { ArrayCellRenderer } from './ArrayCellRenderer';
 
@@ -24,7 +25,7 @@ export const isRecordAny = (obj: unknown): obj is Record<string, any> => {
 
 export const createTableColumns = (
   tableConfig: TableColumnsAndFields,
-  fileActions?: Record<string, string[]>,
+  fileActions?: FileActionsConfig,
 ): ExplorerTableColumnMRT[] => {
   return tableConfig.fields.map((field) => {
     const columnDef = tableConfig?.columns?.[field];

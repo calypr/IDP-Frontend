@@ -16,7 +16,7 @@ import {
   useGetAggsQuery,
   useGetCountsQuery,
 } from '@gen3/core';
-import { type CohortPanelConfiguration } from './types';
+import { type CohortPanelConfiguration, type FileActionsConfig } from './types';
 import { type SummaryChart } from '../../components/charts/types';
 import { ErrorCard } from '../../components/MessageCards';
 import { useMediaQuery } from '@mantine/hooks';
@@ -64,7 +64,7 @@ const EmptyData = {};
 interface CohortPanelConfigurationWithAccessLevel
   extends CohortPanelConfiguration {
   showAccessLevel?: boolean;
-  fileActions?: Record<string, string[]>;
+  fileActions?: FileActionsConfig;
 }
 
 export const CohortPanel = ({
