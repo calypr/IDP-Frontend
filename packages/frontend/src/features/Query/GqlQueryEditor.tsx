@@ -98,7 +98,7 @@ const GqlQueryEditor = ({
           const clientSchema = buildClientSchema(result.data);
           setSchema(clientSchema);
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (isMounted) {
            console.error('Schema Introspection Error:', err);
            setSchemaError('Autocompletion disabled: Could not fetch schema');
@@ -144,9 +144,9 @@ const GqlQueryEditor = ({
 
       const result = await response.json();
       setResponseJson(JSON.stringify(result, null, 2));
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('GraphQL Fetch Error:', err);
-      setExecutionError(err.message || String(err));
+      setExecutionError(err instanceof Error ? err.message : String(err));
       setResponseJson('');
     } finally {
       setIsFetching(false);
@@ -238,7 +238,7 @@ const GqlQueryEditor = ({
            <ScrollArea className="flex-grow h-full relative" type="auto">
              {!responseJson && !executionError && !isFetching && (
                <Center className="h-full w-full text-gray-400 absolute top-0 left-0" style={{ pointerEvents: 'none' }}>
-                  Hit "Run Query" to fetch results.
+                  Hit &quot;Run Query&quot; to fetch results.
                </Center>
              )}
              
