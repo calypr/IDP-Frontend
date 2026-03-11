@@ -22,7 +22,7 @@ export const getNavPageLayoutPropsFromConfig = async (
         .catch(() => ({ appsConfig: { appCards: [] } })),
     ]);
 
-    const { headerProps, footerProps } = navigationConfigJSON;
+    const { headerProps, footerProps, fileActions, dynamicProps } = navigationConfigJSON;
 
     // Map appCards to subItems for the "Explorers" menu item
     // Handle both { appsConfig: { appCards: [...] } } and { appCards: [...] } formats
@@ -30,13 +30,19 @@ export const getNavPageLayoutPropsFromConfig = async (
       appsPageProps?.appsConfig?.appCards || (appsPageProps as any)?.appCards;
 
     if (appCards && Array.isArray(appCards)) {
-      const explorerItems = appCards.map((card: any) => ({
-        title: card.title || card.name,
-        description: card.description || '',
-        icon: card.icon || '/icons/apps/gen3_app.svg',
-        href: card.href,
-        perms: card.perms || '',
-      }));
+      const explorerItems = appCards.map((card: any) => {
+        const item: any = {
+          title: card.title || card.name,
+          description: card.description || '',
+          icon: card.icon || '/icons/apps/gen3_app.svg',
+          href: card.href,
+          perms: card.perms || '',
+        };
+        if (card.dynamicProps !== undefined) {
+          item.dynamicProps = card.dynamicProps;
+        }
+        return item;
+      });
 
       // Find the Explorers item or add it if it doesn't exist
       const explorersIndex = headerProps.leftnav.findIndex(
@@ -70,11 +76,18 @@ export const getNavPageLayoutPropsFromConfig = async (
       key: 'gen3-common-page',
     };
 
-    return {
+    const result: any = {
       headerProps,
       footerProps,
       headerMetadata,
     };
+    if (fileActions !== undefined) {
+      result.fileActions = fileActions;
+    }
+    if (dynamicProps !== undefined) {
+      result.dynamicProps = dynamicProps;
+    }
+    return result;
   } catch (err: unknown) {
     console.warn('Failed to fetch navigation configuration from microservice:', err);
     // Return minimal skeleton properties to keep page rendering possible so logic can show login modal

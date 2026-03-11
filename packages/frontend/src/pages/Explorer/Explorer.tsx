@@ -4,7 +4,6 @@ import { NavPageLayout } from '../../features/Navigation';
 import { ExplorerPageProps } from './types';
 import { Center } from '@mantine/core';
 import ProtectedContent from '../../components/Protected/ProtectedContent';
-import { VerifyingAccessLoader } from '../../components/Protected/VerifyingAccessLoader';
 
 const CohortBuilder = dynamic(
   () => import('../../features/CohortBuilder/CohortBuilder'),
@@ -19,8 +18,9 @@ export const ExplorerMainContent = ({
   explorerConfig,
   tabsLayout,
   sharedFiltersMap,
+  fileActions,
 }: any) => {
-  const { status, pending } = useSession();
+  const { status } = useSession();
   
 
 
@@ -39,6 +39,7 @@ export const ExplorerMainContent = ({
       tabsLayout={tabsLayout}
       explorerConfig={explorerConfig}
       sharedFiltersMap={sharedFiltersMap}
+      fileActions={fileActions}
     />
   );
 };
@@ -52,6 +53,7 @@ const ExplorerPage = ({
   headerMetadata,
   tabsLayout,
   sharedFiltersMap,
+  fileActions,
   errorStatus,
 }: ExplorerPageProps): JSX.Element => {
   const pageHeaderMetadata = {
@@ -73,6 +75,7 @@ const ExplorerPage = ({
           explorerConfig={explorerConfig}
           tabsLayout={tabsLayout}
           sharedFiltersMap={sharedFiltersMap}
+          fileActions={fileActions}
         />
       </ProtectedContent>
     </NavPageLayout>

@@ -21,6 +21,7 @@ const CohortBuilder = ({
   explorerConfig,
   sharedFiltersMap = null,
   tabsLayout = 'left',
+  fileActions,
 }: CohortBuilderProps) => {
   const dispatch = useCoreDispatch();
 
@@ -111,6 +112,7 @@ const CohortBuilder = ({
                 buttons={panelConfig.buttons}
                 loginForDownload={panelConfig.loginForDownload}
                 sharedFiltersMap={panelConfig.sharedFiltersMap}
+                fileActions={fileActions}
               />
             </Tabs.Panel>
           ))}

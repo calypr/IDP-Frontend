@@ -2,6 +2,7 @@ import React, { ReactNode } from 'react';
 import {
   ExplorerTableCellRendererFactory,
   type CellRendererFunctionProps,
+  RenderFileActions,
 } from '@gen3/frontend';
 import { ActionIcon, Text } from '@mantine/core';
 import { FaExternalLinkAlt, FaImage, FaFileDownload } from 'react-icons/fa';
@@ -35,58 +36,52 @@ const RenderReportsLink = (
   return <span></span>;
 };
 
-/* Used for research_subject, medication_administration, and specimen indices */
-const RenderDicomLink = (
+
+
+/* File Actions Components */
+
+const RenderFileDownloadLink = (
   { cell, row }: CellRendererFunctionProps,
   ...args: unknown[]
 ) => {
   const arg0 = args[0] as Record<string, unknown>;
-  if (Number(row.getValue('document_reference_size') as number) !== 0) {
-    if (
-      !cell?.getValue() ||
-      cell?.getValue() === '' ||
-      (!(row.getValue('document_reference_source_path') as string)?.endsWith(
-        '.tiff',
-      ) &&
-        !(row.getValue('document_reference_source_path') as string)?.endsWith(
-          '.tif',
-        ))
-    ) {
-      return (
-        <a
-          href={`${arg0?.downloadURL}/${cell.getValue()}?redirect=true`}
-          rel="noreferrer"
-          target="_blank"
-        >
-          <ActionIcon color="primary.0" size="md" variant="filled">
-            <FaFileDownload />
-          </ActionIcon>
-        </a>
-      );
-    } else
-      return (
-        <div className="flex space-x-2">
-          <a
-            href={`${arg0?.downloadURL}/${cell.getValue()}?redirect=true`}
-            rel="noreferrer"
-            target="_blank"
-          >
-            <ActionIcon color="primary.0" size="md" variant="filled">
-              <FaFileDownload />
-            </ActionIcon>
-          </a>
-          <a
-            href={`${arg0?.imageURL}/${cell.getValue()}`}
-            target="_blank"
-            rel="noreferrer"
-          >
-            <ActionIcon color="primary.0" size="md" variant="filled">
-              <FaImage />
-            </ActionIcon>
-          </a>
-        </div>
-      );
+  const fileId = cell?.getValue();
+  if (Number(row.getValue('document_reference_size') as number) !== 0 && fileId) {
+    return (
+      <a
+        href={`${arg0?.downloadURL}/${fileId}?redirect=true`}
+        rel="noreferrer"
+        target="_blank"
+      >
+        <ActionIcon color="primary.0" size="md" variant="filled">
+          <FaFileDownload />
+        </ActionIcon>
+      </a>
+    );
   }
+  return <span />;
+};
+
+const RenderFileImageLink = (
+  { cell, row }: CellRendererFunctionProps,
+  ...args: unknown[]
+) => {
+  const arg0 = args[0] as Record<string, unknown>;
+  const fileId = cell?.getValue();
+  if (Number(row.getValue('document_reference_size') as number) !== 0 && fileId) {
+    return (
+      <a
+        href={`${arg0?.imageURL}/${fileId}`}
+        target="_blank"
+        rel="noreferrer"
+      >
+        <ActionIcon color="primary.0" size="md" variant="filled">
+          <FaImage />
+        </ActionIcon>
+      </a>
+    );
+  }
+  return <span />;
 };
 
 const JoinFields = (
@@ -145,11 +140,6 @@ export const registerCohortTableCustomCellRenderers = () => {
     RenderReportsLink,
   );
   ExplorerTableCellRendererFactory().registerRenderer(
-    'link',
-    'DicomLink',
-    RenderDicomLink,
-  );
-  ExplorerTableCellRendererFactory().registerRenderer(
     'string',
     'JoinFields',
     JoinFields,
@@ -168,5 +158,27 @@ export const registerCohortTableCustomCellRenderers = () => {
     'string',
     'JoinFields',
     JoinFields,
+  );
+
+  ExplorerTableCellRendererFactory().registerRenderer(
+    'link',
+    'DicomLink',
+    RenderFileActions,
+  );
+  ExplorerTableCellRendererFactory().registerRenderer(
+    'string',
+    'DicomLink',
+    RenderFileActions,
+  );
+  
+  ExplorerTableCellRendererFactory().registerRenderer(
+    'link',
+    'file_download',
+    RenderFileDownloadLink,
+  );
+  ExplorerTableCellRendererFactory().registerRenderer(
+    'link',
+    'file_image',
+    RenderFileImageLink,
   );
 };

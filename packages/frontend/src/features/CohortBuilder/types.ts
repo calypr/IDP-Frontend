@@ -106,6 +106,7 @@ export interface CohortBuilderConfiguration extends Gen3AppConfigData {
   sharedFilters?: SharedFieldConfiguration; // enabled for sharing filters across indexes for denormalized data.
   explorerConfig: Array<CohortPanelConfiguration>;
   accessControl?: AccessControlConfiguration;
+  fileActions?: Record<string, string[]>; // file extensions to file actions 
 }
 
 export interface CohortBuilderProps

@@ -16,6 +16,11 @@ export * from './features/Query';
 export * from './features/Workspace';
 export * from './features/Analysis';
 export * from './features/StaticNotebook';
+import {
+  RenderFileActions,
+  ExplorerTableCellRendererFactory,
+  registerExplorerDefaultCellRenderers,
+} from './features/CohortBuilder';
 export * from './utils/';
 export * from './features/MatchingTable';
 
@@ -47,8 +52,8 @@ import '@gen3/core';
 import SmmartPage from './pages/Smmart/Smmart';
 import CalyprPage from './pages/CALYPR/CALYPR';
 
-import MillerPage from './pages/Miller';
-import { MillerPageGetServerSideProps } from './pages/Miller';
+import BrowserPage from './pages/Browser';
+import { BrowserPageGetServerSideProps } from './pages/Browser';
 
 import { SmmartPageGetServerSideProps } from './pages/Smmart';
 import { CalyprPageGetServerSideProps } from './pages/CALYPR';
@@ -184,8 +189,8 @@ export {
   SmmartPageGetServerSideProps,
   CalyprPage,
   CalyprPageGetServerSideProps,
-  MillerPage,
-  MillerPageGetServerSideProps,
+  BrowserPage,
+  BrowserPageGetServerSideProps,
   FileSummaryPage,
   FileSummaryPageGetServerSideProps,
   AppsPage,
@@ -249,4 +254,7 @@ export {
   // appApis
   analysisApiCohortDiscovery,
   staticNotebookAPI,
+  RenderFileActions,
+  ExplorerTableCellRendererFactory,
+  registerExplorerDefaultCellRenderers,
 };

@@ -44,6 +44,7 @@ export interface LeftNavBarProps {
   readonly href: string;
   readonly perms: string;
   readonly subItems?: ReadonlyArray<LeftNavBarProps>;
+  readonly dynamicProps?: Record<string, any>;
 }
 
 export interface HeaderToggleProps extends HeaderProps {
@@ -55,29 +56,6 @@ export interface HeaderMetadata {
   key: string;
 }
 
-/**
- * Type guard to check if an object is of type HeaderMetadata
- * @param obj - The object to check
- * @returns True if the object is a valid HeaderMetadata
- */
-export const isHeaderMetadata = (obj: unknown): obj is HeaderMetadata => {
-  // Check if obj is a non-null object
-  if (typeof obj !== 'object' || obj === null || Array.isArray(obj)) {
-    return false;
-  }
-
-  const candidate = obj as Record<string, unknown>;
-
-  // Check all required properties exist and are non-empty strings
-  return (
-    typeof candidate.title === 'string' &&
-    candidate.title.trim().length > 0 &&
-    typeof candidate.content === 'string' &&
-    candidate.content.trim().length > 0 &&
-    typeof candidate.key === 'string' &&
-    candidate.key.trim().length > 0
-  );
-};
 
 /**
  * Sitewide props that can be passed to Pages
@@ -132,4 +110,6 @@ export interface NavPageLayoutProps {
   };
   CustomHeaderComponent?: ComponentType<HeaderProps>;
   CustomFooterComponent?: ComponentType<FooterProps>;
+  fileActions?: Record<string, string[]>;
+  dynamicProps?: Record<string, any>;
 }

@@ -64,6 +64,12 @@ const processPath = (path: string) => {
   return path;
 };
 
+export interface DirectoryContents {
+  readonly items: DirItem[];
+  readonly fileActions?: Record<string, string[]>;
+  readonly dynamicProps?: Record<string, any>;
+}
+
 /**
  * RTK Query endpoints for directory search (projects and path-based contents)
  */
@@ -80,6 +86,7 @@ export const dirSearchApi = gen3Api.injectEndpoints({
         credentials: 'include',
       }),
       transformResponse: (rawData: string[]) => {
+        if (!Array.isArray(rawData)) return [];
         return rawData.map((path) => ({
           id: path,
           name: processPath(path),
@@ -93,7 +100,7 @@ export const dirSearchApi = gen3Api.injectEndpoints({
      * @returns Array of directory/file items, sorted (dirs first, then alphabetical)
      */
     getDirectoryContents: builder.query<
-      DirItem[],
+      DirectoryContents,
       { readonly projectId: string; readonly path: readonly string[] }
     >({
       query: (params) => {
@@ -104,8 +111,24 @@ export const dirSearchApi = gen3Api.injectEndpoints({
           credentials: 'include',
         };
       },
-      transformResponse: (rawData: RawDirItem[]): DirItem[] => {
-        return rawData
+      transformResponse: (rawData: RawDirItem[] | { data: RawDirItem[], fileActions?: Record<string, string[]>, dynamicProps?: Record<string, any> }): DirectoryContents => {
+        if (!rawData) {
+          return { items: [] };
+        }
+
+        const itemsData = Array.isArray(rawData) ? rawData : rawData.data;
+        const fileActions = Array.isArray(rawData) ? undefined : rawData.fileActions;
+        const dynamicProps = Array.isArray(rawData) ? undefined : rawData.dynamicProps;
+
+        if (!Array.isArray(itemsData)) {
+          return {
+            items: [],
+            fileActions,
+            dynamicProps,
+          };
+        }
+
+        const items = itemsData
           .map((item): DirItem => {
             const isDirectory = item.label === 'Directory';
             const name = isDirectory
@@ -134,6 +157,12 @@ export const dirSearchApi = gen3Api.injectEndpoints({
             if (a.type === b.type) return a.name.localeCompare(b.name);
             return a.type === 'directory' ? -1 : 1;
           });
+
+        return {
+          items,
+          fileActions,
+          dynamicProps,
+        };
       },
     }),
   }),

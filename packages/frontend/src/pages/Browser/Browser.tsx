@@ -16,20 +16,19 @@ import {
   IconFile,
 } from '@tabler/icons-react';
 import { NavPageLayout } from '../../features/Navigation';
-import type { NavPageLayoutProps } from '../../features/Navigation';
-import { FaFileDownload } from 'react-icons/fa';
+import { FaFileDownload, FaImage } from 'react-icons/fa';
 import {
   useGetDirectoryProjectsQuery,
   useGetDirectoryContentsQuery,
+  useGetConfigContentQuery,
   DirItem,
+  DirectoryContents,
   GEN3_FENCE_API,
-  GEN3_API,
 } from '@gen3/core';
 import ProtectedContent from '../../components/Protected/ProtectedContent';
-import { ColumnItem, type MillerPageProps } from './types';
+import { ColumnItem, type BrowserPageProps } from './types';
 import { type DocumentReferenceData } from '@gen3/core';
 import { formatBytes } from '../../utils/labels';
-import FileSaver from 'file-saver';
 
 const ProjectIcon = ({ className = 'w-5 h-5 mr-3 text-purple-500' }) => (
   <svg
@@ -38,7 +37,7 @@ const ProjectIcon = ({ className = 'w-5 h-5 mr-3 text-purple-500' }) => (
     fill="currentColor"
     className={className}
   >
-    <path d="M2 6a2 2 0 012-2h12a2 2 0 012 2v2a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM4 11a1 1 0 011-1h10a1 10 110 2H5a1 1 0 01-1-1zM4 15a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1z" />
+    <path d="M2 6a2 2 0 012-2h12a2 2 0 012 2v2a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM4 11a1 1 0 011-1h10a1 10 110 2H5a1 1 0 01-1-1zM4 15a1 1 0 011-1h10a1 10 110 2H5a1 1 0 01-1-1z" />
   </svg>
 );
 
@@ -120,11 +119,15 @@ const getErrorMessage = (error: unknown): string => {
   return 'An unexpected error occurred.';
 };
 
-type FileMetadataPanelProps = {
-  file: DirItem;
-};
 
-export const FileMetadataPanel = ({ file }: FileMetadataPanelProps) => {
+
+export const FileMetadataPanel = ({ 
+  file, 
+  fileActions 
+}: { 
+  file: DirItem, 
+  fileActions?: Record<string, string[]> 
+}) => {
   const data = file.rawData as DocumentReferenceData;
   const attachment = data?.content?.[0]?.attachment;
 
@@ -141,6 +144,9 @@ export const FileMetadataPanel = ({ file }: FileMetadataPanelProps) => {
   const downloadUrl = isGithubFile
     ? url
     : `${GEN3_FENCE_API}/data/download/${downloadIdentifier}?redirect=true`;
+
+  const extension = fileName.split('.').pop()?.toLowerCase() || '';
+  const currentActions = fileActions?.[extension] || fileActions?.['default'] || ['file_download'];
 
   const [isDownloading, setIsDownloading] = useState(false);
 
@@ -222,7 +228,7 @@ export const FileMetadataPanel = ({ file }: FileMetadataPanelProps) => {
           )}
           
           <Text className="font-medium text-gray-600">
-            {isGithubFile ? 'Source:' : 'Download:'}
+            {isGithubFile ? 'Source:' : 'Actions:'}
           </Text>
 
           {isGithubFile ? (
@@ -234,16 +240,34 @@ export const FileMetadataPanel = ({ file }: FileMetadataPanelProps) => {
               {url}
             </Anchor>
           ) : (
-            <ActionIcon 
-              color="blue" 
-              size="md" 
-              variant="filled"
-              onClick={handleDownload}
-              loading={isDownloading}
-              title={`Download ${fileName}`}
-            >
-              <FaFileDownload />
-            </ActionIcon>
+            <Group gap="xs">
+              {currentActions.includes('file_download') && (
+                <ActionIcon 
+                  color="blue" 
+                  size="md" 
+                  variant="filled"
+                  onClick={handleDownload}
+                  loading={isDownloading}
+                  title={`Download ${fileName}`}
+                >
+                  <FaFileDownload />
+                </ActionIcon>
+              )}
+              {currentActions.includes('file_image') && (
+                <ActionIcon 
+                  color="teal" 
+                  size="md" 
+                  variant="filled"
+                  onClick={() => {
+                     const imageViewerUrl = `/image-viewer/view/${file.id}`;
+                     window.open(imageViewerUrl, '_blank');
+                  }}
+                  title={`View Image ${fileName}`}
+                >
+                  <FaImage size={16} />
+                </ActionIcon>
+              )}
+            </Group>
           )}
         </Group>
       </div>
@@ -251,11 +275,12 @@ export const FileMetadataPanel = ({ file }: FileMetadataPanelProps) => {
   );
 };
 
-const MillerPage = ({
+const BrowserPage = ({
   headerProps,
   footerProps,
   errorStatus,
-}: MillerPageProps) => {
+  fileActions: topFileActions,
+}: BrowserPageProps) => {
   const [columns, setColumns] = useState<
     {
       id: string;
@@ -284,14 +309,31 @@ const MillerPage = ({
   } = useGetDirectoryContentsQuery(
     { projectId: selectedProject ?? '', path: selectedPath },
     { skip: !selectedProject || !!selectedFile },
+  ) as { data: DirectoryContents | undefined; isLoading: boolean; error: any };
+
+  const { data: explorerConfig } = useGetConfigContentQuery(
+    selectedProject ?? '',
+    { skip: !selectedProject }
   );
 
   // Global loading flag to disable interactions during fetches (hardens against races)
   const isLoading = isLoadingProjects || isLoadingDirectory;
 
+  useEffect(() => {
+    if (selectedProject) {
+      console.log('Browser: Selected project:', selectedProject);
+    }
+    if (explorerConfig) {
+      console.log('Browser: Fetched explorerConfig:', explorerConfig);
+      if (explorerConfig.data?.fileActions) {
+        console.log('Browser: Found fileActions:', explorerConfig.data.fileActions);
+      }
+    }
+  }, [selectedProject, explorerConfig]);
+
   // Populate first column with projects
   useEffect(() => {
-    if (projectItems && projectItems.length > 0) {
+    if (Array.isArray(projectItems)) {
       setColumns([{ id: 'root-projects', items: projectItems }]);
     }
   }, [projectItems]);
@@ -299,13 +341,18 @@ const MillerPage = ({
   // Replace loading column with directory contents when ready
   useEffect(() => {
     if (selectedProject && dirContents && !selectedFile) {
+      const items = Array.isArray(dirContents) 
+        ? dirContents 
+        : dirContents.items;
+      
+      if (!Array.isArray(items)) return;
+
       setColumns((prev) => {
-        const newCol = {
-          id: `dir-${selectedProject}-${selectedPath.join('/') || 'root'}`,
-          items: dirContents,
-        };
         const next = [...prev];
-        next[next.length - 1] = newCol;
+        next[next.length - 1] = {
+          id: `dir-${selectedProject}-${selectedPath.join('/') || 'root'}`,
+          items: items,
+        };
         return next;
       });
     }
@@ -455,7 +502,7 @@ const MillerPage = ({
         setSelectedProject(null);
         setSelectedPath([]);
         setSelectedFile(null);
-        setColumns([{ id: 'root-projects', items: projectItems ?? [] }]);
+        setColumns([{ id: 'root-projects', items: Array.isArray(projectItems) ? projectItems : [] }]);
         return;
       }
 
@@ -533,9 +580,9 @@ const MillerPage = ({
     <NavPageLayout
       {...{ headerProps, footerProps }}
       headerMetadata={{
-        title: 'CALYPR GRIPREF Page',
-        content: 'CALYPR GRIPREF Page',
-        key: 'calypr-gripref-page',
+        title: 'CALYPR Browser Page',
+        content: 'CALYPR Browser Page',
+        key: 'calypr-browser-page',
       }}
     >
       <ProtectedContent errorStatus={errorStatus}>
@@ -549,7 +596,7 @@ const MillerPage = ({
           <div className="min-h-screen w-full flex flex-col items-center justify-start">
             <div className="w-full bg-white overflow-hidden p-2">
               <div className="p-2 border-b">
-                <h1 className="text-2xl font-bold text-gray-800">Finder</h1>
+                <h1 className="text-2xl font-bold text-gray-800">Browser</h1>
                 <p className="text-gray-600">View directory structure </p>
               </div>
               <div
@@ -569,10 +616,13 @@ const MillerPage = ({
                       {column.loading ? (
                         <LoadingSpinner />
                       ) : column.metadata ? (
-                        <FileMetadataPanel file={column.metadata as DirItem} />
+                        <FileMetadataPanel 
+                           file={column.metadata as DirItem} 
+                           fileActions={explorerConfig?.data?.fileActions || topFileActions}
+                        />
                       ) : (
                         <ul>
-                          {column.items?.map((item) => {
+                          {Array.isArray(column.items) && column.items.map((item) => {
                             let isSelected = false;
                             if (colIndex === 0 && selectedProject) {
                               isSelected = selectedProject === item.name;
@@ -634,4 +684,4 @@ const MillerPage = ({
   );
 };
 
-export default MillerPage;
+export default BrowserPage;

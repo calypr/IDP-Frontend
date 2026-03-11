@@ -43,6 +43,7 @@ const ExplorerTable = ({
   accessibility,
   classNames,
   size = 'sm',
+  fileActions,
 }: ExplorerTableProps) => {
   const [pagination, setPagination] = useState<MRT_PaginationState>({
     pageIndex: 0,
@@ -79,8 +80,8 @@ const ExplorerTable = ({
   const DetailsPanel = useMemo(() => QueryRowDetailsPanel, []);
 
   const tableColumns = useDeepCompareMemo(() => {
-    return createTableColumns(tableConfig);
-  }, [tableConfig]);
+    return createTableColumns(tableConfig, fileActions);
+  }, [tableConfig, fileActions]);
 
   const initialColumnVisibility = useDeepCompareMemo(() => {
     const visibility: Record<string, boolean> = {

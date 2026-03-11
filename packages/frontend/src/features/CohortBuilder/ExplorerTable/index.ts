@@ -3,6 +3,7 @@ import { type ColumnDefinition, type CellRendererFunctionProps } from './types';
 import {
   ExplorerTableCellRendererFactory,
   registerExplorerDefaultCellRenderers,
+  RenderFileActions,
 } from './ExplorerTableCellRenderers';
 
 import { SummaryTableColumn } from './types';
@@ -13,6 +14,7 @@ export {
   ExplorerTable,
   ExplorerTableCellRendererFactory,
   registerExplorerDefaultCellRenderers,
+  RenderFileActions,
   type ColumnDefinition,
   type CellRendererFunctionProps,
 };

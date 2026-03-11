@@ -79,6 +79,7 @@ export interface ExplorerTableProps {
   accessibility: Accessibility;
   size?: string;
   classNames?: Partial<ExploreTableClassnames>;
+  fileActions?: Record<string, string[]>;
 }
 
 export interface ExplorerTableColumnMRT {

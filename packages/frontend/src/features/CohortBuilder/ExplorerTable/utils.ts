@@ -15,17 +15,6 @@ import {
 import { jsonPathAccessor } from '../../../components/Tables/utils';
 import { ArrayCellRenderer } from './ArrayCellRenderer';
 
-export const convertGuppyTableConfig = (
-  config: ReadonlyArray<SummaryTableColumn>,
-): ColumnDefinition[] => {
-  // convert the config to the format that guppy table expects
-  return config.map((column: SummaryTableColumn) => {
-    return {
-      header: column.title ?? fieldNameToTitle(column.field),
-      accessorKey: column.field,
-    };
-  });
-};
 
 export const isRecordAny = (obj: unknown): obj is Record<string, any> => {
   if (Array.isArray(obj)) return false;
@@ -35,21 +24,22 @@ export const isRecordAny = (obj: unknown): obj is Record<string, any> => {
 
 export const createTableColumns = (
   tableConfig: TableColumnsAndFields,
+  fileActions?: Record<string, string[]>,
 ): ExplorerTableColumnMRT[] => {
   return tableConfig.fields.map((field) => {
     const columnDef = tableConfig?.columns?.[field];
 
     const cellRendererFunc = columnDef?.type
       ? ExplorerTableCellRendererFactory().getRenderer(
-          columnDef?.type,
-          columnDef?.cellRenderFunction ?? 'default',
-        )
+        columnDef?.type,
+        columnDef?.cellRenderFunction ?? 'default',
+      )
       : undefined;
 
     const cellRendererFuncParams =
       columnDef?.params && isRecordAny(columnDef?.params)
-        ? columnDef?.params
-        : {};
+        ? { ...columnDef?.params, fileActions }
+        : { fileActions };
     return {
       id: field,
       field: field,
@@ -59,12 +49,10 @@ export const createTableColumns = (
         ? jsonPathAccessor(columnDef.accessorPath)
         : undefined,
       Cell:
-        cellRendererFunc && columnDef?.params
+        cellRendererFunc
           ? (cell: CellRendererFunctionProps) =>
-              cellRendererFunc(cell, cellRendererFuncParams)
-          : cellRendererFunc
-            ? cellRendererFunc
-            : undefined,
+            cellRendererFunc(cell, cellRendererFuncParams)
+          : undefined,
 
       size: columnDef?.width,
       enableSorting: columnDef?.sortable ?? undefined,
@@ -81,9 +69,9 @@ export const createArrayTableColumns = (
 
     const cellRendererFunc = columnDef?.type
       ? ExplorerTableCellRendererFactory().getRenderer(
-          columnDef?.type,
-          columnDef?.cellRenderFunction ?? 'default',
-        )
+        columnDef?.type,
+        columnDef?.cellRenderFunction ?? 'default',
+      )
       : undefined;
 
     const cellRendererFuncParams =
@@ -99,13 +87,10 @@ export const createArrayTableColumns = (
         ? jsonPathAccessor(columnDef.accessorPath)
         : undefined,
       Cell:
-        cellRendererFunc && columnDef?.params
+        cellRendererFunc
           ? (cell: CellRendererFunctionProps) =>
-              ArrayCellRenderer(cellRendererFunc, cell, cellRendererFuncParams)
-          : cellRendererFunc
-            ? (cell: CellRendererFunctionProps) =>
-                ArrayCellRenderer(cellRendererFunc, cell)
-            : RenderArrayCell,
+            ArrayCellRenderer(cellRendererFunc, cell, cellRendererFuncParams)
+          : RenderArrayCell,
 
       size: columnDef?.width,
       enableSorting: columnDef?.sortable ?? undefined,

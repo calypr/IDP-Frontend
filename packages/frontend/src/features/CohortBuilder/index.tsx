@@ -11,6 +11,7 @@ import {
   ExplorerTableDetailsPanelFactory,
   registerCohortBuilderDefaultPreviewRenderers,
   registerExplorerDefaultCellRenderers,
+  RenderFileActions,
   type TableDetailsPanelProps,
   type TableDetailsReportPanelProps,
 } from './ExplorerTable';
@@ -42,6 +43,7 @@ export {
   ExplorerTableCellRendererFactory,
   ExplorerTableDetailsPanelFactory,
   registerExplorerDefaultCellRenderers,
+  RenderFileActions,
   registerCohortBuilderDefaultPreviewRenderers,
   QueryExpressionContext,
   QueryExpression,

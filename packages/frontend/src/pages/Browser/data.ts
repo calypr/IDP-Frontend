@@ -2,10 +2,10 @@ import { GetServerSideProps } from 'next';
 import { GEN3_COMMONS_NAME } from '@gen3/core';
 import { getNavPageLayoutPropsFromConfig } from '../../lib/common/staticProps';
 import ContentSource from '../../lib/content';
-import { type MillerProps, type MillerPageProps } from './types';
+import { type BrowserProps, type BrowserPageProps } from './types';
 
-export const MillerPageGetServerSideProps: GetServerSideProps<
-  MillerPageProps
+export const BrowserPageGetServerSideProps: GetServerSideProps<
+  BrowserPageProps
 > = async (context) => {
   const cookieHeader = context.req.headers.cookie;
   const requestHeaders: Record<string, string> = {};
@@ -13,14 +13,14 @@ export const MillerPageGetServerSideProps: GetServerSideProps<
     requestHeaders['Cookie'] = cookieHeader;
   }
   try {
-    const millerConfig: MillerProps =
+    const browserConfig: BrowserProps =
       await ContentSource.getContentDatabase().get(
         `${GEN3_COMMONS_NAME}/millerPage.json`,
       );
     return {
       props: {
         ...(await getNavPageLayoutPropsFromConfig(requestHeaders)),
-        ...millerConfig,
+        ...browserConfig,
       },
     };
   } catch (err: any) {

@@ -64,6 +64,7 @@ const EmptyData = {};
 interface CohortPanelConfigurationWithAccessLevel
   extends CohortPanelConfiguration {
   showAccessLevel?: boolean;
+  fileActions?: Record<string, string[]>;
 }
 
 export const CohortPanel = ({
@@ -77,6 +78,7 @@ export const CohortPanel = ({
   buttons,
   loginForDownload,
   showAccessLevel = false,
+  fileActions,
 }: CohortPanelConfigurationWithAccessLevel): JSX.Element => {
   const isSm = useMediaQuery('(min-width: 639px)');
   const isMd = useMediaQuery('(min-width: 1373px)');
@@ -424,6 +426,7 @@ export const CohortPanel = ({
                 index={index}
                 tableConfig={table}
                 accessibility={accessLevel}
+                fileActions={fileActions}
               />
             </div>
           )}
