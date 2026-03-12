@@ -22,9 +22,14 @@ import { useCohortFacetFilters } from '../hooks';
 interface QueryExpressionProps {
   index: string;
   columnTitles?: Record<string, string>;
+  showHeading?: boolean;
 }
 
-const QueryExpression = ({ index, columnTitles = {} }: QueryExpressionProps) => {
+const QueryExpression = ({
+  index,
+  columnTitles = {},
+  showHeading = true,
+}: QueryExpressionProps) => {
   const currentCohortId = useCoreSelector((state: CoreState) =>
     selectCurrentCohortId(state),
   );
@@ -112,7 +117,7 @@ const QueryExpression = ({ index, columnTitles = {} }: QueryExpressionProps) => 
         useGetFilters: useCohortFacetFilters,
       }}
     >
-      <QueryExpressionSection index={index} />
+      <QueryExpressionSection index={index} showHeading={showHeading} />
     </QueryExpressionContext.Provider>
   );
 };

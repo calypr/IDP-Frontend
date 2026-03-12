@@ -18,7 +18,9 @@ const QueryPage = ({
         ...(queryProps?.headerMetadata ? queryProps.headerMetadata : {}),
       }}
     >
-      <QueryPanel graphQLEndpoint={queryProps.graphQLEndpoint} />
+      <div className="h-full min-h-0">
+        <QueryPanel graphQLEndpoint={queryProps.graphQLEndpoint} />
+      </div>
     </NavPageLayout>
   );
 };
