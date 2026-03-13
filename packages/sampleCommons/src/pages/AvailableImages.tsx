@@ -17,6 +17,7 @@ export const useFileTypesFiles = () => {
     query: `query($filter:JSON){
       document_reference(filter: $filter, first: 10000){
         document_reference_id
+        document_reference_identifier
         document_reference_source_path
         document_reference_size
         project_id
@@ -108,11 +109,11 @@ const AvailableImagesPage = ({
   }, [configList, dispatch]);
 
   const imageViewerTableConfig: Record<string, SummaryTableColumn> = useMemo(() => ({
-    document_reference_id: {
+    document_reference_identifier: {
       title: 'Download / View',
-      field: 'document_reference_id',
+      field: 'document_reference_identifier',
       type: 'string',
-      accessorPath: 'document_reference_id',
+      accessorPath: 'document_reference_identifier',
       cellRenderFunction: 'fileActions',
       width: 32,
       params: { fileActionsMap },

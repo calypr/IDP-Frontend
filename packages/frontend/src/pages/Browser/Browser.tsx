@@ -260,7 +260,7 @@ export const FileMetadataPanel = ({
                   variant="filled"
                   onClick={() => {
                      const baseActionUrl = fileActions?.actions?.['file_image'] || '/image-viewer/view';
-                     const imageViewerUrl = baseActionUrl.endsWith('/') ? `${baseActionUrl}${file.id}` : `${baseActionUrl}/${file.id}`;
+                     const imageViewerUrl = baseActionUrl.endsWith('/') ? `${baseActionUrl}${downloadIdentifier}` : `${baseActionUrl}/${downloadIdentifier}`;
                      window.open(imageViewerUrl, '_blank');
                   }}
                   title={`View Image ${fileName}`}
