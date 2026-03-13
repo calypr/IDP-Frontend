@@ -68,13 +68,13 @@ const EDITOR_WORKSPACE_HEIGHT = 'calc(100vh - 10rem)';
 const MIN_CODEMIRROR_LINE_HEIGHT_PX = 18;
 const MAX_VISIBLE_FILL_LINES = 300;
 const paneOuterScrollTheme = EditorView.theme({
-  '&': { minHeight: '100%' },
-  '.cm-editor': { minHeight: '100%' },
+  '&': { height: '100%' },
   '.cm-scroller': {
-    overflow: 'visible',
+    overflow: 'auto',
   },
-  '.cm-content': { minHeight: '100%' },
-  '.cm-gutters': { minHeight: '100%' },
+  '.cm-gutters': {
+    minHeight: '100%',
+  },
 });
 
 const getLineCount = (value: string): number => value.split('\n').length;
@@ -108,6 +108,7 @@ const calculateVisibleLines = (node: HTMLElement | null): number => {
     Math.min(MAX_VISIBLE_FILL_LINES, Math.ceil(node.clientHeight / lineHeight))
   );
 };
+
 
 /**
  * Custom modern GraphQL Editor Component replacing GraphiQL.
@@ -344,7 +345,7 @@ const GqlQueryEditor = ({
         headers: finalHeaders as HeadersInit,
         credentials: 'include',
         body: JSON.stringify({ 
-          query: queryCode,
+          query: queryCode.trim(),
           variables: variables
         })
       });
@@ -367,13 +368,25 @@ const GqlQueryEditor = ({
 
   const prettifyCode = () => {
     try {
-      setQueryCode(print(parse(queryCode)));
+      setQueryCode(print(parse(queryCode.trim())));
       const parsedVars = JSON.parse(variablesJson);
       setVariablesJson(JSON.stringify(parsedVars, null, 2));
     } catch (err) {
       console.error('Prettify error:', err);
     }
   };
+
+  const queryExtensions = useMemo(
+    () => [
+      paneOuterScrollTheme,
+      schema ? graphql(schema) : graphql(),
+      autocompletion({ activateOnTyping: true, defaultKeymap: true }),
+    ],
+    [schema],
+  );
+
+  const variablesExtensions = useMemo(() => [paneOuterScrollTheme], []);
+  const responseExtensions = useMemo(() => [paneOuterScrollTheme], []);
 
 
   if (isAuthLoading && !headers['X-CSRF-Token']) {
@@ -389,13 +402,11 @@ const GqlQueryEditor = ({
     : `${queryWidth}%`;
   const clampedVariablesHeight = Math.max(1, Math.min(99, variablesHeight));
   const clampedResponseHeight = 100 - clampedVariablesHeight;
-  const queryFillerLines = Math.max(0, queryVisibleLines - getLineCount(queryCode));
-  const variablesFillerLines = Math.max(
-    0,
-    variablesVisibleLines - getLineCount(variablesJson)
-  );
   const paddedQueryCode = padToLineCount(queryCode, queryVisibleLines);
-  const paddedVariablesJson = padToLineCount(variablesJson, variablesVisibleLines);
+  const paddedVariablesJson = padToLineCount(
+    variablesJson,
+    variablesVisibleLines,
+  );
   const paddedResponseJson = padToLineCount(responseJson, responseVisibleLines);
 
   return (
@@ -640,12 +651,8 @@ const GqlQueryEditor = ({
            >
              <CodeMirror
                value={paddedQueryCode}
-               extensions={[
-                 paneOuterScrollTheme,
-                 schema ? graphql(schema) : graphql(),
-                 autocompletion({ activateOnTyping: true, defaultKeymap: true })
-               ]}
-               onChange={(val) => setQueryCode(trimTrailingNewlines(val, queryFillerLines))}
+               extensions={queryExtensions}
+               onChange={(val) => setQueryCode(val)}
                theme="light"
                basicSetup={{
                  lineNumbers: true,
@@ -693,10 +700,8 @@ const GqlQueryEditor = ({
               >
                 <CodeMirror
                   value={paddedVariablesJson}
-                  extensions={[paneOuterScrollTheme]}
-                  onChange={(val) =>
-                    setVariablesJson(trimTrailingNewlines(val, variablesFillerLines))
-                  }
+                  extensions={variablesExtensions}
+                  onChange={(val) => setVariablesJson(val)}
                   theme="light"
                   basicSetup={{
                     lineNumbers: true,
@@ -742,9 +747,9 @@ const GqlQueryEditor = ({
                   className="min-h-0 flex-1 overflow-y-scroll overflow-x-auto"
                   style={{ scrollbarGutter: 'stable' }}
                 >
-                  <CodeMirror
+                   <CodeMirror
                     value={paddedResponseJson}
-                    extensions={[paneOuterScrollTheme]}
+                    extensions={responseExtensions}
                     readOnly={true}
                     theme="light"
                     basicSetup={{
