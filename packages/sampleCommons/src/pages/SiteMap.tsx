@@ -191,12 +191,17 @@ interface SectionDef {
   pages: PageDef[];
 }
 
+// ─── Layout Constants ─────────────────────────────────────────────────────────
+
 const CATEGORY_Y = 200;
 const PAGE_START_Y = 340;
 const PAGE_SPACING = 62;
 const CATEGORY_WIDTH = 180;
 const PAGE_WIDTH = 158;
 const SECTION_GAP = 240;
+
+/** Approximate combined height of the page header + navigation bar (px). */
+const HEADER_FOOTER_HEIGHT = 120;
 
 const sections: SectionDef[] = [
   {
@@ -494,7 +499,7 @@ const SiteMapPage = ({ headerProps, footerProps }: NavPageLayoutProps) => {
     >
       <div
         className="w-full flex flex-col"
-        style={{ height: 'calc(100vh - 120px)' }}
+        style={{ height: `calc(100vh - ${HEADER_FOOTER_HEIGHT}px)` }}
       >
         <div className="px-6 py-4 bg-white border-b border-gray-100 shadow-sm">
           <h1 className="text-2xl font-bold" style={{ color: '#2C2C54' }}>
