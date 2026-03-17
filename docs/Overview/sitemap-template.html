@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<!--
+  sitemap-template.html
+  ─────────────────────────────────────────────────────────────────────────────
+  Standalone HTML template used to generate docs/Overview/images/site-map.png.
+
+  This file intentionally mirrors the structure and data defined in
+  packages/sampleCommons/src/pages/SiteMap.tsx.  Whenever you add, remove, or
+  rename a section or page in SiteMap.tsx, make the matching edit here and then
+  re-run the screenshot script:
+
+      ./scripts/generate-sitemap-screenshot.sh
+
+  ── Key variables to update ──────────────────────────────────────────────────
+  • SECTIONS array (near the bottom of this <script> block) – one entry per
+    section with id, label, color, bgColor, icon (Unicode emoji), and a
+    pages array of { label, href, icon }.
+  • SECTION_GAP – horizontal spacing between section columns (CSS px).
+  ─────────────────────────────────────────────────────────────────────────────
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IDP Data Platform – Site Map</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: #f5f5f8;
+  }
+
+  /* ── Navigation header ──────────────────────────────────────────── */
+  .page-header {
+    background: #2C2C54;
+    padding: 14px 28px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-bottom: 3px solid #474787;
+  }
+  .logo-text  { color: #fff; font-size: 19px; font-weight: 700; letter-spacing: .4px; }
+  .logo-badge {
+    background: #474787; color: #c9c9e0; font-size: 10px; font-weight: 600;
+    padding: 2px 8px; border-radius: 10px; letter-spacing: 1px; text-transform: uppercase;
+  }
+  .nav-pills  { margin-left: auto; display: flex; gap: 5px; }
+  .nav-pill   { color: #b8b8d8; font-size: 11.5px; padding: 3px 11px; border-radius: 13px; border: 1px solid transparent; }
+  .nav-pill.active { background: rgba(255,255,255,.12); border-color: rgba(255,255,255,.22); color: #fff; }
+
+  /* ── Sub-header ─────────────────────────────────────────────────── */
+  .sub-header { background: #fff; border-bottom: 1px solid #e8e8ee; padding: 13px 28px; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+  .sub-header h1 { font-size: 20px; font-weight: 700; color: #2C2C54; margin-bottom: 4px; }
+  .sub-header p  { font-size: 12.5px; color: #7a7a9a; }
+
+  /* ── Diagram canvas ─────────────────────────────────────────────── */
+  .diagram-wrap { padding: 40px 36px 48px; }
+
+  /* ── Root node ──────────────────────────────────────────────────── */
+  .root-row { display: flex; justify-content: center; }
+  .root-node {
+    background: #2C2C54; border: 2px solid #474787; border-radius: 13px;
+    padding: 13px 28px; color: #fff; font-size: 16px; font-weight: 700;
+    display: inline-flex; align-items: center; gap: 9px;
+    box-shadow: 0 5px 22px rgba(44,44,84,.42); position: relative; z-index: 2;
+  }
+
+  /* connector from root to h-bar */
+  .root-connector { width: 2px; height: 32px; background: linear-gradient(#474787,#aaa); margin: 0 auto; }
+
+  /* ── Section columns ────────────────────────────────────────────── */
+  .cols-wrap { position: relative; }
+  .cols-row  { display: flex; align-items: flex-start; }
+  .hbar {
+    position: absolute; top: 0;
+    height: 2px;
+    background: linear-gradient(90deg,
+      rgba(13,149,161,.4), rgba(37,89,144,.4), rgba(137,33,21,.4),
+      rgba(71,71,135,.4),  rgba(91,91,122,.4), rgba(183,81,19,.4));
+    z-index: 1;
+  }
+
+  .section-col { display: flex; flex-direction: column; align-items: center; position: relative; }
+
+  .vert-drop   { width: 2px; height: 26px; background: var(--c); opacity: .5; }
+
+  /* ── Category node ──────────────────────────────────────────────── */
+  .cat-node {
+    background: var(--bg); border: 2px solid var(--c); border-left: 6px solid var(--c);
+    border-radius: 9px; padding: 8px 13px; font-size: 12px; font-weight: 700;
+    display: flex; align-items: center; gap: 7px;
+    box-shadow: 0 2px 10px rgba(0,0,0,.10); position: relative; z-index: 2;
+  }
+  .cat-icon  { font-size: 15px; }
+  .cat-label { color: #1a1a2e; }
+
+  .cat-connector { width: 2px; height: 15px; background: var(--c); opacity: .4; }
+
+  /* ── Page nodes ─────────────────────────────────────────────────── */
+  .page-list { display: flex; flex-direction: column; gap: 5px; align-items: center; }
+  .page-node {
+    background: #fff; border: 1px solid #e4e4ee; border-left: 4px solid var(--c);
+    border-radius: 6px; padding: 6px 11px; font-size: 11px; font-weight: 500;
+    color: #2c2c3e; display: flex; align-items: center; gap: 6px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.06); position: relative;
+  }
+  .page-node + .page-node::before {
+    content: ''; position: absolute; top: -5px; left: 50%; transform: translateX(-50%);
+    width: 2px; height: 5px; background: var(--c); opacity: .32;
+  }
+  .page-icon { font-size: 12px; color: var(--c); }
+  .page-url  { margin-left: auto; font-size: 9px; color: #bbb; font-style: italic; white-space: nowrap; }
+
+  /* ── Legend ─────────────────────────────────────────────────────── */
+  .legend {
+    display: flex; gap: 16px; flex-wrap: wrap; padding: 0 36px 28px; align-items: center;
+  }
+  .legend-title { font-size: 10.5px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: .7px; }
+  .legend-item  { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #555; }
+  .legend-dot   { width: 11px; height: 11px; border-radius: 3px; flex-shrink: 0; }
+
+  /* ── Footer ─────────────────────────────────────────────────────── */
+  .footer { background: #2C2C54; color: #7777aa; font-size: 10.5px; text-align: center; padding: 9px 28px; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+//  SITE STRUCTURE — keep in sync with SiteMap.tsx › sections array
+//  Each section entry: { id, label, color, bgColor, icon, pages: [{label, href, icon}] }
+// ═══════════════════════════════════════════════════════════════════════════
+const SECTIONS = [
+  {
+    id: 'discovery', label: 'Discovery', color: '#0d95A1', bgColor: '#e7f4f6', icon: '🔍',
+    pages: [
+      { label: 'Discovery',     href: '/Discovery',     icon: '🔍' },
+    ],
+  },
+  {
+    id: 'data', label: 'Data', color: '#255990', bgColor: '#e9eef4', icon: '🗄️',
+    pages: [
+      { label: 'Data Library',    href: '/DataLibrary',   icon: '📚' },
+      { label: 'Data Dictionary', href: '/DataDictionary', icon: '📖' },
+      { label: 'Crosswalk',       href: '/Crosswalk',     icon: '↔️' },
+      { label: 'File Summary',    href: '/FileSummary',   icon: '📄' },
+    ],
+  },
+  {
+    id: 'analysis', label: 'Analysis & Tools', color: '#892115', bgColor: '#f3ece9', icon: '📊',
+    pages: [
+      { label: 'Analysis',    href: '/Analysis',    icon: '📊' },
+      { label: 'Explorer',    href: '/Explorer',    icon: '🔭' },
+      { label: 'Query',       href: '/Query',       icon: '📈' },
+      { label: 'Configurator',href: '/Configurator',icon: '🔧' },
+      { label: 'Workspace',   href: '/Workspace',   icon: '💼' },
+    ],
+  },
+  {
+    id: 'apps', label: 'Apps & Notebooks', color: '#474787', bgColor: '#eeedf4', icon: '🧩',
+    pages: [
+      { label: 'Apps',           href: '/Apps',               icon: '🧩' },
+      { label: 'AI Search',      href: '/AISearch',           icon: '✨' },
+      { label: 'CALYPR',         href: '/Calypr',             icon: '🔬' },
+      { label: 'Miller',         href: '/Miller',             icon: '📋' },
+      { label: 'Notebook Lite',  href: '/NotebookLite',       icon: '💻' },
+      { label: 'Cohort Builder', href: '/TabbedCohortBuilder',icon: '👥' },
+      { label: 'SMMART',         href: '/SMMART',             icon: '🧬' },
+    ],
+  },
+  {
+    id: 'profile', label: 'User & Profile', color: '#5b5b7a', bgColor: '#eaeaee', icon: '👤',
+    pages: [
+      { label: 'Profile',     href: '/Profile',    icon: '👤' },
+      { label: 'My Projects', href: '/MyProjects', icon: '👥' },
+    ],
+  },
+  {
+    id: 'admin', label: 'Administration', color: '#b75113', bgColor: '#f6ede8', icon: '🛡️',
+    pages: [
+      { label: 'Workspace Mgmt', href: '/Admin/Workspace', icon: '💼' },
+      { label: 'Authorization',  href: '/Admin/Authz',     icon: '🔒' },
+      { label: 'Analysis Admin', href: '/Admin/Analysis',  icon: '⚙️' },
+    ],
+  },
+];
+
+// ── Layout constants (mirror SiteMap.tsx SECTION_GAP = 240) ──────────────
+const SECTION_COL_WIDTH = 200;   // CSS px per column
+
+// ── Navigation pills ─────────────────────────────────────────────────────
+const NAV_ITEMS = ['Discovery', 'Dictionary', 'Exploration', 'Analysis', 'Site Map', 'Profile'];
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  Render
+// ═══════════════════════════════════════════════════════════════════════════
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function renderSectionCol(sec) {
+  const c = esc(sec.color);
+  const bg = esc(sec.bgColor);
+
+  const pages = sec.pages.map((p, i) => `
+    <div class="page-node" style="--c:${c}; min-width:${SECTION_COL_WIDTH - 24}px;">
+      <span class="page-icon">${p.icon}</span>
+      <span>${esc(p.label)}</span>
+      <span class="page-url">${esc(p.href)}</span>
+    </div>`).join('');
+
+  return `
+  <div class="section-col" style="width:${SECTION_COL_WIDTH}px;">
+    <div class="vert-drop" style="--c:${c};"></div>
+    <div class="cat-node" style="--c:${c}; --bg:${bg}; min-width:${SECTION_COL_WIDTH - 28}px;">
+      <span class="cat-icon">${sec.icon}</span>
+      <span class="cat-label">${esc(sec.label)}</span>
+    </div>
+    <div class="cat-connector" style="--c:${c};"></div>
+    <div class="page-list">${pages}</div>
+  </div>`;
+}
+
+const totalCols = SECTIONS.length;
+const totalWidth = totalCols * SECTION_COL_WIDTH;
+// hbar spans from the centre of the first col to the centre of the last col
+const hbarLeft  = SECTION_COL_WIDTH / 2;
+const hbarRight = SECTION_COL_WIDTH / 2;
+const hbarWidth = totalWidth - hbarLeft - hbarRight;
+
+const pageCount = SECTIONS.reduce((s, sec) => s + sec.pages.length, 0);
+
+const html = `
+<div class="page-header">
+  <span style="font-size:24px;">🏠</span>
+  <span class="logo-text">IDP Data Platform</span>
+  <span class="logo-badge">Gen3</span>
+  <div class="nav-pills">
+    ${NAV_ITEMS.map(n => `<span class="nav-pill${n==='Site Map'?' active':''}">${esc(n)}</span>`).join('\n    ')}
+  </div>
+</div>
+
+<div class="sub-header">
+  <h1>🗺&nbsp; Site Map</h1>
+  <p>Visual overview of all pages and features available in the IDP Data Platform.
+     Click on any page node to navigate directly to that page.</p>
+</div>
+
+<div class="diagram-wrap">
+  <!-- Root node -->
+  <div class="root-row">
+    <div class="root-node">🏠 IDP Data Platform</div>
+  </div>
+  <div class="root-connector"></div>
+
+  <!-- Section columns with bridging h-bar -->
+  <div class="cols-wrap" style="width:${totalWidth}px;">
+    <div class="hbar" style="left:${hbarLeft}px; width:${hbarWidth}px;"></div>
+    <div class="cols-row">
+      ${SECTIONS.map(renderSectionCol).join('')}
+    </div>
+  </div>
+</div>
+
+<!-- Legend -->
+<div class="legend">
+  <span class="legend-title">Sections:</span>
+  ${SECTIONS.map(s => `
+  <span class="legend-item">
+    <span class="legend-dot" style="background:${esc(s.color)};"></span>
+    ${esc(s.label)}
+  </span>`).join('')}
+</div>
+
+<div class="footer">IDP Data Platform · Site Map · ${pageCount} pages across ${SECTIONS.length} sections</div>
+`;
+
+document.getElementById('app').innerHTML = html;
+</script>
+</body>
+</html>
