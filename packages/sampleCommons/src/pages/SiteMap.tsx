@@ -279,19 +279,7 @@ const sections: SectionDef[] = [
         label: 'Query',
         href: '/Query',
         icon: <MdShowChart size={14} />,
-      },
-      {
-        id: 'p-configurator',
-        label: 'Configurator',
-        href: '/Configurator',
-        icon: <MdBuild size={14} />,
-      },
-      {
-        id: 'p-workspace',
-        label: 'Workspace',
-        href: '/Workspace',
-        icon: <MdWork size={14} />,
-      },
+      }
     ],
   },
   {
@@ -315,15 +303,9 @@ const sections: SectionDef[] = [
         icon: <MdAutoAwesome size={14} />,
       },
       {
-        id: 'p-calypr',
-        label: 'CALYPR',
-        href: '/Calypr',
-        icon: <MdBiotech size={14} />,
-      },
-      {
         id: 'p-miller',
-        label: 'Miller',
-        href: '/Miller',
+        label: 'File Browser',
+        href: '/Browser',
         icon: <MdTableChart size={14} />,
       },
       {
@@ -394,6 +376,19 @@ const sections: SectionDef[] = [
         href: '/Admin/Analysis',
         icon: <MdSettings size={14} />,
       },
+      {
+        id: 'p-configurator',
+        label: 'Configurator',
+        href: '/Configurator',
+        icon: <MdBuild size={14} />,
+      },
+      {
+        id: 'p-workspace',
+        label: 'Workspace',
+        href: '/Workspace',
+        icon: <MdWork size={14} />,
+      },
+
     ],
   },
 ];

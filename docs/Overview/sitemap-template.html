@@ -154,8 +154,6 @@ const SECTIONS = [
       { label: 'Analysis',    href: '/Analysis',    icon: '📊' },
       { label: 'Explorer',    href: '/Explorer',    icon: '🔭' },
       { label: 'Query',       href: '/Query',       icon: '📈' },
-      { label: 'Configurator',href: '/Configurator',icon: '🔧' },
-      { label: 'Workspace',   href: '/Workspace',   icon: '💼' },
     ],
   },
   {
@@ -163,8 +161,7 @@ const SECTIONS = [
     pages: [
       { label: 'Apps',           href: '/Apps',               icon: '🧩' },
       { label: 'AI Search',      href: '/AISearch',           icon: '✨' },
-      { label: 'CALYPR',         href: '/Calypr',             icon: '🔬' },
-      { label: 'Miller',         href: '/Miller',             icon: '📋' },
+      { label: 'File Browser',         href: '/Browser',             icon: '📋' },
       { label: 'Notebook Lite',  href: '/NotebookLite',       icon: '💻' },
       { label: 'Cohort Builder', href: '/TabbedCohortBuilder',icon: '👥' },
       { label: 'SMMART',         href: '/SMMART',             icon: '🧬' },
@@ -183,6 +180,8 @@ const SECTIONS = [
       { label: 'Workspace Mgmt', href: '/Admin/Workspace', icon: '💼' },
       { label: 'Authorization',  href: '/Admin/Authz',     icon: '🔒' },
       { label: 'Analysis Admin', href: '/Admin/Analysis',  icon: '⚙️' },
+      { label: 'Configurator',href: '/Configurator',icon: '🔧' },
+
     ],
   },
 ];
@@ -235,8 +234,8 @@ const pageCount = SECTIONS.reduce((s, sec) => s + sec.pages.length, 0);
 const html = `
 <div class="page-header">
   <span style="font-size:24px;">🏠</span>
-  <span class="logo-text">IDP Data Platform</span>
-  <span class="logo-badge">Gen3</span>
+  <span class="logo-text">Calypr</span>
+  <span class="logo-badge">idp</span>
   <div class="nav-pills">
     ${NAV_ITEMS.map(n => `<span class="nav-pill${n==='Site Map'?' active':''}">${esc(n)}</span>`).join('\n    ')}
   </div>
@@ -244,14 +243,14 @@ const html = `
 
 <div class="sub-header">
   <h1>🗺&nbsp; Site Map</h1>
-  <p>Visual overview of all pages and features available in the IDP Data Platform.
+  <p>Visual overview of all pages and features available in the Calypr Data Platform.
      Click on any page node to navigate directly to that page.</p>
 </div>
 
 <div class="diagram-wrap">
   <!-- Root node -->
   <div class="root-row">
-    <div class="root-node">🏠 IDP Data Platform</div>
+    <div class="root-node">🏠 Calypr Data Platform</div>
   </div>
   <div class="root-connector"></div>
 
