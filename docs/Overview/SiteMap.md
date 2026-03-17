@@ -98,6 +98,14 @@ Open `docs/Overview/sitemap-template.html` and make the same addition/removal in
 
 ### Step 3 — Regenerate the screenshot
 
+Note: You will need `chromium` installed.
+
+```
+brew install --cask chromium
+xattr -c /Applications/Chromium.app
+```
+
+
 Run the provided helper script from the repository root.  The only requirement is that **Chromium** (or Google Chrome) is installed on your system.
 
 ```bash
