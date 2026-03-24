@@ -12,21 +12,23 @@ import {
 } from '@mantine/core';
 import {
   IconFileText,
-  IconHash,
   IconLink,
   IconFile,
 } from '@tabler/icons-react';
 import { NavPageLayout } from '../../features/Navigation';
-import type { NavPageLayoutProps } from '../../features/Navigation';
-import { FaFileDownload } from 'react-icons/fa';
+import { FaFileDownload, FaImage } from 'react-icons/fa';
 import {
   useGetDirectoryProjectsQuery,
   useGetDirectoryContentsQuery,
+  useGetConfigContentQuery,
   DirItem,
+  DirectoryContents,
   GEN3_FENCE_API,
 } from '@gen3/core';
-import { ColumnItem } from './types';
+import ProtectedContent from '../../components/Protected/ProtectedContent';
+import { ColumnItem, type BrowserPageProps, FileActionsConfig } from './types';
 import { type DocumentReferenceData } from '@gen3/core';
+import { formatBytes } from '../../utils/labels';
 
 const ProjectIcon = ({ className = 'w-5 h-5 mr-3 text-purple-500' }) => (
   <svg
@@ -35,7 +37,7 @@ const ProjectIcon = ({ className = 'w-5 h-5 mr-3 text-purple-500' }) => (
     fill="currentColor"
     className={className}
   >
-    <path d="M2 6a2 2 0 012-2h12a2 2 0 012 2v2a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM4 11a1 1 0 011-1h10a1 10 110 2H5a1 1 0 01-1-1zM4 15a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1z" />
+    <path d="M2 6a2 2 0 012-2h12a2 2 0 012 2v2a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM4 11a1 1 0 011-1h10a1 10 110 2H5a1 1 0 01-1-1zM4 15a1 1 0 011-1h10a1 10 110 2H5a1 1 0 01-1-1z" />
   </svg>
 );
 
@@ -117,74 +119,156 @@ const getErrorMessage = (error: unknown): string => {
   return 'An unexpected error occurred.';
 };
 
-type FileMetadataPanelProps = {
-  file: DirItem;
-};
 
-export const FileMetadataPanel = ({ file }: FileMetadataPanelProps) => {
+
+export const FileMetadataPanel = ({ 
+  file, 
+  fileActions 
+}: { 
+  file: DirItem, 
+  fileActions?: FileActionsConfig;
+}) => {
   const data = file.rawData as DocumentReferenceData;
-  // Extract relevant fields from the FHIR structure
   const attachment = data?.content?.[0]?.attachment;
-  const title = attachment?.title || '—';
+
+  const fileName = file.name || attachment?.title || 'download';
+  
   const size = attachment?.size || 0;
-  const sha256 =
-    attachment?.extension?.find(
-      (ext: any) =>
-        ext.url ===
-        'http://caliper-training.ohsu.edu/fhir/StructureDefinition/checksum-sha256',
-    )?.valueString || '—';
   const url = attachment?.url || '—';
   const downloadIdentifier = data?.identifier?.[0]?.value || '—';
+
+  const isGithubFile = !!attachment?.extension?.some(
+    (ext: any) => ext.valueString === 'github'
+  );
+
+  const downloadUrl = isGithubFile
+    ? url
+    : `${GEN3_FENCE_API}/data/download/${downloadIdentifier}?redirect=true`;
+
+  const extension = fileName.includes('.') ? fileName.split('.').pop()?.toLowerCase() || '' : '';
+  const currentActions = fileActions?.extensions?.[extension] || fileActions?.extensions?.['default'] || ['file_download'];
+
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  const handleDownload = async () => {
+    if (isGithubFile) {
+      window.open(url, '_blank', 'noreferrer');
+      return;
+    }
+
+    // 1. Chrome/Edge: True Streaming to Disk (Handles GB+ files with 0 RAM buffering)
+    if ('showSaveFilePicker' in window) {
+      setIsDownloading(true);
+      try {
+        const resp = await fetch(downloadUrl, { 
+          credentials: 'include',
+          redirect: 'follow',
+        });
+
+        if (!resp.ok) throw new Error('Download request failed');
+
+        const handle = await (window as any).showSaveFilePicker({
+          suggestedName: fileName,
+        });
+        const writable = await handle.createWritable();
+        
+        if (!resp.body) throw new Error('No response body');
+        
+        // pipeTo is the browser's native, optimized way to stream data from 
+        // network to disk without JavaScript memory buffering.
+        await resp.body.pipeTo(writable);
+      } catch (err: any) {
+        if (err.name === 'AbortError') return; // User cancelled the "Save As" dialog
+        console.error('Streaming download failed:', err);
+      } finally {
+        setIsDownloading(false);
+      }
+    } else {
+      // 2. Safari/Firefox Path: Native Download
+      // Since we can't rename a stream in these browsers without buffering in RAM (bad for GB files),
+      // we use a standard link. It streams to disk safely, but results in the SHA256 name.
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.target = '_blank';
+      link.rel = 'noreferrer';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
+
   return (
-    <Card shadow="sm" p="lg" className="w-80 bg-white flex-shrink-0">
+    <Card shadow="sm" p="lg" className="w-80 bg-white flex-shrink-0 border-l border-gray-200 h-full">
       <Title order={4} className="mb-2">
         File Metadata
       </Title>
+      
       <Divider my="sm" />
+      
       <div className="space-y-3 text-sm">
-        <Group gap="xs">
-          <IconFileText size={16} className="text-gray-500" />
-          <Text className="font-medium">Title:</Text>
-          <Text className="truncate">{title}</Text>
+        <Group gap="xs" wrap="nowrap">
+          <IconFileText size={16} className="text-gray-500 flex-shrink-0" />
+          <Text className="font-medium flex-shrink-0">File Name:</Text>
+          <Text className="truncate" title={fileName}>
+            {fileName}
+          </Text>
         </Group>
-        <Group gap="xs">
-          <Text className="font-medium text-gray-600">Download:</Text>
-          <a
-            href={`${GEN3_FENCE_API}/data/download/${downloadIdentifier}?redirect=true`}
-            rel="noreferrer"
-            target="_blank"
-          >
-            <ActionIcon color="primary.0" size="md" variant="filled">
-              <FaFileDownload />
-            </ActionIcon>
-          </a>
-        </Group>
+
         <Group gap="xs">
           <IconFile size={16} className="text-gray-500" />
           <Text className="font-medium">Size:</Text>
-          <Text>{size.toLocaleString()} bytes</Text>
+          <Text>{formatBytes(size)}</Text>
         </Group>
-        <Group gap="xs" align="start">
-          <IconHash size={16} className="text-gray-500 mt-[2px]" />
-          <Text className="font-medium">SHA-256:</Text>
-          <Text className="break-all">{sha256}</Text>
-        </Group>
-        <Group gap="xs" align="start">
-          <IconLink size={16} className="text-gray-500 mt-[2px]" />
-          <Text className="font-medium">URL:</Text>
-          {url !== '—' ? (
+
+        <Group gap="xs" align={isGithubFile ? 'start' : 'center'}>
+          {isGithubFile ? (
+            <IconLink size={16} className="text-purple-500 mt-[2px]" />
+          ) : (
+            <FaFileDownload size={16} className="text-gray-500" />
+          )}
+          
+          <Text className="font-medium text-gray-600">
+            {isGithubFile ? 'Source:' : 'Actions:'}
+          </Text>
+
+          {isGithubFile ? (
             <Anchor
-              href={url.replace(
-                /^s3:\/\//,
-                'https://s3.console.aws.amazon.com/s3/buckets/',
-              )}
+              href={url}
               target="_blank"
               className="break-all text-blue-600 hover:underline"
             >
               {url}
             </Anchor>
           ) : (
-            <Text>—</Text>
+            <Group gap="xs">
+              {currentActions.includes('file_download') && (
+                <ActionIcon 
+                  color="blue" 
+                  size="md" 
+                  variant="filled"
+                  onClick={handleDownload}
+                  loading={isDownloading}
+                  title={`Download ${fileName}`}
+                >
+                  <FaFileDownload />
+                </ActionIcon>
+              )}
+              {currentActions.includes('file_image') && (
+                <ActionIcon 
+                  color="teal" 
+                  size="md" 
+                  variant="filled"
+                  onClick={() => {
+                     const baseActionUrl = fileActions?.actions?.['file_image'] || '/image-viewer/view';
+                     const imageViewerUrl = baseActionUrl.endsWith('/') ? `${baseActionUrl}${downloadIdentifier}` : `${baseActionUrl}/${downloadIdentifier}`;
+                     window.open(imageViewerUrl, '_blank');
+                  }}
+                  title={`View Image ${fileName}`}
+                >
+                  <FaImage size={16} />
+                </ActionIcon>
+              )}
+            </Group>
           )}
         </Group>
       </div>
@@ -192,7 +276,12 @@ export const FileMetadataPanel = ({ file }: FileMetadataPanelProps) => {
   );
 };
 
-const MillerPage = ({ headerProps, footerProps }: NavPageLayoutProps) => {
+const BrowserPage = ({
+  headerProps,
+  footerProps,
+  errorStatus,
+  fileActions: topFileActions,
+}: BrowserPageProps) => {
   const [columns, setColumns] = useState<
     {
       id: string;
@@ -221,14 +310,33 @@ const MillerPage = ({ headerProps, footerProps }: NavPageLayoutProps) => {
   } = useGetDirectoryContentsQuery(
     { projectId: selectedProject ?? '', path: selectedPath },
     { skip: !selectedProject || !!selectedFile },
+  ) as { data: DirectoryContents | undefined; isLoading: boolean; error: any };
+
+  const { data: explorerConfig } = useGetConfigContentQuery(
+    selectedProject ?? '',
+    { skip: !selectedProject }
   );
 
   // Global loading flag to disable interactions during fetches (hardens against races)
   const isLoading = isLoadingProjects || isLoadingDirectory;
 
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      if (selectedProject) {
+        console.log('Browser: Selected project:', selectedProject);
+      }
+      if (explorerConfig) {
+        console.log('Browser: Fetched explorerConfig:', explorerConfig);
+        if (explorerConfig.data?.fileActions) {
+          console.log('Browser: Found fileActions:', explorerConfig.data.fileActions);
+        }
+      }
+    }
+  }, [selectedProject, explorerConfig]);
+
   // Populate first column with projects
   useEffect(() => {
-    if (projectItems && projectItems.length > 0) {
+    if (Array.isArray(projectItems)) {
       setColumns([{ id: 'root-projects', items: projectItems }]);
     }
   }, [projectItems]);
@@ -236,13 +344,18 @@ const MillerPage = ({ headerProps, footerProps }: NavPageLayoutProps) => {
   // Replace loading column with directory contents when ready
   useEffect(() => {
     if (selectedProject && dirContents && !selectedFile) {
+      const items = Array.isArray(dirContents) 
+        ? dirContents 
+        : dirContents.items;
+      
+      if (!Array.isArray(items)) return;
+
       setColumns((prev) => {
-        const newCol = {
-          id: `dir-${selectedProject}-${selectedPath.join('/') || 'root'}`,
-          items: dirContents,
-        };
         const next = [...prev];
-        next[next.length - 1] = newCol;
+        next[next.length - 1] = {
+          id: `dir-${selectedProject}-${selectedPath.join('/') || 'root'}`,
+          items: items,
+        };
         return next;
       });
     }
@@ -392,7 +505,7 @@ const MillerPage = ({ headerProps, footerProps }: NavPageLayoutProps) => {
         setSelectedProject(null);
         setSelectedPath([]);
         setSelectedFile(null);
-        setColumns([{ id: 'root-projects', items: projectItems ?? [] }]);
+        setColumns([{ id: 'root-projects', items: Array.isArray(projectItems) ? projectItems : [] }]);
         return;
       }
 
@@ -464,116 +577,114 @@ const MillerPage = ({ headerProps, footerProps }: NavPageLayoutProps) => {
   };
 
   const errorObject = projectsError || dirError;
-  if (errorObject) {
-    const errorMessage = getErrorMessage(errorObject);
-    return (
-      <NavPageLayout
-        {...{ headerProps, footerProps }}
-        headerMetadata={{
-          title: 'CALYPR GRIPREF Page',
-          content: 'CALYPR GRIPREF Page',
-          key: 'calypr-gripref-page',
-        }}
-      >
-        <Center>
-          <Paper p="md">
-            <Text color="red">Error loading data: {errorMessage}</Text>
-          </Paper>
-        </Center>
-      </NavPageLayout>
-    );
-  }
+  const errorMessage = errorObject ? getErrorMessage(errorObject) : null;
 
   return (
     <NavPageLayout
       {...{ headerProps, footerProps }}
       headerMetadata={{
-        title: 'CALYPR GRIPREF Page',
-        content: 'CALYPR GRIPREF Page',
-        key: 'calypr-gripref-page',
+        title: 'CALYPR Browser Page',
+        content: 'CALYPR Browser Page',
+        key: 'calypr-browser-page',
       }}
     >
-      <div className="min-h-screen w-full flex flex-col items-center justify-start">
-        <div className="w-full bg-white overflow-hidden p-2">
-          <div className="p-2 border-b">
-            <h1 className="text-2xl font-bold text-gray-800">Finder</h1>
-            <p className="text-gray-600">View directory structure </p>
-          </div>
-          <div
-            className="flex h-[70vh] min-h-[450px] overflow-x-auto"
-            ref={scrollContainerRef}
-          >
-            {columns.length === 0 && isLoadingProjects ? (
-              <div className="w-72 border-r overflow-y-auto flex-shrink-0 bg-white">
-                <LoadingSpinner />
+      <ProtectedContent errorStatus={errorStatus}>
+        {errorMessage ? (
+          <Center h="100%">
+            <Paper p="md">
+              <Text color="red">Error loading data: {errorMessage}</Text>
+            </Paper>
+          </Center>
+        ) : (
+          <div className="min-h-screen w-full flex flex-col items-center justify-start">
+            <div className="w-full bg-white overflow-hidden p-2">
+              <div className="p-2 border-b">
+                <h1 className="text-2xl font-bold text-gray-800">Browser</h1>
+                <p className="text-gray-600">View directory structure </p>
               </div>
-            ) : (
-              columns.map((column, colIndex) => (
-                <div
-                  key={`col-${column.id}-${colIndex}`} // Harden: unique keys for stable rendering
-                  className="w-72 border-r overflow-y-auto flex-shrink-0 bg-white"
-                >
-                  {column.loading ? (
+              <div
+                className="flex h-[70vh] min-h-[450px] overflow-x-auto"
+                ref={scrollContainerRef}
+              >
+                {columns.length === 0 && isLoadingProjects ? (
+                  <div className="w-72 border-r overflow-y-auto flex-shrink-0 bg-white">
                     <LoadingSpinner />
-                  ) : column.metadata ? (
-                    <FileMetadataPanel file={column.metadata as DirItem} />
-                  ) : (
-                    <ul>
-                      {column.items?.map((item) => {
-                        let isSelected = false;
-                        if (colIndex === 0 && selectedProject) {
-                          isSelected = selectedProject === item.name;
-                        } else if (colIndex > 0) {
-                          isSelected = selectedPath[colIndex - 1] === item.name;
-                        }
-                        return (
-                          <li key={item.id}>
-                            <button
-                              disabled={isLoading} // Harden: disable during loads
-                              onClick={() => handleItemClick(item, colIndex)}
-                              className={`w-full text-left p-3 flex items-center justify-between transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60 ${
-                                isSelected
-                                  ? 'bg-blue-500 text-white'
-                                  : 'hover:bg-gray-100 text-gray-800'
-                              }`}
-                            >
-                              <div className="flex items-center truncate">
-                                {item.type === 'project' ? (
-                                  <ProjectIcon />
-                                ) : item.type === 'directory' ? (
-                                  <FolderIcon />
-                                ) : (
-                                  <FileIcon />
-                                )}
-                                <span className="font-medium truncate">
-                                  {item.name}
-                                </span>
-                              </div>
-                              {(item.type === 'project' ||
-                                item.type === 'directory') && (
-                                <div
-                                  className={
-                                    isSelected ? 'text-white' : 'text-gray-400'
-                                  }
+                  </div>
+                ) : (
+                  columns.map((column, colIndex) => (
+                    <div
+                      key={`col-${column.id}-${colIndex}`} // Harden: unique keys for stable rendering
+                      className="w-72 border-r overflow-y-auto flex-shrink-0 bg-white"
+                    >
+                      {column.loading ? (
+                        <LoadingSpinner />
+                      ) : column.metadata ? (
+                        <FileMetadataPanel 
+                           file={column.metadata as DirItem} 
+                           fileActions={explorerConfig?.data?.fileActions || topFileActions}
+                        />
+                      ) : (
+                        <ul>
+                          {Array.isArray(column.items) && column.items.map((item) => {
+                            let isSelected = false;
+                            if (colIndex === 0 && selectedProject) {
+                              isSelected = selectedProject === item.name;
+                            } else if (colIndex > 0) {
+                              isSelected =
+                                selectedPath[colIndex - 1] === item.name;
+                            }
+                            return (
+                              <li key={item.id}>
+                                <button
+                                  disabled={isLoading} // Harden: disable during loads
+                                  onClick={() => handleItemClick(item, colIndex)}
+                                  className={`w-full text-left p-3 flex items-center justify-between transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60 ${
+                                    isSelected
+                                      ? 'bg-blue-500 text-white'
+                                      : 'hover:bg-gray-100 text-gray-800'
+                                  }`}
                                 >
-                                  <ChevronRightIcon />
-                                </div>
-                              )}
-                            </button>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
-                </div>
-              ))
-            )}
+                                  <div className="flex items-center truncate">
+                                    {item.type === 'project' ? (
+                                      <ProjectIcon />
+                                    ) : item.type === 'directory' ? (
+                                      <FolderIcon />
+                                    ) : (
+                                      <FileIcon />
+                                    )}
+                                    <span className="font-medium truncate">
+                                      {item.name}
+                                    </span>
+                                  </div>
+                                  {(item.type === 'project' ||
+                                    item.type === 'directory') && (
+                                    <div
+                                      className={
+                                        isSelected
+                                          ? 'text-white'
+                                          : 'text-gray-400'
+                                      }
+                                    >
+                                      <ChevronRightIcon />
+                                    </div>
+                                  )}
+                                </button>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+              <FinderPathBar />
+            </div>
           </div>
-          <FinderPathBar />
-        </div>
-      </div>
+        )}
+      </ProtectedContent>
     </NavPageLayout>
   );
 };
 
-export default MillerPage;
+export default BrowserPage;

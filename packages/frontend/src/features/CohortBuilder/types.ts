@@ -81,6 +81,7 @@ export interface CohortPanelConfiguration {
   buttons?: ReadonlyArray<DownloadButtonConfig>; // row of action buttons
   loginForDownload?: boolean; // login required for download
   sharedFiltersMap?: SharedFieldMapping;
+  preFilters?: Record<string, any>; // Tab-specific filters (e.g. { project_id: ["HTAN_INT-BForePC"] })
 }
 
 export interface SharedFieldConfiguration {
@@ -100,11 +101,17 @@ export interface AccessControlConfiguration {
   showAccessLevelControl?: boolean;
 }
 
+export interface FileActionsConfig {
+  extensions: Record<string, string[]>;
+  actions: Record<string, string>;
+}
+
 export interface CohortBuilderConfiguration extends Gen3AppConfigData {
   tabsLayout?: 'left' | 'right' | 'center'; // top level tabs layout
   sharedFilters?: SharedFieldConfiguration; // enabled for sharing filters across indexes for denormalized data.
   explorerConfig: Array<CohortPanelConfiguration>;
   accessControl?: AccessControlConfiguration;
+  fileActions?: FileActionsConfig;
 }
 
 export interface CohortBuilderProps

@@ -12,7 +12,7 @@ export interface Session extends AuthTokenData {
   userStatus?: LoginStatus;
   user?: Gen3User;
   updateSession: () => void;
-  endSession: () => void;
+  endSession: (shouldRedirect?: boolean) => void;
   pending: boolean;
 }
 

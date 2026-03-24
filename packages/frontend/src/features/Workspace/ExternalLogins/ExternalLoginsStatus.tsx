@@ -12,9 +12,7 @@ const ExternalLoginsStatus = () => {
 
   if (isLoading) {
     return (
-      <div className="bg-primary h-24 flex justify-center">
-        <Loader />
-      </div>
+      <div className="bg-primary h-24 flex justify-center"/>
     );
   }
 

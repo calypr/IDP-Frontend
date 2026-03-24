@@ -1,2 +1,2 @@
-export { default } from './Discovery';
+export { default, DiscoveryMainContent } from './Discovery';
 export { DiscoveryPageGetServerSideProps } from './data';

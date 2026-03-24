@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { processLabel, truncateString } from '../utils';
 import { CustomChartProps } from '../types';
 import ReactECharts, { ReactEChartsProps } from './ReactECharts';
-import { HistogramDataArray } from '@gen3/core';
+import { HistogramDataArray, HistogramData } from '@gen3/core';
 import type { EChartsOption } from 'echarts';
 
 interface BarChartData {
@@ -10,8 +10,8 @@ interface BarChartData {
   name: string;
 }
 
-const filterMissing = (facetData: any) =>
-  facetData.filter((d: any) => d.key !== '_missing');
+const filterMissing = (facetData: HistogramDataArray) =>
+  facetData.filter((d: HistogramData) => d.key !== '_missing');
 
 const processChartData = (
   facetData: HistogramDataArray,
@@ -22,9 +22,9 @@ const processChartData = (
   }
   const data = filterMissing(facetData);
 
-  const results = data.slice(0, maxBins).map((d: any) => ({
+  const results = data.slice(0, maxBins).map((d: HistogramData) => ({
     value: d.count,
-    name: truncateString(processLabel(d.key), 100),
+    name: truncateString(processLabel(d.key as string), 100),
   }));
   return results;
 };
@@ -33,7 +33,7 @@ const processAxis = (facetData: HistogramDataArray, maxBins = 100) => {
   const data = filterMissing(facetData);
   const categories = data
     .slice(0, maxBins)
-    .map((d: any) => truncateString(processLabel(d.key), 100));
+    .map((d: HistogramData) => truncateString(processLabel(d.key as string), 100));
   return {
     yAxis: [
       {
@@ -71,7 +71,7 @@ const BarChart = ({ data, onClick, colors }: CustomChartProps) => {
     };
   }, [data]);
 
-  const handleClick = (params: any) => {
+  const handleClick = (params: { name: string }) => {
     if (onClick) {
       onClick(params.name);
     }

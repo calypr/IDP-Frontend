@@ -31,22 +31,26 @@ export class MicroserviceContent implements ContentStore {
     });
 
     if (!res.ok) {
-      throw new Error(`Microservice fetch failed: ${res.status} ${url}`);
+      const message =
+        res.status === 401
+          ? `Unauthorized: ${url}`
+          : `Microservice fetch failed: ${res.status} ${url}`;
+      const error = new Error(message);
+      (error as any).status = res.status;
+      throw error;
     }
 
+    const responseText = await res.text();
     try {
-      const data = await res.json();
+      const data = JSON.parse(responseText);
       this.log('Success');
       return data as T;
     } catch (e) {
-      console.error(
-        'Explorer config cannot be read: Failed to parse JSON response. Status:',
-        res.status,
-        e,
+      const error = new Error(
+        `Microservice fetch failed: Received non-JSON response with status ${res.status} from ${url}`,
       );
-      throw new Error(
-        `Microservice fetch failed: Received non-JSON response with status ${res.status}`,
-      );
+      (error as any).status = res.status;
+      throw error;
     }
   }
 
@@ -55,11 +59,6 @@ export class MicroserviceContent implements ContentStore {
     headers?: Record<string, string>,
   ): Promise<T> {
     const clean = filepath.replace(/^\/+/, '');
-
-    if (CALYPR_EXPLORER_CONFIG_API?.trim() === '/ExplorerConfig') {
-      console.log(`API base missing – returning empty object for ${clean}`);
-      return {} as T; // ← build continues
-    }
 
     const url = `${CALYPR_EXPLORER_CONFIG_API}/${clean}`;
     console.log('URL: ', url);

@@ -24,7 +24,7 @@ const ExternalProvidersPanel = () => {
             />
           ))
         : null,
-    [externalProviders],
+    [externalProviders, refetch],
   );
 
   return (

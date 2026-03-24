@@ -72,6 +72,10 @@ const globals = {
   graphql: 'graphql',
   'isomorphic-dompurify': 'isomorphic-dompurify',
   '@iconify-icon/react': 'iconify-iconReact ',
+  '@uiw/react-codemirror': 'uiwReactCodemirror',
+  'cm6-graphql': 'cm6Graphql',
+  'js-cookie': 'jsCookie',
+  '@codemirror/autocomplete': 'codemirrorAutocomplete',
 };
 
 const config = [
@@ -112,6 +116,9 @@ const config = [
       'echarts',
       '@gen3/core',
       'swr',
+      '@uiw/react-codemirror',
+      'cm6-graphql',
+      '@codemirror/autocomplete',
     ],
     plugins: [
       peerDepsExternal(),

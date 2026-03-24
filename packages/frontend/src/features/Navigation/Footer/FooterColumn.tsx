@@ -88,6 +88,7 @@ const FooterRowComponent: React.FC<FooterRowComponentProps> = ({
 
     case 'Icon': {
       const logo = item[itemType] as FooterLogo;
+      if (!logo) return null;
       if (logo.href) {
         return (
           <a
@@ -99,9 +100,9 @@ const FooterRowComponent: React.FC<FooterRowComponentProps> = ({
           >
             <Image
               src={basePage ? `${logo.logo}` : `${logo.logolight}`}
-              width={logo.width}
-              height={logo.height}
-              alt={logo.description}
+              width={logo.width || 100}
+              height={logo.height || 100}
+              alt={logo.description || 'footer logo'}
             />
           </a>
         );
@@ -110,9 +111,9 @@ const FooterRowComponent: React.FC<FooterRowComponentProps> = ({
         <Image
           key={`icons-${logo.logo}`}
           src={basePage ? `${logo.logo}` : `${logo.logolight}`}
-          width={logo.width}
-          height={logo.height}
-          alt={logo.description}
+          width={logo.width || 100}
+          height={logo.height || 100}
+          alt={logo.description || 'footer logo'}
           className={className}
         />
       );

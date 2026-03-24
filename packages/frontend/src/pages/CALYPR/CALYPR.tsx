@@ -72,9 +72,7 @@ const CalyprPage = ({ headerProps, footerProps }: Props) => {
                 Integrated data system tracking OHSU Knight Cancer Institute
                 research datasets
               </div>
-              <LoginMenu frontBanner={true} classNames={defaultClassNames}>
-                Login
-              </LoginMenu>
+              <LoginMenu frontBanner={true} classNames={defaultClassNames} />
             </div>
           </div>
 

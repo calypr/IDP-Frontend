@@ -11,7 +11,6 @@ import {
   HeaderProps,
   type NavigationProps,
   HeaderMetadata,
-  isHeaderMetadata,
 } from './types';
 import { FooterProps } from './Footer/types';
 import { BannerProps, Banner, BannerLevelCategories } from './Banner';
@@ -33,5 +32,4 @@ export {
   NavigationButton,
   NavPageLayout,
   Banner,
-  isHeaderMetadata,
 };

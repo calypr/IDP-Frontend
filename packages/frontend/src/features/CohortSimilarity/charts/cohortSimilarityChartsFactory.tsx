@@ -1,5 +1,5 @@
 import React from 'react';
-import { RenderFactoryTypedInstance } from '../../../utils/RendererFactory';
+import { RenderFactoryTypedInstance, RendererFunction } from '../../../utils/RendererFactory';
 import BarComparison from './BarComparison';
 import { ComparisonChartProps } from './types';
 import RadarComparison from './RadarComparison';
@@ -13,9 +13,9 @@ export const DefaultComparisonChart = () => {
 
 const DefaultRendererCatalog = {
   comparison: {
-    default: DefaultComparisonChart,
-    barComparison: BarComparison,
-    radarComparison: RadarComparison,
+    default: DefaultComparisonChart as RendererFunction<ComparisonChartProps>,
+    barComparison: BarComparison as RendererFunction<ComparisonChartProps>,
+    radarComparison: RadarComparison as RendererFunction<ComparisonChartProps>,
   },
 };
 

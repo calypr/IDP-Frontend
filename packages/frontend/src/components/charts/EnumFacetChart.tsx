@@ -36,10 +36,10 @@ interface FacetChartProps {
 
 // from https://stackoverflow.com/questions/33053310/remove-value-from-object-without-mutation
  
-const removeKey = (key : string| number, { [key]: _, ...rest }) : Record<string|number, any> => rest;
+const removeKey = <T,>(key: string | number, { [key]: _, ...rest }: Record<string | number, T>): Record<string | number, T> => rest;
 
 const processChartData = (
-  facetData: Record<string|number, any>,
+  facetData: Record<string | number, number>,
   selectedEnums: EnumFilterValue,
   maxBins = 100,
 ) => {
@@ -69,7 +69,7 @@ export const EnumFacetChart: React.FC<FacetChartProps> = ({
   maxBins = maxValuesToDisplay,
   valueLabel = 'Cases',
 }: FacetChartProps) => {
-  const [chart_data, setChartData] = useState<{x:string, y:any}[]>([]);
+  const [chart_data, setChartData] = useState<{ x: string; y: number }[]>([]);
   const { ref, width } = useElementSize();
 
   useEffect(() => {

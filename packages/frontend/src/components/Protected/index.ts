@@ -1,2 +1,2 @@
-import ProtectedContent from './ProtectedContent';
-export { ProtectedContent };
+import ProtectedContent, { VerifyingAccessLoader } from './ProtectedContent';
+export { ProtectedContent, VerifyingAccessLoader };

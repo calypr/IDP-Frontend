@@ -120,7 +120,7 @@ const LoginProvidersPanel = ({ handleLoginSelected }: LoginSelectedProps) => {
           )
         )}
         {data?.providers
-          .filter((x: any) => x.name !== data.default_provider.name)
+          .filter((x: Gen3LoginProvider) => x.name !== data.default_provider.name)
           .map((x: Gen3LoginProvider) =>
             x.urls.length > 1 ? (
               <LoginProviderMultipleItems

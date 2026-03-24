@@ -115,6 +115,7 @@ interface QueryExpressionSectionProps {
   showImportExport?: boolean;
   displayOnly?: boolean;
   showTitle?: boolean;
+  showHeading?: boolean;
 }
 
 const QueryExpressionSection: React.FC<QueryExpressionSectionProps> = ({
@@ -122,9 +123,10 @@ const QueryExpressionSection: React.FC<QueryExpressionSectionProps> = ({
   showImportExport = false,
   displayOnly = false,
   showTitle = true,
+  showHeading = true,
 }: Readonly<QueryExpressionSectionProps>) => {
   const [expandedState, setExpandedState] = useReducer(reducer, {});
-  const [filtersSectionCollapsed, setFiltersSectionCollapsed] = useState(true);
+  const [filtersSectionCollapsed, setFiltersSectionCollapsed] = useState(showHeading);
   const filtersRef = useRef<HTMLDivElement>(null);
   const [QESectionHeight, setQESectionHeight] = useState(0);
 
@@ -176,134 +178,136 @@ const QueryExpressionSection: React.FC<QueryExpressionSectionProps> = ({
         value={[cohortId ? expandedState[cohortId] : {}, setExpandedState]}
       >
         <div className="flex flex-col w-full bg-primary rounded-sm">
-          <div
-            data-testid="text-cohort-filters-top-row"
-            className="flex flex-row py-2 items-center border-b-1 border-base-max rounded-t-sm"
-          >
-            {showTitle && (
-              <OverflowTooltippedLabel
-                label={cohortName}
-                className="font-bold text-secondary-contrast-darkest ml-3 max-w-[260px] rounded-sm"
-              >
-                {
-                  'Filters' /*Hardcoding this here because not sure where default value "Cohort" is coming form. Tested a few things nothing worked */
-                }
-              </OverflowTooltippedLabel>
-            )}
-            <React.Fragment>
-              {!displayOnly && (
-                <button
-                  data-testid="flex flex-wrap bg-base-max w-full p-2"
-                  className={`text-sm font-montserrat ml-2 px-1 hover:bg-primary-darkest hover:text-primary-content-lightest hover:rounded-md ${
-                    noFilters
-                      ? 'hidden'
-                      : 'cursor-pointer text-secondary-contrast-darkest'
-                  }`}
-                  onClick={clearAllFilters}
-                  disabled={noFilters}
+          {showHeading && (
+            <div
+              data-testid="text-cohort-filters-top-row"
+              className="flex flex-row py-2 items-center border-b-1 border-base-max rounded-t-sm"
+            >
+              {showTitle && (
+                <OverflowTooltippedLabel
+                  label={cohortName}
+                  className="font-bold text-secondary-contrast-darkest ml-3 max-w-[260px] rounded-sm"
                 >
-                  Clear All
-                </button>
-              )}
-              <div className="display flex gap-2 ml-auto mr-3">
-                {showImportExport && <CohortSelector />}
-                <Tooltip
-                  label={
-                    noFilters
-                      ? 'No values to expand/collapse'
-                      : allQueryExpressionsCollapsed
-                        ? 'Expand all values'
-                        : 'Collapse all values'
+                  {
+                    'Filters' /*Hardcoding this here because not sure where default value "Cohort" is coming form. Tested a few things nothing worked */
                   }
-                >
-                  <Button
-                    data-testid="button-expand-collapse-cohort-queries"
-                    color="white"
-                    onClick={() => {
-                      if (cohortId) {
-                        if (allQueryExpressionsCollapsed)
-                          setExpandedState({
-                            type: 'expandAll',
-                            cohortId: cohortId,
-                          });
-                        else
-                          setExpandedState({
-                            type: 'collapseAll',
-                            cohortId: cohortId,
-                          });
-                      }
-                    }}
-                    aria-label="Expand/collapse all queries"
-                    aria-expanded={!allQueryExpressionsCollapsed}
-                    className={getCombinedClassesExpandCollapseQuery(
-                      allQueryExpressionsCollapsed,
-                    )}
+                </OverflowTooltippedLabel>
+              )}
+              <React.Fragment>
+                {!displayOnly && (
+                  <button
+                    data-testid="flex flex-wrap bg-base-max w-full p-2"
+                    className={`text-sm font-montserrat ml-2 px-1 hover:bg-primary-darkest hover:text-primary-content-lightest hover:rounded-md ${
+                      noFilters
+                        ? 'hidden'
+                        : 'cursor-pointer text-secondary-contrast-darkest'
+                    }`}
+                    onClick={clearAllFilters}
                     disabled={noFilters}
                   >
-                    {allQueryExpressionsCollapsed ? (
-                      <Icon
-                        icon="gen3:chevron-expand"
-                        aria-hidden="true"
-                        height="1rem"
-                      >
-                        {' '}
-                      </Icon>
-                    ) : (
-                      <Icon
-                        icon="gen3:chevron-contract"
-                        aria-hidden="true"
-                        height="1rem"
-                      >
-                        {' '}
-                      </Icon>
-                    )}
-                  </Button>
-                </Tooltip>
-
-                <Tooltip
-                  label={
-                    noFilters ||
-                    (filtersRef.current != null &&
-                      filtersRef?.current?.scrollHeight <=
-                        MAX_HEIGHT_QE_SECTION)
-                      ? 'All rows are already displayed'
-                      : filtersSectionCollapsed
-                        ? 'Display all rows'
-                        : 'Display fewer rows'
-                  }
-                >
-                  <Button
-                    data-testid="button-expand-collapse-cohort-filters-section"
-                    color="white"
-                    onClick={() =>
-                      setFiltersSectionCollapsed(!filtersSectionCollapsed)
+                    Clear All
+                  </button>
+                )}
+                <div className="display flex gap-2 ml-auto mr-3">
+                  {showImportExport && <CohortSelector />}
+                  <Tooltip
+                    label={
+                      noFilters
+                        ? 'No values to expand/collapse'
+                        : allQueryExpressionsCollapsed
+                          ? 'Expand all values'
+                          : 'Collapse all values'
                     }
-                    aria-label="Expand/collapse filters section"
-                    aria-expanded={!filtersSectionCollapsed}
-                    disabled={
+                  >
+                    <Button
+                      data-testid="button-expand-collapse-cohort-queries"
+                      color="white"
+                      onClick={() => {
+                        if (cohortId) {
+                          if (allQueryExpressionsCollapsed)
+                            setExpandedState({
+                              type: 'expandAll',
+                              cohortId: cohortId,
+                            });
+                          else
+                            setExpandedState({
+                              type: 'collapseAll',
+                              cohortId: cohortId,
+                            });
+                        }
+                      }}
+                      aria-label="Expand/collapse all queries"
+                      aria-expanded={!allQueryExpressionsCollapsed}
+                      className={getCombinedClassesExpandCollapseQuery(
+                        allQueryExpressionsCollapsed,
+                      )}
+                      disabled={noFilters}
+                    >
+                      {allQueryExpressionsCollapsed ? (
+                        <Icon
+                          icon="gen3:chevron-expand"
+                          aria-hidden="true"
+                          height="1rem"
+                        >
+                          {' '}
+                        </Icon>
+                      ) : (
+                        <Icon
+                          icon="gen3:chevron-contract"
+                          aria-hidden="true"
+                          height="1rem"
+                        >
+                          {' '}
+                        </Icon>
+                      )}
+                    </Button>
+                  </Tooltip>
+
+                  <Tooltip
+                    label={
                       noFilters ||
                       (filtersRef.current != null &&
                         filtersRef?.current?.scrollHeight <=
                           MAX_HEIGHT_QE_SECTION)
+                        ? 'All rows are already displayed'
+                        : filtersSectionCollapsed
+                          ? 'Display all rows'
+                          : 'Display fewer rows'
                     }
-                    className={getCombinedClassesForRowCollapse(
-                      filtersSectionCollapsed,
-                    )}
                   >
-                    {filtersSectionCollapsed ? (
-                      <React.Fragment>
-                        <DownArrowIcon size={30} aria-hidden="true" />
-                      </React.Fragment>
-                    ) : (
-                      <React.Fragment>
-                        <UpArrowIcon size={30} aria-hidden="true" />
-                      </React.Fragment>
-                    )}
-                  </Button>
-                </Tooltip>
-              </div>
-            </React.Fragment>
-          </div>
+                    <Button
+                      data-testid="button-expand-collapse-cohort-filters-section"
+                      color="white"
+                      onClick={() =>
+                        setFiltersSectionCollapsed(!filtersSectionCollapsed)
+                      }
+                      aria-label="Expand/collapse filters section"
+                      aria-expanded={!filtersSectionCollapsed}
+                      disabled={
+                        noFilters ||
+                        (filtersRef.current != null &&
+                          filtersRef?.current?.scrollHeight <=
+                            MAX_HEIGHT_QE_SECTION)
+                      }
+                      className={getCombinedClassesForRowCollapse(
+                        filtersSectionCollapsed,
+                      )}
+                    >
+                      {filtersSectionCollapsed ? (
+                        <React.Fragment>
+                          <DownArrowIcon size={30} aria-hidden="true" />
+                        </React.Fragment>
+                      ) : (
+                        <React.Fragment>
+                          <UpArrowIcon size={30} aria-hidden="true" />
+                        </React.Fragment>
+                      )}
+                    </Button>
+                  </Tooltip>
+                </div>
+              </React.Fragment>
+            </div>
+          )}
           <div
             data-testid="text-cohort-filters"
             className="flex flex-wrap bg-base-max w-full p-2 overflow-x-hidden rounded-b-sm"

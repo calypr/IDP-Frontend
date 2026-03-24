@@ -5,6 +5,7 @@ import {
   type DocumentReferenceData,
   type DirItem,
   type ProjectItem,
+  type DirectoryContents,
 } from './dirSearchSlice';
 
 export {
@@ -13,4 +14,5 @@ export {
   type DirItem,
   type ProjectItem,
   type DocumentReferenceData,
+  type DirectoryContents,
 };

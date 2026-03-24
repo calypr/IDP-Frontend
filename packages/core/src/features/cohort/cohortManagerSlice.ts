@@ -3,6 +3,7 @@ import {
   createSlice,
   type EntityState,
   type PayloadAction,
+  type Draft,
 } from '@reduxjs/toolkit';
 import { type CoreState } from '../../reducers';
 import {
@@ -101,6 +102,8 @@ const emptyInitialState = cohortsAdapter.getInitialState<CurrentCohortState>({
 // Set the initial cohort in the adapter state
 const initialState = cohortsAdapter.setOne(emptyInitialState, initialCohort);
 
+export type CohortManagerState = typeof initialState;
+
 const getCurrentCohortId = (
   state: EntityState<Cohort, string> & CurrentCohortState,
 ): CohortId => state.currentCohortId;
@@ -119,11 +122,14 @@ interface UpdateCohortNameParams {
  * Redux slice for cohort filters
  */
 
-export const cohortManagerSlice = createSlice({
+const cohortManagerSlice = createSlice({
   name: 'cohort',
   initialState: initialState,
   reducers: {
-    createNewCohort: (state, action: PayloadAction<CreateCohortParams>) => {
+    createNewCohort: (
+      state: Draft<CohortManagerState>,
+      action: PayloadAction<CreateCohortParams>,
+    ) => {
       const baseName = action.payload.name || `Cohort`;
       const uniqueName = generateUniqueName(
         Object.values(state.entities),
@@ -275,7 +281,7 @@ export const cohortManagerSlice = createSlice({
       if (!filters) {
         return;
       }
-       
+
       const { [field]: _a, ...updated } = filters;
 
       cohortsAdapter.updateOne(state, {

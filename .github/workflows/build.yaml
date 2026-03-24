@@ -3,12 +3,10 @@ name: Build and publish Frontend-Framework Image
 on:
   push:
     branches:
-      - develop
-      - feature/cbds
+      - '**'
   pull_request:
     branches:
-      - develop
-      - feature/cbds
+      - '**'
   workflow_dispatch:
 
 jobs:
@@ -28,7 +26,7 @@ jobs:
           if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
             BRANCH="${GITHUB_HEAD_REF//\//_}"
           else
-            BRANCH="${GITHUB_REF_NAME//refs\/heads\//}"
+            BRANCH="${GITHUB_REF_NAME//\//_}"
           fi
           echo "branch=$BRANCH" >> $GITHUB_OUTPUT
 
@@ -47,13 +45,13 @@ jobs:
 
           docker build -t "$REPO:$BRANCH" .
 
-          # Tag as latest only for feature/cbds branch (you can adjust this condition)
-          if [[ "$BRANCH" == "feature-cbds" ]]; then
+          # Tag as latest only for the feature/cbds branch (sanitized to feature_cbds)
+          if [[ "$BRANCH" == "feature_cbds" ]]; then
             docker tag "$REPO:$BRANCH" "$REPO:latest"
           fi
 
           docker push "$REPO:$BRANCH"
 
-          if [[ "$BRANCH" == "feature-cbds" ]]; then
+          if [[ "$BRANCH" == "feature_cbds" ]]; then
             docker push "$REPO:latest"
           fi

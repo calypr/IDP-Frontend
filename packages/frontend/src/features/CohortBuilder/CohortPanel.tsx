@@ -16,7 +16,7 @@ import {
   useGetAggsQuery,
   useGetCountsQuery,
 } from '@gen3/core';
-import { type CohortPanelConfiguration } from './types';
+import { type CohortPanelConfiguration, type FileActionsConfig } from './types';
 import { type SummaryChart } from '../../components/charts/types';
 import { ErrorCard } from '../../components/MessageCards';
 import { useMediaQuery } from '@mantine/hooks';
@@ -64,6 +64,7 @@ const EmptyData = {};
 interface CohortPanelConfigurationWithAccessLevel
   extends CohortPanelConfiguration {
   showAccessLevel?: boolean;
+  fileActions?: FileActionsConfig;
 }
 
 export const CohortPanel = ({
@@ -77,6 +78,7 @@ export const CohortPanel = ({
   buttons,
   loginForDownload,
   showAccessLevel = false,
+  fileActions,
 }: CohortPanelConfigurationWithAccessLevel): JSX.Element => {
   const isSm = useMediaQuery('(min-width: 639px)');
   const isMd = useMediaQuery('(min-width: 1373px)');
@@ -159,16 +161,18 @@ export const CohortPanel = ({
     if (isChartSuccess && chartData) {
       const cleanedData: AggregationsData = {};
       Object.keys(summaryCharts).forEach((key) => {
-        cleanedData[key] = chartData[key].filter((x) =>
-          typeof x.key !== 'string' ? true : x.key !== '',
-        );
-        const facetDef = facetDefinitions?.[key];
-        if (facetDef?.excludeValues) {
-          cleanedData[key] = cleanedData[key].filter((x) =>
-            typeof x.key !== 'string'
-              ? true
-              : facetDef?.excludeValues?.includes(String(x.key)) === false,
+        if (chartData[key]) {
+          cleanedData[key] = chartData[key].filter((x) =>
+            typeof x.key !== 'string' ? true : x.key !== '',
           );
+          const facetDef = facetDefinitions?.[key];
+          if (facetDef?.excludeValues) {
+            cleanedData[key] = cleanedData[key].filter((x) =>
+              typeof x.key !== 'string'
+                ? true
+                : facetDef?.excludeValues?.includes(String(x.key)) === false,
+            );
+          }
         }
       });
       return cleanedData;
@@ -259,8 +263,8 @@ export const CohortPanel = ({
     }, [getEnumFacetData, getRangeFacetData, index]);
 
   useDeepCompareEffect(() => {
-    if (isSuccess && Object.keys(facetDefinitions).length === 0) {
-      const configFacetDefs = filters?.tabs.reduce(
+    if (isSuccess && data) {
+      const configFacetDefs = (filters?.tabs ?? []).reduce(
         (acc: Record<string, FacetDefinition>, tab) => ({
           ...tab.fieldsConfig,
           ...acc,
@@ -297,11 +301,12 @@ export const CohortPanel = ({
   }, [
     isSuccess,
     data,
-    facetDefinitions,
     index,
     guppyConfig.fieldMapping,
     charts,
     chartsSection,
+    filters?.tabs,
+    sharedFiltersMap,
   ]);
 
   const columnTitles = useMemo(
@@ -332,6 +337,15 @@ export const CohortPanel = ({
 
   if (isCountsError || isAggsQueryError) {
     return <ErrorCard message="Unable to fetch data from server" />;
+  }
+
+  // Show loading indicator if we don't have facet definitions yet but we're fetching
+  if (Object.keys(facetDefinitions).length === 0 && (isAggsQueryFetching || isCountsFetching)) {
+    return (
+       <div className="flex items-center justify-center w-full h-64">
+           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+       </div>
+    );
   }
 
   return (
@@ -412,6 +426,7 @@ export const CohortPanel = ({
                 index={index}
                 tableConfig={table}
                 accessibility={accessLevel}
+                fileActions={fileActions}
               />
             </div>
           )}

@@ -12,33 +12,28 @@ import AppCard from './AppCard';
 import { ProtectedContent } from '../../components/Protected';
 import { useFileTotalCountQuery } from './fetchFileCounts';
 import EqualHeightCards from './EqualHeightCards';
+import { useHasAccess } from '../../components/Protected/NoAccessOverlay';
 
-export function SummaryStatsBanner(authz: any) {
+export function SummaryStatsBanner({
+  len_access_projects,
+  fileCount,
+  isLoading,
+  isError,
+}: {
+  len_access_projects: number;
+  fileCount: number | undefined;
+  isLoading: boolean;
+  isError: boolean;
+}) {
   const [visible, setVisible] = useState(true);
-  const { data, isLoading, isError } = useFileTotalCountQuery();
 
   // Don't bother with displaying Banner if query errors out
   if (!visible || isError) return null;
-  const authzMap = authz?.authz ?? {};
-  const len_access_projects = Object.entries(authzMap).filter(
-    ([resource, perms]) => {
-      // normalize and split, remove empty segments so both "/programs/..." and "programs/..." work
-      const parts = String(resource).split('/').filter(Boolean);
-
-      // expect ["programs", "<programId>", "projects", "<projectId>"]
-      if (parts.length !== 4) return false;
-      if (parts[0] !== 'programs' || parts[2] !== 'projects') return false;
-      if (!Array.isArray(perms)) return false;
-
-      // require an explicit { method: "read", service: "*" } entry in the perms array
-      return perms.some((p: any) => p?.method === 'read' && p?.service === '*');
-    },
-  ).length;
 
   const message =
     'Welcome to CALYPR! You have access to' +
     ` ${len_access_projects} project${len_access_projects === 1 ? '' : 's'}` +
-    ` and ${!isLoading ? data : 0} file${data === 1 ? '' : 's'}`;
+    ` and ${!isLoading ? fileCount : 0} file${fileCount === 1 ? '' : 's'}`;
 
   return (
     <Alert
@@ -60,15 +55,24 @@ const AppsPage = ({ headerProps, footerProps, appsConfig }: AppsPageProps) => {
   // define the content to be returned
   const { data: authzMapping = {}, isLoading: isAuthZLoading } =
     useGetAuthzMappingsQuery();
-  const content = isAuthZLoading ? (
-    <div className="fixed inset-0 flex justify-center items-center bg-gray-700 bg-opacity-50 z-50">
-      <Loader size={30} />
-    </div>
-  ) : (
+
+  const {
+    len_access_projects,
+    fileCount,
+    isLoading: isFileCountLoading,
+    isError: isFileCountError,
+  } = useHasAccess(authzMapping);
+
+  const content = (
     <EqualHeightCards>
       <div>
         <div className="flex flex-col">
-          <SummaryStatsBanner authz={authzMapping} />
+          <SummaryStatsBanner
+            len_access_projects={len_access_projects}
+            fileCount={fileCount}
+            isLoading={isFileCountLoading}
+            isError={isFileCountError}
+          />
         </div>
         <div className="grid grid-cols-4 gap-6 px-8 my-4 auto-rows-auto">
           {appsConfig?.appCards
@@ -99,18 +103,18 @@ const AppsPage = ({ headerProps, footerProps, appsConfig }: AppsPageProps) => {
 
   // return with protected and general page navbar
   return (
-    <NavPageLayout
-      {...{ headerProps, footerProps }}
-      headerMetadata={{
-        title: 'CALYPR Homepage',
-        content: 'Apps',
-        key: 'gen3-apps',
-      }}
-    >
-      <ProtectedContent>
+    <ProtectedContent>
+      <NavPageLayout
+        {...{ headerProps, footerProps }}
+        headerMetadata={{
+          title: 'CALYPR Homepage',
+          content: 'Apps',
+          key: 'gen3-apps',
+        }}
+      >
         <MantineProvider withGlobalClasses>{content}</MantineProvider>
-      </ProtectedContent>
-    </NavPageLayout>
+      </NavPageLayout>
+    </ProtectedContent>
   );
 };
 

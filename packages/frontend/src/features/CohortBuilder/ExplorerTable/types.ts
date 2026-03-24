@@ -9,6 +9,7 @@ import {
 import { Accessibility, JSONObject } from '@gen3/core';
 import { ReactNode, RefObject } from 'react';
 import { CellRendererFunction } from './ExplorerTableCellRenderers';
+import { FileActionsConfig } from '../types';
 
 export interface ColumnDefinition {
   header: string; // title of column
@@ -79,6 +80,7 @@ export interface ExplorerTableProps {
   accessibility: Accessibility;
   size?: string;
   classNames?: Partial<ExploreTableClassnames>;
+  fileActions?: FileActionsConfig;
 }
 
 export interface ExplorerTableColumnMRT {

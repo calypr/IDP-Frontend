@@ -1,13 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   useCoreDispatch,
   showModal,
   Modals,
   useCoreSelector,
   selectCurrentModal,
-  APIKey,
 } from '@gen3/core';
-import { Button, LoadingOverlay, Stack } from '@mantine/core';
+import { Button, LoadingOverlay } from '@mantine/core';
 import { CreateCredentialsAPIKeyModal } from '../Modals';
 import { APICredentials } from './types';
 
@@ -30,7 +29,7 @@ const Credentials = () => {
   // useGetCSRFQuery hook returns a user's JWT token from the default gen3 core API
   const { data: csrfToken } = useGetCSRFQuery();
   const { isLoading } = useGetCredentialsQuery();
-  const [addNewCredential, { isLoading: isNewLoading, isSuccess }] =
+  const [addNewCredential, { isLoading: isNewLoading }] =
     useAddNewCredentialMutation();
   const modal = useCoreSelector((state) => selectCurrentModal(state));
   const [newCredential, setCredentials] = useState<APICredentials>({

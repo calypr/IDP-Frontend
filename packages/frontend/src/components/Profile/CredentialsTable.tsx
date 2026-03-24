@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { ActionIcon, Box, Table } from '@mantine/core';
+import { ActionIcon } from '@mantine/core';
 import {
   useGetCredentialsQuery,
   useRemoveCredentialMutation,
@@ -7,7 +7,6 @@ import {
   useGetCSRFQuery,
 } from '@gen3/core';
 import { MdDelete as DeleteIcon } from 'react-icons/md';
-import { LuRefreshCw as RefreshIcon } from 'react-icons/lu';
 import { unixTimeToString } from '../../utils';
 import { TableIcons } from '../../components/Tables/TableIcons';
 

@@ -12,13 +12,15 @@ const LoginProviderMultipleItemsMenu = ({
   classNames,
   providers,
   handleLoginSelected,
+  zIndex,
 }: {
   classNames: StylingOverrideWithMergeControl;
   providers: Gen3LoginProvider[];
   handleLoginSelected: (url: string) => void;
+  zIndex?: number;
 }) => {
   return (
-    <Menu shadow="md" width={200}>
+    <Menu shadow="xl" width={280} zIndex={zIndex} transitionProps={{ transition: 'pop-top-right' }}>
       <Menu.Target>
         <UnstyledButton className={classNames.button}>
           <div className={classNames.label}>Login</div>
@@ -33,9 +35,9 @@ const LoginProviderMultipleItemsMenu = ({
             <Menu.Item
               key={`${provider.name}-${item.url}`}
               onClick={() => handleLoginSelected(item.url)}
-              className={classNames.button}
+              className={classNames.dropdownItem ?? 'font-medium text-gray-700 hover:bg-gray-50 transition-colors py-2 px-4'}
             >
-              {`${provider.name}`}
+              {provider.name}
             </Menu.Item>
           )),
         )}
@@ -47,6 +49,7 @@ const LoginProviderMultipleItemsMenu = ({
 const LoginProvidersMenuPanel = ({
   handleLoginSelected,
   classNames,
+  zIndex,
 }: LoginSelectedProps) => {
   const { data, isSuccess } = useGetLoginProvidersQuery();
 
@@ -60,6 +63,7 @@ const LoginProvidersMenuPanel = ({
         classNames={classNames ?? {}}
         providers={data?.providers}
         handleLoginSelected={handleLoginSelected}
+        zIndex={zIndex}
       />
     </div>
   );

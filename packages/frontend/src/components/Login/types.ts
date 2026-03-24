@@ -14,7 +14,7 @@ export interface Gen3LoginPanelConfig {
 
 export interface LoginConfig
   extends Partial<Gen3LoginPanelConfig>,
-    Gen3AppConfigData {
+  Gen3AppConfigData {
   topContent?: ReadonlyArray<TextImageContentProps>;
   bottomContent?: ReadonlyArray<TextImageContentProps>;
   showCredentialsLogin?: boolean;
@@ -31,6 +31,7 @@ interface TextImageContentProps extends TextContentProps {
 export interface LoginSelectedProps {
   readonly handleLoginSelected: (_url: string) => void;
   classNames?: StylingOverrideWithMergeControl;
+  readonly zIndex?: number;
 }
 
 export enum LoginButtonVisibility {

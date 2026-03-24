@@ -1,7 +1,7 @@
-import React, { ReactElement } from 'react';
+import { ReactElement } from 'react';
 import { JSONObject } from '@gen3/core';
 
-export interface DataItemRenderFunctionProps<V = any, T = JSONObject> {
+export interface DataItemRenderFunctionProps<V = unknown, T = JSONObject> {
   value: V; // value of the cell
   params?: T;
 }
@@ -12,6 +12,6 @@ export interface DataItemRenderFunctionProps<V = any, T = JSONObject> {
  * is available from the DiscoveryContext.
  * @param props: value and optional cell object
  */
-export type DataItemRendererFunction<V = any, T = JSONObject> = (
+export type DataItemRendererFunction<V = unknown, T = JSONObject> = (
   props: DataItemRenderFunctionProps<V, T>,
 ) => ReactElement;

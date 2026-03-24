@@ -73,7 +73,9 @@ const TopBar = ({
   logo,
   onToggle,
 }: TopBarProps) => {
-  logo!.basepage = title === 'CALYPR Landing Page';
+  if (logo) {
+    logo.basepage = title === 'CALYPR Landing Page';
+  }
 
   const isLandingPage = title === 'CALYPR Landing Page';
 

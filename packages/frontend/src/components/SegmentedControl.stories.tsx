@@ -1,5 +1,5 @@
 import React from 'react';
-import type { Meta, StoryObj } from '@storybook/react';
+import { Meta, StoryObj } from '@storybook/nextjs';
 import { BarChartIcon, SurvivalChartIcon } from '../types/icons';
 import { SegmentedControlItem, Tooltip } from '@mantine/core';
 import SegmentedControl from './SegmentedControl';
@@ -38,7 +38,7 @@ const chartButtons: SegmentedControlItem[] = [
 const meta = {
   component: SegmentedControl,
   decorators: [
-    (Story) => (
+    (Story: React.ComponentType) => (
       <div className="bg-base-lightest p-4">
         <Story />
       </div>

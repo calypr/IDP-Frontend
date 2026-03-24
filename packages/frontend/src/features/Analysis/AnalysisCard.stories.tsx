@@ -1,5 +1,5 @@
 import React from 'react';
-import type { Meta, StoryObj } from '@storybook/react';
+import { Meta, StoryObj } from '@storybook/nextjs';
 
 import AnalysisCard from './AnalysisCard';
 
@@ -9,7 +9,7 @@ const meta = {
     deepControls: { enabled: true },
   },
   decorators: [
-    (Story) => (
+    (Story: React.ComponentType) => (
       <div className="bg-primary-lighter p-4">
         {/* 👇 Decorators in Storybook also accept a function. Replace <Story/> with Story() to enable it  */}
         <Story />

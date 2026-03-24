@@ -4,7 +4,6 @@ import {
   Menu,
   Tooltip,
   FloatingPosition,
-  PopoverWidth,
 } from '@mantine/core';
 import { focusStyles } from '../../utils';
 import { IoMdArrowDropdown as DropdownIcon } from 'react-icons/io';

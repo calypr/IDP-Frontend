@@ -31,8 +31,8 @@ const processBinnedChartData = (
     return EmptyResult;
   }
 
-  const results = facetData.slice(0, maxBins).map((d: any) => {
-    const label = processRangeKeyLabel(d.key);
+  const results = facetData.slice(0, maxBins).map((d: HistogramData) => {
+    const label = processRangeKeyLabel(d.key as [number, number]);
     return {
       x: label,
       truncatedXName: truncateString(label, 35),
@@ -55,9 +55,9 @@ const processChartData = (
   else {
     const data = facetData.filter((d: HistogramData) => d.key !== '_missing');
 
-    const results = data.slice(0, maxBins).map((d: any) => ({
-      x: processLabel(d.key),
-      truncatedXName: truncateString(processLabel(d.key), 35),
+    const results = data.slice(0, maxBins).map((d: HistogramData) => ({
+      x: processLabel(d.key as string),
+      truncatedXName: truncateString(processLabel(d.key as string), 35),
       y: d.count,
     }));
     return results.reverse();

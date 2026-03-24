@@ -14,7 +14,7 @@ const defaultCellRenderer = (_: CellRenderFunctionProps): ReactElement => (
 // TODO Tighten up the typing here
 export type CellRendererFunction = (
   props: CellRenderFunctionProps,
-  ...args: any[]
+  ...args: unknown[]
 ) => ReactElement;
 
 export interface CellRendererFunctionCatalogEntry {
@@ -78,7 +78,7 @@ export class TableCellRendererFactory<T = CellRendererFunctionCatalogEntry> {
 export const TableCellRenderer = (
   type?: string,
   functionName = 'default',
-  ...params: any[]
+  ...params: unknown[]
 ): CellRendererFunction => {
   if (!type) {
     return defaultCellRenderer;

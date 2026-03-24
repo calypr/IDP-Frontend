@@ -8,7 +8,7 @@ import ChartRendererFactory from './ChartRendererFactory';
 export const createChart = (
   type: string,
   chartProps: ChartProps,
-  parameters?: Record<string, any>,
+  parameters?: Record<string, unknown>,
 ): React.ReactNode => {
   // TODO: add default chart chart for missing chart type
   const element = ChartRendererFactory().getRenderer('chart', type);

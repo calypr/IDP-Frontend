@@ -14,7 +14,7 @@ const getBody = (iframe: HTMLIFrameElement) => {
   return (document as Window)?.document?.body || (document as Document)?.body;
 };
 
-const toHtml = (key: string, value: any) =>
+const toHtml = (key: string, value: unknown) =>
   `<input
     type="hidden"
     name="${key}"
@@ -27,8 +27,8 @@ const toHtml = (key: string, value: any) =>
 
 const customKeys = ['expand', 'fields', 'facets'];
 
-const processParamObj = (key: string, value: any) =>
-  includes(customKeys, key) ? [].concat(value).join() : value;
+const processParamObj = (key: string, value: unknown) =>
+  includes(customKeys, key) ? (Array.isArray(value) ? value : [value]).join() : value;
 
 /**
  * A notification box that is used to alert the user that their
@@ -86,7 +86,7 @@ const SlowDownloadNotification = ({ onClick }: { onClick: () => void }) => (
 */
 
 export interface DownloadFunctionParams<
-  T extends Record<string, any> = Record<string, any>,
+  T extends Record<string, unknown> = Record<string, unknown>,
 > {
   endpoint: string;
   params: T;
@@ -100,7 +100,7 @@ export interface DownloadFunctionParams<
 }
 
 export type DownloadFunction<
-  T extends Record<string, any> = Record<string, any>,
+  T extends Record<string, unknown> = Record<string, unknown>,
 > = (params: DownloadFunctionParams<T>) => Promise<void>;
 
 /**
@@ -116,7 +116,7 @@ export type DownloadFunction<
  * @param hideNotification - hide the notification
  */
 
-const download = async <T extends Record<string, any> = Record<string, any>>({
+const download = async <T extends Record<string, unknown> = Record<string, unknown>>({
   endpoint,
   params,
   method,
@@ -187,7 +187,7 @@ const download = async <T extends Record<string, any> = Record<string, any>>({
       const paramValue = processParamObj(key, value);
       return (
         result +
-        [].concat(paramValue).reduce((acc, v) => acc + toHtml(key, v), '')
+        (Array.isArray(paramValue) ? paramValue : [paramValue]).reduce((acc, v) => acc + toHtml(key, v), '')
       );
     },
     '',

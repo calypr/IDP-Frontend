@@ -12,7 +12,7 @@ const initialState: SharedFiltersState = {
   sharedFiltersMap: {},
 };
 
-export const cohortSharedFiltersSlice = createSlice({
+const cohortSharedFiltersSlice = createSlice({
   name: 'cohortSharedFilters',
   initialState: initialState,
   reducers: {

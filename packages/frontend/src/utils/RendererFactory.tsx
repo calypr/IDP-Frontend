@@ -7,7 +7,7 @@ import {
 } from 'mantine-react-table';
 import { JSONObject } from '@gen3/core';
 
-export type RendererFunction<T> = (props: T, ...params: any[]) => ReactNode;
+export type RendererFunction<T> = (props: T, ...params: unknown[]) => ReactNode;
 
 export interface RendererFunctionCatalogEntry<T> {
   [key: string]: RendererFunction<T>;
@@ -150,7 +150,7 @@ export class RenderFactoryTypedInstance<T>
  * Represents the props required for a cell renderer function.
  */
 export interface CellRendererFunctionProps<
-  T extends Record<string, any> = JSONObject,
+  T extends Record<string, unknown> = JSONObject,
 > {
   cell: MRT_Cell<T>;
   renderedCellValue: ReactNode;
