@@ -74,16 +74,16 @@ const AvailableImagesPage = ({
   const { data, isLoading, isError } = useFileTypesFiles();
   const dispatch = useDispatch();
   const { data: configList } = useGetConfigListQuery();
-  const [fileActionsMap, setFileActionsMap] = useState<Record<string, any>>({});
+  const [fileActionsMap, setFileActionsMap] = useState<Record<string, unknown>>({});
 
   useEffect(() => {
     if (configList?.data && Array.isArray(configList.data)) {
       const fetchConfigs = async () => {
-        const map: Record<string, any> = {};
+        const map: Record<string, unknown> = {};
         await Promise.all(
           configList.data.map(async (configId: string) => {
             try {
-              const result = await (dispatch as any)(
+              const result: any = await (dispatch as any)(
                 explorerConfigApi.endpoints.getConfigContent.initiate(configId)
               ).unwrap();
               const configData = result?.data;
@@ -97,8 +97,8 @@ const AvailableImagesPage = ({
                      map[configId] = configData.fileActions;
                  }
               }
-            } catch (e) {
-              console.error(`Failed to fetch config ${configId}`, e);
+            } catch (e: unknown) {
+              console.error(`Failed to fetch config ${configId}`, e instanceof Error ? e.message : String(e));
             }
           })
         );

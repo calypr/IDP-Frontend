@@ -13,13 +13,14 @@ const CohortBuilder = dynamic(
 );
 
 import { useSession } from '../../lib/session/session';
+import { CohortBuilderProps } from '../../features/CohortBuilder';
 
 export const ExplorerMainContent = ({
   explorerConfig,
   tabsLayout,
   sharedFiltersMap,
   fileActions,
-}: any) => {
+}: CohortBuilderProps) => {
   const { status } = useSession();
   
 

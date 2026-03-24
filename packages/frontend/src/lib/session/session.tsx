@@ -252,10 +252,10 @@ export const SessionProvider = ({
         .then(() => {
           getUserDetails();
         })
-        .catch((e) => {
+        .catch((e: unknown) => {
           showNotification({
             title: 'Logout Error',
-            message: `error logging in ${e.message}`,
+            message: `error logging in ${e instanceof Error ? e.message : String(e)}`,
           });
         })
         .finally(() => {
@@ -271,7 +271,8 @@ export const SessionProvider = ({
         await getUserDetails().unwrap();
       } catch (err: any) {
         if (err?.status === 401) {
-          coreDispatch(showModal({ modal: (Modals as any).LoginModal }));
+          const LoginModal = (Modals as Record<string, any>).LoginModal;
+          coreDispatch(showModal({ modal: LoginModal }));
           endSession(false);
         }
       }
@@ -328,7 +329,8 @@ export const SessionProvider = ({
           timeSinceLastActivity >= inactiveTimeLimitMilliseconds &&
           !isUserOnPage('Workspace')
         ) {
-          coreDispatch(showModal({ modal: (Modals as any).LoginModal }));
+          const LoginModal = (Modals as Record<string, any>).LoginModal;
+          coreDispatch(showModal({ modal: LoginModal }));
           endSession(false);
           return;
         }

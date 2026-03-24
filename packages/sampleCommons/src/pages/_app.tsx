@@ -73,7 +73,6 @@ const Gen3App = ({
       registerCohortTableCustomCellRenderers();
       registerCustomExplorerDetailsPanels();
       isFirstRender.current = false;
-      console.log('Gen3 App initialized');
     }
   }, []);
 
@@ -126,8 +125,8 @@ Gen3App.getInitialProps = async (
       ...ctx,
       ...res,
     };
-  } catch (error: any) {
-    console.error('Provider Wrapper error loading config', error.toString());
+    } catch (error: unknown) {
+    console.error('Provider Wrapper error loading config', error instanceof Error ? error.message : String(error));
   }
 
   // Return default values in case of an error

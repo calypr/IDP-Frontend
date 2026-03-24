@@ -321,13 +321,15 @@ const BrowserPage = ({
   const isLoading = isLoadingProjects || isLoadingDirectory;
 
   useEffect(() => {
-    if (selectedProject) {
-      console.log('Browser: Selected project:', selectedProject);
-    }
-    if (explorerConfig) {
-      console.log('Browser: Fetched explorerConfig:', explorerConfig);
-      if (explorerConfig.data?.fileActions) {
-        console.log('Browser: Found fileActions:', explorerConfig.data.fileActions);
+    if (process.env.NODE_ENV === 'development') {
+      if (selectedProject) {
+        console.log('Browser: Selected project:', selectedProject);
+      }
+      if (explorerConfig) {
+        console.log('Browser: Fetched explorerConfig:', explorerConfig);
+        if (explorerConfig.data?.fileActions) {
+          console.log('Browser: Found fileActions:', explorerConfig.data.fileActions);
+        }
       }
     }
   }, [selectedProject, explorerConfig]);

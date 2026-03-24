@@ -37,14 +37,14 @@ const CohortBuilder = ({
     setIsTransitioning(true);
     
     // Extensible Fix: Apply preFilters from each tab configuration
-    const initialFilters: any = {};
+    const initialFilters: Record<string, any> = {};
     
     explorerConfig.forEach((panel) => {
       const index = panel.guppyConfig.dataType;
       const tabPreFilters = panel.preFilters;
       
       if (tabPreFilters) {
-        const indexFilters: any = { mode: 'and', root: {} };
+        const indexFilters: Record<string, any> = { mode: 'and', root: {} };
         Object.entries(tabPreFilters).forEach(([field, values]) => {
           indexFilters.root[field] = {
             operator: 'in',
