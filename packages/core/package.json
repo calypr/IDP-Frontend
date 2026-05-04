@@ -63,7 +63,7 @@
     "redux": "^5.0.1",
     "redux-persist": "^6.0.0",
     "swr": "^2.4.0",
-    "uuid": "^13.0.0"
+    "uuid": "^14.0.0"
   },
   "files": [
     "dist"
