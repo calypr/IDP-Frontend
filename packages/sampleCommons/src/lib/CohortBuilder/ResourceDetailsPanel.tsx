@@ -12,7 +12,7 @@ import {
   Button,
   ScrollArea,
 } from '@mantine/core';
-import { useGeneralGQLQuery, GEN3_FENCE_API } from '@gen3/core';
+import { useGeneralGQLQuery, SYFON_API } from '@gen3/core';
 import {
   ErrorCard,
   type TableDetailsPanelProps,
@@ -123,7 +123,7 @@ export const ResourceDetailsPanel = ({
               </div>
               <Anchor
                 c="accent.1"
-                href={`${GEN3_FENCE_API}/data/download/${
+                href={`${SYFON_API}/download/${
                   value ? (value as string) : ''
                 }?redirect=true`}
                 target="_blank"

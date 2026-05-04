@@ -2,8 +2,19 @@
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const dns = require('dns');
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const path = require('path');
 
 const basePath = process.env.NEXT_PUBLIC_BASEPATH;
+const workspaceRoot = path.resolve(__dirname, '../..');
+const webpackAliases = {
+  '@gen3/core': path.join(workspaceRoot, 'packages/core/src/index.ts'),
+  '@gen3/frontend': path.join(workspaceRoot, 'packages/frontend/src/index.ts'),
+};
+const turbopackAliases = {
+  '@gen3/core': './packages/core/src/index.ts',
+  '@gen3/frontend': './packages/frontend/src/index.ts',
+};
 
 dns.setDefaultResultOrder('ipv4first');
 
@@ -27,9 +38,18 @@ const nextConfig = {
   productionBrowserSourceMaps: true,
   pageExtensions: ['mdx', 'md', 'jsx', 'js', 'tsx', 'ts'],
   basePath: basePath,
+  transpilePackages: ['@gen3/core', '@gen3/frontend'],
+  turbopack: {
+    root: workspaceRoot,
+    resolveAlias: turbopackAliases,
+  },
   webpack: (config) => {
     config.infrastructureLogging = {
       level: 'error',
+    };
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      ...webpackAliases,
     };
     return config;
   },

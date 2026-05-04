@@ -101,7 +101,7 @@ a ```Anchor``` otherwise it ```Text```
          */}
         {field === 'object_id' ? (
           <Anchor
-            href={`${GEN3_FENCE_API}/user/data/download/${
+            href={`${SYFON_API}/download/${
               value ? (value as string) : ''
             }?redirect=true`}
             target="_blank"

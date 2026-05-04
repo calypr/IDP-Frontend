@@ -1,5 +1,5 @@
 import { gen3Api } from '../gen3/gen3Api';
-import { GEN3_FENCE_API, GEN3_REDIRECT_URL } from '../../constants';
+import { GEN3_FENCE_API, GEN3_REDIRECT_URL, SYFON_API } from '../../constants';
 import { fetchFence } from './utils';
 
 export interface NameUrl {
@@ -38,13 +38,13 @@ export const loginProvidersApi = gen3Api.injectEndpoints({
       query: () => `${GEN3_FENCE_API}/login`,
     }),
     getDownload: builder.query<Gen3FenceLoginProviders, string>({
-      query: (guid) => `${GEN3_FENCE_API}/data/download/${guid}`,
+      query: (guid) => `${SYFON_API}/download/${guid}`,
     }),
     getPresignedUrl: builder.query<
       Gen3FenceLoginProviders,
       PresignedUrlRequest
     >({
-      query: ({ guid, what }) => `${GEN3_FENCE_API}/data/${what}/${guid}`,
+      query: ({ guid, what }) => `${SYFON_API}/${what}/${guid}`,
     }),
   }),
 });

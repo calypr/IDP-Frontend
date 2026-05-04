@@ -15,6 +15,10 @@ export const GEN3_DOWNLOADS_ENDPOINT =
   process.env.NEXT_PUBLIC_GEN3_DOWNLOADS_ENDPOINT || 'downloads';
 export const GEN3_FENCE_API =
   process.env.NEXT_PUBLIC_GEN3_FENCE_API || `${GEN3_API}/user`;
+export const SYFON_API =
+  process.env.NEXT_PUBLIC_SYFON_API ||
+  process.env.NEXT_PUBLIC_GEN3_SYFON_API ||
+  `${GEN3_API}/data`;
 export const GEN3_AI_SEARCH_API =
   process.env.NEXT_PUBLIC_GEN3_AI_SEARCH_API || `${GEN3_API}/ai-search`;
 export const GEN3_AUTHZ_API =

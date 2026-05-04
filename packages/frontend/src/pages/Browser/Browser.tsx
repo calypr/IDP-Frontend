@@ -23,7 +23,7 @@ import {
   useGetConfigContentQuery,
   DirItem,
   DirectoryContents,
-  GEN3_FENCE_API,
+  SYFON_API,
 } from '@gen3/core';
 import ProtectedContent from '../../components/Protected/ProtectedContent';
 import { ColumnItem, type BrowserPageProps, FileActionsConfig } from './types';
@@ -143,7 +143,7 @@ export const FileMetadataPanel = ({
 
   const downloadUrl = isGithubFile
     ? url
-    : `${GEN3_FENCE_API}/data/download/${downloadIdentifier}?redirect=true`;
+    : `${SYFON_API}/download/${downloadIdentifier}?redirect=true`;
 
   const extension = fileName.includes('.') ? fileName.split('.').pop()?.toLowerCase() || '' : '';
   const currentActions = fileActions?.extensions?.[extension] || fileActions?.extensions?.['default'] || ['file_download'];

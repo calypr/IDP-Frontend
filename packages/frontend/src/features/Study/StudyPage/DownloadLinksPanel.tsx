@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { DataDownloadLinks, DownloadLinkFields } from '../types';
-import { GEN3_FENCE_API, JSONObject } from '@gen3/core';
+import { JSONObject, SYFON_API } from '@gen3/core';
 import { Accordion, Button, Group, Stack, Text } from '@mantine/core';
 import { FiDownload as DownloadIcon } from 'react-icons/fi';
 
@@ -67,7 +67,7 @@ const DownloadLinksPanel = ({
                       <Text>{entry['titleField'] || ''}</Text>
                       <Button
                         component="a"
-                        href={`${GEN3_FENCE_API}/data/${id}?expires_in=900&redirect`}
+                        href={`${SYFON_API}/${id}?expires_in=900&redirect`}
                         target="_blank"
                         rel="noreferrer"
                         type="text"
