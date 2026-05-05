@@ -16,6 +16,7 @@ export * from './features/Query';
 export * from './features/Workspace';
 export * from './features/Analysis';
 export * from './features/StaticNotebook';
+export * from './features/Upload';
 import {
   RenderFileActions,
   ExplorerTableCellRendererFactory,
@@ -140,6 +141,7 @@ import { NotebookLitePageGetServerSideProps } from './pages/NotebookLite';
 import DataLibraryPage, {
   DataLibraryPageGetServerSideProps,
 } from './pages/DataLibrary';
+import UploadPage, { UploadPageGetServerSideProps } from './pages/Upload';
 // TODO Replace with AppTool plugin
 import CrosswalkPage from './pages/Crosswalk';
 import { CrosswalkPageGetServerSideProps } from './pages/Crosswalk/data';
@@ -241,6 +243,8 @@ export {
   SubmissionPageGetServerSideProps,
   DataLibraryPage,
   DataLibraryPageGetServerSideProps,
+  UploadPage,
+  UploadPageGetServerSideProps,
   NotebookLitePage,
   NotebookLitePageGetServerSideProps,
   registerMetadataSchemaApp,

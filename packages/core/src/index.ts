@@ -16,6 +16,7 @@ import {
   GEN3_SUBMISSION_API,
   GEN3_WORKSPACE_API,
   SYFON_API,
+  SYFON_DRS_API,
   CALYPR_EXPLORER_CONFIG_API,
 } from './constants';
 import { type CoreState } from './reducers';
@@ -46,6 +47,7 @@ export * from './features/modals';
 export * from './features/requestor';
 export * from './features/sower';
 export * from './features/submission';
+export * from './features/syfon';
 export * from './features/workspace';
 export * from './features/grip';
 export * from './features/configurator';
@@ -70,5 +72,6 @@ export {
   GEN3_MANIFEST_API,
   CALYPR_EXPLORER_CONFIG_API,
   SYFON_API,
+  SYFON_DRS_API,
   Accessibility,
 };
