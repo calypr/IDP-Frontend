@@ -67,6 +67,9 @@ import { ConfiguratorPageGetServerSideProps } from './pages/Configurator';
 
 import AppsPage from './pages/Apps/Apps';
 import { AppsPageGetServerSideProps } from './pages/Apps';
+import AvailableImagesPage, {
+  AvailableImagesPageGetServerSideProps,
+} from './pages/AvailableImages';
 // export Gen3 data UI standard pages
 import Gen3Provider, {
   createMantineTheme,
@@ -197,6 +200,8 @@ export {
   FileSummaryPageGetServerSideProps,
   AppsPage,
   AppsPageGetServerSideProps,
+  AvailableImagesPage,
+  AvailableImagesPageGetServerSideProps,
   LandingPage,
   LandingPageGetServerSideProps,
   ColorThemePage,

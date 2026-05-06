@@ -30,7 +30,9 @@ export const getNavPageLayoutPropsFromConfig = async (
       appsPageProps?.appsConfig?.appCards || (appsPageProps as any)?.appCards;
 
     if (appCards && Array.isArray(appCards)) {
-      const explorerItems = appCards.map((card: any) => {
+      const explorerItems = appCards
+        .filter((card: any) => card?.href?.toLowerCase() !== '/upload')
+        .map((card: any) => {
         const item: any = {
           title: card.title || card.name,
           description: card.description || '',
@@ -42,7 +44,7 @@ export const getNavPageLayoutPropsFromConfig = async (
           item.dynamicProps = card.dynamicProps;
         }
         return item;
-      });
+        });
 
       // Find the Explorers item or add it if it doesn't exist
       const explorersIndex = headerProps.leftnav.findIndex(
