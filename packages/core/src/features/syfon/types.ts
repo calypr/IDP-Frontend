@@ -77,6 +77,40 @@ export interface SyfonSignedUrlResponse {
   url?: string;
 }
 
+export interface SyfonMultipartInitArgs {
+  bucket?: string;
+  fileId: string;
+  fileName?: string;
+}
+
+export interface SyfonMultipartInitResponse {
+  guid?: string;
+  uploadId?: string;
+}
+
+export interface SyfonMultipartUploadUrlArgs {
+  bucket?: string;
+  fileId: string;
+  partNumber: number;
+  uploadId: string;
+}
+
+export interface SyfonMultipartUploadUrlResponse {
+  presigned_url?: string;
+}
+
+export interface SyfonMultipartPart {
+  ETag: string;
+  PartNumber: number;
+}
+
+export interface SyfonCompleteMultipartUploadArgs {
+  bucket?: string;
+  fileId: string;
+  parts: Array<SyfonMultipartPart>;
+  uploadId: string;
+}
+
 export interface SyfonCreateUploadUrlArgs {
   bucket: string;
   fileId: string;
@@ -113,5 +147,7 @@ export interface SyfonUploadAndRegisterFileResult {
   objectId: string;
   objectKey: string;
   resourcePath: string;
-  uploadUrl: string;
+  uploadMethod: 'multipart' | 'singlepart';
+  uploadUrl?: string;
+  uploadUrls?: Array<string>;
 }

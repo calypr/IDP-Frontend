@@ -3,12 +3,15 @@ import {
   buildSyfonFileUploadMetadata,
   createSyfonObjectKey,
   createSyfonResourcePath,
+  getSyfonOptimalMultipartChunkSize,
   getSyfonAccessMethodType,
   mintSyfonObjectIdFromChecksum,
   normalizeSyfonBuckets,
   normalizeSyfonProvider,
   normalizeSyfonResourcePath,
   resolveSyfonBucketForScope,
+  shouldUseSyfonMultipartUpload,
+  SYFON_SINGLEPART_UPLOAD_SIZE_LIMIT,
 } from '../utils';
 
 describe('syfon utils', () => {
@@ -174,5 +177,21 @@ describe('syfon utils', () => {
     ).toBe('azblob://bucket-a/path/file.txt');
     expect(getSyfonAccessMethodType('gcs')).toBe('gs');
     expect(getSyfonAccessMethodType('azure')).toBe('azblob');
+  });
+
+  it('derives multipart thresholds and chunk sizes', () => {
+    expect(shouldUseSyfonMultipartUpload(SYFON_SINGLEPART_UPLOAD_SIZE_LIMIT - 1)).toBe(false);
+    expect(shouldUseSyfonMultipartUpload(SYFON_SINGLEPART_UPLOAD_SIZE_LIMIT)).toBe(true);
+
+    expect(getSyfonOptimalMultipartChunkSize(0)).toBe(1024 * 1024);
+    expect(getSyfonOptimalMultipartChunkSize(50 * 1024 * 1024)).toBe(
+      50 * 1024 * 1024,
+    );
+    expect(getSyfonOptimalMultipartChunkSize(500 * 1024 * 1024)).toBe(
+      10 * 1024 * 1024,
+    );
+    expect(
+      getSyfonOptimalMultipartChunkSize(50 * 1024 * 1024 * 1024),
+    ).toBe(256 * 1024 * 1024);
   });
 });

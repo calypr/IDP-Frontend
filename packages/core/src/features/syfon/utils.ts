@@ -14,6 +14,65 @@ const S3_PROVIDER = 's3';
 const GCS_PROVIDER = 'gcs';
 const AZURE_PROVIDER = 'azure';
 const FILE_PROVIDER = 'file';
+const KB = 1024;
+const MB = 1024 * KB;
+const GB = 1024 * MB;
+const TB = 1024 * GB;
+
+export const SYFON_SINGLEPART_UPLOAD_SIZE_LIMIT = 5 * GB;
+export const SYFON_MULTIPART_UPLOAD_SIZE_LIMIT = 5 * TB;
+export const SYFON_MIN_MULTIPART_CHUNK_SIZE = 10 * MB;
+export const SYFON_MAX_MULTIPART_PARTS = 10000;
+export const SYFON_DEFAULT_MULTIPART_CONCURRENCY = 4;
+
+const scaleLinear = (
+  size: number,
+  minSize: number,
+  maxSize: number,
+  minChunk: number,
+  maxChunk: number,
+): number => {
+  if (size <= minSize) return minChunk;
+  if (size >= maxSize) return maxChunk;
+
+  const ratio = (size - minSize) / (maxSize - minSize);
+  const chunk = minChunk + ratio * (maxChunk - minChunk);
+  const rounded = Math.floor(chunk / MB) * MB;
+
+  if (rounded < minChunk) return minChunk;
+  if (rounded > maxChunk) return maxChunk;
+  return rounded;
+};
+
+export const shouldUseSyfonMultipartUpload = (
+  fileSize: number,
+): boolean => fileSize >= SYFON_SINGLEPART_UPLOAD_SIZE_LIMIT;
+
+export const getSyfonOptimalMultipartChunkSize = (
+  fileSize: number,
+): number => {
+  if (fileSize <= 0) {
+    return 1 * MB;
+  }
+
+  if (fileSize <= 100 * MB) {
+    return fileSize;
+  }
+
+  if (fileSize <= 1 * GB) {
+    return 10 * MB;
+  }
+
+  if (fileSize <= 10 * GB) {
+    return scaleLinear(fileSize, 1 * GB, 10 * GB, 25 * MB, 128 * MB);
+  }
+
+  if (fileSize <= 100 * GB) {
+    return 256 * MB;
+  }
+
+  return scaleLinear(fileSize, 100 * GB, 1000 * GB, 512 * MB, 1024 * MB);
+};
 
 export const normalizeSyfonProvider = (provider?: string): string => {
   const normalized = provider?.trim().toLowerCase();

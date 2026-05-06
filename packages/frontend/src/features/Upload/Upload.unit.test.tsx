@@ -70,7 +70,7 @@ describe('<Upload />', () => {
     expect(addFilesMock).toHaveBeenCalledWith([file]);
   });
 
-  it('requires an organization before upload can start', () => {
+  it('shows the organization error only after upload is attempted', async () => {
     useUploadController.mockReturnValue({
       addFiles: addFilesMock,
       canStartUpload: false,
@@ -104,10 +104,14 @@ describe('<Upload />', () => {
 
     renderUpload();
 
-    expect(screen.getByText('Organization required')).toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: 'Upload Files' }),
-    ).toBeDisabled();
+      screen.queryByText('Organization required'),
+    ).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Upload Files' }));
+
+    expect(screen.getByText('Organization required')).toBeInTheDocument();
+    expect(startUploadMock).toHaveBeenCalled();
   });
 
   it('renders queued file state and progress rows', () => {
@@ -210,7 +214,7 @@ describe('<Upload />', () => {
     expect(removeItemMock).toHaveBeenCalledWith('1');
   });
 
-  it('requires a project when the selected organization exposes multiple projects', () => {
+  it('shows the project error only after upload is attempted', async () => {
     useUploadController.mockReturnValue({
       addFiles: addFilesMock,
       canStartUpload: false,
@@ -247,10 +251,12 @@ describe('<Upload />', () => {
 
     renderUpload();
 
+    expect(screen.queryByText('Project required')).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Upload Files' }));
+
     expect(screen.getByText('Project required')).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: 'Upload Files' }),
-    ).toBeDisabled();
+    expect(startUploadMock).toHaveBeenCalled();
   });
 
   it('does not render the page when the user has zero accessible buckets', () => {

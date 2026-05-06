@@ -98,6 +98,52 @@ describe('syfonApi', () => {
         return jsonResponse({ url: 'https://signed.example/upload' });
       }
 
+      if (url === `${SYFON_API}/multipart/init` && method === 'POST') {
+        const body = await requestJson<{
+          bucket?: string;
+          file_name?: string;
+          guid?: string;
+        }>(input, init);
+        expect(body).toEqual({
+          bucket: 'alpha',
+          file_name: 'path/file.txt',
+          guid: 'object-1',
+        });
+        return jsonResponse({ guid: 'object-1', uploadId: 'upload-1' });
+      }
+
+      if (url === `${SYFON_API}/multipart/upload` && method === 'POST') {
+        const body = await requestJson<{
+          bucket?: string;
+          key: string;
+          partNumber: number;
+          uploadId: string;
+        }>(input, init);
+        expect(body).toEqual({
+          bucket: 'alpha',
+          key: 'object-1',
+          partNumber: 1,
+          uploadId: 'upload-1',
+        });
+        return jsonResponse({ presigned_url: 'https://signed.example/part-1' });
+      }
+
+      if (url === `${SYFON_API}/multipart/complete` && method === 'POST') {
+        const body = await requestJson<{
+          bucket?: string;
+          key: string;
+          parts: Array<{ ETag: string; PartNumber: number }>;
+          uploadId: string;
+        }>(input, init);
+        expect(body).toEqual({
+          bucket: 'alpha',
+          key: 'object-1',
+          parts: [{ ETag: '"etag-1"', PartNumber: 1 }],
+          uploadId: 'upload-1',
+        });
+        return new Response(null, { status: 201 });
+      }
+
       if (url === `${SYFON_DRS_API}/objects/register` && method === 'POST') {
         const body = await requestJson<{
           candidates: Array<{ checksums: Array<{ checksum: string; type: string }> }>;
@@ -161,6 +207,29 @@ describe('syfonApi', () => {
         ],
       }),
     );
+    const multipartInitResult = await store.dispatch(
+      syfonApi.endpoints.createSyfonMultipartUpload.initiate({
+        bucket: 'alpha',
+        fileId: 'object-1',
+        fileName: 'path/file.txt',
+      }),
+    );
+    const multipartPartUrlResult = await store.dispatch(
+      syfonApi.endpoints.createSyfonMultipartPartUploadUrl.initiate({
+        bucket: 'alpha',
+        fileId: 'object-1',
+        partNumber: 1,
+        uploadId: 'upload-1',
+      }),
+    );
+    const multipartCompleteResult = await store.dispatch(
+      syfonApi.endpoints.completeSyfonMultipartUpload.initiate({
+        bucket: 'alpha',
+        fileId: 'object-1',
+        parts: [{ ETag: '"etag-1"', PartNumber: 1 }],
+        uploadId: 'upload-1',
+      }),
+    );
 
     expect(buckets.data).toEqual({
       S3_BUCKETS: {
@@ -174,6 +243,11 @@ describe('syfonApi', () => {
     expect(downloadResult.data?.url).toBe('https://signed.example/download');
     expect(uploadResult.data?.url).toBe('https://signed.example/upload');
     expect(registerResult.data?.objects[0].id).toBe('object-1');
+    expect(multipartInitResult.data?.uploadId).toBe('upload-1');
+    expect(multipartPartUrlResult.data?.presigned_url).toBe(
+      'https://signed.example/part-1',
+    );
+    expect(multipartCompleteResult.data).toBeNull();
   });
 
   it('uploads, registers, and returns the final DRS object', async () => {
@@ -201,7 +275,7 @@ describe('syfonApi', () => {
       }
 
       if (url === 'https://signed.example/upload' && method === 'PUT') {
-        expect(init?.headers).toEqual({ 'Content-Type': 'text/plain' });
+        expect(init?.headers).toBeUndefined();
         return new Response(null, { status: 200 });
       }
 
@@ -268,6 +342,7 @@ describe('syfonApi', () => {
       downloadUrl: 'https://signed.example/download',
       objectKey: 'prefix/hello.txt',
       resourcePath: '/organization/org/project/proj',
+      uploadMethod: 'singlepart',
       uploadUrl: 'https://signed.example/upload',
     });
     expect(result.data?.drsObject.id).toBe(result.data?.objectId);
@@ -352,6 +427,122 @@ describe('syfonApi', () => {
 
     expect(result.data?.bucket).toBe('gcs-bucket');
     expect(result.data?.drsObject.access_methods?.[0].type).toBe('gs');
+  });
+
+  it('uses multipart upload for files at or above the singlepart limit', async () => {
+    const store = setupCoreStore();
+
+    global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = requestUrl(input);
+      const method = requestMethod(input, init);
+
+      if (url === `${SYFON_API}/buckets` && method === 'GET') {
+        return jsonResponse({
+          S3_BUCKETS: {
+            'project-bucket': {
+              programs: ['/programs/org/projects/proj'],
+            },
+          },
+        });
+      }
+
+      if (url === `${SYFON_DRS_API}/objects/register` && method === 'POST') {
+        const body = await requestJson<{
+          candidates: Array<{ aliases: Array<string> }>;
+        }>(input, init);
+        return jsonResponse(
+          {
+            objects: [
+              {
+                checksums: [
+                  {
+                    checksum:
+                      '2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824',
+                    type: 'sha256',
+                  },
+                ],
+                created_time: '2026-05-05T00:00:00Z',
+                id: body.candidates[0].aliases[0].slice(3),
+                self_uri: `drs://syfon/${body.candidates[0].aliases[0].slice(3)}`,
+                size: 5,
+              },
+            ],
+          },
+          { status: 201 },
+        );
+      }
+
+      if (url === `${SYFON_API}/multipart/init` && method === 'POST') {
+        const body = await requestJson<{
+          bucket: string;
+          file_name: string;
+          guid: string;
+        }>(input, init);
+        expect(body.bucket).toBe('project-bucket');
+        expect(body.file_name).toBe('prefix/hello.txt');
+        return jsonResponse({ guid: body.guid, uploadId: 'upload-1' });
+      }
+
+      if (url === `${SYFON_API}/multipart/upload` && method === 'POST') {
+        const body = await requestJson<{
+          bucket: string;
+          key: string;
+          partNumber: number;
+          uploadId: string;
+        }>(input, init);
+        expect(body.bucket).toBe('project-bucket');
+        expect(body.key).toEqual(expect.any(String));
+        expect(body.partNumber).toBeGreaterThanOrEqual(1);
+        expect(body.uploadId).toBe('upload-1');
+        return jsonResponse({
+          presigned_url: `https://signed.example/part-${body.partNumber}`,
+        });
+      }
+
+      if (url.startsWith('https://signed.example/part-') && method === 'PUT') {
+        return new Response(null, {
+          headers: { ETag: '"etag-1"' },
+          status: 200,
+        });
+      }
+
+      if (url === `${SYFON_API}/multipart/complete` && method === 'POST') {
+        const body = await requestJson<{
+          bucket: string;
+          key: string;
+          parts: Array<{ ETag: string; PartNumber: number }>;
+          uploadId: string;
+        }>(input, init);
+        expect(body.parts.length).toBeGreaterThan(0);
+        expect(body.parts[0].ETag).toBe('"etag-1"');
+        return new Response(null, { status: 201 });
+      }
+
+      if (url.startsWith(`${SYFON_API}/download/`) && method === 'GET') {
+        return jsonResponse({ url: 'https://signed.example/download' });
+      }
+
+      throw new Error(`Unexpected fetch ${method} ${url}`);
+    }) as typeof global.fetch;
+
+    const file = new File(['hello'], 'hello.txt', { type: 'text/plain' });
+    Object.defineProperty(file, 'size', {
+      configurable: true,
+      value: 5 * 1024 * 1024 * 1024,
+    });
+
+    const result = await store.dispatch(
+      syfonApi.endpoints.uploadAndRegisterSyfonFile.initiate({
+        bucketPath: 'prefix',
+        file,
+        organization: 'org',
+        projectId: 'proj',
+      }),
+    );
+
+    expect(result.data?.uploadMethod).toBe('multipart');
+    expect(result.data?.uploadUrls?.[0]).toBe('https://signed.example/part-1');
+    expect(result.data?.uploadUrl).toBeUndefined();
   });
 
   it('surfaces registration failure after upload', async () => {

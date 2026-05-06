@@ -2,11 +2,15 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { useUploadController } from './useUploadController';
 
 const createUploadUrlMock = jest.fn();
+const createMultipartUploadMock = jest.fn();
+const createMultipartPartUploadUrlMock = jest.fn();
+const completeMultipartUploadMock = jest.fn();
 const deleteDrsObjectMock = jest.fn();
 const getDownloadUrlMock = jest.fn();
 const listBucketsQueryMock = jest.fn();
 const registerDrsObjectsMock = jest.fn();
 const uploadFileWithProgressMock = jest.fn();
+const uploadMultipartFileWithProgressMock = jest.fn();
 const buildSyfonFileUploadMetadataMock = jest.fn();
 const mintSyfonObjectIdFromChecksumMock = jest.fn();
 
@@ -26,13 +30,31 @@ jest.mock('@gen3/core', () => ({
     buildSyfonFileUploadMetadataMock(...args),
   mintSyfonObjectIdFromChecksum: (...args: unknown[]) =>
     mintSyfonObjectIdFromChecksumMock(...args),
+  shouldUseSyfonMultipartUpload: (size: number) =>
+    size >= 5 * 1024 * 1024 * 1024,
+  getSyfonOptimalMultipartChunkSize: () => 10 * 1024 * 1024,
+  SYFON_DEFAULT_MULTIPART_CONCURRENCY: 4,
   useCreateSyfonUploadUrlMutation: () => [createUploadUrlMock],
+  useCreateSyfonMultipartUploadMutation: () => [createMultipartUploadMock],
+  useCreateSyfonMultipartPartUploadUrlMutation: () => [
+    createMultipartPartUploadUrlMock,
+  ],
+  useCompleteSyfonMultipartUploadMutation: () => [completeMultipartUploadMock],
   useDeleteSyfonDrsObjectMutation: () => [deleteDrsObjectMock],
   useLazyGetSyfonDownloadUrlQuery: () => [getDownloadUrlMock],
   useListSyfonBucketsQuery: () => listBucketsQueryMock(),
   useRegisterSyfonDrsObjectsMutation: () => [registerDrsObjectsMock],
   createSyfonObjectKey: (fileName: string, bucketPath?: string) =>
     bucketPath ? `${bucketPath}/${fileName}` : fileName,
+  isErrorWithMessage: (error: unknown) =>
+    typeof error === 'object' &&
+    error !== null &&
+    'message' in error &&
+    typeof (error as { message?: unknown }).message === 'string',
+  isFetchBaseQueryError: (error: unknown) =>
+    typeof error === 'object' &&
+    error !== null &&
+    'status' in error,
   normalizeSyfonBuckets: (response: {
     S3_BUCKETS: Record<string, { programs?: Array<string>; provider?: string }>;
   }) =>
@@ -65,6 +87,8 @@ jest.mock('@gen3/core', () => ({
 jest.mock('./uploadService', () => ({
   uploadFileWithProgress: (...args: unknown[]) =>
     uploadFileWithProgressMock(...args),
+  uploadMultipartFileWithProgress: (...args: unknown[]) =>
+    uploadMultipartFileWithProgressMock(...args),
 }));
 
 const createDeferred = <T,>() => {
@@ -99,6 +123,15 @@ describe('useUploadController', () => {
     createUploadUrlMock.mockReturnValue({
       unwrap: async () => ({ url: 'https://signed.example/upload' }),
     });
+    createMultipartUploadMock.mockReturnValue({
+      unwrap: async () => ({ guid: 'dg.mock/1', uploadId: 'upload-1' }),
+    });
+    createMultipartPartUploadUrlMock.mockReturnValue({
+      unwrap: async () => ({ presigned_url: 'https://signed.example/part-1' }),
+    });
+    completeMultipartUploadMock.mockReturnValue({
+      unwrap: async () => undefined,
+    });
     deleteDrsObjectMock.mockReturnValue({
       unwrap: async () => undefined,
     });
@@ -118,6 +151,7 @@ describe('useUploadController', () => {
         ],
       }),
     });
+    uploadMultipartFileWithProgressMock.mockImplementation(async () => undefined);
   });
 
   it('auto-selects a single available organization and project', () => {
@@ -380,6 +414,42 @@ describe('useUploadController', () => {
     expect(deleteDrsObjectMock).toHaveBeenCalledWith('dg.mock/1');
   });
 
+  it('uses multipart upload for files at or above the singlepart limit', async () => {
+    buildSyfonFileUploadMetadataMock.mockResolvedValue({
+      checksums: [{ checksum: 'sha256-value', type: 'sha256' }],
+      mimeType: 'text/plain',
+      name: 'hello.txt',
+      sha256: 'sha256-value',
+      size: 5 * 1024 * 1024 * 1024,
+    });
+
+    const { result } = renderHook(() => useUploadController());
+    const file = new File(['hello'], 'hello.txt', { type: 'text/plain' });
+    Object.defineProperty(file, 'size', {
+      configurable: true,
+      value: 5 * 1024 * 1024 * 1024,
+    });
+
+    act(() => {
+      result.current.addFiles([file]);
+    });
+
+    await act(async () => {
+      await result.current.startUpload();
+    });
+
+    expect(uploadMultipartFileWithProgressMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        bucket: 'bucket-a',
+        file,
+        fileId: 'dg.mock/1',
+        objectKey: 'hello.txt',
+      }),
+    );
+    expect(uploadFileWithProgressMock).not.toHaveBeenCalled();
+    expect(createUploadUrlMock).not.toHaveBeenCalled();
+  });
+
   it('marks the file as error when registration fails', async () => {
     uploadFileWithProgressMock.mockResolvedValue(undefined);
     registerDrsObjectsMock.mockReturnValue({
@@ -406,6 +476,33 @@ describe('useUploadController', () => {
     expect(deleteDrsObjectMock).not.toHaveBeenCalled();
   });
 
+  it('surfaces structured API error messages when registration fails', async () => {
+    uploadFileWithProgressMock.mockResolvedValue(undefined);
+    registerDrsObjectsMock.mockReturnValue({
+      unwrap: async () => {
+        throw {
+          data: { message: 'Bucket scope mismatch' },
+          status: 400,
+        };
+      },
+    });
+
+    const { result } = renderHook(() => useUploadController());
+
+    act(() => {
+      result.current.addFiles([
+        new File(['hello'], 'hello.txt', { type: 'text/plain' }),
+      ]);
+    });
+
+    await act(async () => {
+      await result.current.startUpload();
+    });
+
+    expect(result.current.queue[0].status).toBe('error');
+    expect(result.current.queue[0].error).toBe('Bucket scope mismatch');
+  });
+
   it('surfaces rollback failure when cleanup fails after upload error', async () => {
     uploadFileWithProgressMock.mockRejectedValue(new Error('Upload failed'));
     deleteDrsObjectMock.mockReturnValue({
@@ -430,5 +527,35 @@ describe('useUploadController', () => {
     expect(result.current.queue[0].error).toBe(
       'Upload failed (rollback failed)',
     );
+  });
+
+  it('surfaces structured API error messages when deleting a row fails', async () => {
+    deleteDrsObjectMock.mockReturnValue({
+      unwrap: async () => {
+        throw {
+          data: { message: 'Delete denied by policy' },
+          status: 403,
+        };
+      },
+    });
+
+    const { result } = renderHook(() => useUploadController());
+
+    act(() => {
+      result.current.addFiles([
+        new File(['hello'], 'hello.txt', { type: 'text/plain' }),
+      ]);
+    });
+
+    await act(async () => {
+      await result.current.startUpload();
+    });
+
+    await act(async () => {
+      await result.current.removeItem(result.current.queue[0].id);
+    });
+
+    expect(result.current.queue[0].status).toBe('error');
+    expect(result.current.queue[0].error).toBe('Delete denied by policy');
   });
 });

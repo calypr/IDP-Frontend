@@ -1,4 +1,4 @@
-import React, { DragEvent, useMemo, useRef } from 'react';
+import React, { DragEvent, useMemo, useRef, useState } from 'react';
 import {
   ActionIcon,
   Alert,
@@ -44,9 +44,9 @@ const statusLabelMap = {
 
 const Upload = () => {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [hasAttemptedUpload, setHasAttemptedUpload] = useState(false);
   const {
     addFiles,
-    canStartUpload,
     clearFinishedItems,
     hasBuckets,
     isBucketsLoading,
@@ -71,9 +71,23 @@ const Upload = () => {
     () => ({
       count: queue.length,
       size: queue.reduce((sum, item) => sum + item.file.size, 0),
+      queuedCount: queue.filter((item) => item.status === 'queued').length,
     }),
     [queue],
   );
+
+  const showOrganizationError =
+    hasAttemptedUpload && !selectedOrganization && queue.length > 0;
+  const showProjectError =
+    hasAttemptedUpload &&
+    !!selectedOrganization &&
+    isProjectSelectionRequired &&
+    queue.length > 0;
+
+  const onStartUpload = async () => {
+    setHasAttemptedUpload(true);
+    await startUpload();
+  };
 
   const onFilesSelected = (files: FileList | null) => {
     if (!files) return;
@@ -105,6 +119,71 @@ const Upload = () => {
 
           <Paper withBorder p="lg" radius="sm">
             <Stack gap="lg">
+              <Group grow align="end">
+                <Select
+                  label="Organization"
+                  placeholder={
+                    isBucketsLoading
+                      ? 'Loading organizations...'
+                      : organizationOptions.length === 0
+                        ? 'No organizations available'
+                        : 'Select an organization'
+                  }
+                  data={organizationOptions}
+                  value={selectedOrganization}
+                  onChange={(value) => setSelectedOrganization(value ?? '')}
+                  disabled={isUploading || organizationOptions.length <= 1}
+                  rightSection={isBucketsLoading ? <Loader size="xs" /> : null}
+                  searchable={organizationOptions.length > 6}
+                />
+                <Select
+                  label="Project"
+                  placeholder={
+                    !selectedOrganization
+                      ? 'Select an organization first'
+                      : projectOptions.length === 0
+                        ? 'No project required'
+                        : 'Select a project'
+                  }
+                  data={projectOptions}
+                  value={selectedProject}
+                  onChange={(value) => setSelectedProject(value ?? '')}
+                  disabled={
+                    isUploading ||
+                    !selectedOrganization ||
+                    projectOptions.length <= 1
+                  }
+                  searchable={projectOptions.length > 6}
+                />
+                <TextInput
+                  label="Subdirectory"
+                  placeholder="optional/path/inside/bucket"
+                  value={subdirectory}
+                  onChange={(event) => setSubdirectory(event.currentTarget.value)}
+                  disabled={isUploading}
+                />
+              </Group>
+
+              {showOrganizationError ? (
+                <Alert
+                  color="yellow"
+                  icon={<WarningTriangleIcon />}
+                  title="Organization required"
+                >
+                  Select an organization before starting the upload batch.
+                </Alert>
+              ) : null}
+              {showProjectError ? (
+                <Alert
+                  color="yellow"
+                  icon={<WarningTriangleIcon />}
+                  title="Project required"
+                >
+                  Select the project for this organization before starting the
+                  upload batch.
+                </Alert>
+              ) : null}
+
               <div
                 className="flex min-h-56 cursor-pointer flex-col items-center justify-center border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center"
                 onClick={() => inputRef.current?.click()}
@@ -136,51 +215,6 @@ const Upload = () => {
                 />
               </div>
 
-              <Group grow align="end">
-                <Select
-                  label="Organization"
-                  placeholder={
-                    isBucketsLoading
-                      ? 'Loading organizations...'
-                      : organizationOptions.length === 0
-                        ? 'No organizations available'
-                        : 'Select an organization'
-                  }
-                  data={organizationOptions}
-                  value={selectedOrganization}
-                  onChange={(value) => setSelectedOrganization(value ?? '')}
-                  disabled={isUploading || organizationOptions.length <= 1}
-                  rightSection={isBucketsLoading ? <Loader size="xs" /> : null}
-                  searchable={organizationOptions.length > 6}
-                />
-                <Select
-                  label="Project"
-                  placeholder={
-                    !selectedOrganization
-                      ? 'Select an organization first'
-                      : projectOptions.length === 0
-                        ? 'No project required'
-                        : 'Select a project'
-                  }
-                  data={projectOptions}
-                  value={selectedProject}
-                  onChange={(value) => setSelectedProject(value ?? '')}
-                  disabled={
-                        isUploading ||
-                    !selectedOrganization ||
-                    projectOptions.length <= 1
-                  }
-                  searchable={projectOptions.length > 6}
-                />
-                <TextInput
-                  label="Subdirectory"
-                  placeholder="optional/path/inside/bucket"
-                  value={subdirectory}
-                  onChange={(event) => setSubdirectory(event.currentTarget.value)}
-                  disabled={isUploading}
-                />
-              </Group>
-
               <Group justify="space-between" align="center">
                 <Group gap="md">
                   <Text size="sm" c="dimmed">
@@ -200,36 +234,14 @@ const Upload = () => {
                   </Button>
                   <Button
                     leftSection={<UploadIcon size="1rem" />}
-                    onClick={() => void startUpload()}
-                    disabled={!canStartUpload}
+                    onClick={() => void onStartUpload()}
+                    disabled={isUploading || queueSummary.queuedCount === 0}
                     loading={isUploading}
                   >
                     Upload Files
                   </Button>
                 </Group>
               </Group>
-
-              {!selectedOrganization && queue.length > 0 ? (
-                <Alert
-                  color="yellow"
-                  icon={<WarningTriangleIcon />}
-                  title="Organization required"
-                >
-                  Select an organization before starting the upload batch.
-                </Alert>
-              ) : null}
-              {selectedOrganization &&
-              isProjectSelectionRequired &&
-              queue.length > 0 ? (
-                <Alert
-                  color="yellow"
-                  icon={<WarningTriangleIcon />}
-                  title="Project required"
-                >
-                  Select the project for this organization before starting the
-                  upload batch.
-                </Alert>
-              ) : null}
 
               <Table striped highlightOnHover withTableBorder>
                 <Table.Thead>

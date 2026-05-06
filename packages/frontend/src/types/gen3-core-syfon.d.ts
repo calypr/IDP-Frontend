@@ -60,6 +60,20 @@ declare module '@gen3/core' {
     url?: string;
   }
 
+  export interface SyfonMultipartInitResponse {
+    guid?: string;
+    uploadId?: string;
+  }
+
+  export interface SyfonMultipartUploadUrlResponse {
+    presigned_url?: string;
+  }
+
+  export interface SyfonMultipartPart {
+    ETag: string;
+    PartNumber: number;
+  }
+
   export interface SyfonCreateUploadUrlArgs {
     bucket: string;
     expiresIn?: number;
@@ -95,6 +109,9 @@ declare module '@gen3/core' {
     provider?: string,
   ): string;
   export function getSyfonAccessMethodType(provider?: string): string;
+  export function shouldUseSyfonMultipartUpload(fileSize: number): boolean;
+  export const SYFON_DEFAULT_MULTIPART_CONCURRENCY: number;
+  export function getSyfonOptimalMultipartChunkSize(fileSize: number): number;
   export function buildSyfonFileUploadMetadata(file: File): Promise<{
     checksums: Array<SyfonChecksum>;
     mimeType: string;
@@ -114,6 +131,29 @@ declare module '@gen3/core' {
     (
       args: SyfonCreateUploadUrlArgs,
     ) => { unwrap: () => Promise<SyfonSignedUrlResponse> },
+  ];
+  export function useCreateSyfonMultipartUploadMutation(): [
+    (args: {
+      bucket?: string;
+      fileId: string;
+      fileName?: string;
+    }) => { unwrap: () => Promise<SyfonMultipartInitResponse> },
+  ];
+  export function useCreateSyfonMultipartPartUploadUrlMutation(): [
+    (args: {
+      bucket?: string;
+      fileId: string;
+      partNumber: number;
+      uploadId: string;
+    }) => { unwrap: () => Promise<SyfonMultipartUploadUrlResponse> },
+  ];
+  export function useCompleteSyfonMultipartUploadMutation(): [
+    (args: {
+      bucket?: string;
+      fileId: string;
+      parts: Array<SyfonMultipartPart>;
+      uploadId: string;
+    }) => { unwrap: () => Promise<void> },
   ];
   export function useRegisterSyfonDrsObjectsMutation(): [
     (

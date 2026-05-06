@@ -1,11 +1,16 @@
 import { gen3Api } from '../gen3';
 import { SYFON_API, SYFON_DRS_API } from '../../constants';
 import {
+  SyfonCompleteMultipartUploadArgs,
   SyfonBucketsResponse,
   SyfonCreateUploadUrlArgs,
   SyfonDrsObject,
   SyfonDrsObjectsByChecksumResponse,
   SyfonDrsRegisterResponse,
+  SyfonMultipartInitArgs,
+  SyfonMultipartInitResponse,
+  SyfonMultipartUploadUrlArgs,
+  SyfonMultipartUploadUrlResponse,
   SyfonRegisterDrsObjectsRequest,
   SyfonSignedUrlResponse,
   SyfonUploadAndRegisterFileArgs,
@@ -16,10 +21,12 @@ import {
   buildSyfonFileUploadMetadata,
   createSyfonObjectKey,
   createSyfonResourcePath,
+  getSyfonOptimalMultipartChunkSize,
   getSyfonAccessMethodType,
   mintSyfonObjectIdFromChecksum,
   normalizeSyfonBuckets,
   resolveSyfonBucketForScope,
+  shouldUseSyfonMultipartUpload,
 } from './utils';
 import type { FetchBaseQueryError } from '@reduxjs/toolkit/query';
 
@@ -44,6 +51,31 @@ const getSignedUrl = (
   const url = (response as SyfonSignedUrlResponse | undefined)?.url;
   if (!url) {
     throw new Error(`Syfon ${context} URL response did not include a url`);
+  }
+  return url;
+};
+
+const getMultipartUploadId = (response: unknown): string => {
+  const uploadId = (response as SyfonMultipartInitResponse | undefined)?.uploadId;
+  if (!uploadId) {
+    throw new Error('Syfon multipart init response did not include an uploadId');
+  }
+  return uploadId;
+};
+
+const getMultipartUploadKey = (
+  response: unknown,
+  fallbackFileId: string,
+): string =>
+  (response as SyfonMultipartInitResponse | undefined)?.guid || fallbackFileId;
+
+const getMultipartPresignedUrl = (response: unknown): string => {
+  const url = (response as SyfonMultipartUploadUrlResponse | undefined)
+    ?.presigned_url;
+  if (!url) {
+    throw new Error(
+      'Syfon multipart upload URL response did not include a presigned_url',
+    );
   }
   return url;
 };
@@ -116,6 +148,54 @@ export const syfonApi = syfonTags.injectEndpoints({
           url: `${SYFON_API}/upload/${fileId}?${params.toString()}`,
         };
       },
+    }),
+    createSyfonMultipartUpload: builder.mutation<
+      SyfonMultipartInitResponse,
+      SyfonMultipartInitArgs
+    >({
+      query: ({ bucket, fileId, fileName }) => ({
+        body: {
+          bucket,
+          file_name: fileName,
+          guid: fileId,
+        },
+        method: 'POST',
+        url: `${SYFON_API}/multipart/init`,
+      }),
+    }),
+    createSyfonMultipartPartUploadUrl: builder.mutation<
+      SyfonMultipartUploadUrlResponse,
+      SyfonMultipartUploadUrlArgs
+    >({
+      query: ({ bucket, fileId, partNumber, uploadId }) => ({
+        body: {
+          bucket,
+          key: fileId,
+          partNumber,
+          uploadId,
+        },
+        method: 'POST',
+        url: `${SYFON_API}/multipart/upload`,
+      }),
+    }),
+    completeSyfonMultipartUpload: builder.mutation<
+      void,
+      SyfonCompleteMultipartUploadArgs
+    >({
+      query: ({ bucket, fileId, parts, uploadId }) => ({
+        body: {
+          bucket,
+          key: fileId,
+          parts,
+          uploadId,
+        },
+        method: 'POST',
+        responseHandler: async (response) => {
+          await response.text();
+          return null;
+        },
+        url: `${SYFON_API}/multipart/complete`,
+      }),
     }),
     uploadAndRegisterSyfonFile: builder.mutation<
       SyfonUploadAndRegisterFileResult,
@@ -200,30 +280,126 @@ export const syfonApi = syfonTags.injectEndpoints({
           }
           registeredObjectId = registeredObject.id;
 
-          const uploadUrlResponse = await fetchWithBQ({
-            method: 'GET',
-            url: `${SYFON_API}/upload/${registeredObject.id}?${new URLSearchParams({
-              bucket: resolvedBucket,
-            }).toString()}`,
-          });
-          if (uploadUrlResponse.error) {
-            await rollbackRegisteredObject();
-            return { error: uploadUrlResponse.error };
-          }
+          const uploadUrls: Array<string> = [];
+          const uploadMethod = shouldUseSyfonMultipartUpload(metadata.size)
+            ? 'multipart'
+            : 'singlepart';
+          let uploadUrl: string | undefined;
 
-          const uploadUrl = getSignedUrl(uploadUrlResponse.data, 'upload');
-          const uploadResponse = await fetch(uploadUrl, {
-            body: arg.file,
-            headers: {
-              'Content-Type': metadata.mimeType,
-            },
-            method: 'PUT',
-          });
-          if (!uploadResponse.ok) {
-            await rollbackRegisteredObject();
-            return customError(
-              `Syfon upload failed with status ${uploadResponse.status}`,
+          if (uploadMethod === 'multipart') {
+            const multipartInitResponse = await fetchWithBQ({
+              body: {
+                bucket: resolvedBucket,
+                file_name: objectKey,
+                guid: registeredObject.id,
+              },
+              method: 'POST',
+              url: `${SYFON_API}/multipart/init`,
+            });
+            if (multipartInitResponse.error) {
+              await rollbackRegisteredObject();
+              return { error: multipartInitResponse.error };
+            }
+
+            const uploadId = getMultipartUploadId(multipartInitResponse.data);
+            const multipartKey = getMultipartUploadKey(
+              multipartInitResponse.data,
+              registeredObject.id,
             );
+            const chunkSize = getSyfonOptimalMultipartChunkSize(metadata.size);
+            const partCount = Math.ceil(metadata.size / chunkSize);
+            const parts: Array<{ ETag: string; PartNumber: number }> = [];
+
+            for (let partNumber = 1; partNumber <= partCount; partNumber += 1) {
+              const start = (partNumber - 1) * chunkSize;
+              const end = Math.min(start + chunkSize, metadata.size);
+              const partUrlResponse = await fetchWithBQ({
+                body: {
+                  bucket: resolvedBucket,
+                  key: multipartKey,
+                  partNumber,
+                  uploadId,
+                },
+                method: 'POST',
+                url: `${SYFON_API}/multipart/upload`,
+              });
+              if (partUrlResponse.error) {
+                await rollbackRegisteredObject();
+                return { error: partUrlResponse.error };
+              }
+
+              const presignedUrl = getMultipartPresignedUrl(
+                partUrlResponse.data,
+              );
+              uploadUrls.push(presignedUrl);
+              const uploadPartResponse = await fetch(presignedUrl, {
+                body: arg.file.slice(start, end),
+                method: 'PUT',
+              });
+              if (!uploadPartResponse.ok) {
+                await rollbackRegisteredObject();
+                return customError(
+                  `Syfon multipart upload failed with status ${uploadPartResponse.status}`,
+                );
+              }
+
+              const etag =
+                uploadPartResponse.headers.get('etag') ??
+                uploadPartResponse.headers.get('ETag');
+              if (!etag) {
+                await rollbackRegisteredObject();
+                return customError(
+                  `Syfon multipart upload part ${partNumber} did not return an ETag`,
+                );
+              }
+
+              parts.push({
+                ETag: etag,
+                PartNumber: partNumber,
+              });
+            }
+
+            const multipartCompleteResponse = await fetchWithBQ({
+              body: {
+                bucket: resolvedBucket,
+                key: multipartKey,
+                parts,
+                uploadId,
+              },
+              method: 'POST',
+              responseHandler: async (response) => {
+                await response.text();
+                return null;
+              },
+              url: `${SYFON_API}/multipart/complete`,
+            });
+            if (multipartCompleteResponse.error) {
+              await rollbackRegisteredObject();
+              return { error: multipartCompleteResponse.error };
+            }
+          } else {
+            const uploadUrlResponse = await fetchWithBQ({
+              method: 'GET',
+              url: `${SYFON_API}/upload/${registeredObject.id}?${new URLSearchParams({
+                bucket: resolvedBucket,
+              }).toString()}`,
+            });
+            if (uploadUrlResponse.error) {
+              await rollbackRegisteredObject();
+              return { error: uploadUrlResponse.error };
+            }
+
+            uploadUrl = getSignedUrl(uploadUrlResponse.data, 'upload');
+            const uploadResponse = await fetch(uploadUrl, {
+              body: arg.file,
+              method: 'PUT',
+            });
+            if (!uploadResponse.ok) {
+              await rollbackRegisteredObject();
+              return customError(
+                `Syfon upload failed with status ${uploadResponse.status}`,
+              );
+            }
           }
 
           const downloadUrlResponse = await fetchWithBQ(
@@ -242,7 +418,9 @@ export const syfonApi = syfonTags.injectEndpoints({
               objectId: registeredObject.id,
               objectKey,
               resourcePath: controlledAccess[0],
+              uploadMethod,
               uploadUrl,
+              uploadUrls,
             },
           };
         } catch (error: unknown) {
@@ -268,5 +446,8 @@ export const {
   useGetSyfonDownloadUrlQuery,
   useLazyGetSyfonDownloadUrlQuery,
   useCreateSyfonUploadUrlMutation,
+  useCreateSyfonMultipartUploadMutation,
+  useCreateSyfonMultipartPartUploadUrlMutation,
+  useCompleteSyfonMultipartUploadMutation,
   useUploadAndRegisterSyfonFileMutation,
 } = syfonApi;

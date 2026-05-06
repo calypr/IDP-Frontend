@@ -4,7 +4,13 @@ import {
   buildSyfonCanonicalObjectUrl,
   buildSyfonFileUploadMetadata,
   getSyfonAccessMethodType,
+  isErrorWithMessage,
+  isFetchBaseQueryError,
   mintSyfonObjectIdFromChecksum,
+  shouldUseSyfonMultipartUpload,
+  useCompleteSyfonMultipartUploadMutation,
+  useCreateSyfonMultipartPartUploadUrlMutation,
+  useCreateSyfonMultipartUploadMutation,
   useCreateSyfonUploadUrlMutation,
   useDeleteSyfonDrsObjectMutation,
   useLazyGetSyfonDownloadUrlQuery,
@@ -24,7 +30,10 @@ import {
   createUploadItemId,
   resolveUploadBucketName,
 } from './utils';
-import { uploadFileWithProgress } from './uploadService';
+import {
+  uploadFileWithProgress,
+  uploadMultipartFileWithProgress,
+} from './uploadService';
 
 const updateItem = (
   items: Array<UploadQueueItem>,
@@ -32,6 +41,40 @@ const updateItem = (
   patch: Partial<UploadQueueItem>,
 ): Array<UploadQueueItem> =>
   items.map((item) => (item.id === id ? { ...item, ...patch } : item));
+
+const extractUploadErrorMessage = (
+  error: unknown,
+  fallback: string,
+): string => {
+  if (isErrorWithMessage(error) && error.message.trim()) {
+    return error.message.trim();
+  }
+
+  if (isFetchBaseQueryError(error)) {
+    if (typeof error.data === 'string' && error.data.trim()) {
+      return error.data.trim();
+    }
+
+    if (error.data && typeof error.data === 'object') {
+      const data = error.data as {
+        detail?: string;
+        error?: string;
+        message?: string;
+      };
+      const candidate =
+        data.message?.trim() || data.error?.trim() || data.detail?.trim();
+      if (candidate) {
+        return candidate;
+      }
+    }
+
+    if ('error' in error && typeof error.error === 'string' && error.error.trim()) {
+      return error.error.trim();
+    }
+  }
+
+  return fallback;
+};
 
 interface UploadControllerResult {
   addFiles: (files: Array<File>) => void;
@@ -66,6 +109,10 @@ export const useUploadController = (): UploadControllerResult => {
   const { data: rawBuckets, isLoading: isBucketsLoading } =
     useListSyfonBucketsQuery();
   const [createUploadUrl] = useCreateSyfonUploadUrlMutation();
+  const [createMultipartUpload] = useCreateSyfonMultipartUploadMutation();
+  const [createMultipartPartUploadUrl] =
+    useCreateSyfonMultipartPartUploadUrlMutation();
+  const [completeMultipartUpload] = useCompleteSyfonMultipartUploadMutation();
   const [deleteDrsObject] = useDeleteSyfonDrsObjectMutation();
   const [getDownloadUrl] = useLazyGetSyfonDownloadUrlQuery();
   const [registerDrsObjects] = useRegisterSyfonDrsObjectsMutation();
@@ -135,10 +182,10 @@ export const useUploadController = (): UploadControllerResult => {
         await deleteDrsObject(objectId).unwrap();
         setQueue((current) => current.filter((item) => item.id !== id));
       } catch (error: unknown) {
-        const message =
-          error instanceof Error
-            ? error.message
-            : 'Failed to delete DRS record';
+        const message = extractUploadErrorMessage(
+          error,
+          'Failed to delete DRS record',
+        );
         setQueue((current) =>
           updateItem(current, id, {
             error: message,
@@ -165,10 +212,10 @@ export const useUploadController = (): UploadControllerResult => {
         }
         window.open(response.url, '_blank', 'noopener,noreferrer');
       } catch (error: unknown) {
-        const message =
-          error instanceof Error
-            ? error.message
-            : 'Failed to get download URL';
+        const message = extractUploadErrorMessage(
+          error,
+          'Failed to get download URL',
+        );
         setQueue((current) =>
           updateItem(current, id, {
             error: message,
@@ -190,7 +237,17 @@ export const useUploadController = (): UploadControllerResult => {
   }, [isUploading]);
 
   const startUpload = useCallback(async () => {
-    if (!selectedOrganization || isUploading) {
+    const requiresOrganizationSelection =
+      organizationOptions.length > 1 && !selectedOrganization;
+    const requiresProjectSelection =
+      projectOptions.length > 1 && !selectedProject;
+
+    if (
+      !selectedOrganization ||
+      isUploading ||
+      requiresOrganizationSelection ||
+      requiresProjectSelection
+    ) {
       return;
     }
 
@@ -198,144 +255,195 @@ export const useUploadController = (): UploadControllerResult => {
 
     const itemsToUpload = queue.filter((item) => item.status === 'queued');
 
-    for (const item of itemsToUpload) {
-      let registeredObjectId: string | undefined;
-      try {
-        setQueue((current) =>
-          updateItem(current, item.id, {
-            error: undefined,
-            progress: 0,
-            status: 'hashing',
-            uploadedBytes: 0,
-          }),
-        );
+    await Promise.all(
+      itemsToUpload.map(async (item) => {
+        let registeredObjectId: string | undefined;
+        try {
+          setQueue((current) =>
+            updateItem(current, item.id, {
+              error: undefined,
+              progress: 0,
+              status: 'hashing',
+              uploadedBytes: 0,
+            }),
+          );
 
-        const metadata = await buildSyfonFileUploadMetadata(item.file);
-        const objectKey = buildUploadObjectKey(metadata.name, subdirectory);
-        const controlledAccess = buildControlledAccessForUpload(
-          selectedOrganization,
-          selectedProject,
-        );
-        const resolvedBucket = resolveUploadBucketName(
-          rawBuckets,
-          selectedOrganization,
-          selectedProject || undefined,
-        );
-        const objectId = await mintSyfonObjectIdFromChecksum(
-          metadata.sha256,
-          controlledAccess,
-        );
-        const canonicalUrl = buildSyfonCanonicalObjectUrl(
-          resolvedBucket.name,
-          objectKey,
-          resolvedBucket.provider,
-        );
-
-        setQueue((current) =>
-          updateItem(current, item.id, {
-            objectId,
+          const metadata = await buildSyfonFileUploadMetadata(item.file);
+          const objectKey = buildUploadObjectKey(metadata.name, subdirectory);
+          const controlledAccess = buildControlledAccessForUpload(
+            selectedOrganization,
+            selectedProject,
+          );
+          const resolvedBucket = resolveUploadBucketName(
+            rawBuckets,
+            selectedOrganization,
+            selectedProject || undefined,
+          );
+          const objectId = await mintSyfonObjectIdFromChecksum(
+            metadata.sha256,
+            controlledAccess,
+          );
+          const canonicalUrl = buildSyfonCanonicalObjectUrl(
+            resolvedBucket.name,
             objectKey,
-            status: 'registering',
-          }),
-        );
+            resolvedBucket.provider,
+          );
 
-        const registerResponse = await registerDrsObjects({
-          candidates: [
-            {
-              access_methods: [
-                {
-                  access_url: { url: canonicalUrl },
-                  type: getSyfonAccessMethodType(resolvedBucket.provider),
-                },
-              ],
-              aliases: [`id:${objectId}`],
-              checksums: metadata.checksums,
-              controlled_access: controlledAccess,
-              mime_type: metadata.mimeType,
-              name: metadata.name,
-              size: metadata.size,
-            },
-          ],
-        }).unwrap();
+          setQueue((current) =>
+            updateItem(current, item.id, {
+              objectId,
+              objectKey,
+              status: 'registering',
+            }),
+          );
 
-        const drsObject = registerResponse.objects[0] as
-          | SyfonDrsObject
-          | undefined;
-        if (!drsObject) {
-          throw new Error('DRS registration did not return an object');
-        }
-        registeredObjectId = drsObject.id;
+          const registerResponse = await registerDrsObjects({
+            candidates: [
+              {
+                access_methods: [
+                  {
+                    access_url: { url: canonicalUrl },
+                    type: getSyfonAccessMethodType(resolvedBucket.provider),
+                  },
+                ],
+                aliases: [`id:${objectId}`],
+                checksums: metadata.checksums,
+                controlled_access: controlledAccess,
+                mime_type: metadata.mimeType,
+                name: metadata.name,
+                size: metadata.size,
+              },
+            ],
+          }).unwrap();
 
-        const uploadUrlResponse = await createUploadUrl({
-          bucket: resolvedBucket.name,
-          fileId: objectId,
-        }).unwrap();
+          const drsObject = registerResponse.objects[0] as
+            | SyfonDrsObject
+            | undefined;
+          if (!drsObject) {
+            throw new Error('DRS registration did not return an object');
+          }
+          registeredObjectId = drsObject.id;
 
-        if (!uploadUrlResponse.url) {
-          throw new Error('Signed upload URL was not returned');
-        }
+          setQueue((current) =>
+            updateItem(current, item.id, {
+              objectId,
+              objectKey,
+              status: 'uploading',
+            }),
+          );
 
-        setQueue((current) =>
-          updateItem(current, item.id, {
-            objectId,
-            objectKey,
-            status: 'uploading',
-          }),
-        );
-
-        await uploadFileWithProgress(
-          uploadUrlResponse.url,
-          item.file,
-          metadata.mimeType,
-          (loaded, total) => {
+          const onProgress = (loaded: number, total: number) => {
             setQueue((current) =>
               updateItem(current, item.id, {
                 progress: total > 0 ? Math.round((loaded / total) * 100) : 0,
                 uploadedBytes: loaded,
               }),
             );
-          },
-        );
+          };
 
-        setQueue((current) =>
-          updateItem(current, item.id, {
-            progress: 100,
-            status: 'registering',
-            uploadedBytes: item.file.size,
-          }),
-        );
+          if (shouldUseSyfonMultipartUpload(metadata.size)) {
+            await uploadMultipartFileWithProgress({
+              bucket: resolvedBucket.name,
+              completeMultipartUpload: async ({
+                bucket,
+                fileId,
+                parts,
+                uploadId,
+              }) => {
+                await completeMultipartUpload({
+                  bucket,
+                  fileId,
+                  parts,
+                  uploadId,
+                }).unwrap();
+              },
+              createPartUploadUrl: async ({
+                bucket,
+                fileId,
+                partNumber,
+                uploadId,
+              }) =>
+                createMultipartPartUploadUrl({
+                  bucket,
+                  fileId,
+                  partNumber,
+                  uploadId,
+                }).unwrap(),
+              file: item.file,
+              fileId: objectId,
+              initMultipartUpload: async ({ bucket, fileId, fileName }) =>
+                createMultipartUpload({
+                  bucket,
+                  fileId,
+                  fileName,
+                }).unwrap(),
+              objectKey,
+              onProgress,
+            });
+          } else {
+            const uploadUrlResponse = await createUploadUrl({
+              bucket: resolvedBucket.name,
+              fileId: objectId,
+            }).unwrap();
 
-        setQueue((current) =>
-          updateItem(current, item.id, {
-            drsObject,
-            progress: 100,
-            status: 'complete',
-            uploadedBytes: item.file.size,
-          }),
-        );
-      } catch (error: unknown) {
-        let message = error instanceof Error ? error.message : 'Upload failed';
-        if (registeredObjectId) {
-          try {
-            await deleteDrsObject(registeredObjectId).unwrap();
-          } catch {
-            message = `${message} (rollback failed)`;
+            if (!uploadUrlResponse.url) {
+              throw new Error('Signed upload URL was not returned');
+            }
+
+            await uploadFileWithProgress(
+              uploadUrlResponse.url,
+              item.file,
+              metadata.mimeType,
+              onProgress,
+            );
           }
+
+          setQueue((current) =>
+            updateItem(current, item.id, {
+              progress: 100,
+              status: 'registering',
+              uploadedBytes: item.file.size,
+            }),
+          );
+
+          setQueue((current) =>
+            updateItem(current, item.id, {
+              drsObject,
+              error: undefined,
+              progress: 100,
+              status: 'complete',
+              uploadedBytes: item.file.size,
+            }),
+          );
+        } catch (error: unknown) {
+          let message = extractUploadErrorMessage(error, 'Upload failed');
+          if (registeredObjectId) {
+            try {
+              await deleteDrsObject(registeredObjectId).unwrap();
+            } catch {
+              message = `${message} (rollback failed)`;
+            }
+          }
+          setQueue((current) =>
+            updateItem(current, item.id, {
+              error: message,
+              status: 'error',
+            }),
+          );
         }
-        setQueue((current) =>
-          updateItem(current, item.id, {
-            error: message,
-            status: 'error',
-          }),
-        );
-      }
-    }
+      }),
+    );
 
     setIsUploading(false);
   }, [
+    completeMultipartUpload,
+    createMultipartPartUploadUrl,
+    createMultipartUpload,
     createUploadUrl,
     deleteDrsObject,
     isUploading,
+    organizationOptions.length,
+    projectOptions.length,
     queue,
     rawBuckets,
     registerDrsObjects,
