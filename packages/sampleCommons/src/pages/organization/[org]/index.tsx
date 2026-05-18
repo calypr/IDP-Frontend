@@ -1,4 +1,4 @@
-import type { ComponentProps } from 'react';
+import React, { type ComponentProps } from 'react';
 import { useRouter } from 'next/router';
 import {
   OrganizationExplorerPageGetServerSideProps as getServerSideProps,
