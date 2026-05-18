@@ -99,11 +99,29 @@ interface UploadControllerResult {
   subdirectory: string;
 }
 
-export const useUploadController = (): UploadControllerResult => {
+interface UploadControllerOptions {
+  initialOrganization?: string;
+  initialProject?: string;
+  initialSubdirectory?: string;
+  lockOrganization?: boolean;
+  lockProject?: boolean;
+  lockSubdirectory?: boolean;
+}
+
+export const useUploadController = ({
+  initialOrganization,
+  initialProject,
+  initialSubdirectory,
+  lockOrganization = false,
+  lockProject = false,
+  lockSubdirectory = false,
+}: UploadControllerOptions = {}): UploadControllerResult => {
   const [queue, setQueue] = useState<Array<UploadQueueItem>>([]);
-  const [selectedOrganization, setSelectedOrganization] = useState('');
-  const [selectedProject, setSelectedProject] = useState('');
-  const [subdirectory, setSubdirectory] = useState('');
+  const [selectedOrganization, setSelectedOrganization] = useState(
+    initialOrganization ?? '',
+  );
+  const [selectedProject, setSelectedProject] = useState(initialProject ?? '');
+  const [subdirectory, setSubdirectory] = useState(initialSubdirectory ?? '');
   const [isUploading, setIsUploading] = useState(false);
 
   const { data: rawBuckets, isLoading: isBucketsLoading } =
@@ -127,16 +145,41 @@ export const useUploadController = (): UploadControllerResult => {
   );
 
   useEffect(() => {
-    if (organizationOptions.length === 1 && !selectedOrganization) {
+    if (
+      !lockOrganization &&
+      organizationOptions.length === 1 &&
+      !selectedOrganization
+    ) {
       setSelectedOrganization(organizationOptions[0].value);
     }
-  }, [organizationOptions, selectedOrganization]);
+  }, [lockOrganization, organizationOptions, selectedOrganization]);
 
   useEffect(() => {
-    if (projectOptions.length === 1 && !selectedProject) {
+    if (!lockProject && projectOptions.length === 1 && !selectedProject) {
       setSelectedProject(projectOptions[0].value);
     }
-  }, [projectOptions, selectedProject]);
+  }, [lockProject, projectOptions, selectedProject]);
+
+  useEffect(() => {
+    if (
+      initialOrganization !== undefined &&
+      initialOrganization !== selectedOrganization
+    ) {
+      setSelectedOrganization(initialOrganization);
+    }
+  }, [initialOrganization, selectedOrganization]);
+
+  useEffect(() => {
+    if (initialProject !== undefined && initialProject !== selectedProject) {
+      setSelectedProject(initialProject);
+    }
+  }, [initialProject, selectedProject]);
+
+  useEffect(() => {
+    if (initialSubdirectory !== undefined && initialSubdirectory !== subdirectory) {
+      setSubdirectory(initialSubdirectory);
+    }
+  }, [initialSubdirectory, subdirectory]);
 
   const addFiles = useCallback((files: Array<File>) => {
     setQueue((current) => {
@@ -154,6 +197,7 @@ export const useUploadController = (): UploadControllerResult => {
 
   const handleSelectedOrganizationChange = useCallback(
     (organization: string) => {
+      if (lockOrganization) return;
       setSelectedOrganization(organization);
       const projects = buildUploadProjectOptions(rawBuckets, organization);
       if (projects.length === 1) {
@@ -162,7 +206,23 @@ export const useUploadController = (): UploadControllerResult => {
       }
       setSelectedProject('');
     },
-    [rawBuckets],
+    [lockOrganization, rawBuckets],
+  );
+
+  const handleSelectedProjectChange = useCallback(
+    (project: string) => {
+      if (lockProject) return;
+      setSelectedProject(project);
+    },
+    [lockProject],
+  );
+
+  const handleSubdirectoryChange = useCallback(
+    (nextSubdirectory: string) => {
+      if (lockSubdirectory) return;
+      setSubdirectory(nextSubdirectory);
+    },
+    [lockSubdirectory],
   );
 
   const removeItem = useCallback(
@@ -479,8 +539,8 @@ export const useUploadController = (): UploadControllerResult => {
     selectedOrganization,
     selectedProject,
     setSelectedOrganization: handleSelectedOrganizationChange,
-    setSelectedProject,
-    setSubdirectory,
+    setSelectedProject: handleSelectedProjectChange,
+    setSubdirectory: handleSubdirectoryChange,
     startUpload,
     subdirectory,
   };

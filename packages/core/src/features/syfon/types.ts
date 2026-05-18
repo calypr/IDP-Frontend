@@ -151,3 +151,25 @@ export interface SyfonUploadAndRegisterFileResult {
   uploadUrl?: string;
   uploadUrls?: Array<string>;
 }
+
+export interface SyfonIndexRecord {
+  access_methods?: Array<SyfonAccessMethod>;
+  controlled_access?: Array<string>;
+  created_time?: string;
+  description?: string;
+  did: string;
+  file_name?: string;
+  hashes?: Record<string, string>;
+  id?: string;
+  mime_type?: string;
+  name?: string;
+  organization?: string;
+  project?: string;
+  size?: number;
+  updated_time?: string;
+  version?: string;
+}
+
+export interface SyfonIndexListResponse {
+  records?: Array<SyfonIndexRecord>;
+}

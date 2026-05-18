@@ -1,7 +1,7 @@
 import {
   OrganizationExplorerPageGetServerSideProps as getServerSideProps,
-  OrganizationLandingPage,
+  OrganizationProjectPage,
 } from '@gen3/frontend';
 
-export default OrganizationLandingPage;
+export default OrganizationProjectPage;
 export { getServerSideProps };

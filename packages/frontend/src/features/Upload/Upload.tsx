@@ -42,7 +42,29 @@ const statusLabelMap = {
   uploading: 'Uploading',
 } as const;
 
-const Upload = () => {
+interface UploadProps {
+  embedded?: boolean;
+  hideScopeControls?: boolean;
+  initialOrganization?: string;
+  initialProject?: string;
+  initialSubdirectory?: string;
+  lockOrganization?: boolean;
+  lockProject?: boolean;
+  lockSubdirectory?: boolean;
+  onUploadComplete?: () => void | Promise<void>;
+}
+
+const Upload = ({
+  embedded = false,
+  hideScopeControls = false,
+  initialOrganization,
+  initialProject,
+  initialSubdirectory,
+  lockOrganization = false,
+  lockProject = false,
+  lockSubdirectory = false,
+  onUploadComplete,
+}: UploadProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [hasAttemptedUpload, setHasAttemptedUpload] = useState(false);
   const {
@@ -65,7 +87,14 @@ const Upload = () => {
     setSubdirectory,
     startUpload,
     subdirectory,
-  } = useUploadController();
+  } = useUploadController({
+    initialOrganization,
+    initialProject,
+    initialSubdirectory,
+    lockOrganization,
+    lockProject,
+    lockSubdirectory,
+  });
 
   const queueSummary = useMemo(
     () => ({
@@ -87,6 +116,7 @@ const Upload = () => {
   const onStartUpload = async () => {
     setHasAttemptedUpload(true);
     await startUpload();
+    await onUploadComplete?.();
   };
 
   const onFilesSelected = (files: FileList | null) => {
@@ -103,66 +133,100 @@ const Upload = () => {
     return null;
   }
 
+  const scopeLabel = [selectedOrganization, selectedProject]
+    .filter(Boolean)
+    .join(' / ');
+  const targetPathLabel = subdirectory || '/';
+
   return (
     <ProtectedContent>
-      <div className="mx-auto w-full max-w-6xl px-6 py-8">
-        <Stack gap="lg">
-          <div>
-            <Text size="xl" fw={700}>
-              Upload
-            </Text>
-            <Text c="dimmed" size="sm">
-              Upload local files to a Syfon bucket and register them as DRS
-              objects.
-            </Text>
-          </div>
+      <div
+        className={
+          embedded
+            ? 'w-full'
+            : 'mx-auto w-full max-w-6xl px-6 py-8'
+        }
+      >
+        <Stack gap={embedded ? 'md' : 'lg'}>
+          {!embedded && (
+            <div>
+              <Text size="xl" fw={700}>
+                Upload
+              </Text>
+              <Text c="dimmed" size="sm">
+                Upload local files to a Syfon bucket and register them as DRS
+                objects.
+              </Text>
+            </div>
+          )}
 
-          <Paper withBorder p="lg" radius="sm">
+          <Paper withBorder p={embedded ? 'md' : 'lg'} radius="sm">
             <Stack gap="lg">
-              <Group grow align="end">
-                <Select
-                  label="Organization"
-                  placeholder={
-                    isBucketsLoading
-                      ? 'Loading organizations...'
-                      : organizationOptions.length === 0
-                        ? 'No organizations available'
-                        : 'Select an organization'
-                  }
-                  data={organizationOptions}
-                  value={selectedOrganization}
-                  onChange={(value) => setSelectedOrganization(value ?? '')}
-                  disabled={isUploading || organizationOptions.length <= 1}
-                  rightSection={isBucketsLoading ? <Loader size="xs" /> : null}
-                  searchable={organizationOptions.length > 6}
-                />
-                <Select
-                  label="Project"
-                  placeholder={
-                    !selectedOrganization
-                      ? 'Select an organization first'
-                      : projectOptions.length === 0
-                        ? 'No project required'
-                        : 'Select a project'
-                  }
-                  data={projectOptions}
-                  value={selectedProject}
-                  onChange={(value) => setSelectedProject(value ?? '')}
-                  disabled={
-                    isUploading ||
-                    !selectedOrganization ||
-                    projectOptions.length <= 1
-                  }
-                  searchable={projectOptions.length > 6}
-                />
-                <TextInput
-                  label="Subdirectory"
-                  placeholder="optional/path/inside/bucket"
-                  value={subdirectory}
-                  onChange={(event) => setSubdirectory(event.currentTarget.value)}
-                  disabled={isUploading}
-                />
-              </Group>
+              {hideScopeControls ? (
+                <Group justify="space-between" wrap="wrap">
+                  <div>
+                    <Text c="dimmed" fw={700} size="xs" tt="uppercase">
+                      Target Repository
+                    </Text>
+                    <Text fw={600} size="sm">
+                      {scopeLabel || 'Unscoped upload'}
+                    </Text>
+                  </div>
+                  <div>
+                    <Text c="dimmed" fw={700} size="xs" ta="right" tt="uppercase">
+                      Target Path
+                    </Text>
+                    <Text className="break-all" fw={500} size="sm">
+                      {targetPathLabel}
+                    </Text>
+                  </div>
+                </Group>
+              ) : (
+                <Group grow align="end">
+                  <Select
+                    label="Organization"
+                    placeholder={
+                      isBucketsLoading
+                        ? 'Loading organizations...'
+                        : organizationOptions.length === 0
+                          ? 'No organizations available'
+                          : 'Select an organization'
+                    }
+                    data={organizationOptions}
+                    value={selectedOrganization}
+                    onChange={(value) => setSelectedOrganization(value ?? '')}
+                    disabled={isUploading || organizationOptions.length <= 1}
+                    rightSection={isBucketsLoading ? <Loader size="xs" /> : null}
+                    searchable={organizationOptions.length > 6}
+                  />
+                  <Select
+                    label="Project"
+                    placeholder={
+                      !selectedOrganization
+                        ? 'Select an organization first'
+                        : projectOptions.length === 0
+                          ? 'No project required'
+                          : 'Select a project'
+                    }
+                    data={projectOptions}
+                    value={selectedProject}
+                    onChange={(value) => setSelectedProject(value ?? '')}
+                    disabled={
+                      isUploading ||
+                      !selectedOrganization ||
+                      projectOptions.length <= 1
+                    }
+                    searchable={projectOptions.length > 6}
+                  />
+                  <TextInput
+                    label="Subdirectory"
+                    placeholder="optional/path/inside/bucket"
+                    value={subdirectory}
+                    onChange={(event) => setSubdirectory(event.currentTarget.value)}
+                    disabled={isUploading}
+                  />
+                </Group>
+              )}
 
               {showOrganizationError ? (
                 <Alert
@@ -185,7 +249,9 @@ const Upload = () => {
               ) : null}
 
               <div
-                className="flex min-h-56 cursor-pointer flex-col items-center justify-center border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center"
+                className={`flex cursor-pointer flex-col items-center justify-center border border-dashed border-gray-300 bg-gray-50 px-6 text-center ${
+                  embedded ? 'min-h-44 py-8' : 'min-h-56 py-10'
+                }`}
                 onClick={() => inputRef.current?.click()}
                 onDragOver={(event) => event.preventDefault()}
                 onDrop={onDrop}

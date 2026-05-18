@@ -24,6 +24,20 @@ export const getNavPageLayoutPropsFromConfig = async (
 
     const { headerProps, footerProps, fileActions, dynamicProps } = navigationConfigJSON;
 
+    const hasOrganizationsTopBarItem = headerProps.topBar.items.some(
+      (item) => item.href === '/organization',
+    );
+
+    if (!hasOrganizationsTopBarItem) {
+      headerProps.topBar.items.unshift({
+        href: '/organization',
+        leftIcon: 'mdi:folder-multiple-outline',
+        name: 'Organizations',
+        openInNewTab: false,
+        tooltip: 'Browse accessible organizations and projects',
+      } as any);
+    }
+
     // Map appCards to subItems for the "Explorers" menu item
     // Handle both { appsConfig: { appCards: [...] } } and { appCards: [...] } formats
     const appCards =

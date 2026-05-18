@@ -55,6 +55,11 @@ import CalyprPage from './pages/CALYPR/CALYPR';
 
 import BrowserPage from './pages/Browser';
 import { BrowserPageGetServerSideProps } from './pages/Browser';
+import {
+  OrganizationExplorerPageGetServerSideProps,
+  OrganizationLandingPage,
+  OrganizationProjectPage,
+} from './pages/OrganizationExplorer';
 
 import { SmmartPageGetServerSideProps } from './pages/Smmart';
 import { CalyprPageGetServerSideProps } from './pages/CALYPR';
@@ -196,6 +201,9 @@ export {
   CalyprPageGetServerSideProps,
   BrowserPage,
   BrowserPageGetServerSideProps,
+  OrganizationLandingPage,
+  OrganizationProjectPage,
+  OrganizationExplorerPageGetServerSideProps,
   FileSummaryPage,
   FileSummaryPageGetServerSideProps,
   AppsPage,

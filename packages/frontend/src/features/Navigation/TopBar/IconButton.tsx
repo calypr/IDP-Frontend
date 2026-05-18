@@ -15,6 +15,7 @@ export interface TopIconButtonProps extends NameAndIcon {
 
 export interface TopIconButtonPropsWithLink extends TopIconButtonProps {
   href: string;
+  openInNewTab?: boolean;
 }
 
 export const IconButton = ({
@@ -28,9 +29,9 @@ export const IconButton = ({
   ariaLabel = undefined,
 }: TopIconButtonProps) => {
   const classNamesDefaults = {
-    root: `flex items-center align-middle px-2 my-2`,
+    root: 'flex h-full items-center px-2',
     button:
-      'flex flex-nowrap items-center align-middle border-b-2 hover:border-accent border-transparent',
+      'flex h-full flex-nowrap items-center border-b-2 border-transparent transition-colors duration-150 hover:border-accent',
     leftIcon: 'text-secondary-contrast-lighter pr-1',
     label: 'font-content text-secondary-contrast-lighter block',
     rightIcon: 'text-secondary-contrast-lighter pl-1',

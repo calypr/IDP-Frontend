@@ -24,10 +24,13 @@ export const useSidebarContext = () => {
 };
 
 export const SidebarProvider = ({ children, items }: { children: ReactNode; items?: LeftNavBarProps[] }) => {
-  const [userOpened, setUserOpened] = useState(false);
-  const [buttonState, setButtonState] = useState<SidebarState>('open');
-  const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
   const router = useRouter();
+  const isAppsPath = router.asPath.startsWith('/Apps');
+  const [userOpened, setUserOpened] = useState(false);
+  const [buttonState, setButtonState] = useState<SidebarState>(
+    isAppsPath ? 'open' : 'closed',
+  );
+  const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
 
   const CLOSE_BREAKPOINT = 1024;
 
@@ -38,6 +41,11 @@ export const SidebarProvider = ({ children, items }: { children: ReactNode; item
   }, []);
 
   const [resizeState, setResizeState] = useState<SidebarState>(getResizeState);
+
+  useEffect(() => {
+    setButtonState(isAppsPath ? 'open' : 'closed');
+    setUserOpened(false);
+  }, [isAppsPath]);
 
   useEffect(() => {
     const handleResize = () => {

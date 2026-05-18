@@ -26,10 +26,10 @@ const { useUploadController } = jest.requireMock('./useUploadController') as {
   useUploadController: jest.Mock;
 };
 
-const renderUpload = () =>
+const renderUpload = (props: React.ComponentProps<typeof Upload> = {}) =>
   render(
     <MantineProvider>
-      <Upload />
+      <Upload {...props} />
     </MantineProvider>,
   );
 
@@ -165,6 +165,53 @@ describe('<Upload />', () => {
     );
 
     expect(setSubdirectoryMock).toHaveBeenCalled();
+  });
+
+  it('renders a scoped summary instead of scope selectors in embedded mode', () => {
+    useUploadController.mockReturnValue({
+      addFiles: addFilesMock,
+      canStartUpload: false,
+      clearFinishedItems: clearFinishedItemsMock,
+      hasBuckets: true,
+      isBucketsLoading: false,
+      isOrganizationSelectionRequired: false,
+      isProjectSelectionRequired: false,
+      isUploading: false,
+      organizationOptions: [{ label: 'org-a', value: 'org-a' }],
+      projectOptions: [{ label: 'proj-a', value: 'proj-a' }],
+      queue: [],
+      downloadItem: downloadItemMock,
+      removeItem: removeItemMock,
+      selectedOrganization: 'org-a',
+      selectedProject: 'proj-a',
+      setSelectedOrganization: setSelectedOrganizationMock,
+      setSelectedProject: setSelectedProjectMock,
+      setSubdirectory: setSubdirectoryMock,
+      startUpload: startUploadMock,
+      subdirectory: 'nested/path',
+    });
+
+    renderUpload({
+      embedded: true,
+      hideScopeControls: true,
+      initialOrganization: 'org-a',
+      initialProject: 'proj-a',
+      initialSubdirectory: 'nested/path',
+      lockOrganization: true,
+      lockProject: true,
+      lockSubdirectory: true,
+    });
+
+    expect(screen.getByText('Target Repository')).toBeInTheDocument();
+    expect(screen.getByText('org-a / proj-a')).toBeInTheDocument();
+    expect(screen.getByText('Target Path')).toBeInTheDocument();
+    expect(screen.getByText('nested/path')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('textbox', { name: 'Subdirectory' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('textbox', { name: 'Organization' }),
+    ).not.toBeInTheDocument();
   });
 
   it('wires the download and delete row actions', async () => {

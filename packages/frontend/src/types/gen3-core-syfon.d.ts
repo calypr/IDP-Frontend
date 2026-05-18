@@ -95,6 +95,31 @@ declare module '@gen3/core' {
     candidates: Array<SyfonDrsObjectCandidate>;
   }
 
+  export interface SyfonIndexRecord {
+    access_methods?: Array<SyfonAccessMethod>;
+    controlled_access?: Array<string>;
+    created_time?: string;
+    description?: string;
+    did: string;
+    file_name?: string;
+    hashes?: Record<string, string>;
+    id?: string;
+    mime_type?: string;
+    name?: string;
+    organization?: string;
+    project?: string;
+    size?: number;
+    updated_time?: string;
+    version?: string;
+  }
+
+  export interface GetSyfonIndexRecordsArgs {
+    readonly organization: string;
+    readonly project: string;
+    readonly limit?: number;
+    readonly page?: number;
+  }
+
   export function createSyfonObjectKey(
     fileName: string,
     bucketPath?: string,
@@ -170,6 +195,14 @@ declare module '@gen3/core' {
       objectId: string,
     ) => { unwrap: () => Promise<SyfonSignedUrlResponse> },
   ];
+  export function useGetSyfonIndexRecordsQuery(
+    args: GetSyfonIndexRecordsArgs,
+    options?: { skip?: boolean },
+  ): {
+    data?: Array<SyfonIndexRecord>;
+    isFetching: boolean;
+    isLoading: boolean;
+  };
 }
 
 export {};
