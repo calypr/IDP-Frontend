@@ -21,6 +21,11 @@ const filterRedirect = (redirect: string | string[] | undefined) => {
   } else {
     redirectPath = redirect ?? '/Apps';
   }
+
+  if (/^https?:\/\//i.test(redirectPath) || redirectPath.startsWith('/')) {
+    return redirectPath;
+  }
+
   return GEN3_REDIRECT_URL
     ? `${GEN3_REDIRECT_URL}/${redirectPath}`
     : redirectPath;

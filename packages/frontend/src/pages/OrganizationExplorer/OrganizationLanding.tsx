@@ -9,6 +9,7 @@ import {
   Stack,
   Text,
   TextInput,
+  Tooltip,
 } from '@mantine/core';
 import {
   IconBuildingBank,
@@ -92,25 +93,34 @@ const OrganizationRow = ({
           </Text>
         </div>
       ) : (
-        <button
-          className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 text-left transition hover:bg-slate-50"
-          onClick={() => setIsOpen((open) => !open)}
-          type="button"
-        >
-          {isOpen ? (
-            <IconChevronDown className="text-slate-500" size={18} />
-          ) : (
-            <IconChevronRight className="text-slate-500" size={18} />
-          )}
+        <div className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 transition hover:bg-slate-50">
+          <button
+            aria-label={`${isOpen ? 'Collapse' : 'Expand'} ${group.organization}`}
+            className="inline-flex items-center justify-center rounded-md border border-transparent p-1 transition hover:border-slate-200 hover:bg-white hover:shadow-sm focus-visible:border-slate-300 focus-visible:bg-white focus-visible:shadow-sm"
+            onClick={() => setIsOpen((open) => !open)}
+            type="button"
+          >
+            {isOpen ? (
+              <IconChevronDown className="text-slate-500" size={18} />
+            ) : (
+              <IconChevronRight className="text-slate-500" size={18} />
+            )}
+          </button>
           <div className="min-w-0">
-            <Text fw={700} size="lg">
-              {group.organization}
-            </Text>
+            <Tooltip label={`Visit ${group.organization} page`}>
+              <Link href={`/organization/${encodeURIComponent(group.organization)}`} legacyBehavior>
+                <a className="inline-flex max-w-full rounded-md text-left decoration-slate-400 underline-offset-4 transition hover:text-slate-700 hover:underline focus-visible:underline">
+                  <Text fw={700} size="lg" truncate>
+                    {group.organization}
+                  </Text>
+                </a>
+              </Link>
+            </Tooltip>
           </div>
           <Text c="dimmed" size="sm">
             {pluralize(group.projects.length, 'project')}
           </Text>
-        </button>
+        </div>
       )}
 
       <Collapse in={isExpanded}>

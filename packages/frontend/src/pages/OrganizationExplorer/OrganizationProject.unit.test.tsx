@@ -25,22 +25,6 @@ jest.mock('@gen3/core', () => ({
     useGetSyfonIndexRecordsQueryMock(...args),
 }));
 
-jest.mock('../../features/Upload', () => ({
-  Upload: ({
-    initialOrganization,
-    initialProject,
-    initialSubdirectory,
-  }: {
-    initialOrganization?: string;
-    initialProject?: string;
-    initialSubdirectory?: string;
-  }) => (
-    <div>
-      Upload modal: {initialOrganization}/{initialProject}/{initialSubdirectory || '/'}
-    </div>
-  ),
-}));
-
 jest.mock('../../features/Navigation', () => ({
   NavPageLayout: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
@@ -149,7 +133,7 @@ describe('OrganizationProjectPage', () => {
     expect(pushMock).toHaveBeenCalled();
   });
 
-  it('copies the git-drs remote command from the project header', async () => {
+  it('does not show git-specific remote add controls in syfon view', () => {
     useGetSyfonIndexRecordsQueryMock.mockReturnValue({
       data: [],
       isFetching: false,
@@ -162,23 +146,9 @@ describe('OrganizationProjectPage', () => {
       </MantineProvider>,
     );
 
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /remote add/i }));
-    });
-
     expect(
-      screen.getByText(
-        'git drs remote add gen3 origin org-a/proj-a --cred ~/.gen3/credentials.json',
-      ),
-    ).toBeInTheDocument();
-
-    await act(async () => {
-      fireEvent.click(screen.getByText('Copy'));
-    });
-
-    expect(writeTextMock).toHaveBeenCalledWith(
-      'git drs remote add gen3 origin org-a/proj-a --cred ~/.gen3/credentials.json',
-    );
+      screen.queryByRole('button', { name: /remote add/i }),
+    ).not.toBeInTheDocument();
   });
 
   it('copies the current repository path and searches files in memory', async () => {
@@ -382,12 +352,8 @@ describe('OrganizationProjectPage', () => {
       { shallow: true },
     );
 
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Upload files' }));
-    });
-
     expect(
-      screen.getByText('Upload modal: org-a/proj-a/nested/leaf'),
-    ).toBeInTheDocument();
+      screen.queryByRole('button', { name: 'Upload files' }),
+    ).not.toBeInTheDocument();
   });
 });

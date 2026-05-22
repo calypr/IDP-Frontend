@@ -52,7 +52,9 @@ export const GEN3_GRIP_API =
 export const DIR_SEARCH_API =
   process.env.NEXT_PUBLIC_GEN3_DIR_API || `${GEN3_API}/Dir`;
 export const CALYPR_EXPLORER_CONFIG_API =
-  process.env.NEXT_PUBLIC_GEN3_CONFIG_API || `${GEN3_API}/ExplorerConfig`;
+  process.env.NEXT_PUBLIC_GEN3_CONFIG_API || `${GEN3_API}/gecko`;
+export const GEN3_GECKO_API =
+  process.env.NEXT_PUBLIC_GEN3_GECKO_API || `${GEN3_API}/api`;
 
 export enum Accessibility {
   ACCESSIBLE = 'accessible',

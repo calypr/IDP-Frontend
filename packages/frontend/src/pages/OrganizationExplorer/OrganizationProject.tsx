@@ -6,11 +6,8 @@ import {
   Badge,
   Button,
   Card,
-  Code,
   Container,
   Group,
-  Menu,
-  Modal,
   Popover,
   ScrollArea,
   Stack,
@@ -20,16 +17,16 @@ import {
   Title,
 } from '@mantine/core';
 import {
+  IconArrowUpRight,
   IconChevronRight,
   IconDownload,
+  IconBrandGit,
   IconFile,
   IconFolder,
   IconArrowLeft,
   IconCheck,
-  IconChevronDown,
   IconCopy,
   IconSearch,
-  IconTerminal2,
   IconPhoto,
   IconX,
 } from '@tabler/icons-react';
@@ -38,7 +35,6 @@ import {
   useGetSyfonIndexRecordsQuery,
 } from '@gen3/core';
 import ProtectedContent from '../../components/Protected/ProtectedContent';
-import { Upload } from '../../features/Upload';
 import { NavPageLayout } from '../../features/Navigation';
 import type { FileActionsConfig } from '../../features/CohortBuilder/types';
 import type {
@@ -104,12 +100,6 @@ const openImageViewer = (did: string, fileActions?: FileActionsConfig) => {
   const target = baseUrl.endsWith('/') ? `${baseUrl}${did}` : `${baseUrl}/${did}`;
   window.open(target, '_blank', 'noopener,noreferrer');
 };
-
-const buildGitDrsRemoteAddCommand = (
-  organization: string,
-  project: string,
-): string =>
-  `git drs remote add gen3 origin ${organization}/${project} --cred ~/.gen3/credentials.json`;
 
 const FileDetailsPanel = ({
   file,
@@ -267,9 +257,7 @@ const OrganizationProjectPage = ({
     [router.query.path],
   );
   const [selectedDid, setSelectedDid] = useState<string | null>(null);
-  const [hasCopiedRemoteCommand, setHasCopiedRemoteCommand] = useState(false);
   const [hasCopiedRepoPath, setHasCopiedRepoPath] = useState(false);
-  const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const pageScrollTopRef = useRef(0);
 
@@ -400,11 +388,6 @@ const OrganizationProjectPage = ({
     label: segment,
     pathSegments: currentPath.slice(0, index + 1),
   }));
-  const gitDrsRemoteAddCommand = buildGitDrsRemoteAddCommand(
-    organization,
-    project,
-  );
-
   const repoRootLabel = {
     label: project,
     pathSegments: [] as Array<string>,
@@ -425,12 +408,6 @@ const OrganizationProjectPage = ({
       {label}
     </button>
   );
-
-  const copyGitDrsRemoteAddCommand = async () => {
-    await navigator.clipboard.writeText(gitDrsRemoteAddCommand);
-    setHasCopiedRemoteCommand(true);
-    window.setTimeout(() => setHasCopiedRemoteCommand(false), 2000);
-  };
 
   const copyCurrentRepoPath = async () => {
     await navigator.clipboard.writeText(currentRepoPath);
@@ -579,87 +556,26 @@ const OrganizationProjectPage = ({
                           </div>
                         </Popover.Dropdown>
                       </Popover>
-                      <Button
-                        className="px-2"
-                        onClick={() => setIsUploadOpen(true)}
-                        size="xs"
+                      <ActionIcon
+                        aria-label="Open Git project view"
+                        component="a"
+                        href={`/git/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}`}
+                        size="lg"
                         variant="default"
                       >
-                        Upload files
-                      </Button>
-                      <Menu position="bottom-end" shadow="md" width={420} withinPortal>
-                        <Menu.Target>
-                          <Button
-                            className="px-2"
-                            leftSection={<IconTerminal2 size={16} />}
-                            rightSection={<IconChevronDown size={14} />}
-                            size="xs"
-                            variant="default"
-                          >
-                            Remote add
-                          </Button>
-                        </Menu.Target>
-
-                        <Menu.Dropdown>
-                          <div className="space-y-2 px-3 py-2">
-                            <Text c="dimmed" fw={700} size="xs" tt="uppercase">
-                              Git-DRS Remote
-                            </Text>
-                            <Code
-                              block
-                              className="overflow-x-auto whitespace-pre-wrap break-all rounded-md border border-slate-200 bg-slate-50 p-2 text-[12px]"
-                            >
-                              {gitDrsRemoteAddCommand}
-                            </Code>
-                            <Group justify="space-between" wrap="nowrap">
-                              <Text c="dimmed" size="xs">
-                                Run this inside an existing clone.
-                              </Text>
-                              <Button
-                                className="px-2"
-                                leftSection={
-                                  hasCopiedRemoteCommand ? (
-                                    <IconCheck size={14} />
-                                  ) : (
-                                    <IconCopy size={14} />
-                                  )
-                                }
-                                onClick={() => {
-                                  void copyGitDrsRemoteAddCommand();
-                                }}
-                                size="xs"
-                                variant={hasCopiedRemoteCommand ? 'light' : 'default'}
-                              >
-                                {hasCopiedRemoteCommand ? 'Copied' : 'Copy'}
-                              </Button>
-                            </Group>
-                          </div>
-                        </Menu.Dropdown>
-                      </Menu>
+                        <span className="relative flex items-center justify-center">
+                          <IconBrandGit size={16} />
+                          <IconArrowUpRight
+                            className="absolute -right-1.5 -top-1.5"
+                            size={10}
+                          />
+                        </span>
+                      </ActionIcon>
                     </Group>
                   </Group>
 
                 </Stack>
               </Card>
-
-              <Modal
-                centered
-                onClose={() => setIsUploadOpen(false)}
-                opened={isUploadOpen}
-                size="xl"
-                title="Upload files"
-              >
-                <Upload
-                  embedded
-                  hideScopeControls
-                  initialOrganization={organization}
-                  initialProject={project}
-                  initialSubdirectory={currentPath.join('/')}
-                  lockOrganization
-                  lockProject
-                  lockSubdirectory
-                />
-              </Modal>
 
               {selectedFile ? (
                 <FileDetailsPanel

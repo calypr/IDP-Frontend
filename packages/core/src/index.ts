@@ -8,6 +8,7 @@ import {
   GEN3_DOWNLOADS_ENDPOINT,
   GEN3_FENCE_API,
   GEN3_GRIP_API,
+  GEN3_GECKO_API,
   GEN3_GUPPY_API,
   GEN3_MANIFEST_API,
   GEN3_MDS_API,
@@ -39,6 +40,7 @@ export * from './features/fence';
 export * from './features/filters';
 export * from './features/gen3';
 export * from './features/gen3Apps';
+export * from './features/gecko';
 export * from './features/graphQL';
 export * from './features/guppy';
 export * from './features/manifest';
@@ -61,6 +63,7 @@ export {
   GEN3_DOWNLOADS_ENDPOINT,
   GEN3_GUPPY_API,
   GEN3_GRIP_API,
+  GEN3_GECKO_API,
   GEN3_FENCE_API,
   GEN3_AUTHZ_API,
   GEN3_MDS_API,

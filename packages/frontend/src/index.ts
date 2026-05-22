@@ -56,6 +56,12 @@ import CalyprPage from './pages/CALYPR/CALYPR';
 import BrowserPage from './pages/Browser';
 import { BrowserPageGetServerSideProps } from './pages/Browser';
 import {
+  GitExplorerPageGetServerSideProps,
+  GitLandingPage,
+  GitProjectFilePage,
+  GitProjectPage,
+} from './pages/GitExplorer';
+import {
   OrganizationExplorerPageGetServerSideProps,
   OrganizationLandingPage,
   OrganizationProjectPage,
@@ -201,6 +207,10 @@ export {
   CalyprPageGetServerSideProps,
   BrowserPage,
   BrowserPageGetServerSideProps,
+  GitLandingPage,
+  GitProjectFilePage,
+  GitProjectPage,
+  GitExplorerPageGetServerSideProps,
   OrganizationLandingPage,
   OrganizationProjectPage,
   OrganizationExplorerPageGetServerSideProps,

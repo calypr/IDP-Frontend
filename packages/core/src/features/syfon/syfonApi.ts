@@ -441,6 +441,7 @@ export const {
   useGetSyfonDrsObjectQuery,
   useLazyGetSyfonDrsObjectQuery,
   useGetSyfonObjectsByChecksumQuery,
+  useLazyGetSyfonObjectsByChecksumQuery,
   useRegisterSyfonDrsObjectsMutation,
   useDeleteSyfonDrsObjectMutation,
   useGetSyfonDownloadUrlQuery,

@@ -12,8 +12,8 @@ const webpackAliases = {
   '@gen3/frontend': path.join(workspaceRoot, 'packages/frontend/src/index.ts'),
 };
 const turbopackAliases = {
-  '@gen3/core': './packages/core/src/index.ts',
-  '@gen3/frontend': './packages/frontend/src/index.ts',
+  '@gen3/core': 'packages/core/src/index.ts',
+  '@gen3/frontend': 'packages/frontend/src/index.ts',
 };
 
 dns.setDefaultResultOrder('ipv4first');
@@ -34,7 +34,12 @@ const withMDX = require('@next/mdx')({
 const nextConfig = {
   reactStrictMode: true,
   output: 'standalone',
-  allowedDevOrigins: ['local.io', '*.local.io'],
+  allowedDevOrigins: [
+    'caliper-training.ohsu.edu',
+    'caliper-training.ohsu.edu:3010',
+    'local.io',
+    '*.local.io',
+  ],
   productionBrowserSourceMaps: true,
   pageExtensions: ['mdx', 'md', 'jsx', 'js', 'tsx', 'ts'],
   basePath: basePath,

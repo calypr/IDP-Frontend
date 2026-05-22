@@ -58,9 +58,15 @@ export const buildExactProjectScope = (
 export const extractAccessibleProjects = (
   authzMapping: Record<string, unknown>,
 ): Array<AccessibleOrganizationProject> => {
+  return extractProjectsFromResourcePaths(Object.keys(authzMapping));
+};
+
+export const extractProjectsFromResourcePaths = (
+  resourcePaths: Array<string>,
+): Array<AccessibleOrganizationProject> => {
   const uniqueProjects = new Map<string, AccessibleOrganizationProject>();
 
-  Object.keys(authzMapping).forEach((resourcePath) => {
+  resourcePaths.forEach((resourcePath) => {
     const scope = deriveScopeLabelFromResource(resourcePath);
     if (!scope.organization || !scope.project) return;
 

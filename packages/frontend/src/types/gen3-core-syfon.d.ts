@@ -95,6 +95,10 @@ declare module '@gen3/core' {
     candidates: Array<SyfonDrsObjectCandidate>;
   }
 
+  export interface SyfonDrsObjectsByChecksumResponse {
+    resolved_drs_object?: Array<SyfonDrsObject>;
+  }
+
   export interface SyfonIndexRecord {
     access_methods?: Array<SyfonAccessMethod>;
     controlled_access?: Array<string>;
@@ -194,6 +198,19 @@ declare module '@gen3/core' {
     (
       objectId: string,
     ) => { unwrap: () => Promise<SyfonSignedUrlResponse> },
+  ];
+  export function useGetSyfonObjectsByChecksumQuery(
+    checksum: string,
+    options?: { skip?: boolean },
+  ): {
+    data?: SyfonDrsObjectsByChecksumResponse;
+    isFetching: boolean;
+    isLoading: boolean;
+  };
+  export function useLazyGetSyfonObjectsByChecksumQuery(): [
+    (
+      checksum: string,
+    ) => { unwrap: () => Promise<SyfonDrsObjectsByChecksumResponse> },
   ];
   export function useGetSyfonIndexRecordsQuery(
     args: GetSyfonIndexRecordsArgs,

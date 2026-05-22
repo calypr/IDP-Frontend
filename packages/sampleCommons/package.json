@@ -5,8 +5,8 @@
   "scripts": {
     "lint": "eslint src --ext .ts,.tsx,.js,.jsx",
     "lint-fix": "eslint src --ext .ts,.tsx,.js,.jsx --fix",
-    "dev": "NODE_OPTIONS='--inspect' next dev --turbopack",
-    "devssh": "next dev --port 3010 --experimental-https --experimental-https-key /Users/craigrbarnes/ssl_certs/key.pem --experimental-https-cert /Users/craigrbarnes/ssl_certs/cert.pem ",
+    "dev": "next dev --webpack",
+    "devssh": "next dev --webpack --port 3010 --experimental-https --experimental-https-key /Users/craigrbarnes/ssl_certs/key.pem --experimental-https-cert /Users/craigrbarnes/ssl_certs/cert.pem ",
     "clean": "rm -rf .next && rm -rf out",
     "build": "next build",
     "start": "next start",
