@@ -40,6 +40,9 @@ export interface GeckoGitProjectStatus {
   readonly installation_id?: number;
   readonly installation_target?: string;
   readonly installation_target_type?: string;
+  readonly organization_app_installed: boolean;
+  readonly organization_html_url?: string;
+  readonly organization_repository_selection?: string;
   readonly sync_state: string;
   readonly default_branch?: string;
   readonly last_refreshed_at?: string;
