@@ -18,6 +18,7 @@ const NavPageLayout = ({
   const footerRef = useRef<HTMLDivElement>(null);
 
   const { finalState, toggleButton } = useResponsiveSidebar(leftNavDisabled);
+  const { className: mainClassName, ...resolvedMainProps } = mainProps ?? {};
 
   const mainPadding = useMemo(() => {
     const paddingTop = 'pt-16'; // For 64px header height
@@ -67,8 +68,9 @@ const NavPageLayout = ({
           className={`
             flex-1 overflow-hidden transition-all duration-300
             ${mainPadding}
+            ${mainClassName ?? ''}
           `}
-          {...mainProps}
+          {...resolvedMainProps}
         >
           {children}
         </main>

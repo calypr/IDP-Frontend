@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { MantineProvider } from '@mantine/core';
 import GitProjectPage from './GitProject';
 
@@ -28,20 +28,32 @@ jest.mock('../../components/Protected/ProtectedContent', () => ({
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-jest.mock('../../features/Upload', () => ({
-  Upload: ({
-    initialOrganization,
-    initialProject,
-    initialSubdirectory,
+jest.mock('./GitUploadPRModal', () => ({
+  __esModule: true,
+  default: ({
+    onClose,
+    onSuccess,
+    opened,
   }: {
-    initialOrganization?: string;
-    initialProject?: string;
-    initialSubdirectory?: string;
-  }) => (
-    <div>
-      Upload modal: {initialOrganization}/{initialProject}/{initialSubdirectory || '/'}
-    </div>
-  ),
+    onClose: () => void;
+    onSuccess: (result: { branchName: string; pullRequestURL: string }) => void;
+    opened: boolean;
+  }) =>
+    opened ? (
+      <div>
+        <button
+          onClick={() =>
+            onSuccess({
+              branchName: 'calypr/upload-test-branch',
+              pullRequestURL: 'https://github.com/example/repo/pull/123',
+            })
+          }
+        >
+          Complete upload flow
+        </button>
+        <button onClick={onClose}>Close upload flow</button>
+      </div>
+    ) : null,
 }));
 
 const { useRouter } = jest.requireMock('next/router') as {
@@ -87,6 +99,7 @@ const layoutProps = {
 
 describe('GitProjectPage', () => {
   beforeEach(() => {
+    jest.useFakeTimers();
     useRouter.mockReturnValue({
       query: {
         org: 'Ellrott_Lab',
@@ -123,6 +136,11 @@ describe('GitProjectPage', () => {
     coreMocks.useLazyGetSyfonObjectsByChecksumQuery.mockReturnValue([
       jest.fn(() => ({ unwrap: jest.fn().mockResolvedValue({}) })),
     ]);
+  });
+
+  afterEach(() => {
+    jest.runOnlyPendingTimers();
+    jest.useRealTimers();
   });
 
   it('shows organization-level setup guidance when the project is not connected', () => {
@@ -242,6 +260,141 @@ describe('GitProjectPage', () => {
     ).toBeInTheDocument();
     expect(screen.getByText('README.md')).toBeInTheDocument();
     expect(screen.getByDisplayValue('main (default)')).toBeInTheDocument();
+  });
+
+  it('shows mirror initialization guidance when the repository is connected but not ready', () => {
+    const refetchStatus = jest.fn();
+    coreMocks.useGetGeckoGitProjectStatusQuery.mockReturnValue({
+      data: {
+        project_id: 'Ellrott_Lab/embedding_rotation',
+        organization: 'Ellrott_Lab',
+        project: 'embedding_rotation',
+        resource_path: '/organization/Ellrott_Lab/project/embedding_rotation',
+        config: {
+          title: 'Embedding Rotation',
+          contact_email: 'owner@example.org',
+          src_repo: 'github.com/EllrottLab/embedding-rotation',
+          org_title: 'Ellrott Lab',
+          description: 'Test project',
+          project_title: 'Embedding Rotation',
+          icon_name: 'git.png',
+        },
+        repository: {
+          host: 'github.com',
+          owner: 'EllrottLab',
+          repo: 'embedding-rotation',
+          url: 'https://github.com/EllrottLab/embedding-rotation',
+        },
+        installation_state: 'connected',
+        installation_target: 'EllrottLab',
+        installation_target_type: 'Organization',
+        organization_app_installed: true,
+        sync_state: 'updating',
+        default_branch: 'main',
+        mirror_ready: false,
+      },
+      isLoading: false,
+      refetch: refetchStatus,
+    });
+    coreMocks.useGetGeckoGitProjectRefsQuery.mockReturnValue({
+      data: { default_branch: 'main', refs: [] },
+      isLoading: false,
+      refetch: jest.fn(),
+    });
+    coreMocks.useGetGeckoGitProjectTreeQuery.mockReturnValue({
+      data: { entries: [] },
+      isLoading: false,
+      refetch: jest.fn(),
+    });
+
+    render(
+      <MantineProvider>
+        <GitProjectPage {...layoutProps} />
+      </MantineProvider>,
+    );
+
+    expect(
+      screen.getByText(/initializing repository mirror/i),
+    ).toBeInTheDocument();
+
+    act(() => {
+      jest.advanceTimersByTime(1000);
+    });
+
+    expect(refetchStatus).toHaveBeenCalled();
+  });
+
+  it('closes the upload modal and shows a persistent success banner after PR creation', () => {
+    coreMocks.useGetGeckoGitProjectStatusQuery.mockReturnValue({
+      data: {
+        project_id: 'Ellrott_Lab/embedding_rotation',
+        organization: 'Ellrott_Lab',
+        project: 'embedding_rotation',
+        resource_path: '/organization/Ellrott_Lab/project/embedding_rotation',
+        config: {
+          title: 'Embedding Rotation',
+          contact_email: 'owner@example.org',
+          src_repo: 'github.com/EllrottLab/embedding-rotation',
+          org_title: 'Ellrott Lab',
+          description: 'Test project',
+          project_title: 'Embedding Rotation',
+          icon_name: 'git.png',
+        },
+        repository: {
+          host: 'github.com',
+          owner: 'EllrottLab',
+          repo: 'embedding-rotation',
+          url: 'https://github.com/EllrottLab/embedding-rotation',
+        },
+        installation_state: 'connected',
+        installation_target: 'EllrottLab',
+        installation_target_type: 'Organization',
+        organization_app_installed: true,
+        sync_state: 'ready',
+        default_branch: 'main',
+        mirror_ready: true,
+      },
+      isLoading: false,
+      refetch: jest.fn(),
+    });
+    coreMocks.useGetGeckoGitProjectRefsQuery.mockReturnValue({
+      data: {
+        default_branch: 'main',
+        refs: [{ name: 'main', type: 'branch', hash: 'abc123', default: true }],
+      },
+      isLoading: false,
+      refetch: jest.fn(),
+    });
+    coreMocks.useGetGeckoGitProjectTreeQuery.mockReturnValue({
+      data: {
+        entries: [],
+      },
+      isLoading: false,
+      refetch: jest.fn(),
+    });
+
+    render(
+      <MantineProvider>
+        <GitProjectPage {...layoutProps} />
+      </MantineProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /upload files/i }));
+    expect(screen.getByRole('button', { name: /complete upload flow/i })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /complete upload flow/i }));
+
+    expect(
+      screen.queryByRole('button', { name: /complete upload flow/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/pull request created on branch/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText('calypr/upload-test-branch')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /open pull request/i })).toHaveAttribute(
+      'href',
+      'https://github.com/example/repo/pull/123',
+    );
   });
 
   it('shows lfs download actions when the selected file is a git lfs pointer', () => {

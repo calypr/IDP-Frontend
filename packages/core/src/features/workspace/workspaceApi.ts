@@ -133,7 +133,7 @@ export const workspacesApi = WorkspaceWithTags.injectEndpoints({
             url: `${GEN3_WORKSPACE_API}/launch?id=${id}`,
             method: 'POST',
             invalidatesTags: ['Workspace'],
-            responseHandler: (response) => response.text(),
+            responseHandler: (response: Response) => response.text(),
           };
         },
         transformResponse: async (response: string) => {
@@ -145,7 +145,7 @@ export const workspacesApi = WorkspaceWithTags.injectEndpoints({
           url: `${GEN3_WORKSPACE_API}/terminate`,
           method: 'POST',
           invalidatesTags: ['Workspace'],
-          responseHandler: (response) => response.text(),
+          responseHandler: (response: Response) => response.text(),
         }),
       }),
     }) as const,

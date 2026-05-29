@@ -2,7 +2,6 @@ import React, { useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   ActionIcon,
-  Card,
   Collapse,
   Container,
   Popover,
@@ -45,7 +44,7 @@ const CompactProjectRow = ({
   resourcePath: string;
 }) => (
   <Link href={href} legacyBehavior>
-    <a className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-md border-t border-slate-200 px-3 py-2 text-sm transition hover:bg-slate-50">
+    <a className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-t border-slate-100 px-6 py-2.5 text-sm transition hover:bg-slate-50/80">
       <div className="min-w-0">
         <Text fw={600} truncate>
           {project}
@@ -74,11 +73,11 @@ const OrganizationRow = ({
   const isExpanded = hideCollapse ? true : isOpen;
 
   return (
-    <Card padding={0} radius="lg" withBorder>
+    <div className="overflow-hidden border-b border-slate-200 bg-white">
       {hideCollapse ? (
-        <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-3">
+        <div className="grid grid-cols-[auto_1fr] items-center gap-3 px-6 py-4">
           <Link href="/organization" legacyBehavior>
-            <a className="inline-flex w-fit items-center gap-1 rounded-md px-2 py-1 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900">
+            <a className="inline-flex w-fit items-center gap-1 text-sm font-medium text-slate-500 transition hover:text-slate-900">
               <IconChevronLeft size={16} />
               Organizations
             </a>
@@ -88,15 +87,12 @@ const OrganizationRow = ({
               {group.organization}
             </Text>
           </div>
-          <Text c="dimmed" size="sm">
-            {pluralize(group.projects.length, 'project')}
-          </Text>
         </div>
       ) : (
-        <div className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 transition hover:bg-slate-50">
+        <div className="grid w-full grid-cols-[auto_minmax(0,1fr)] items-center gap-3 px-6 py-4 transition hover:bg-slate-50/80">
           <button
             aria-label={`${isOpen ? 'Collapse' : 'Expand'} ${group.organization}`}
-            className="inline-flex items-center justify-center rounded-md border border-transparent p-1 transition hover:border-slate-200 hover:bg-white hover:shadow-sm focus-visible:border-slate-300 focus-visible:bg-white focus-visible:shadow-sm"
+            className="inline-flex items-center justify-center border border-transparent p-1 transition hover:border-slate-200 hover:bg-white hover:shadow-sm focus-visible:border-slate-300 focus-visible:bg-white focus-visible:shadow-sm"
             onClick={() => setIsOpen((open) => !open)}
             type="button"
           >
@@ -109,7 +105,7 @@ const OrganizationRow = ({
           <div className="min-w-0">
             <Tooltip label={`Visit ${group.organization} page`}>
               <Link href={`/organization/${encodeURIComponent(group.organization)}`} legacyBehavior>
-                <a className="inline-flex max-w-full rounded-md text-left decoration-slate-400 underline-offset-4 transition hover:text-slate-700 hover:underline focus-visible:underline">
+                <a className="inline-flex max-w-full text-left decoration-slate-400 underline-offset-4 transition hover:text-slate-700 hover:underline focus-visible:underline">
                   <Text fw={700} size="lg" truncate>
                     {group.organization}
                   </Text>
@@ -117,14 +113,11 @@ const OrganizationRow = ({
               </Link>
             </Tooltip>
           </div>
-          <Text c="dimmed" size="sm">
-            {pluralize(group.projects.length, 'project')}
-          </Text>
         </div>
       )}
 
       <Collapse in={isExpanded}>
-        <div className="border-t border-slate-200 bg-white">
+        <div className="border-t border-slate-100 bg-white">
           {group.projects.map((project) => {
             return (
               <CompactProjectRow
@@ -137,7 +130,7 @@ const OrganizationRow = ({
           })}
         </div>
       </Collapse>
-    </Card>
+    </div>
   );
 };
 
@@ -236,19 +229,21 @@ const OrganizationLandingPage = ({
         key: 'syfon-organization-explorer',
         title: 'Organization Explorer',
       }}
+      mainProps={{ className: 'bg-[#f4f6f8]' }}
     >
       <ProtectedContent>
-        <div className="min-h-screen bg-[#f6f8fa]">
-          <Container py="lg" size="lg">
-            <Stack gap="md">
-              <Card padding="md" radius="lg" withBorder>
-                <div className="flex items-center justify-between gap-4">
+        <div className="min-h-screen bg-[#f4f6f8]">
+          <Container maw={1600} px="2.5rem" py="xl">
+            <Stack gap="lg">
+              <section className="border-b border-slate-200 pb-5">
+                <div className="flex items-center justify-between gap-6">
                   <div className="min-w-0">
-                    <Text fw={700} size="lg">
+                    <Text fw={750} size="xl">
                       {selectedOrganization || 'Organizations'}
                     </Text>
                     <Text c="dimmed" size="sm">
-                      Search organizations and projects you can access.
+                      Search Syfon data lake organizations and projects you can
+                      access.
                     </Text>
                   </div>
                   <Popover
@@ -260,9 +255,11 @@ const OrganizationLandingPage = ({
                   >
                     <Popover.Target>
                       <TextInput
-                        className="w-full max-w-md"
+                        className="w-full max-w-md [&_input]:border-slate-300 [&_input]:bg-white [&_input]:shadow-sm"
                         leftSection={<IconSearch size={16} />}
-                        onChange={(event) => setSearchQuery(event.currentTarget.value)}
+                        onChange={(event) =>
+                          setSearchQuery(event.currentTarget.value)
+                        }
                         placeholder="Search organizations or projects"
                         rightSection={
                           searchQuery ? (
@@ -284,7 +281,11 @@ const OrganizationLandingPage = ({
                       <div className="max-h-[24rem] overflow-y-auto py-2">
                         {searchResults.length > 0 ? (
                           searchResults.map((result) => (
-                            <Link href={result.href} key={result.key} legacyBehavior>
+                            <Link
+                              href={result.href}
+                              key={result.key}
+                              legacyBehavior
+                            >
                               <a
                                 className="flex items-start gap-3 px-3 py-2 text-left hover:bg-slate-50"
                                 onClick={() => setSearchQuery('')}
@@ -304,7 +305,11 @@ const OrganizationLandingPage = ({
                                   <Text fw={600} size="sm">
                                     {result.label}
                                   </Text>
-                                  <Text c="dimmed" className="truncate" size="xs">
+                                  <Text
+                                    c="dimmed"
+                                    className="truncate"
+                                    size="xs"
+                                  >
                                     {result.sublabel}
                                   </Text>
                                 </div>
@@ -320,16 +325,16 @@ const OrganizationLandingPage = ({
                     </Popover.Dropdown>
                   </Popover>
                 </div>
-              </Card>
+              </section>
 
               {isLoading ? (
-                <Card padding="md" radius="lg" withBorder>
+                <section className="border-b border-slate-200 bg-white px-6 py-4">
                   <Text c="dimmed" size="sm">
                     Loading your accessible organizations...
                   </Text>
-                </Card>
+                </section>
               ) : visibleOrganizationGroups.length === 0 ? (
-                <Card padding="md" radius="lg" withBorder>
+                <section className="border-b border-slate-200 bg-white px-6 py-4">
                   <Text fw={700}>
                     {normalizedSearchQuery
                       ? 'No matching organizations or projects'
@@ -340,9 +345,9 @@ const OrganizationLandingPage = ({
                       ? 'Try a different search term.'
                       : 'No project-scoped Syfon permissions were found for this account.'}
                   </Text>
-                </Card>
+                </section>
               ) : (
-                <Stack gap="xs">
+                <section className="overflow-hidden border border-slate-200 bg-white shadow-sm">
                   {visibleOrganizationGroups.map((group) => (
                     <OrganizationRow
                       group={group}
@@ -351,7 +356,7 @@ const OrganizationLandingPage = ({
                       key={group.organization}
                     />
                   ))}
-                </Stack>
+                </section>
               )}
             </Stack>
           </Container>

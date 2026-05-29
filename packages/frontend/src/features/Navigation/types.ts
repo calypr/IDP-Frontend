@@ -1,4 +1,4 @@
-import { ReactElement, ComponentType } from 'react';
+import { ReactElement, ComponentType, HTMLAttributes } from 'react';
 import { TopBarProps } from './TopBar/TopBar';
 import { BannerProps } from './Banner';
 import { StylingOverrideWithMergeControl } from '../../types';
@@ -75,7 +75,7 @@ export interface HeaderProps {
   readonly siteProps?: CommonsData;
 }
 
-export interface MainContentProps {
+export interface MainContentProps extends HTMLAttributes<HTMLElement> {
   fixed: boolean;
 }
 

@@ -90,22 +90,19 @@ describe('OrganizationProjectPage', () => {
 
   it('requests Syfon records for the current org/project and renders repo entries', () => {
     useGetSyfonIndexRecordsQueryMock.mockReturnValue({
-      data: [
-        {
-          controlled_access: ['/organization/org-a/project/proj-a'],
-          did: 'did-1',
-          file_name: 'nested/file-a.txt',
-          size: 10,
-        },
-        {
-          controlled_access: ['/organization/org-a/project/proj-a'],
-          description: 'root file',
-          did: 'did-2',
-          file_name: 'root.txt',
-          name: 'Root Display Name',
-          size: 20,
-        },
-      ],
+      data: {
+        directories: [{ name: 'nested', path: 'nested' }],
+        records: [
+          {
+            controlled_access: ['/organization/org-a/project/proj-a'],
+            did: 'did-2',
+            file_name: 'root.txt',
+            name: 'Root Display Name',
+            description: 'root file',
+            size: 20,
+          },
+        ],
+      },
       isFetching: false,
       isLoading: false,
     });
@@ -120,6 +117,7 @@ describe('OrganizationProjectPage', () => {
       {
         limit: 1000,
         organization: 'org-a',
+        path: '',
         project: 'proj-a',
       },
       { skip: false },
@@ -135,7 +133,7 @@ describe('OrganizationProjectPage', () => {
 
   it('does not show git-specific remote add controls in syfon view', () => {
     useGetSyfonIndexRecordsQueryMock.mockReturnValue({
-      data: [],
+      data: { directories: [], records: [] },
       isFetching: false,
       isLoading: false,
     });
@@ -153,22 +151,25 @@ describe('OrganizationProjectPage', () => {
 
   it('copies the current repository path and searches files in memory', async () => {
     useGetSyfonIndexRecordsQueryMock.mockReturnValue({
-      data: [
-        {
-          controlled_access: ['/organization/org-a/project/proj-a'],
-          did: 'did-go-mod',
-          file_name: 'nested/go.mod',
-          name: 'go.mod',
-          size: 10,
-        },
-        {
-          controlled_access: ['/organization/org-a/project/proj-a'],
-          did: 'did-readme',
-          file_name: 'README.md',
-          name: 'README.md',
-          size: 20,
-        },
-      ],
+      data: {
+        directories: [],
+        records: [
+          {
+            controlled_access: ['/organization/org-a/project/proj-a'],
+            did: 'did-go-mod',
+            file_name: 'nested/go.mod',
+            name: 'go.mod',
+            size: 10,
+          },
+          {
+            controlled_access: ['/organization/org-a/project/proj-a'],
+            did: 'did-readme',
+            file_name: 'README.md',
+            name: 'README.md',
+            size: 20,
+          },
+        ],
+      },
       isFetching: false,
       isLoading: false,
     });
@@ -212,22 +213,25 @@ describe('OrganizationProjectPage', () => {
 
   it('shows file metadata when a file is selected', () => {
     useGetSyfonIndexRecordsQueryMock.mockReturnValue({
-      data: [
-        {
-          access_methods: [
-            {
-              access_url: { url: 'https://example.org/root.txt' },
-              type: 's3',
-            },
-          ],
-          controlled_access: ['/organization/org-a/project/proj-a'],
-          did: 'did-2',
-          file_name: 'root.txt',
-          hashes: { sha256: 'abc' },
-          name: 'Root Display Name',
-          size: 20,
-        },
-      ],
+      data: {
+        directories: [],
+        records: [
+          {
+            access_methods: [
+              {
+                access_url: { url: 'https://example.org/root.txt' },
+                type: 's3',
+              },
+            ],
+            controlled_access: ['/organization/org-a/project/proj-a'],
+            did: 'did-2',
+            file_name: 'root.txt',
+            hashes: { sha256: 'abc' },
+            name: 'Root Display Name',
+            size: 20,
+          },
+        ],
+      },
       isFetching: false,
       isLoading: false,
     });
@@ -264,15 +268,18 @@ describe('OrganizationProjectPage', () => {
 
   it('hides the repo path when the Syfon name already matches the derived file name', () => {
     useGetSyfonIndexRecordsQueryMock.mockReturnValue({
-      data: [
-        {
-          controlled_access: ['/organization/org-a/project/proj-a'],
-          did: 'did-3',
-          file_name: 'exact-match.txt',
-          name: 'exact-match.txt',
-          size: 10,
-        },
-      ],
+      data: {
+        directories: [],
+        records: [
+          {
+            controlled_access: ['/organization/org-a/project/proj-a'],
+            did: 'did-3',
+            file_name: 'exact-match.txt',
+            name: 'exact-match.txt',
+            size: 10,
+          },
+        ],
+      },
       isFetching: false,
       isLoading: false,
     });
@@ -290,15 +297,18 @@ describe('OrganizationProjectPage', () => {
 
   it('downloads from the far-right table action without opening details', () => {
     useGetSyfonIndexRecordsQueryMock.mockReturnValue({
-      data: [
-        {
-          controlled_access: ['/organization/org-a/project/proj-a'],
-          did: 'did-4',
-          file_name: 'downloadable.txt',
-          name: 'downloadable.txt',
-          size: 10,
-        },
-      ],
+      data: {
+        directories: [],
+        records: [
+          {
+            controlled_access: ['/organization/org-a/project/proj-a'],
+            did: 'did-4',
+            file_name: 'downloadable.txt',
+            name: 'downloadable.txt',
+            size: 10,
+          },
+        ],
+      },
       isFetching: false,
       isLoading: false,
     });
@@ -323,7 +333,7 @@ describe('OrganizationProjectPage', () => {
   it('renders breadcrumb navigation for the current path and opens the scoped upload modal', async () => {
     routerQuery.path = 'nested/leaf';
     useGetSyfonIndexRecordsQueryMock.mockReturnValue({
-      data: [],
+      data: { directories: [], records: [] },
       isFetching: false,
       isLoading: false,
     });
@@ -355,5 +365,15 @@ describe('OrganizationProjectPage', () => {
     expect(
       screen.queryByRole('button', { name: 'Upload files' }),
     ).not.toBeInTheDocument();
+
+    expect(useGetSyfonIndexRecordsQueryMock).toHaveBeenCalledWith(
+      {
+        limit: 1000,
+        organization: 'org-a',
+        path: 'nested/leaf',
+        project: 'proj-a',
+      },
+      { skip: false },
+    );
   });
 });

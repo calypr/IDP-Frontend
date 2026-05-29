@@ -58,6 +58,7 @@ import { BrowserPageGetServerSideProps } from './pages/Browser';
 import {
   GitExplorerPageGetServerSideProps,
   GitLandingPage,
+  GitOrganizationSettingsPage,
   GitProjectFilePage,
   GitProjectPage,
 } from './pages/GitExplorer';
@@ -85,7 +86,9 @@ import AvailableImagesPage, {
 import Gen3Provider, {
   createMantineTheme,
 } from './components/Providers/Gen3Provider';
-import DiscoveryPage, { DiscoveryMainContent } from './pages/Discovery/Discovery';
+import DiscoveryPage, {
+  DiscoveryMainContent,
+} from './pages/Discovery/Discovery';
 import { DiscoveryPageGetServerSideProps } from './pages/Discovery/data';
 
 import QueryPage from './pages/Query/Query';
@@ -208,6 +211,7 @@ export {
   BrowserPage,
   BrowserPageGetServerSideProps,
   GitLandingPage,
+  GitOrganizationSettingsPage,
   GitProjectFilePage,
   GitProjectPage,
   GitExplorerPageGetServerSideProps,

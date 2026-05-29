@@ -226,6 +226,7 @@ const GitProjectFilePage = ({
         key: 'gecko-git-project-file',
         title: `${organization}/${project}/${filePath}`,
       }}
+      mainProps={{ className: 'bg-[#f6f8fa]' }}
     >
       <ProtectedContent>
         <div className="min-h-screen bg-[#f6f8fa]">

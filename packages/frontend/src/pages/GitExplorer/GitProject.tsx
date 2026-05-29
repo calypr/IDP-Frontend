@@ -4,7 +4,6 @@ import { useRouter } from 'next/router';
 import {
   ActionIcon,
   Alert,
-  Anchor,
   Button,
   Card,
   Code,
@@ -12,7 +11,6 @@ import {
   Group,
   Loader,
   Menu,
-  Modal,
   Popover,
   ScrollArea,
   Select,
@@ -31,6 +29,8 @@ import {
   useGetGeckoGitProjectTreeQuery,
   useLazyGetSyfonObjectsByChecksumQuery,
   useRefreshGeckoGitProjectMutation,
+  type GeckoGitRefreshResponse,
+  type GeckoGitProjectStatus,
   type GeckoGitTreeEntry,
 } from '@gen3/core';
 import {
@@ -51,8 +51,8 @@ import {
 } from '@tabler/icons-react';
 import ProtectedContent from '../../components/Protected/ProtectedContent';
 import { NavPageLayout } from '../../features/Navigation';
-import { Upload } from '../../features/Upload';
 import type { GitExplorerPageProps } from './types';
+import GitUploadPRModal from './GitUploadPRModal';
 
 const formatBytes = (size: number): string => {
   if (!Number.isFinite(size) || size < 0) {
@@ -115,6 +115,16 @@ const buildGitDrsRemoteAddCommand = (
 ): string =>
   `git drs remote add gen3 origin ${organization}/${project} --cred ~/.gen3/credentials.json`;
 
+const TRANSIENT_ALERT_TIMEOUT_MS = 5000;
+const MIRROR_STATUS_POLL_INTERVAL_MS = 1000;
+const isPersistentGitProjectError = (message: string | null | undefined) =>
+  (message ?? '').toLowerCase().includes('remote repository is empty');
+
+interface GitProjectSuccessBanner {
+  readonly branchName: string;
+  readonly pullRequestURL: string;
+}
+
 const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
   const router = useRouter();
   const organization =
@@ -129,6 +139,11 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
   const [selectedRef, setSelectedRef] = useState<string | null>(null);
   const [currentPath, setCurrentPath] = useState<string>(requestedPath);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [visibleProjectError, setVisibleProjectError] = useState<string | null>(
+    null,
+  );
+  const [successBanner, setSuccessBanner] =
+    useState<GitProjectSuccessBanner | null>(null);
   const [downloadingChecksum, setDownloadingChecksum] = useState<string | null>(
     null,
   );
@@ -204,6 +219,56 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
   }, [requestedPath]);
 
   useEffect(() => {
+    if (!actionError) {
+      return;
+    }
+    if (isPersistentGitProjectError(actionError)) {
+      return;
+    }
+    const timeout = window.setTimeout(() => {
+      setActionError(null);
+    }, TRANSIENT_ALERT_TIMEOUT_MS);
+    return () => window.clearTimeout(timeout);
+  }, [actionError]);
+
+  useEffect(() => {
+    const nextError = projectStatus?.last_error?.trim() || null;
+    setVisibleProjectError(nextError);
+    if (!nextError || isPersistentGitProjectError(nextError)) {
+      return;
+    }
+    const timeout = window.setTimeout(() => {
+      setVisibleProjectError((current) =>
+        current === nextError ? null : current,
+      );
+    }, TRANSIENT_ALERT_TIMEOUT_MS);
+    return () => window.clearTimeout(timeout);
+  }, [projectStatus?.last_error]);
+
+  useEffect(() => {
+    if (
+      shouldSkip ||
+      isStatusLoading ||
+      projectStatus?.installation_state !== 'connected' ||
+      projectStatus?.mirror_ready
+    ) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      void refetchStatus();
+    }, MIRROR_STATUS_POLL_INTERVAL_MS);
+
+    return () => window.clearTimeout(timeout);
+  }, [
+    isStatusLoading,
+    projectStatus?.installation_state,
+    projectStatus?.mirror_ready,
+    refetchStatus,
+    shouldSkip,
+  ]);
+
+  useEffect(() => {
     if (
       shouldSkip ||
       projectStatus?.installation_state !== 'connected' ||
@@ -260,6 +325,13 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
   const isSearchOpen = normalizedSearchQuery.length > 0;
   const currentPathSegments = currentPath.split('/').filter(Boolean);
   const isRootView = currentPathSegments.length === 0;
+  const hasNoRepositoryBranches =
+    projectStatus?.installation_state === 'connected' &&
+    projectStatus?.mirror_ready &&
+    !areRefsLoading &&
+    refOptions.length === 0;
+  const isRepositoryUninitialized =
+    hasNoRepositoryBranches && !projectStatus?.default_branch;
   const currentRepoPath = [organization, project, ...currentPathSegments].join('/');
   const breadcrumbSegments = currentPathSegments.map((segment, index) => ({
     label: segment,
@@ -284,14 +356,39 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
   const handleRefresh = async () => {
     setActionError(null);
     try {
-      await refreshProject({ organization, project }).unwrap();
-      await Promise.all([refetchStatus(), refetchRefs(), refetchTree()]);
+      const refreshResponse = (await refreshProject({
+        organization,
+        project,
+      }).unwrap()) as GeckoGitRefreshResponse;
+      const defaultBranch = refreshResponse.default_branch?.trim();
     } catch (error) {
       const message =
         error && typeof error === 'object' && 'data' in error
           ? JSON.stringify((error as { data: unknown }).data)
           : 'Failed to refresh the repository mirror.';
       setActionError(message);
+      return;
+    }
+
+    try {
+      const statusResult = (await refetchStatus()) as {
+        data?: GeckoGitProjectStatus;
+      };
+      const refreshedDefaultBranch =
+        'data' in statusResult && statusResult.data
+          ? statusResult.data.default_branch?.trim()
+          : undefined;
+
+      if (!refreshedDefaultBranch) {
+        setSelectedRef(null);
+        await Promise.allSettled([refetchTree()]);
+        return;
+      }
+
+      await Promise.allSettled([refetchRefs(), refetchTree()]);
+    } catch {
+      // Ignore follow-up refetch failures. The refresh itself already succeeded,
+      // and transient query issues should not surface as a repository refresh error.
     }
   };
 
@@ -595,7 +692,7 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
                         : 'Connect the GitHub App from the main /git page first.'
                       : projectStatus?.mirror_ready
                         ? 'No entries found for this folder.'
-                        : 'Loading repository tree...'}
+                        : 'Initializing repository mirror...'}
                   </Text>
                 </Table.Td>
               </Table.Tr>
@@ -614,6 +711,7 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
         key: 'gecko-git-project',
         title: `${organization}/${project}`,
       }}
+      mainProps={{ className: 'bg-[#f6f8fa]' }}
     >
       <ProtectedContent>
         <div className="min-h-screen bg-[#f6f8fa]">
@@ -656,14 +754,16 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
                   >
                     {isRefreshing ? 'Refreshing...' : 'Refresh repository'}
                   </Button>
-                  <Button
-                    className="px-2"
-                    onClick={() => setIsUploadOpen(true)}
-                    size="xs"
-                    variant="default"
-                  >
-                    Upload files
-                  </Button>
+                  {!hasNoRepositoryBranches ? (
+                    <Button
+                      className="px-2"
+                      onClick={() => setIsUploadOpen(true)}
+                      size="xs"
+                      variant="default"
+                    >
+                      Upload files
+                    </Button>
+                  ) : null}
                   <Tooltip label="Open raw Syfon project view">
                     <ActionIcon
                       aria-label="Open Syfon project view"
@@ -837,9 +937,29 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
                 </Alert>
               ) : null}
 
-              {projectStatus?.last_error ? (
+              {visibleProjectError ? (
                 <Alert color="red" variant="light">
-                  {projectStatus.last_error}
+                  {visibleProjectError}
+                </Alert>
+              ) : null}
+              {successBanner ? (
+                <Alert color="green" variant="light">
+                  Pull request created on branch{' '}
+                  <Code>{successBanner.branchName}</Code>.{' '}
+                  <a
+                    className="text-primary hover:underline"
+                    href={successBanner.pullRequestURL}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    Open pull request
+                  </a>
+                </Alert>
+              ) : null}
+              {isRepositoryUninitialized ? (
+                <Alert color="yellow" variant="light">
+                  This repository has no default branch yet. Initialize your
+                  repo first before uploading files.
                 </Alert>
               ) : null}
               {projectStatus?.installation_state !== 'connected' ? (
@@ -861,24 +981,22 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
                 </Alert>
               ) : null}
 
-              <Modal
-                centered
-                onClose={() => setIsUploadOpen(false)}
-                opened={isUploadOpen}
-                size="xl"
-                title="Upload files"
-              >
-                <Upload
-                  embedded
-                  hideScopeControls
-                  initialOrganization={organization}
-                  initialProject={project}
-                  initialSubdirectory={currentPath}
-                  lockOrganization
-                  lockProject
-                  lockSubdirectory
+              {isUploadOpen ? (
+                <GitUploadPRModal
+                  initialBaseBranch={effectiveRef ?? projectStatus?.default_branch}
+                  isRepositoryUninitialized={isRepositoryUninitialized}
+                  onClose={() => setIsUploadOpen(false)}
+                  onSuccess={(result) => {
+                    setSuccessBanner(result);
+                    setIsUploadOpen(false);
+                  }}
+                  opened={isUploadOpen}
+                  organization={organization}
+                  project={project}
+                  refs={refsData?.refs ?? []}
+                  targetSubdirectory={currentPath}
                 />
-              </Modal>
+              ) : null}
 
               {isRootView ? (
                 <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -995,7 +1113,7 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
                           <Menu
                             position="bottom-end"
                             shadow="md"
-                            width={420}
+                            width={380}
                             withinPortal
                           >
                             <Menu.Target>
@@ -1010,23 +1128,26 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
                               </Button>
                             </Menu.Target>
                             <Menu.Dropdown>
-                              <div className="space-y-3 px-3 py-2">
-                                <div className="space-y-2">
+                              <div className="space-y-2.5 px-2.5 py-2">
+                                <div className="rounded-md border border-slate-200 bg-white px-3 py-2">
                                   <Text c="dimmed" fw={700} size="xs" tt="uppercase">
                                     Clone repository
                                   </Text>
-                                  <Code
-                                    block
-                                    className="overflow-x-auto whitespace-pre-wrap break-all rounded-md border border-slate-200 bg-slate-50 p-2 text-[12px]"
-                                  >
-                                    {gitCloneCommand || 'Unavailable'}
-                                  </Code>
-                                  <Group justify="space-between" wrap="nowrap">
-                                    <Text c="dimmed" size="xs">
+                                  <div className="mt-1.5 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2 font-mono text-[11px] leading-5 text-slate-900">
+                                    <Text
+                                      className="overflow-x-auto whitespace-pre-wrap break-all"
+                                      component="div"
+                                      inherit
+                                    >
+                                      {gitCloneCommand || 'Unavailable'}
+                                    </Text>
+                                  </div>
+                                  <Group className="mt-2" justify="space-between" wrap="nowrap">
+                                    <Text c="dimmed" className="pr-3 leading-4" size="xs">
                                       Clone the upstream GitHub repository.
                                     </Text>
                                     <Button
-                                      className="px-2"
+                                      className="shrink-0 px-2"
                                       disabled={!gitCloneCommand}
                                       leftSection={
                                         hasCopiedCloneCommand ? (
@@ -1038,29 +1159,32 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
                                       onClick={() => {
                                         void copyCloneCommand();
                                       }}
-                                      size="xs"
+                                      size="compact-xs"
                                       variant={hasCopiedCloneCommand ? 'light' : 'default'}
                                     >
                                       {hasCopiedCloneCommand ? 'Copied' : 'Copy'}
                                     </Button>
                                   </Group>
                                 </div>
-                                <div className="space-y-2">
+                                <div className="rounded-md border border-slate-200 bg-white px-3 py-2">
                                   <Text c="dimmed" fw={700} size="xs" tt="uppercase">
                                     Git-DRS Remote
                                   </Text>
-                                  <Code
-                                    block
-                                    className="overflow-x-auto whitespace-pre-wrap break-all rounded-md border border-slate-200 bg-slate-50 p-2 text-[12px]"
-                                  >
-                                    {gitDrsRemoteAddCommand}
-                                  </Code>
-                                  <Group justify="space-between" wrap="nowrap">
-                                    <Text c="dimmed" size="xs">
+                                  <div className="mt-1.5 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2 font-mono text-[11px] leading-5 text-slate-900">
+                                    <Text
+                                      className="overflow-x-auto whitespace-pre-wrap break-all"
+                                      component="div"
+                                      inherit
+                                    >
+                                      {gitDrsRemoteAddCommand}
+                                    </Text>
+                                  </div>
+                                  <Group className="mt-2" justify="space-between" wrap="nowrap">
+                                    <Text c="dimmed" className="pr-3 leading-4" size="xs">
                                       Attach the Gen3-backed remote to an existing clone.
                                     </Text>
                                     <Button
-                                      className="px-2"
+                                      className="shrink-0 px-2"
                                       leftSection={
                                         hasCopiedRemoteCommand ? (
                                           <IconCheck size={14} />
@@ -1071,7 +1195,7 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
                                       onClick={() => {
                                         void copyGitDrsRemoteAddCommand();
                                       }}
-                                      size="xs"
+                                      size="compact-xs"
                                       variant={hasCopiedRemoteCommand ? 'light' : 'default'}
                                     >
                                       {hasCopiedRemoteCommand ? 'Copied' : 'Copy'}
@@ -1098,14 +1222,14 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
                         <IconLink className="mt-0.5 text-slate-500" size={16} />
                         <div className="min-w-0">
                           {projectStatus?.config.src_repo ? (
-                            <Anchor
+                            <a
+                              className="text-primary hover:underline text-sm"
                               href={projectStatus?.repository.url}
                               rel="noreferrer"
-                              size="sm"
                               target="_blank"
                             >
                               {projectStatus.config.src_repo}
-                            </Anchor>
+                            </a>
                           ) : (
                             <Text size="sm">Unavailable</Text>
                           )}

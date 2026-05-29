@@ -37,6 +37,7 @@ declare module '@gen3/core' {
   }
 
   export interface SyfonBucketMetadata {
+    bucket?: string;
     endpoint_url?: string;
     programs?: Array<string>;
     provider?: string;
@@ -48,6 +49,7 @@ declare module '@gen3/core' {
   }
 
   export interface SyfonBucket {
+    bucket?: string;
     endpointUrl?: string;
     name: string;
     programs: Array<string>;
@@ -79,6 +81,43 @@ declare module '@gen3/core' {
     expiresIn?: number;
     fileId: string;
     fileName?: string;
+  }
+
+  export interface SyfonUpsertBucketCredentialArgs {
+    access_key?: string;
+    bucket: string;
+    endpoint_url?: string;
+    organization: string;
+    path?: string;
+    project_id: string;
+    provider?: string;
+    region?: string;
+    secret_key?: string;
+  }
+
+  export interface SyfonAddBucketScopeArgs {
+    bucket: string;
+    organization: string;
+    path?: string;
+    project_id: string;
+  }
+
+  export interface SyfonDeleteBucketScopeArgs {
+    bucket: string;
+    organization: string;
+    project_id: string;
+  }
+
+  export interface SyfonDeleteProjectArgs {
+    organization: string;
+    project_id: string;
+  }
+
+  export interface SyfonDeleteProjectResponse {
+    organization: string;
+    project_id: string;
+    deleted_objects: number;
+    deleted_bucket_scopes: number;
   }
 
   export interface SyfonDrsObjectCandidate {
@@ -117,11 +156,23 @@ declare module '@gen3/core' {
     version?: string;
   }
 
+  export interface SyfonIndexDirectory {
+    name: string;
+    path: string;
+  }
+
   export interface GetSyfonIndexRecordsArgs {
     readonly organization: string;
     readonly project: string;
     readonly limit?: number;
     readonly page?: number;
+    readonly start?: string;
+    readonly path?: string;
+  }
+
+  export interface SyfonIndexBrowseResponse {
+    readonly directories: Array<SyfonIndexDirectory>;
+    readonly records: Array<SyfonIndexRecord>;
   }
 
   export function createSyfonObjectKey(
@@ -152,10 +203,38 @@ declare module '@gen3/core' {
     checksum: string,
     controlledAccess: Array<string>,
   ): Promise<string>;
-  export function useListSyfonBucketsQuery(): {
+  export function useListSyfonBucketsQuery(
+    arg?: void,
+    options?: { skip?: boolean },
+  ): {
     data?: SyfonBucketsResponse;
     isLoading: boolean;
+    refetch: () => Promise<unknown>;
   };
+  export function useUpsertSyfonBucketCredentialMutation(): [
+    (
+      args: SyfonUpsertBucketCredentialArgs,
+    ) => { unwrap: () => Promise<void> },
+    { isLoading: boolean },
+  ];
+  export function useAddSyfonBucketScopeMutation(): [
+    (
+      args: SyfonAddBucketScopeArgs,
+    ) => { unwrap: () => Promise<void> },
+    { isLoading: boolean },
+  ];
+  export function useDeleteSyfonBucketScopeMutation(): [
+    (
+      args: SyfonDeleteBucketScopeArgs,
+    ) => { unwrap: () => Promise<void> },
+    { isLoading: boolean },
+  ];
+  export function useDeleteSyfonProjectMutation(): [
+    (
+      args: SyfonDeleteProjectArgs,
+    ) => { unwrap: () => Promise<SyfonDeleteProjectResponse> },
+    { isLoading: boolean },
+  ];
   export function useCreateSyfonUploadUrlMutation(): [
     (
       args: SyfonCreateUploadUrlArgs,
@@ -216,7 +295,7 @@ declare module '@gen3/core' {
     args: GetSyfonIndexRecordsArgs,
     options?: { skip?: boolean },
   ): {
-    data?: Array<SyfonIndexRecord>;
+    data?: SyfonIndexBrowseResponse;
     isFetching: boolean;
     isLoading: boolean;
   };

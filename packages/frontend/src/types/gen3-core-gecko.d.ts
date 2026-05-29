@@ -5,6 +5,26 @@ declare module '@gen3/core' {
     readonly resourcePath: string;
   }
 
+  export interface GeckoProjectConfig {
+    readonly title: string;
+    readonly contact_email: string;
+    readonly src_repo: string;
+    readonly org_title: string;
+    readonly description: string;
+    readonly project_title: string;
+    readonly icon_name: string;
+  }
+
+  export interface GeckoMutationResponse {
+    readonly success: boolean;
+    readonly error?: string;
+  }
+
+  export interface GeckoDeleteProjectMutationArgs {
+    readonly organization: string;
+    readonly project: string;
+  }
+
   export interface GeckoGitRepositoryIdentity {
     readonly host: string;
     readonly owner: string;
@@ -71,6 +91,29 @@ declare module '@gen3/core' {
     readonly projects: Array<GeckoGitOrganizationProjectStatus>;
   }
 
+  export interface GeckoGitPendingRepository {
+    readonly id: string;
+    readonly installation_id: number;
+    readonly setup_session_id?: string;
+    readonly created_by_user_id?: string;
+    readonly organization: string;
+    readonly repo_id: number;
+    readonly repo_name: string;
+    readonly repo_full_name: string;
+    readonly repo_html_url?: string;
+    readonly repo_clone_url?: string;
+    readonly repo_host: string;
+    readonly repo_owner: string;
+    readonly repo_path: string;
+    readonly added_at: string;
+  }
+
+  export interface GeckoGitPendingRepositoriesResponse {
+    readonly installation_id?: number;
+    readonly setup_session_id?: string;
+    readonly pending: Array<GeckoGitPendingRepository>;
+  }
+
   export interface GeckoGitOrganizationsStatus {
     readonly connected: boolean;
     readonly app_installed: boolean;
@@ -126,10 +169,81 @@ declare module '@gen3/core' {
     readonly lfs_pointer?: GeckoGitLFSPointerInfo;
   }
 
+  export interface GeckoGitUploadSessionFileManifest {
+    readonly name: string;
+    readonly size: number;
+  }
+
+  export interface GeckoGitUploadSessionCreateRequest {
+    readonly base_branch: string;
+    readonly target_subdirectory?: string;
+    readonly files: Array<GeckoGitUploadSessionFileManifest>;
+  }
+
+  export interface GeckoGitUploadSessionFileAttachment {
+    readonly file_name: string;
+    readonly target_path: string;
+    readonly checksum: string;
+    readonly drs_object_id: string;
+    readonly size: number;
+  }
+
+  export interface GeckoGitUploadSessionAttachFilesRequest {
+    readonly files: Array<GeckoGitUploadSessionFileAttachment>;
+  }
+
+  export interface GeckoGitUploadSessionFinalizeRequest {
+    readonly pr_title?: string;
+    readonly pr_body?: string;
+  }
+
+  export interface GeckoGitUploadSessionFileStatus {
+    readonly file_name: string;
+    readonly target_path: string;
+    readonly size: number;
+    readonly checksum?: string;
+    readonly drs_object_id?: string;
+    readonly status: string;
+    readonly error?: string;
+    readonly collision: boolean;
+  }
+
+  export interface GeckoGitUploadSessionResponse {
+    readonly session_id: string;
+    readonly project_id: string;
+    readonly base_branch: string;
+    readonly target_subdirectory?: string;
+    readonly branch_name: string;
+    readonly pr_title: string;
+    readonly pr_body: string;
+    readonly status: string;
+    readonly pull_request_url?: string;
+    readonly commit_sha?: string;
+    readonly files: Array<GeckoGitUploadSessionFileStatus>;
+    readonly has_conflicts: boolean;
+  }
+
   export function useGetGeckoProjectsQuery(): {
     data?: Array<GeckoProjectRecord>;
     isLoading: boolean;
   };
+
+  export function useCreateGeckoProjectMutation(): [
+    (args: {
+      configData: GeckoProjectConfig;
+      organization: string;
+      pendingRepoID?: string;
+      project: string;
+    }) => { unwrap: () => Promise<GeckoMutationResponse> },
+    { isLoading: boolean },
+  ];
+
+  export function useDeleteGeckoProjectMutation(): [
+    (
+      args: GeckoDeleteProjectMutationArgs,
+    ) => { unwrap: () => Promise<GeckoMutationResponse> },
+    { isLoading: boolean },
+  ];
 
   export function useGetGeckoGitProjectStatusQuery(
     args: { organization: string; project: string },
@@ -156,6 +270,30 @@ declare module '@gen3/core' {
     isLoading: boolean;
     refetch: () => Promise<unknown>;
   };
+
+  export function useGetGeckoGitPendingRepositoriesQuery(
+    args?: { installationID?: number; setupSessionID?: string },
+    options?: { skip?: boolean },
+  ): {
+    data?: GeckoGitPendingRepositoriesResponse;
+    isLoading: boolean;
+    refetch: () => Promise<unknown>;
+  };
+
+  export function useLazyGetGeckoGitPendingRepositoriesQuery(): [
+    (args?: { installationID?: number; setupSessionID?: string }) => Promise<unknown>,
+    {
+      data?: GeckoGitPendingRepositoriesResponse;
+      isLoading: boolean;
+    },
+  ];
+
+  export function useReconcileGeckoGitPendingRepositoriesMutation(): [
+    (args: { installationID: number; setupSessionID?: string }) => {
+      unwrap: () => Promise<GeckoGitPendingRepositoriesResponse>;
+    },
+    { isLoading: boolean },
+  ];
 
   export function useReconcileGeckoGitOrganizationsMutation(): [
     () => { unwrap: () => Promise<unknown> },
@@ -211,6 +349,48 @@ declare module '@gen3/core' {
       path: string;
       ref?: string;
     }) => { unwrap: () => Promise<GeckoGitFileResponse> },
+    { isLoading: boolean },
+  ];
+
+  export function useCreateGeckoGitUploadSessionMutation(): [
+    (args: {
+      organization: string;
+      project: string;
+      body: GeckoGitUploadSessionCreateRequest;
+    }) => { unwrap: () => Promise<GeckoGitUploadSessionResponse> },
+    { isLoading: boolean },
+  ];
+
+  export function useGetGeckoGitUploadSessionQuery(
+    args: {
+      organization: string;
+      project: string;
+      sessionID: string;
+    },
+    options?: { skip?: boolean },
+  ): {
+    data?: GeckoGitUploadSessionResponse;
+    isLoading: boolean;
+    refetch: () => Promise<unknown>;
+  };
+
+  export function useAttachGeckoGitUploadSessionFilesMutation(): [
+    (args: {
+      organization: string;
+      project: string;
+      sessionID: string;
+      body: GeckoGitUploadSessionAttachFilesRequest;
+    }) => { unwrap: () => Promise<GeckoGitUploadSessionResponse> },
+    { isLoading: boolean },
+  ];
+
+  export function useFinalizeGeckoGitUploadSessionMutation(): [
+    (args: {
+      organization: string;
+      project: string;
+      sessionID: string;
+      body: GeckoGitUploadSessionFinalizeRequest;
+    }) => { unwrap: () => Promise<GeckoGitUploadSessionResponse> },
     { isLoading: boolean },
   ];
 

@@ -31,7 +31,6 @@ import {
   IconX,
 } from '@tabler/icons-react';
 import {
-  type SyfonIndexRecord,
   useGetSyfonIndexRecordsQuery,
 } from '@gen3/core';
 import ProtectedContent from '../../components/Protected/ProtectedContent';
@@ -43,7 +42,6 @@ import type {
   SyfonRepoFile,
 } from './types';
 import {
-  buildRepoListingEntries,
   getSyfonRepoDownloadUrl,
   normalizeSyfonIndexRecordToRepoFile,
   parsePathQueryValue,
@@ -261,31 +259,39 @@ const OrganizationProjectPage = ({
   const [searchQuery, setSearchQuery] = useState('');
   const pageScrollTopRef = useRef(0);
 
-  const { data: records = [], isFetching, isLoading } = useGetSyfonIndexRecordsQuery(
+  const { data: browseResponse, isFetching, isLoading } = useGetSyfonIndexRecordsQuery(
     {
       limit: 1000,
       organization,
+      path: currentPath.join('/'),
       project,
     },
     {
       skip: !organization || !project,
     },
   );
+  const directories = browseResponse?.directories ?? [];
+  const records = browseResponse?.records ?? [];
 
-  // The current repo view derives its directory structure client-side from the
-  // full project record set. That keeps the UI functional without a Syfon-owned
-  // hierarchy API, but it also means large projects can put noticeable memory
-  // and CPU pressure on older or slower machines.
   const repoFiles = useMemo(
     () =>
-      records.map((record: SyfonIndexRecord) =>
-        normalizeSyfonIndexRecordToRepoFile(record),
-      ),
+      records.map((record) => normalizeSyfonIndexRecordToRepoFile(record)),
     [records],
   );
   const listingEntries = useMemo(
-    () => buildRepoListingEntries(repoFiles, currentPath),
-    [currentPath, repoFiles],
+    () => [
+      ...directories.map((directory) => ({
+        name: directory.name,
+        pathSegments: parsePathQueryValue(directory.path),
+        type: 'directory' as const,
+      })),
+      ...repoFiles.map((file) => ({
+        file,
+        name: file.displayName,
+        type: 'file' as const,
+      })),
+    ],
+    [directories, repoFiles],
   );
   const selectedFile = useMemo(
     () =>
@@ -447,6 +453,7 @@ const OrganizationProjectPage = ({
         key: 'syfon-organization-project',
         title: `${organization}/${project}`,
       }}
+      mainProps={{ className: 'bg-[#f6f8fa]' }}
     >
       <ProtectedContent>
         <div className="min-h-screen bg-[#f6f8fa]">
@@ -641,8 +648,7 @@ const OrganizationProjectPage = ({
                                   </Text>
                                   {entry.type === 'directory' && (
                                     <Text c="dimmed" size="xs">
-                                      {entry.itemCount} nested
-                                      {entry.itemCount === 1 ? ' item' : ' items'}
+                                      Directory
                                     </Text>
                                   )}
                                 </div>

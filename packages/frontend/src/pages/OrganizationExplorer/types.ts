@@ -31,7 +31,7 @@ export interface SyfonRepoFile {
 }
 
 export interface RepoDirectoryEntry {
-  readonly itemCount: number;
+  readonly itemCount?: number;
   readonly name: string;
   readonly pathSegments: Array<string>;
   readonly type: 'directory';

@@ -2,9 +2,17 @@ import { gen3Api } from '../gen3';
 import { createSelector } from '@reduxjs/toolkit';
 import {
   type AuthzMapping,
+  AuthzOwnerMutationRequest,
+  AuthzOwnershipResourceRequest,
+  AuthzOwnershipResourceResponse,
+  AuthzOwnershipResponse,
   AuthzResourceResponse,
+  AuthzUserAccessMutationResponse,
+  AuthzUserAccessMutationRequest,
   CreateAuthzResourceRequest,
   CreateAuthzResourceResponse,
+  CreateAuthzOwnedDescendantRequest,
+  DeleteAuthzResourceRequest,
 } from './types';
 import { GEN3_AUTHZ_API } from '../../constants';
 
@@ -31,6 +39,25 @@ export const authzApi = authzTags.injectEndpoints({
         method: 'GET',
       }),
     }),
+    getAuthzOwnershipResource: builder.query<
+      AuthzOwnershipResourceResponse,
+      AuthzOwnershipResourceRequest
+    >({
+      providesTags: [TAGS],
+      query: ({
+        resource_path,
+        include_children = false,
+        include_admins,
+      }) => ({
+        url: `${GEN3_AUTHZ_API}/ownership/resource`,
+        method: 'GET',
+        params: {
+          resource_path,
+          include_children,
+          ...(include_admins === undefined ? {} : { include_admins }),
+        },
+      }),
+    }),
     createAuthzResource: builder.mutation<
       CreateAuthzResourceResponse,
       CreateAuthzResourceRequest
@@ -43,6 +70,88 @@ export const authzApi = authzTags.injectEndpoints({
       }),
       invalidatesTags: [TAGS],
     }),
+    deleteAuthzResource: builder.mutation<void, DeleteAuthzResourceRequest>({
+      invalidatesTags: [TAGS],
+      query: ({ resource_path }) => ({
+        method: 'DELETE',
+        params: { resource_path },
+        url: `${GEN3_AUTHZ_API}/ownership/resource`,
+      }),
+    }),
+    createAuthzOwnedDescendant: builder.mutation<
+      AuthzOwnershipResponse,
+      CreateAuthzOwnedDescendantRequest
+    >({
+      invalidatesTags: [TAGS],
+      query: (request) => ({
+        body: request,
+        method: 'POST',
+        url: `${GEN3_AUTHZ_API}/ownership/descendant`,
+      }),
+    }),
+    addAuthzOwner: builder.mutation<
+      AuthzOwnershipResponse,
+      AuthzOwnerMutationRequest
+    >({
+      invalidatesTags: [TAGS],
+      query: (request) => ({
+        body: request,
+        method: 'POST',
+        url: `${GEN3_AUTHZ_API}/ownership/owner`,
+      }),
+    }),
+    removeAuthzOwner: builder.mutation<void, AuthzOwnerMutationRequest>({
+      invalidatesTags: [TAGS],
+      query: (request) => ({
+        body: request,
+        method: 'DELETE',
+        url: `${GEN3_AUTHZ_API}/ownership/owner`,
+      }),
+    }),
+    addAuthzOwnershipUserAccess: builder.mutation<
+      AuthzOwnershipResponse,
+      AuthzUserAccessMutationRequest
+    >({
+      invalidatesTags: [TAGS],
+      query: (request) => ({
+        body: request,
+        method: 'POST',
+        url: `${GEN3_AUTHZ_API}/ownership/user`,
+      }),
+    }),
+    removeAuthzOwnershipUserAccess: builder.mutation<
+      void,
+      AuthzUserAccessMutationRequest
+    >({
+      invalidatesTags: [TAGS],
+      query: (request) => ({
+        body: request,
+        method: 'DELETE',
+        url: `${GEN3_AUTHZ_API}/ownership/user`,
+      }),
+    }),
+    addAuthzUserAccess: builder.mutation<
+      AuthzUserAccessMutationResponse,
+      AuthzUserAccessMutationRequest
+    >({
+      invalidatesTags: [TAGS],
+      query: (request) => ({
+        body: request,
+        method: 'POST',
+        url: `${GEN3_AUTHZ_API}/access/user`,
+      }),
+    }),
+    removeAuthzUserAccess: builder.mutation<
+      AuthzUserAccessMutationResponse,
+      AuthzUserAccessMutationRequest
+    >({
+      invalidatesTags: [TAGS],
+      query: (request) => ({
+        body: request,
+        method: 'DELETE',
+        url: `${GEN3_AUTHZ_API}/access/user`,
+      }),
+    }),
   }),
 });
 
@@ -50,8 +159,17 @@ export const {
   useGetAuthzMappingsQuery,
   useLazyGetAuthzMappingsQuery,
   useGetAuthzResourcesQuery,
+  useGetAuthzOwnershipResourceQuery,
   useLazyGetAuthzResourcesQuery,
   useCreateAuthzResourceMutation,
+  useDeleteAuthzResourceMutation,
+  useCreateAuthzOwnedDescendantMutation,
+  useAddAuthzOwnerMutation,
+  useRemoveAuthzOwnerMutation,
+  useAddAuthzOwnershipUserAccessMutation,
+  useRemoveAuthzOwnershipUserAccessMutation,
+  useAddAuthzUserAccessMutation,
+  useRemoveAuthzUserAccessMutation,
 } = authzApi;
 
 export const selectAuthzMapping = authzApi.endpoints.getAuthzMappings.select();

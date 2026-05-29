@@ -4,6 +4,9 @@ import {
   SyfonCompleteMultipartUploadArgs,
   SyfonBucketsResponse,
   SyfonCreateUploadUrlArgs,
+  SyfonDeleteBucketScopeArgs,
+  SyfonDeleteProjectArgs,
+  SyfonDeleteProjectResponse,
   SyfonDrsObject,
   SyfonDrsObjectsByChecksumResponse,
   SyfonDrsRegisterResponse,
@@ -11,8 +14,10 @@ import {
   SyfonMultipartInitResponse,
   SyfonMultipartUploadUrlArgs,
   SyfonMultipartUploadUrlResponse,
+  SyfonAddBucketScopeArgs,
   SyfonRegisterDrsObjectsRequest,
   SyfonSignedUrlResponse,
+  SyfonUpsertBucketCredentialArgs,
   SyfonUploadAndRegisterFileArgs,
   SyfonUploadAndRegisterFileResult,
 } from './types';
@@ -91,6 +96,64 @@ export const syfonApi = syfonTags.injectEndpoints({
     listSyfonBuckets: builder.query<SyfonBucketsResponse, void>({
       providesTags: ['SyfonBucket'],
       query: () => `${SYFON_API}/buckets`,
+    }),
+    upsertSyfonBucketCredential: builder.mutation<
+      void,
+      SyfonUpsertBucketCredentialArgs
+    >({
+      invalidatesTags: ['SyfonBucket'],
+      query: (request) => ({
+        body: request,
+        method: 'PUT',
+        responseHandler: async (response: Response) => {
+          await response.text();
+          return null;
+        },
+        url: `${SYFON_API}/buckets`,
+      }),
+    }),
+    addSyfonBucketScope: builder.mutation<void, SyfonAddBucketScopeArgs>({
+      invalidatesTags: ['SyfonBucket'],
+      query: ({ bucket, organization, path, project_id }) => ({
+        body: {
+          organization,
+          path,
+          project_id,
+        },
+        method: 'POST',
+        responseHandler: async (response: Response) => {
+          await response.text();
+          return null;
+        },
+        url: `${SYFON_API}/buckets/${encodeURIComponent(bucket)}/scopes`,
+      }),
+    }),
+    deleteSyfonBucketScope: builder.mutation<void, SyfonDeleteBucketScopeArgs>({
+      invalidatesTags: ['SyfonBucket'],
+      query: ({ bucket, organization, project_id }) => ({
+        method: 'DELETE',
+        params: {
+          organization,
+          project_id,
+        },
+        responseHandler: async (response: Response) => {
+          await response.text();
+          return null;
+        },
+        url: `${SYFON_API}/buckets/${encodeURIComponent(bucket)}/scopes`,
+      }),
+    }),
+    deleteSyfonProject: builder.mutation<
+      SyfonDeleteProjectResponse,
+      SyfonDeleteProjectArgs
+    >({
+      invalidatesTags: ['SyfonBucket', 'SyfonDrsObject'],
+      query: ({ organization, project_id }) => ({
+        method: 'DELETE',
+        url: `${SYFON_API}/projects/${encodeURIComponent(
+          organization,
+        )}/${encodeURIComponent(project_id)}`,
+      }),
     }),
     getSyfonDrsObject: builder.query<SyfonDrsObject, string>({
       providesTags: (_result, _error, objectId) => [
@@ -190,7 +253,7 @@ export const syfonApi = syfonTags.injectEndpoints({
           uploadId,
         },
         method: 'POST',
-        responseHandler: async (response) => {
+        responseHandler: async (response: Response) => {
           await response.text();
           return null;
         },
@@ -367,7 +430,7 @@ export const syfonApi = syfonTags.injectEndpoints({
                 uploadId,
               },
               method: 'POST',
-              responseHandler: async (response) => {
+              responseHandler: async (response: Response) => {
                 await response.text();
                 return null;
               },
@@ -438,6 +501,10 @@ export const syfonApi = syfonTags.injectEndpoints({
 
 export const {
   useListSyfonBucketsQuery,
+  useUpsertSyfonBucketCredentialMutation,
+  useAddSyfonBucketScopeMutation,
+  useDeleteSyfonBucketScopeMutation,
+  useDeleteSyfonProjectMutation,
   useGetSyfonDrsObjectQuery,
   useLazyGetSyfonDrsObjectQuery,
   useGetSyfonObjectsByChecksumQuery,

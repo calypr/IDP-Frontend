@@ -218,7 +218,8 @@ export const normalizeSyfonBuckets = (
     'S3_BUCKETS' in response ? response.S3_BUCKETS : response;
 
   return Object.entries(rawBuckets).map(([name, metadata]) => ({
-    name,
+    bucket: metadata.bucket ?? name,
+    name: metadata.bucket ?? name,
     endpointUrl: metadata.endpoint_url,
     programs: metadata.programs ?? [],
     provider: metadata.provider,
@@ -228,6 +229,7 @@ export const normalizeSyfonBuckets = (
 };
 
 interface SyfonBucketMetadataLike {
+  bucket?: string;
   endpoint_url?: string;
   programs?: Array<string>;
   provider?: string;

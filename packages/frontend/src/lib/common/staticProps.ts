@@ -24,17 +24,31 @@ export const getNavPageLayoutPropsFromConfig = async (
 
     const { headerProps, footerProps, fileActions, dynamicProps } = navigationConfigJSON;
 
-    const hasOrganizationsTopBarItem = headerProps.topBar.items.some(
-      (item) => item.href === '/organization',
+    const normalizedTopBarItems = headerProps.topBar.items.map((item) =>
+      item.href === '/organization'
+        ? {
+            ...item,
+            href: '/git',
+            leftIcon: 'mdi:git',
+            name: 'Git',
+            openInNewTab: false,
+            tooltip: 'Manage Git-backed Calypr projects',
+          }
+        : item,
+    );
+    (headerProps.topBar as any).items = normalizedTopBarItems;
+
+    const hasGitTopBarItem = normalizedTopBarItems.some(
+      (item) => item.href === '/git',
     );
 
-    if (!hasOrganizationsTopBarItem) {
+    if (!hasGitTopBarItem) {
       headerProps.topBar.items.unshift({
-        href: '/organization',
-        leftIcon: 'mdi:folder-multiple-outline',
-        name: 'Organizations',
+        href: '/git',
+        leftIcon: 'mdi:git',
+        name: 'Git',
         openInNewTab: false,
-        tooltip: 'Browse accessible organizations and projects',
+        tooltip: 'Manage Git-backed Calypr projects',
       } as any);
     }
 

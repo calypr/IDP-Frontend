@@ -1,4 +1,5 @@
 export interface SyfonBucketMetadata {
+  bucket?: string;
   endpoint_url?: string;
   provider?: string;
   region?: string;
@@ -10,6 +11,7 @@ export interface SyfonBucketsResponse {
 }
 
 export interface SyfonBucket {
+  bucket?: string;
   name: string;
   endpointUrl?: string;
   provider?: string;
@@ -118,6 +120,43 @@ export interface SyfonCreateUploadUrlArgs {
   expiresIn?: number;
 }
 
+export interface SyfonUpsertBucketCredentialArgs {
+  access_key?: string;
+  bucket: string;
+  endpoint_url?: string;
+  organization: string;
+  path?: string;
+  project_id: string;
+  provider?: string;
+  region?: string;
+  secret_key?: string;
+}
+
+export interface SyfonAddBucketScopeArgs {
+  bucket: string;
+  organization: string;
+  path?: string;
+  project_id: string;
+}
+
+export interface SyfonDeleteBucketScopeArgs {
+  bucket: string;
+  organization: string;
+  project_id: string;
+}
+
+export interface SyfonDeleteProjectArgs {
+  organization: string;
+  project_id: string;
+}
+
+export interface SyfonDeleteProjectResponse {
+  organization: string;
+  project_id: string;
+  deleted_objects: number;
+  deleted_bucket_scopes: number;
+}
+
 export interface SyfonRegisterDrsObjectsRequest {
   candidates: Array<SyfonDrsObjectCandidate>;
 }
@@ -170,6 +209,12 @@ export interface SyfonIndexRecord {
   version?: string;
 }
 
+export interface SyfonIndexDirectory {
+  name: string;
+  path: string;
+}
+
 export interface SyfonIndexListResponse {
+  directories?: Array<SyfonIndexDirectory>;
   records?: Array<SyfonIndexRecord>;
 }
