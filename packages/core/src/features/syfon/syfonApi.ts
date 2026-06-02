@@ -102,8 +102,28 @@ export const syfonApi = syfonTags.injectEndpoints({
       SyfonUpsertBucketCredentialArgs
     >({
       invalidatesTags: ['SyfonBucket'],
-      query: (request) => ({
-        body: request,
+      query: ({
+        access_key,
+        bucket,
+        endpoint,
+        organization,
+        path,
+        project_id,
+        provider,
+        region,
+        secret_key,
+      }) => ({
+        body: {
+          access_key,
+          bucket,
+          endpoint,
+          organization,
+          path,
+          project_id,
+          provider,
+          region,
+          secret_key,
+        },
         method: 'PUT',
         responseHandler: async (response: Response) => {
           await response.text();

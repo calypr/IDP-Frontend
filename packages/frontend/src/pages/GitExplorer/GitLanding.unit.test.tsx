@@ -21,16 +21,7 @@ jest.mock('@gen3/core', () => ({
       segments[2] === 'projects' &&
       segments[3]
     ) {
-      return `/organization/${segments[1]}/project/${segments[3]}`;
-    }
-
-    if (
-      segments[0] === 'organization' &&
-      segments[1] &&
-      segments[2] === 'project' &&
-      segments[3]
-    ) {
-      return `/organization/${segments[1]}/project/${segments[3]}`;
+      return `/programs/${segments[1]}/projects/${segments[3]}`;
     }
 
     return normalized.startsWith('/') ? normalized : `/${normalized}`;
@@ -242,7 +233,7 @@ describe('GitLandingPage', () => {
 
   it('shows a new project action on a scoped organization page', () => {
     useGetGeckoProjectsQuery.mockReturnValue({
-      data: [{ resourcePath: '/organization/org-a/project/proj-alpha' }],
+      data: [{ resourcePath: '/programs/org-a/projects/proj-alpha' }],
       isLoading: false,
       refetch: jest.fn(),
     });

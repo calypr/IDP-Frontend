@@ -20,7 +20,7 @@ describe('syfon utils', () => {
       S3_BUCKETS: {
         'bucket-a': {
           endpoint_url: 'https://s3.example.org',
-          programs: ['/programs/org-a/projects/project-a', 'org-a'],
+          programs: ['/programs/org-a/projects/project-a', '/programs/org-a'],
           provider: 'aws',
           region: 'us-east-1',
         },
@@ -31,32 +31,30 @@ describe('syfon utils', () => {
       {
         endpointUrl: 'https://s3.example.org',
         name: 'bucket-a',
-        programs: ['/programs/org-a/projects/project-a', 'org-a'],
+        programs: ['/programs/org-a/projects/project-a', '/programs/org-a'],
         provider: 'aws',
         region: 'us-east-1',
         resources: [
-          '/organization/org-a/project/project-a',
-          '/organization/org-a',
+          '/programs/org-a/projects/project-a',
+          '/programs/org-a',
         ],
       },
     ]);
   });
 
-  it('normalizes legacy and url-based resource paths', () => {
+  it('normalizes canonical program/project resource paths', () => {
     expect(normalizeSyfonResourcePath('/programs/org/projects/proj')).toBe(
-      '/organization/org/project/proj',
+      '/programs/org/projects/proj',
     );
-    expect(
-      normalizeSyfonResourcePath(
-        'https://calypr.org/program/org/project/proj',
-      ),
-    ).toBe('/organization/org/project/proj');
-    expect(normalizeSyfonResourcePath('org')).toBe('/organization/org');
+    expect(normalizeSyfonResourcePath('https://calypr.org/programs/org/projects/proj')).toBe(
+      '/programs/org/projects/proj',
+    );
+    expect(normalizeSyfonResourcePath('org')).toBe('/programs/org');
   });
 
   it('resolves project scope before org fallback', () => {
-    const exact = { name: 'project-bucket', resources: ['/organization/o/project/p'] };
-    const fallback = { name: 'org-bucket', resources: ['/organization/o'] };
+    const exact = { name: 'project-bucket', resources: ['/programs/o/projects/p'] };
+    const fallback = { name: 'org-bucket', resources: ['/programs/o'] };
 
     expect(
       resolveSyfonBucketForScope(
@@ -92,7 +90,7 @@ describe('syfon utils', () => {
           programs: [],
           provider: undefined,
           region: undefined,
-          resources: ['/organization/o'],
+          resources: ['/programs/o'],
         },
       ],
       { organization: 'o', projectId: 'missing' },
@@ -111,7 +109,7 @@ describe('syfon utils', () => {
             programs: [],
             provider: undefined,
             region: undefined,
-            resources: ['/organization/o/project/p'],
+          resources: ['/programs/o/projects/p'],
           },
           {
             endpointUrl: undefined,
@@ -119,7 +117,7 @@ describe('syfon utils', () => {
             programs: [],
             provider: undefined,
             region: undefined,
-            resources: ['/organization/o/project/p'],
+            resources: ['/programs/o/projects/p'],
           },
         ],
         { organization: 'o', projectId: 'p' },

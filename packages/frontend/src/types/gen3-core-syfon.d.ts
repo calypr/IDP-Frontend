@@ -86,7 +86,7 @@ declare module '@gen3/core' {
   export interface SyfonUpsertBucketCredentialArgs {
     access_key?: string;
     bucket: string;
-    endpoint_url?: string;
+    endpoint?: string;
     organization: string;
     path?: string;
     project_id: string;

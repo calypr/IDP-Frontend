@@ -7,22 +7,79 @@ export function useHasAccess(authz: any) {
   const { data, isLoading, isError } = useFileTotalCountQuery();
   const authzMap = authz ?? {};
 
+  const isProgramScopedResource = (resource: string): boolean => {
+    const parts = String(resource).split('/').filter(Boolean);
+    return parts.length >= 2 && parts[0] === 'programs';
+  };
+
+  const hasMeaningfulArboristAccess = (
+    resource: string,
+    perms: Array<{ method?: string; service?: string }>,
+  ): boolean => {
+    const parts = String(resource).split('/').filter(Boolean);
+    if (parts.length < 2 || parts[0] !== 'programs') return false;
+
+    const isProjectResource =
+      parts.length === 4 && parts[2] === 'projects' && parts[3] !== '';
+    const isOrgProjectsResource =
+      parts.length === 3 && parts[2] === 'projects' && parts[1] !== '';
+    const isOrgResource = parts.length === 2 && parts[1] !== '';
+
+    return perms.some((perm) => {
+      if (perm?.service !== 'arborist') {
+        return false;
+      }
+
+      if (isProjectResource) {
+        return perm?.method === 'read' || perm?.method === '*';
+      }
+
+      if (isOrgProjectsResource) {
+        return (
+          perm?.method === 'create-descendant' ||
+          perm?.method === 'manage-owners' ||
+          perm?.method === '*'
+        );
+      }
+
+      if (isOrgResource) {
+        return (
+          perm?.method === 'manage-owners' ||
+          perm?.method === '*' ||
+          perm?.method === 'read'
+        );
+      }
+
+      return false;
+    });
+  };
+
   const len_access_projects = Object.entries(authzMap).filter(
     ([resource, perms]) => {
-      // normalize and split, remove empty segments so both "/programs/..." and "programs/..." work
       const parts = String(resource).split('/').filter(Boolean);
 
-      // expect ["programs", "<programId>", "projects", "<projectId>"]
       if (parts.length !== 4) return false;
       if (parts[0] !== 'programs' || parts[2] !== 'projects') return false;
       if (!Array.isArray(perms)) return false;
 
-      // require an explicit { method: "read", service: "*" } entry in the perms array
       return perms.some((p: any) => p?.method === 'read' && p?.service === '*');
     },
   ).length;
 
-  const hasAccess = len_access_projects > 0 || (data !== undefined && data > 0);
+  const hasProgramScopedAccess = Object.entries(authzMap).some(
+    ([resource, perms]) =>
+      isProgramScopedResource(resource) &&
+      Array.isArray(perms) &&
+      hasMeaningfulArboristAccess(
+        resource,
+        perms as Array<{ method?: string; service?: string }>,
+      ),
+  );
+
+  const hasAccess =
+    len_access_projects > 0 ||
+    hasProgramScopedAccess ||
+    (data !== undefined && data > 0);
 
   return { len_access_projects, fileCount: data, isLoading, isError, hasAccess };
 }
@@ -69,4 +126,3 @@ export const NoAccessOverlay = () => {
     </div>
   );
 };
-

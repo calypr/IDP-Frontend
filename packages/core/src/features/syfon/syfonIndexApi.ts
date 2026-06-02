@@ -32,7 +32,7 @@ const buildExactProjectScope = (
   project: string,
 ): string =>
   normalizeSyfonResourcePath(
-    `/organization/${organization.trim()}/project/${project.trim()}`,
+    `/programs/${organization.trim()}/projects/${project.trim()}`,
   );
 
 const recordMatchesExactProjectScope = (

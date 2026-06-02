@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import {
@@ -21,6 +21,7 @@ import {
 } from '@mantine/core';
 import {
   IconBrandGit,
+  IconBrandGithub,
   IconBuildingBank,
   IconChevronDown,
   IconChevronLeft,
@@ -46,7 +47,6 @@ import {
   useGetGeckoProjectsQuery,
   useLazyGetGeckoGitPendingRepositoriesQuery,
   useReconcileGeckoGitPendingRepositoriesMutation,
-  useUpsertSyfonBucketCredentialMutation,
 } from '@gen3/core';
 import ProtectedContent from '../../components/Protected/ProtectedContent';
 import { NavPageLayout } from '../../features/Navigation';
@@ -131,7 +131,51 @@ const parseGitSetupSessionID = (
 };
 
 const isValidEmail = (value: string): boolean =>
-  /^[^\s@]+@ohsu\.edu$/i.test(value.trim());
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/i.test(value.trim());
+
+const apiErrorStatus = (error: unknown): number | undefined => {
+  if (error && typeof error === 'object' && 'status' in error) {
+    const status = (error as { status?: unknown }).status;
+    return typeof status === 'number' ? status : undefined;
+  }
+  return undefined;
+};
+
+const apiErrorMessage = (error: unknown): string | undefined => {
+  if (!error || typeof error !== 'object') {
+    return undefined;
+  }
+  if (
+    'error' in error &&
+    typeof (error as { error?: unknown }).error === 'string'
+  ) {
+    return (error as { error: string }).error;
+  }
+  if ('data' in error) {
+    const data = (error as { data?: unknown }).data;
+    if (typeof data === 'string') {
+      return data;
+    }
+    if (data && typeof data === 'object') {
+      const nestedError = (data as { error?: unknown }).error;
+      if (nestedError && typeof nestedError === 'object') {
+        const message = (nestedError as { message?: unknown }).message;
+        if (typeof message === 'string') {
+          return message;
+        }
+      }
+      const message = (data as { message?: unknown }).message;
+      if (typeof message === 'string') {
+        return message;
+      }
+    }
+  }
+  return undefined;
+};
+
+const isExistingAuthzResourceError = (error: unknown): boolean =>
+  apiErrorStatus(error) === 409 &&
+  (apiErrorMessage(error) ?? '').includes('resource already exists:');
 
 const joinStoragePath = (
   organizationPath: string,
@@ -165,27 +209,14 @@ const getOrganizationStatusLabel = (
   switch (status) {
     case 'connected':
       return totalProjects > 0
-        ? `${configuredProjects}/${totalProjects} repos configured`
+        ? `${configuredProjects}/${totalProjects} repos connected`
         : 'Connected';
     case 'partially_configured':
-      return `${configuredProjects}/${totalProjects} repos configured`;
+      return `${configuredProjects}/${totalProjects} repos connected`;
     case 'installed_unconfigured':
-      return 'Installed, no tracked repos configured';
+      return 'Installed, no tracked repos connected';
     default:
       return 'Not connected';
-  }
-};
-
-const getGlobalStatusLabel = (status?: string): string => {
-  switch (status) {
-    case 'connected':
-      return 'All tracked orgs configured';
-    case 'partially_configured':
-      return 'Tracked orgs partially configured';
-    case 'installed_unconfigured':
-      return 'Tracked org connected';
-    default:
-      return 'No tracked orgs connected';
   }
 };
 
@@ -206,6 +237,25 @@ const canManageOrganizationSettings = (
     (authzMapping[path] ?? []).some(
       (action) =>
         actionAllows(action, 'arborist', 'manage-owners') ||
+        actionAllows(action, '*', '*'),
+    ),
+  );
+};
+
+const canConnectOrganization = (
+  authzMapping: Record<string, Array<{ method: string; service: string }>>,
+  organization: string,
+): boolean => {
+  const candidatePaths = [
+    `/programs/${organization}`,
+    `/programs/${organization}/projects`,
+  ];
+  return candidatePaths.some((path) =>
+    (authzMapping[path] ?? []).some(
+      (action) =>
+        actionAllows(action, 'arborist', 'create-descendant') ||
+        actionAllows(action, 'arborist', 'manage-owners') ||
+        actionAllows(action, 'arborist', '*') ||
         actionAllows(action, '*', '*'),
     ),
   );
@@ -281,8 +331,6 @@ const CreateProjectModal = ({
   const [createGeckoProject, { isLoading }] = useCreateGeckoProjectMutation();
   const [createAuthzOwnedDescendant, { isLoading: isCreatingOwnership }] =
     useCreateAuthzOwnedDescendantMutation();
-  const [upsertSyfonBucketCredential, { isLoading: isSavingBucket }] =
-    useUpsertSyfonBucketCredentialMutation();
 
   const resetForm = () => {
     setFormState(initialFormState || defaultProjectConfig(organization));
@@ -326,7 +374,7 @@ const CreateProjectModal = ({
   const isNewProject = !projectExists;
   const isNewOrganization = !organizationExists;
   const requiresStorageConfig = isPendingCreation && isNewProject;
-  const isSubmitting = isLoading || isCreatingOwnership || isSavingBucket;
+  const isSubmitting = isLoading || isCreatingOwnership;
 
   const handleSubmit = async () => {
     const trimmedOrganization =
@@ -363,7 +411,7 @@ const CreateProjectModal = ({
     }
 
     if (!isValidEmail(configData.contact_email)) {
-      setSubmitError('Enter a valid OHSU contact email address.');
+      setSubmitError('Enter a valid contact email address.');
       return;
     }
 
@@ -385,37 +433,35 @@ const CreateProjectModal = ({
     setSubmitError(null);
 
     try {
+      const createOwnedDescendantOrContinue = async (request: {
+        readonly name: string;
+        readonly parent_path: string;
+        readonly template: string;
+      }): Promise<void> => {
+        try {
+          await createAuthzOwnedDescendant(request).unwrap();
+        } catch (error) {
+          if (isExistingAuthzResourceError(error)) {
+            return;
+          }
+          throw error;
+        }
+      };
+
       if (isPendingCreation && isNewOrganization) {
-        await createAuthzOwnedDescendant({
+        await createOwnedDescendantOrContinue({
           name: trimmedOrganization,
           parent_path: '/programs',
           template: 'gen3-program',
-        }).unwrap();
+        });
       }
 
       if (isPendingCreation && isNewProject) {
-        await createAuthzOwnedDescendant({
+        await createOwnedDescendantOrContinue({
           name: trimmedProjectKey,
           parent_path: `/programs/${trimmedOrganization}/projects`,
           template: 'gen3-project',
-        }).unwrap();
-      }
-
-      if (requiresStorageConfig) {
-        await upsertSyfonBucketCredential({
-          access_key: formState.bucket_access_key.trim() || undefined,
-          bucket: formState.bucket.trim(),
-          endpoint_url: formState.bucket_endpoint_url.trim() || undefined,
-          organization: trimmedOrganization,
-          path: joinStoragePath(
-            formState.bucket_org_path,
-            formState.bucket_project_path,
-          ),
-          project_id: trimmedProjectKey,
-          provider: formState.bucket_provider.trim(),
-          region: formState.bucket_region.trim() || undefined,
-          secret_key: formState.bucket_secret_key.trim() || undefined,
-        }).unwrap();
+        });
       }
 
       const response = await createGeckoProject({
@@ -423,6 +469,22 @@ const CreateProjectModal = ({
         organization: trimmedOrganization,
         pendingRepoID: pendingRepository?.id,
         project: trimmedProjectKey,
+        storage: requiresStorageConfig
+          ? {
+              access_key: formState.bucket_access_key.trim() || undefined,
+              bucket: formState.bucket.trim(),
+              endpoint: formState.bucket_endpoint_url.trim() || undefined,
+              organization: trimmedOrganization,
+              path: joinStoragePath(
+                formState.bucket_org_path,
+                formState.bucket_project_path,
+              ),
+              project_id: trimmedProjectKey,
+              provider: formState.bucket_provider.trim(),
+              region: formState.bucket_region.trim() || undefined,
+              secret_key: formState.bucket_secret_key.trim() || undefined,
+            }
+          : undefined,
       }).unwrap();
 
       if (!response.success) {
@@ -437,12 +499,8 @@ const CreateProjectModal = ({
       }
     } catch (error) {
       const errorMessage =
-        typeof error === 'object' &&
-        error !== null &&
-        'error' in error &&
-        typeof (error as { error?: unknown }).error === 'string'
-          ? (error as { error: string }).error
-          : 'Failed to finish creating this project. Please check the fields and try again.';
+        apiErrorMessage(error) ??
+        'Failed to finish creating this project. Please check the fields and try again.';
       setSubmitError(errorMessage);
     }
   };
@@ -492,7 +550,7 @@ const CreateProjectModal = ({
             onChange={(event) =>
               updateField('contact_email', event.currentTarget.value)
             }
-            placeholder="name@ohsu.edu"
+            placeholder="name@example.org"
             value={formState.contact_email}
           />
         </div>
@@ -539,6 +597,7 @@ const CreateProjectModal = ({
               onChange={(event) =>
                 updateField('bucket_access_key', event.currentTarget.value)
               }
+              type="password"
               value={formState.bucket_access_key}
             />
             <TextInput
@@ -626,36 +685,76 @@ const CompactProjectRow = ({
   configured,
   organization,
   project,
-  resourcePath,
-}: AccessibleOrganizationProject & { configured?: boolean }) => (
-  <Link
-    href={`/git/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}`}
-    legacyBehavior
-  >
-    <a className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-t border-slate-100 px-6 py-2.5 text-sm transition hover:bg-slate-50/80">
-      <div className="min-w-0">
-        <Group gap="xs" wrap="nowrap">
+  repositoryURL,
+  repositoryLabel,
+}: AccessibleOrganizationProject & {
+  configured?: boolean;
+  repositoryLabel?: string;
+  repositoryURL?: string;
+}) => {
+  const router = useRouter();
+  const localProjectHref = `/git/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}`;
+
+  return (
+    <div
+      className="grid cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-t border-slate-100 px-6 py-2.5 text-sm transition hover:bg-slate-50/80"
+      onClick={() => {
+        void router.push(localProjectHref);
+      }}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          void router.push(localProjectHref);
+        }
+      }}
+      role="link"
+      tabIndex={0}
+    >
+    <div className="min-w-0">
+      <Group gap="xs" wrap="nowrap">
+        <img
+          alt="Calypr"
+          className="h-4 w-4 shrink-0"
+          src="/icons/calypr-mark-mono.svg"
+        />
+        {repositoryURL ? (
+          <a
+            className="min-w-0 truncate font-semibold text-slate-900 transition hover:text-slate-700 hover:underline"
+            href={repositoryURL}
+            onClick={(event) => event.stopPropagation()}
+            rel="noreferrer"
+            target="_blank"
+          >
+            {project}
+          </a>
+        ) : (
           <Text fw={600} truncate>
             {project}
           </Text>
-          <Badge
-            color={configured ? 'green' : 'gray'}
-            size="sm"
-            variant="light"
-          >
-            {configured ? 'Configured' : 'Not configured'}
-          </Badge>
-        </Group>
-        <Text c="dimmed" size="xs" truncate>
-          {resourcePath}
-        </Text>
-      </div>
-      <Text c="dimmed" size="sm">
-        Open
-      </Text>
-    </a>
-  </Link>
-);
+        )}
+        <Badge color={configured ? 'green' : 'gray'} size="sm" variant="light">
+          {configured ? 'Connected' : 'Not connected'}
+        </Badge>
+      </Group>
+      {repositoryURL ? (
+        <a
+          className="inline-flex max-w-full items-center gap-1 truncate text-xs text-slate-500 underline decoration-slate-300 underline-offset-4 transition hover:text-slate-700"
+          href={repositoryURL}
+          onClick={(event) => event.stopPropagation()}
+          rel="noreferrer"
+          target="_blank"
+        >
+          <IconBrandGithub className="shrink-0" size={13} />
+          {repositoryLabel || repositoryURL}
+        </a>
+      ) : null}
+    </div>
+    <Text c="dimmed" size="sm">
+      Open
+    </Text>
+    </div>
+  );
+};
 
 const OrganizationRow = ({
   group,
@@ -685,11 +784,22 @@ const OrganizationRow = ({
       .filter((projectStatus) => projectStatus.configured)
       .map((projectStatus) => projectStatus.project),
   );
+  const repositoryDetailsByProject = new Map(
+    (gitStatus?.projects ?? []).map((projectStatus) => [
+      projectStatus.project,
+      {
+        label: projectStatus.repository
+          ? `${projectStatus.repository.owner}/${projectStatus.repository.repo}`
+          : undefined,
+        url: projectStatus.repository?.url,
+      },
+    ]),
+  );
 
   return (
-    <div className="overflow-hidden border-b border-slate-200 bg-white">
+    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       {hideCollapse ? (
-        <div className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-3 px-6 py-4">
+        <div className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-3 bg-slate-50 px-6 py-4">
           <Link href="/git" legacyBehavior>
             <a className="inline-flex w-fit items-center gap-1 text-sm font-medium text-slate-500 transition hover:text-slate-900">
               <IconChevronLeft size={16} />
@@ -697,6 +807,14 @@ const OrganizationRow = ({
             </a>
           </Link>
           <div className="min-w-0 text-center">
+            <Text
+              c="dimmed"
+              className="mb-0.5 tracking-[0.14em]"
+              size="10px"
+              tt="uppercase"
+            >
+              Organization
+            </Text>
             <Text fw={700} size="lg" truncate>
               {group.organization}
             </Text>
@@ -721,7 +839,7 @@ const OrganizationRow = ({
           )}
         </div>
       ) : (
-        <div className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-3 px-6 py-4 transition hover:bg-slate-50/80">
+        <div className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-3 bg-slate-50 px-6 py-4 transition hover:bg-slate-100/80">
           <button
             aria-label={`${isOpen ? 'Collapse' : 'Expand'} ${group.organization}`}
             className="inline-flex items-center justify-center border border-transparent p-1 transition hover:border-slate-200 hover:bg-white hover:shadow-sm focus-visible:border-slate-300 focus-visible:bg-white focus-visible:shadow-sm"
@@ -735,6 +853,14 @@ const OrganizationRow = ({
             )}
           </button>
           <div className="min-w-0">
+            <Text
+              c="dimmed"
+              className="mb-0.5 tracking-[0.14em]"
+              size="10px"
+              tt="uppercase"
+            >
+              Organization
+            </Text>
             <Tooltip label={`Visit ${group.organization} page`}>
               <Link
                 href={`/git/${encodeURIComponent(group.organization)}`}
@@ -770,14 +896,27 @@ const OrganizationRow = ({
       )}
 
       <Collapse in={isExpanded}>
-        <div className="border-t border-slate-100 bg-white">
-          {group.projects.map((project) => (
-            <CompactProjectRow
-              key={project.resourcePath}
-              {...project}
-              configured={configuredProjects.has(project.project)}
-            />
-          ))}
+        <div className="border-t border-slate-200 bg-white">
+          {group.projects.length > 0 ? (
+            group.projects.map((project) => (
+              <CompactProjectRow
+                key={project.resourcePath}
+                {...project}
+                configured={configuredProjects.has(project.project)}
+                repositoryLabel={
+                  repositoryDetailsByProject.get(project.project)?.label
+                }
+                repositoryURL={
+                  repositoryDetailsByProject.get(project.project)?.url
+                }
+              />
+            ))
+          ) : (
+            <div className="px-6 py-3 text-sm text-slate-500">
+              You can manage this organization, but no project-level access is
+              currently visible here.
+            </div>
+          )}
         </div>
       </Collapse>
     </div>
@@ -826,6 +965,7 @@ const GitLandingPage = ({
     useReconcileGeckoGitPendingRepositoriesMutation();
   const [fetchPendingRepositories, { data: pendingRepositoriesResponse }] =
     useLazyGetGeckoGitPendingRepositoriesQuery();
+  const lastReconciledKeyRef = useRef<string | null>(null);
   const {
     data: organizationsStatus,
     isLoading: isOrganizationsStatusLoading,
@@ -846,12 +986,85 @@ const GitLandingPage = ({
     () => groupProjectsByOrganization(accessibleProjects),
     [accessibleProjects],
   );
-  const organizationOptions = useMemo(
-    () => organizationGroups.map((group) => group.organization),
-    [organizationGroups],
-  );
+  const connectableOrganizations = useMemo(() => {
+    const organizations = new Set<string>();
+    Object.entries(authzMapping).forEach(([resource, perms]) => {
+      const parts = resource.split('/').filter(Boolean);
+      if (parts.length < 3 || parts[0] !== 'programs') {
+        return;
+      }
+      const organization = parts[1];
+      const canConnect = canConnectOrganization(
+        authzMapping,
+        organization,
+      );
+      if (canConnect) {
+        organizations.add(organization);
+      }
+      if (Array.isArray(perms)) {
+        perms.forEach((action) => {
+          if (
+            actionAllows(action, 'arborist', 'create-descendant') ||
+            actionAllows(action, 'arborist', 'manage-owners') ||
+            actionAllows(action, 'arborist', '*') ||
+            actionAllows(action, '*', '*')
+          ) {
+            organizations.add(organization);
+          }
+        });
+      }
+    });
+    return Array.from(organizations).sort((left, right) =>
+      left.localeCompare(right),
+    );
+  }, [authzMapping]);
+  const displayOrganizationGroups = useMemo(() => {
+    const groupsByOrganization = new Map(
+      organizationGroups.map((group) => [group.organization, group]),
+    );
+    const allowedOrganizations = new Set(connectableOrganizations);
+    const visibleOrganizations = new Set<string>();
+
+    organizationGroups.forEach((group) => {
+      if (allowedOrganizations.has(group.organization)) {
+        visibleOrganizations.add(group.organization);
+      }
+    });
+    (organizationsStatus?.organizations ?? []).forEach((status) => {
+      if (allowedOrganizations.has(status.organization)) {
+        visibleOrganizations.add(status.organization);
+      }
+    });
+
+    return Array.from(visibleOrganizations)
+      .sort((left, right) => left.localeCompare(right))
+      .map(
+        (organization): OrganizationGroup =>
+          groupsByOrganization.get(organization) ?? {
+            organization,
+            projects: [],
+          },
+      );
+  }, [
+    connectableOrganizations,
+    organizationGroups,
+    organizationsStatus?.organizations,
+  ]);
+  const organizationOptions = useMemo(() => {
+    const organizations = new Set<string>();
+    displayOrganizationGroups.forEach((group) =>
+      organizations.add(group.organization),
+    );
+    (organizationsStatus?.organizations ?? []).forEach((status) =>
+      organizations.add(status.organization),
+    );
+    return Array.from(organizations).sort((left, right) =>
+      left.localeCompare(right),
+    );
+  }, [displayOrganizationGroups, organizationsStatus?.organizations]);
   const normalizedSearchQuery = searchQuery.trim().toLowerCase();
-  const connectionAuthorizationOrganization = organizationOptions[0] || null;
+  const connectionAuthorizationOrganization =
+    connectableOrganizations[0] || organizationOptions[0] || null;
   const organizationStatuses = useMemo(
     () =>
       new Map(
@@ -868,6 +1081,14 @@ const GitLandingPage = ({
     }
 
     const organizationResults = organizationGroups
+      .concat(
+        displayOrganizationGroups.filter(
+          (candidate) =>
+            !organizationGroups.some(
+              (group) => group.organization === candidate.organization,
+            ),
+        ),
+      )
       .filter((group) =>
         group.organization.toLowerCase().includes(normalizedSearchQuery),
       )
@@ -876,7 +1097,10 @@ const GitLandingPage = ({
         key: `organization-${group.organization}`,
         kind: 'organization' as const,
         label: group.organization,
-        sublabel: pluralize(group.projects.length, 'project'),
+        sublabel:
+          group.projects.length > 0
+            ? pluralize(group.projects.length, 'project')
+            : 'Organization access',
       }));
 
     const projectResults = accessibleProjects
@@ -892,11 +1116,16 @@ const GitLandingPage = ({
       }));
 
     return [...organizationResults, ...projectResults].slice(0, 12);
-  }, [accessibleProjects, normalizedSearchQuery, organizationGroups]);
+  }, [
+    accessibleProjects,
+    displayOrganizationGroups,
+    normalizedSearchQuery,
+    organizationGroups,
+  ]);
   const visibleOrganizationGroups = useMemo(() => {
     const scopedGroups = !selectedOrganization
-      ? organizationGroups
-      : organizationGroups.filter(
+      ? displayOrganizationGroups
+      : displayOrganizationGroups.filter(
           (group) => group.organization === selectedOrganization,
         );
 
@@ -928,7 +1157,7 @@ const GitLandingPage = ({
         };
       })
       .filter((group): group is OrganizationGroup => group !== null);
-  }, [normalizedSearchQuery, organizationGroups, selectedOrganization]);
+  }, [displayOrganizationGroups, normalizedSearchQuery, selectedOrganization]);
   const pendingRepositories = useMemo(
     () => pendingRepositoriesResponse?.pending ?? [],
     [pendingRepositoriesResponse?.pending],
@@ -969,9 +1198,14 @@ const GitLandingPage = ({
   }, [fetchPendingRepositories]);
 
   useEffect(() => {
-    if (installationIDFromQuery === null) {
+    if (!router.isReady || installationIDFromQuery === null) {
       return;
     }
+    const reconciliationKey = `${installationIDFromQuery}:${setupSessionIDFromQuery || ''}`;
+    if (lastReconciledKeyRef.current === reconciliationKey) {
+      return;
+    }
+    lastReconciledKeyRef.current = reconciliationKey;
     const run = async () => {
       try {
         await reconcilePendingRepositories({
@@ -987,6 +1221,7 @@ const GitLandingPage = ({
     };
     void run();
   }, [
+    router.isReady,
     installationIDFromQuery,
     fetchPendingRepositories,
     reconcilePendingRepositories,
@@ -1098,7 +1333,7 @@ const GitLandingPage = ({
                       project setup across your Calypr organizations.
                     </Text>
                   </div>
-                  <div className="flex w-full max-w-xl items-center justify-end gap-3">
+                  <div className="flex w-full max-w-4xl items-center justify-end gap-3">
                     <Popover
                       opened={normalizedSearchQuery.length > 0}
                       position="bottom-end"
@@ -1178,51 +1413,7 @@ const GitLandingPage = ({
                         </div>
                       </Popover.Dropdown>
                     </Popover>
-                  </div>
-                </div>
-              </section>
-
-              {!selectedOrganization ? (
-                <section className="border-b border-slate-200 pb-5">
-                  <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                    <div className="min-w-0">
-                      <Text fw={700}>GitHub app connections</Text>
-                      <Text c="dimmed" size="sm">
-                        Manage GitHub App access across tracked organizations,
-                        then use project pages to refresh repository mirrors and
-                        inspect repo state.
-                      </Text>
-                    </div>
-                    <div className="flex w-full flex-col gap-3 md:max-w-3xl md:flex-row md:items-center md:justify-end">
-                      <div className="flex min-w-[12rem] flex-col gap-1 md:items-end">
-                        <Tooltip
-                          label={
-                            organizationsStatus?.app_installed
-                              ? `${organizationsStatus.configured_projects} tracked repositories are currently configured across ${organizationsStatus.installed_organizations} installed organizations.`
-                              : 'No tracked organizations currently report a GitHub App installation.'
-                          }
-                          withArrow
-                        >
-                          <Badge
-                            color={getOrganizationStatusColor(
-                              organizationsStatus?.configuration_state,
-                            )}
-                            size="lg"
-                            variant="light"
-                          >
-                            {isOrganizationsStatusLoading
-                              ? 'Checking GitHub status'
-                              : getGlobalStatusLabel(
-                                  organizationsStatus?.configuration_state,
-                                )}
-                          </Badge>
-                        </Tooltip>
-                        <Text c="dimmed" size="xs">
-                          {organizationsStatus
-                            ? `${organizationsStatus.configured_projects} of ${organizationsStatus.total_projects} tracked repos configured`
-                            : 'Checking repository connection status...'}
-                        </Text>
-                      </div>
+                    {!selectedOrganization ? (
                       <Button
                         className={actionButtonClassName}
                         color="sky"
@@ -1231,14 +1422,12 @@ const GitLandingPage = ({
                         onClick={handleOrganizationConnect}
                         variant="light"
                       >
-                        {organizationsStatus?.app_installed
-                          ? 'Configure GitHub app'
-                          : 'Connect GitHub app'}
+                        GitHub Connections
                       </Button>
-                    </div>
+                    ) : null}
                   </div>
-                </section>
-              ) : null}
+                </div>
+              </section>
 
               {connectError ? (
                 <Alert color="red" variant="light">
@@ -1262,11 +1451,11 @@ const GitLandingPage = ({
                   <Text c="dimmed" className="mt-1" size="sm">
                     {normalizedSearchQuery
                       ? 'Try a different search term.'
-                      : 'The Gecko list-projects endpoint did not return any project-scoped resources.'}
+                      : 'No organizations or project-scoped resources are currently visible for this account.'}
                   </Text>
                 </section>
               ) : (
-                <section className="overflow-hidden border border-slate-200 bg-white shadow-sm">
+                <section className="space-y-4">
                   {visibleOrganizationGroups.map((group) => (
                     <OrganizationRow
                       canManageSettings={canManageOrganizationSettings(
@@ -1275,9 +1464,7 @@ const GitLandingPage = ({
                       )}
                       group={group}
                       gitStatus={organizationStatuses.get(group.organization)}
-                      initiallyOpen={
-                        group.organization === selectedOrganization
-                      }
+                      initiallyOpen
                       hideCollapse={group.organization === selectedOrganization}
                       key={group.organization}
                     />
@@ -1333,9 +1520,11 @@ const GitLandingPage = ({
               ) : null}
             </Stack>
           </Container>
-          {selectedOrganization ? (
+              {selectedOrganization ? (
             <CreateProjectModal
-              existingOrganizations={organizationOptions}
+              existingOrganizations={[
+                ...new Set([...organizationOptions, ...connectableOrganizations]),
+              ]}
               existingProjectKeys={
                 new Set(
                   accessibleProjects.map(
@@ -1352,7 +1541,9 @@ const GitLandingPage = ({
             />
           ) : createModalOpen && activePendingRepository ? (
             <CreateProjectModal
-              existingOrganizations={organizationOptions}
+              existingOrganizations={[
+                ...new Set([...organizationOptions, ...connectableOrganizations]),
+              ]}
               existingProjectKeys={
                 new Set(
                   accessibleProjects.map(

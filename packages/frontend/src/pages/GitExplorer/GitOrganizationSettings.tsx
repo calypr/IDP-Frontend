@@ -34,15 +34,18 @@ import {
   normalizeSyfonBuckets,
   type SyfonBucket,
   useAddAuthzOwnerMutation,
+  useAddAuthzOwnershipUserAccessMutation,
   useAddAuthzUserAccessMutation,
   useDeleteAuthzResourceMutation,
   useDeleteSyfonBucketScopeMutation,
   useDeleteSyfonProjectMutation,
   useGetAuthzOwnershipResourceQuery,
+  useGetGeckoGitOrganizationsStatusQuery,
   useGetGeckoProjectsQuery,
   useDeleteGeckoProjectMutation,
   useListSyfonBucketsQuery,
   useRemoveAuthzOwnerMutation,
+  useRemoveAuthzOwnershipUserAccessMutation,
   useRemoveAuthzUserAccessMutation,
   useUpsertSyfonBucketCredentialMutation,
 } from '@gen3/core';
@@ -140,7 +143,7 @@ const roleSortOrder: Record<string, number> = {
 interface ProjectBucketFormState {
   readonly access_key: string;
   readonly bucket: string;
-  readonly endpoint_url: string;
+  readonly endpoint: string;
   readonly org_path: string;
   readonly project_path: string;
   readonly provider: string;
@@ -478,6 +481,9 @@ const GitOrganizationSettingsPage = ({
   const organization =
     typeof router.query.org === 'string' ? router.query.org : '';
   const orgResourcePath = organization ? `/programs/${organization}` : '';
+  const orgProjectsResourcePath = orgResourcePath
+    ? `${orgResourcePath}/projects`
+    : '';
   const session = useSession(false);
   const sessionReady = !session.pending;
   const isAuthenticated = session.status === 'issued';
@@ -488,12 +494,15 @@ const GitOrganizationSettingsPage = ({
   const [accessEmail, setAccessEmail] = useState('');
   const [accessRole, setAccessRole] = useState('reader');
   const [orgOwnerEmail, setOrgOwnerEmail] = useState('');
+  const [orgPersonRole, setOrgPersonRole] = useState<'owner' | 'org-member'>(
+    'org-member',
+  );
   const [orgOwnerFormOpen, setOrgOwnerFormOpen] = useState(false);
   const [orgOwnerError, setOrgOwnerError] = useState<string | null>(null);
   const [bucketForm, setBucketForm] = useState<ProjectBucketFormState>({
     access_key: '',
     bucket: '',
-    endpoint_url: '',
+    endpoint: '',
     org_path: '',
     project_path: '',
     provider: 's3',
@@ -510,6 +519,9 @@ const GitOrganizationSettingsPage = ({
   const [projectDeleteTarget, setProjectDeleteTarget] =
     useState<AccessibleOrganizationProject | null>(null);
   const [projectDeleteConfirm, setProjectDeleteConfirm] = useState('');
+  const [deletedProjectIDs, setDeletedProjectIDs] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [orgDeleteOpen, setOrgDeleteOpen] = useState(false);
   const [orgDeleteConfirm, setOrgDeleteConfirm] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
@@ -535,8 +547,14 @@ const GitOrganizationSettingsPage = ({
     },
     { skip: !orgResourcePath || !isAuthenticated },
   );
+  const { data: gitOrganizationsStatus } = useGetGeckoGitOrganizationsStatusQuery(
+    undefined,
+    { skip: !isAuthenticated },
+  );
   const [addOwner] = useAddAuthzOwnerMutation();
   const [removeOwner] = useRemoveAuthzOwnerMutation();
+  const [grantOwnershipUser] = useAddAuthzOwnershipUserAccessMutation();
+  const [revokeOwnershipUser] = useRemoveAuthzOwnershipUserAccessMutation();
   const [grantUser] = useAddAuthzUserAccessMutation();
   const [revokeUser] = useRemoveAuthzUserAccessMutation();
   const [deleteAuthzResource] = useDeleteAuthzResourceMutation();
@@ -549,8 +567,10 @@ const GitOrganizationSettingsPage = ({
     () =>
       extractProjectsFromResourcePaths(
         geckoProjects.map((project) => project.resourcePath),
-      ).filter((project) => project.organization === organization),
-    [geckoProjects, organization],
+      )
+        .filter((project) => project.organization === organization)
+        .filter((project) => !deletedProjectIDs.has(project.project)),
+    [deletedProjectIDs, geckoProjects, organization],
   );
   const projectOptions = useMemo(
     () =>
@@ -572,6 +592,21 @@ const GitOrganizationSettingsPage = ({
       (binding.kind === 'owner' ||
         (binding.kind === 'direct' && binding.role_id === 'owner')),
   );
+  const orgMemberBindings = bindings.filter(
+    (binding) =>
+      binding.resource_path === orgProjectsResourcePath &&
+      binding.subject_type === 'user' &&
+      binding.kind === 'delegated' &&
+      binding.role_id === 'org-member',
+  );
+  const orgPeopleBindings = [...orgOwnerBindings, ...orgMemberBindings].sort(
+    (left, right) => bindingLabel(left).localeCompare(bindingLabel(right)),
+  );
+  const organizationGitStatus = gitOrganizationsStatus?.organizations.find(
+    (entry) => entry.organization === organization,
+  );
+  const organizationGitHubInstallationUrl =
+    organizationGitStatus?.html_url ?? null;
   const selectedProjectID = selectedProject ?? projects[0]?.project ?? null;
   const selectedProjectResourcePath = selectedProjectID
     ? projectResourcePath(organization, selectedProjectID)
@@ -630,6 +665,46 @@ const GitOrganizationSettingsPage = ({
     }
   };
 
+  const grantOwnershipUserForResource = async (
+    resourcePath: string,
+    username: string,
+    roleID: string,
+    errorFallback: string,
+  ) => {
+    try {
+      setActionError(null);
+      await grantOwnershipUser({
+        resource_path: resourcePath,
+        username,
+        role_id: roleID,
+      }).unwrap();
+      await refetchOwnership();
+    } catch (error) {
+      setActionError(errorMessage(error, errorFallback));
+      throw error;
+    }
+  };
+
+  const revokeOwnershipUserForResource = async (
+    resourcePath: string,
+    username: string,
+    roleID: string,
+    errorFallback: string,
+  ) => {
+    try {
+      setActionError(null);
+      await revokeOwnershipUser({
+        resource_path: resourcePath,
+        username,
+        role_id: roleID,
+      }).unwrap();
+      await refetchOwnership();
+    } catch (error) {
+      setActionError(errorMessage(error, errorFallback));
+      throw error;
+    }
+  };
+
   const handleAddOrgOwner = async () => {
     const username = orgOwnerEmail.trim().toLowerCase();
     if (!isValidEmail(username)) {
@@ -638,11 +713,20 @@ const GitOrganizationSettingsPage = ({
     }
     try {
       setOrgOwnerError(null);
-      await addOwnerForResource(
-        orgResourcePath,
-        username,
-        'Failed to add organization owner.',
-      );
+      if (orgPersonRole === 'owner') {
+        await addOwnerForResource(
+          orgResourcePath,
+          username,
+          'Failed to add organization owner.',
+        );
+      } else {
+        await grantOwnershipUserForResource(
+          orgProjectsResourcePath,
+          username,
+          'org-member',
+          'Failed to add organization member.',
+        );
+      }
       setOrgOwnerEmail('');
       setOrgOwnerFormOpen(false);
     } catch {
@@ -654,11 +738,20 @@ const GitOrganizationSettingsPage = ({
     binding: AuthzOwnershipResourceBinding,
   ) => {
     try {
-      await removeOwnerForResource(
-        orgResourcePath,
-        binding.subject_name,
-        'Failed to remove organization owner.',
-      );
+      if (binding.role_id === 'org-member') {
+        await revokeOwnershipUserForResource(
+          orgProjectsResourcePath,
+          binding.subject_name,
+          'org-member',
+          'Failed to remove organization member.',
+        );
+      } else {
+        await removeOwnerForResource(
+          orgResourcePath,
+          binding.subject_name,
+          'Failed to remove organization owner.',
+        );
+      }
     } catch {
       // Error state is set by removeOwnerForResource.
     }
@@ -737,7 +830,7 @@ const GitOrganizationSettingsPage = ({
     setBucketForm({
       access_key: '',
       bucket: bucket.bucket ?? bucket.name,
-      endpoint_url: bucket.endpointUrl ?? '',
+      endpoint: bucket.endpointUrl ?? '',
       org_path: '',
       project_path: '',
       provider: bucket.provider ?? 's3',
@@ -802,7 +895,7 @@ const GitOrganizationSettingsPage = ({
       await upsertBucket({
         access_key: request.access_key.trim() || undefined,
         bucket: request.bucket.trim(),
-        endpoint_url: request.endpoint_url.trim() || undefined,
+        endpoint: request.endpoint.trim() || undefined,
         organization: org,
         path: joinStoragePath(request.org_path, request.project_path),
         project_id: project,
@@ -871,10 +964,16 @@ const GitOrganizationSettingsPage = ({
     }
     try {
       await purgeProjectFromCalypr(projectDeleteTarget);
+      setDeletedProjectIDs(
+        (current) =>
+          new Set([...current, projectDeleteTarget.project]),
+      );
+      setSelectedProject((current) =>
+        current === projectDeleteTarget.project ? null : current,
+      );
       setProjectDeleteTarget(null);
       setProjectDeleteConfirm('');
       await refetchBuckets();
-      await refetchOwnership();
     } catch (error) {
       setActionError(errorMessage(error, 'Failed to delete project.'));
     }
@@ -982,10 +1081,10 @@ const GitOrganizationSettingsPage = ({
               <TextInput
                 label="Endpoint URL"
                 onChange={(event) =>
-                  updateBucketField('endpoint_url', event.currentTarget.value)
+                  updateBucketField('endpoint', event.currentTarget.value)
                 }
                 placeholder="https://s3.amazonaws.com"
-                value={bucketForm.endpoint_url}
+                value={bucketForm.endpoint}
               />
             </div>
             <div className="grid gap-2 md:grid-cols-2">
@@ -994,6 +1093,7 @@ const GitOrganizationSettingsPage = ({
                 onChange={(event) =>
                   updateBucketField('access_key', event.currentTarget.value)
                 }
+                type="password"
                 value={bucketForm.access_key}
               />
               <TextInput
@@ -1211,11 +1311,11 @@ const GitOrganizationSettingsPage = ({
                   <Stack gap="md">
                     <Group justify="space-between">
                       <div>
-                        <Text fw={700}>Organization owners</Text>
+                        <Text fw={700}>Organization people</Text>
                         <Text c="dimmed" size="sm">
-                          High-privilege role. Org owners can manage every
-                          project in this organization and create new projects
-                          at will.
+                          Owners can manage every project and organization
+                          people. Members can create new projects, then own
+                          the projects they create.
                         </Text>
                       </div>
                       <Button
@@ -1228,19 +1328,33 @@ const GitOrganizationSettingsPage = ({
                         size="xs"
                         variant="light"
                       >
-                        Owner
+                        Person
                       </Button>
                     </Group>
                     {orgOwnerFormOpen ? (
-                      <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-end">
+                      <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_11rem_auto_auto] md:items-end">
                         <TextInput
                           error={orgOwnerError}
-                          label="Add organization owner"
+                          label="Add organization person"
                           onChange={(event) =>
                             setOrgOwnerEmail(event.currentTarget.value)
                           }
                           placeholder="name@example.org"
                           value={orgOwnerEmail}
+                        />
+                        <Select
+                          allowDeselect={false}
+                          data={[
+                            { label: 'Member', value: 'org-member' },
+                            { label: 'Owner', value: 'owner' },
+                          ]}
+                          label="Role"
+                          onChange={(value) =>
+                            setOrgPersonRole(
+                              value === 'owner' ? 'owner' : 'org-member',
+                            )
+                          }
+                          value={orgPersonRole}
                         />
                         <Button
                           className={actionButtonClassName}
@@ -1249,7 +1363,7 @@ const GitOrganizationSettingsPage = ({
                           onClick={handleAddOrgOwner}
                           variant="light"
                         >
-                          Add owner
+                          Add person
                         </Button>
                         <ActionIcon
                           aria-label="Close organization owner form"
@@ -1270,16 +1384,17 @@ const GitOrganizationSettingsPage = ({
                         </Table.Tr>
                       </Table.Thead>
                       <Table.Tbody>
-                        {orgOwnerBindings.length === 0 ? (
+                        {orgPeopleBindings.length === 0 ? (
                           <Table.Tr>
                             <Table.Td colSpan={3}>
                               <Text c="dimmed" size="sm">
-                                No organization owners have been added.
+                                No organization owners or members have been
+                                added.
                               </Text>
                             </Table.Td>
                           </Table.Tr>
                         ) : (
-                          orgOwnerBindings.map((binding) => (
+                          orgPeopleBindings.map((binding) => (
                             <Table.Tr
                               key={`${binding.resource_path}:${binding.kind}:${binding.role_id}:${binding.subject_type}:${binding.subject_name}`}
                             >
@@ -1287,8 +1402,17 @@ const GitOrganizationSettingsPage = ({
                                 <Text size="sm">{bindingLabel(binding)}</Text>
                               </Table.Td>
                               <Table.Td>
-                                <Badge color="green" variant="light">
-                                  owner
+                                <Badge
+                                  color={
+                                    binding.role_id === 'org-member'
+                                      ? 'blue'
+                                      : 'green'
+                                  }
+                                  variant="light"
+                                >
+                                  {binding.role_id === 'org-member'
+                                    ? 'member'
+                                    : 'owner'}
                                 </Badge>
                               </Table.Td>
                               <Table.Td className="text-right">
@@ -1315,7 +1439,10 @@ const GitOrganizationSettingsPage = ({
                                           handleRemoveOrgOwner(binding)
                                         }
                                       >
-                                        Delete owner
+                                        Delete{' '}
+                                        {binding.role_id === 'org-member'
+                                          ? 'member'
+                                          : 'owner'}
                                       </Menu.Item>
                                     </Menu.Dropdown>
                                   </Menu>
@@ -1415,6 +1542,28 @@ const GitOrganizationSettingsPage = ({
             This will delete the project from Calypr: Gecko project config,
             Syfon records and bucket associations, and Arborist access resources
             and grants. Bucket data itself is not deleted.
+          </Alert>
+          <Alert color="yellow" variant="light">
+            <Stack gap="xs">
+              <Text size="sm">
+                Calypr does not remove the repository from the GitHub App
+                installation. If you want the repo disconnected on the GitHub
+                side, remove it manually from the installation page.
+              </Text>
+              {organizationGitHubInstallationUrl ? (
+                <Button
+                  component="a"
+                  href={organizationGitHubInstallationUrl}
+                  rel="noreferrer"
+                  target="_blank"
+                  variant="light"
+                  color="yellow"
+                  size="xs"
+                >
+                  Open GitHub installation
+                </Button>
+              ) : null}
+            </Stack>
           </Alert>
           <TextInput
             label={`Type ${projectDeleteTarget?.project ?? ''} to confirm`}

@@ -35,13 +35,13 @@ describe('syfonIndexApi', () => {
       return jsonResponse({
         records: [
           {
-            controlled_access: ['/organization/org-a/project/proj-a'],
+            controlled_access: ['/programs/org-a/projects/proj-a'],
             did: 'did-1',
             file_name: 'nested/a.txt',
             size: 11,
           },
           {
-            controlled_access: ['/organization/org-a'],
+            controlled_access: ['/programs/org-a'],
             did: 'did-2',
             file_name: 'nested/b.txt',
             size: 22,
@@ -70,7 +70,7 @@ describe('syfonIndexApi', () => {
       directories: [],
       records: [
         {
-          controlled_access: ['/organization/org-a/project/proj-a'],
+          controlled_access: ['/programs/org-a/projects/proj-a'],
           did: 'did-1',
           file_name: 'nested/a.txt',
           size: 11,
@@ -101,13 +101,13 @@ describe('syfonIndexApi', () => {
         return jsonResponse({
           records: [
             {
-              controlled_access: ['/organization/org-a/project/proj-a'],
+              controlled_access: ['/programs/org-a/projects/proj-a'],
               did: 'did-1',
               file_name: 'nested/a.txt',
               size: 11,
             },
             {
-              controlled_access: ['/organization/org-a/project/proj-a'],
+              controlled_access: ['/programs/org-a/projects/proj-a'],
               did: 'did-2',
               file_name: 'nested/b.txt',
               size: 22,
@@ -123,7 +123,7 @@ describe('syfonIndexApi', () => {
         return jsonResponse({
           records: [
             {
-              controlled_access: ['/organization/org-a/project/proj-a'],
+              controlled_access: ['/programs/org-a/projects/proj-a'],
               did: 'did-3',
               file_name: 'nested/c.txt',
               size: 33,
@@ -151,19 +151,19 @@ describe('syfonIndexApi', () => {
       directories: [],
       records: [
         {
-          controlled_access: ['/organization/org-a/project/proj-a'],
+          controlled_access: ['/programs/org-a/projects/proj-a'],
           did: 'did-1',
           file_name: 'nested/a.txt',
           size: 11,
         },
         {
-          controlled_access: ['/organization/org-a/project/proj-a'],
+          controlled_access: ['/programs/org-a/projects/proj-a'],
           did: 'did-2',
           file_name: 'nested/b.txt',
           size: 22,
         },
         {
-          controlled_access: ['/organization/org-a/project/proj-a'],
+          controlled_access: ['/programs/org-a/projects/proj-a'],
           did: 'did-3',
           file_name: 'nested/c.txt',
           size: 33,
@@ -184,7 +184,7 @@ describe('syfonIndexApi', () => {
       return jsonResponse({
         records: [
           {
-            controlled_access: ['/organization/org-a/project/proj-a'],
+            controlled_access: ['/programs/org-a/projects/proj-a'],
             did: 'did-100',
             file_name: 'nested/z.txt',
             size: 44,
@@ -207,7 +207,7 @@ describe('syfonIndexApi', () => {
       directories: [],
       records: [
         {
-          controlled_access: ['/organization/org-a/project/proj-a'],
+          controlled_access: ['/programs/org-a/projects/proj-a'],
           did: 'did-100',
           file_name: 'nested/z.txt',
           size: 44,
@@ -231,7 +231,7 @@ describe('syfonIndexApi', () => {
         ],
         records: [
           {
-            controlled_access: ['/organization/org-a/project/proj-a'],
+            controlled_access: ['/programs/org-a/projects/proj-a'],
             did: 'did-1',
             file_name: 'nested/a.txt',
             size: 11,
@@ -253,7 +253,7 @@ describe('syfonIndexApi', () => {
       directories: [{ name: 'deep', path: 'nested/deep' }],
       records: [
         {
-          controlled_access: ['/organization/org-a/project/proj-a'],
+          controlled_access: ['/programs/org-a/projects/proj-a'],
           did: 'did-1',
           file_name: 'nested/a.txt',
           size: 11,

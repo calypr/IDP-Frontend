@@ -149,7 +149,7 @@ describe('GitProjectPage', () => {
         project_id: 'Ellrott_Lab/embedding_rotation',
         organization: 'Ellrott_Lab',
         project: 'embedding_rotation',
-        resource_path: '/organization/Ellrott_Lab/project/embedding_rotation',
+        resource_path: '/programs/Ellrott_Lab/projects/embedding_rotation',
         config: {
           title: 'Embedding Rotation',
           contact_email: 'owner@example.org',
@@ -192,7 +192,7 @@ describe('GitProjectPage', () => {
         project_id: 'Ellrott_Lab/embedding_rotation',
         organization: 'Ellrott_Lab',
         project: 'embedding_rotation',
-        resource_path: '/organization/Ellrott_Lab/project/embedding_rotation',
+        resource_path: '/programs/Ellrott_Lab/projects/embedding_rotation',
         config: {
           title: 'Embedding Rotation',
           contact_email: 'owner@example.org',
@@ -269,7 +269,7 @@ describe('GitProjectPage', () => {
         project_id: 'Ellrott_Lab/embedding_rotation',
         organization: 'Ellrott_Lab',
         project: 'embedding_rotation',
-        resource_path: '/organization/Ellrott_Lab/project/embedding_rotation',
+        resource_path: '/programs/Ellrott_Lab/projects/embedding_rotation',
         config: {
           title: 'Embedding Rotation',
           contact_email: 'owner@example.org',
@@ -330,7 +330,7 @@ describe('GitProjectPage', () => {
         project_id: 'Ellrott_Lab/embedding_rotation',
         organization: 'Ellrott_Lab',
         project: 'embedding_rotation',
-        resource_path: '/organization/Ellrott_Lab/project/embedding_rotation',
+        resource_path: '/programs/Ellrott_Lab/projects/embedding_rotation',
         config: {
           title: 'Embedding Rotation',
           contact_email: 'owner@example.org',
@@ -403,7 +403,7 @@ describe('GitProjectPage', () => {
         project_id: 'Ellrott_Lab/embedding_rotation',
         organization: 'Ellrott_Lab',
         project: 'embedding_rotation',
-        resource_path: '/organization/Ellrott_Lab/project/embedding_rotation',
+        resource_path: '/programs/Ellrott_Lab/projects/embedding_rotation',
         config: {
           title: 'Embedding Rotation',
           contact_email: 'owner@example.org',

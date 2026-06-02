@@ -42,6 +42,50 @@ describe('syfonApi', () => {
     global.fetch = originalFetch;
   });
 
+  it('writes bucket credentials with Syfon request field names', async () => {
+    const store = setupCoreStore();
+
+    global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = requestUrl(input);
+      const method = requestMethod(input, init);
+
+      if (url === `${SYFON_API}/buckets` && method === 'PUT') {
+        const body = await requestJson<Record<string, unknown>>(input, init);
+        expect(body).toEqual({
+          access_key: 'ak',
+          bucket: 'bucket-a',
+          endpoint: 'https://s3.example.org',
+          organization: 'org',
+          path: 'org/proj',
+          project_id: 'proj',
+          provider: 's3',
+          region: 'us-east-1',
+          secret_key: 'sk',
+        });
+        expect(body).not.toHaveProperty('endpoint_url');
+        return new Response(null, { status: 201 });
+      }
+
+      throw new Error(`Unexpected fetch ${method} ${url}`);
+    }) as typeof global.fetch;
+
+    const result = await store.dispatch(
+      syfonApi.endpoints.upsertSyfonBucketCredential.initiate({
+        access_key: 'ak',
+        bucket: 'bucket-a',
+        endpoint: 'https://s3.example.org',
+        organization: 'org',
+        path: 'org/proj',
+        project_id: 'proj',
+        provider: 's3',
+        region: 'us-east-1',
+        secret_key: 'sk',
+      }),
+    );
+
+    expect(result.error).toBeUndefined();
+  });
+
   it('builds bucket, object, checksum, download, upload, and register requests', async () => {
     const store = setupCoreStore();
 
@@ -295,7 +339,7 @@ describe('syfonApi', () => {
           's3://project-bucket/prefix/hello.txt',
         );
         expect(body.candidates[0].controlled_access).toEqual([
-          '/organization/org/project/proj',
+          '/programs/org/projects/proj',
         ]);
         expect(body.candidates[0].aliases[0]).toMatch(/^id:/);
 
@@ -341,7 +385,7 @@ describe('syfonApi', () => {
         '2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824',
       downloadUrl: 'https://signed.example/download',
       objectKey: 'prefix/hello.txt',
-      resourcePath: '/organization/org/project/proj',
+      resourcePath: '/programs/org/projects/proj',
       uploadMethod: 'singlepart',
       uploadUrl: 'https://signed.example/upload',
     });
@@ -397,7 +441,7 @@ describe('syfonApi', () => {
                     type: 'sha256',
                   },
                 ],
-                controlled_access: ['/organization/org/project/proj'],
+                controlled_access: ['/programs/org/projects/proj'],
                 created_time: '2026-05-05T00:00:00Z',
                 id: 'dg.mock/gcs',
                 self_uri: 'drs://syfon/dg.mock/gcs',

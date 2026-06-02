@@ -12,15 +12,35 @@ import { SmmartConfig } from '../Smmart/types';
  * It handles potential file-not-found errors gracefully by returning null for missing configs.
  * @returns {Promise<{ props: { ... } }>} The props for the landing page component.
  */
-export const LandingPageGetServerSideProps: GetServerSideProps = async () => {
+export const LandingPageGetServerSideProps: GetServerSideProps = async (
+  context,
+) => {
   let navPageLayoutProps: NavPageLayoutProps | null = null;
   let landingPage: any | null = null;
   let smmartConfig: SmmartConfig | null = null;
+  const requestHeaders: Record<string, string> = {};
+  const cookieHeader = context.req.headers.cookie;
+  const authorizationHeader = context.req.headers.authorization;
+  const hasAuthenticatedSession =
+    (typeof authorizationHeader === 'string' && authorizationHeader.length > 0) ||
+    (typeof cookieHeader === 'string' &&
+      /(?:^|;\s*)(?:access_token|credentials_token)=/i.test(cookieHeader));
+
+  if (typeof cookieHeader === 'string' && cookieHeader) {
+    requestHeaders.Cookie = cookieHeader;
+  }
+  if (typeof authorizationHeader === 'string' && authorizationHeader) {
+    requestHeaders.Authorization = authorizationHeader;
+  }
 
   try {
-    // This function likely has an incorrect path to 'cbds/headerMetadata.json'.
-    // The fix for that will need to be made inside the 'getNavPageLayoutPropsFromConfig' function itself.
-    navPageLayoutProps = await getNavPageLayoutPropsFromConfig();
+    navPageLayoutProps = await getNavPageLayoutPropsFromConfig(requestHeaders);
+    if (!hasAuthenticatedSession) {
+      navPageLayoutProps.headerProps.topBar.items =
+        navPageLayoutProps.headerProps.topBar.items.filter(
+          (item) => item.href !== '/git',
+        );
+    }
   } catch (err) {
     console.error('Error fetching NavPageLayoutProps:', err);
   }

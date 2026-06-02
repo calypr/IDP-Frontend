@@ -5,10 +5,8 @@ import {
   SyfonFileUploadMetadata,
 } from './types';
 
-const LEGACY_PROGRAMS_SEGMENT = 'programs';
-const LEGACY_PROJECTS_SEGMENT = 'projects';
-const CANONICAL_ORGANIZATION_SEGMENT = 'organization';
-const CANONICAL_PROJECT_SEGMENT = 'project';
+const CANONICAL_ORGANIZATION_SEGMENT = 'programs';
+const CANONICAL_PROJECT_SEGMENT = 'projects';
 const CALYPR_NAMESPACE_UUID = '468a0e14-baa7-3c83-8e2a-8747811465da';
 const S3_PROVIDER = 's3';
 const GCS_PROVIDER = 'gcs';
@@ -148,36 +146,19 @@ export const normalizeSyfonResourcePath = (resource: string): string => {
 
   const [head, organization, relation, projectId] = segments;
 
-  if (
-    (head === CANONICAL_ORGANIZATION_SEGMENT || head === 'organizations') &&
-    organization
-  ) {
-    if (
-      (relation === CANONICAL_PROJECT_SEGMENT || relation === 'projects') &&
-      projectId
-    ) {
+  if (head === CANONICAL_ORGANIZATION_SEGMENT && organization) {
+    if (relation === CANONICAL_PROJECT_SEGMENT && projectId) {
       return `/${CANONICAL_ORGANIZATION_SEGMENT}/${organization}/${CANONICAL_PROJECT_SEGMENT}/${projectId}`;
     }
 
-    return `/${CANONICAL_ORGANIZATION_SEGMENT}/${organization}`;
-  }
-
-  if (
-    (head === 'program' || head === LEGACY_PROGRAMS_SEGMENT) &&
-    organization
-  ) {
-    if (
-      (relation === LEGACY_PROJECTS_SEGMENT ||
-        relation === CANONICAL_PROJECT_SEGMENT) &&
-      projectId
-    ) {
-      return `/${CANONICAL_ORGANIZATION_SEGMENT}/${organization}/${CANONICAL_PROJECT_SEGMENT}/${projectId}`;
+    if (!relation) {
+      return `/${CANONICAL_ORGANIZATION_SEGMENT}/${organization}`;
     }
 
-    return `/${CANONICAL_ORGANIZATION_SEGMENT}/${organization}`;
+    return '';
   }
 
-  return path.startsWith('/') ? path : `/${path}`;
+  return '';
 };
 
 export const normalizeSyfonResourcePaths = (

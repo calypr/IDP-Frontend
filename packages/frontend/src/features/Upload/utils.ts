@@ -25,19 +25,39 @@ export const deriveScopeLabelFromResource = (
   const normalized = normalizeSyfonResourcePath(resourcePath);
   const segments = normalized.split('/').filter(Boolean);
 
-  if (segments[0] !== 'organization' || !segments[1]) {
+  if (!segments[1]) {
+    return {};
+  }
+
+  const organization = segments[1];
+
+  if (segments[0] === 'programs') {
+    if (segments[2] === 'projects' && segments[3]) {
+      return {
+        organization,
+        project: segments[3],
+      };
+    }
+
+    return {
+      organization,
+    };
+  }
+
+  // Backward-compat parsing for legacy resource shapes.
+  if (segments[0] !== 'organization') {
     return {};
   }
 
   if (segments[2] === 'project' && segments[3]) {
     return {
-      organization: segments[1],
+      organization,
       project: segments[3],
     };
   }
 
   return {
-    organization: segments[1],
+    organization,
   };
 };
 
@@ -54,12 +74,12 @@ export const buildControlledAccessForUpload = (
   const normalizedProject = project?.trim();
   if (normalizedOrganization && normalizedProject) {
     return [
-      `/organization/${normalizedOrganization}/project/${normalizedProject}`,
+      `/programs/${normalizedOrganization}/projects/${normalizedProject}`,
     ];
   }
 
   if (normalizedOrganization) {
-    return [`/organization/${normalizedOrganization}`];
+    return [`/programs/${normalizedOrganization}`];
   }
 
   return ['/data_file'];
@@ -116,9 +136,9 @@ export const resolveUploadBucketName = (
 ): SyfonBucket => {
   const normalizedBuckets = normalizeSyfonBuckets(rawBuckets ?? { S3_BUCKETS: {} });
   const projectResource = project
-    ? `/organization/${organization}/project/${project}`
+    ? `/programs/${organization}/projects/${project}`
     : '';
-  const organizationResource = `/organization/${organization}`;
+  const organizationResource = `/programs/${organization}`;
 
   if (projectResource) {
     const projectMatches = normalizedBuckets.filter((bucket) =>

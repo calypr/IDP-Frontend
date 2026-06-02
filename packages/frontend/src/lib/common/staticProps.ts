@@ -22,8 +22,8 @@ export const getNavPageLayoutPropsFromConfig = async (
         .catch(() => ({ appsConfig: { appCards: [] } })),
     ]);
 
-    const { headerProps, footerProps, fileActions, dynamicProps } = navigationConfigJSON;
-
+    const { headerProps, footerProps, fileActions, dynamicProps } =
+      navigationConfigJSON;
     const normalizedTopBarItems = headerProps.topBar.items.map((item) =>
       item.href === '/organization'
         ? {
@@ -126,9 +126,6 @@ export const getNavPageLayoutPropsFromConfig = async (
         topBar: {
           items: [],
           loginButtonVisibility: 'hidden' as any,
-          onToggle: () => {
-            /* do nothing */
-          },
         },
         navigation: { items: [] },
         banners: [],

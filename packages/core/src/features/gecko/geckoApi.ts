@@ -19,7 +19,20 @@ export interface GeckoProjectConfig {
 
 export interface GeckoMutationResponse {
   readonly success: boolean;
+  readonly configured?: boolean;
   readonly error?: string;
+}
+
+export interface GeckoProjectStorageIntent {
+  readonly bucket: string;
+  readonly provider: string;
+  readonly endpoint?: string;
+  readonly region?: string;
+  readonly access_key?: string;
+  readonly secret_key?: string;
+  readonly organization: string;
+  readonly project_id: string;
+  readonly path?: string;
 }
 
 export interface GeckoCreateProjectMutationArgs {
@@ -27,6 +40,7 @@ export interface GeckoCreateProjectMutationArgs {
   readonly organization: string;
   readonly project: string;
   readonly pendingRepoID?: string;
+  readonly storage?: GeckoProjectStorageIntent;
 }
 
 export interface GeckoDeleteProjectMutationArgs {
@@ -142,11 +156,10 @@ export interface GeckoGitRefreshResponse {
   readonly error?: string;
 }
 
-export interface GeckoGitOrganizationsReconcileResponse
-  extends GeckoGitOrganizationsStatus {}
+export type GeckoGitOrganizationsReconcileResponse =
+  GeckoGitOrganizationsStatus;
 
-export interface GeckoGitOrganizationReconcileResponse
-  extends GeckoGitOrganizationStatus {}
+export type GeckoGitOrganizationReconcileResponse = GeckoGitOrganizationStatus;
 
 export interface GeckoGitRef {
   readonly name: string;
@@ -253,7 +266,7 @@ export interface GeckoGitUploadSessionResponse {
 const buildOrganizationProjectResourcePath = (
   organization: string,
   project: string,
-): string => `/organization/${organization}/project/${project}`;
+): string => `/programs/${organization}/projects/${project}`;
 
 const buildGitProjectApiPath = (
   organization: string,
@@ -281,10 +294,14 @@ const toProjectScopedResourcePath = (value: string): string => {
       .map((segment) => decodeURIComponent(segment).trim())
       .filter(Boolean);
 
-    if (pathSegments.length >= 2) {
+    if (
+      pathSegments.length >= 4 &&
+      pathSegments[0] === 'programs' &&
+      pathSegments[2] === 'projects'
+    ) {
       return buildOrganizationProjectResourcePath(
-        pathSegments[pathSegments.length - 2],
-        pathSegments[pathSegments.length - 1].replace(/\.git$/i, ''),
+        pathSegments[1],
+        pathSegments[3].replace(/\.git$/i, ''),
       );
     }
   } catch {
@@ -341,9 +358,14 @@ export const normalizeGeckoProjectRecord = (
   return null;
 };
 
-export const geckoApi = gen3Api.injectEndpoints({
+const geckoTaggedApi = gen3Api.enhanceEndpoints({
+  addTagTypes: ['GeckoProjects', 'GeckoGitProjects'],
+});
+
+export const geckoApi = geckoTaggedApi.injectEndpoints({
   endpoints: (builder) => ({
     getGeckoProjects: builder.query<Array<GeckoProjectRecord>, void>({
+      providesTags: ['GeckoProjects'],
       query: () => ({
         url: `${CALYPR_EXPLORER_CONFIG_API}/projects/list`,
         method: 'GET',
@@ -362,15 +384,35 @@ export const geckoApi = gen3Api.injectEndpoints({
       GeckoMutationResponse,
       GeckoCreateProjectMutationArgs
     >({
-      query: ({ configData, organization, project, pendingRepoID }) => ({
-        url: `${CALYPR_EXPLORER_CONFIG_API}/organization/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}${pendingRepoID ? `?pending_repo_id=${encodeURIComponent(pendingRepoID)}` : ''}`,
+      query: ({ configData, organization, project, pendingRepoID, storage }) => ({
+        url: `/gecko/git/projects/${encodeURIComponent(organization)}/${encodeURIComponent(project)}/setup`,
         method: 'PUT',
-        body: configData,
+        body: {
+          config: configData,
+          pending_repo_id: pendingRepoID,
+          storage,
+        },
         credentials: 'include',
       }),
-      transformResponse: () => ({
-        success: true,
-      }),
+      transformResponse: (response: { configured?: boolean; readiness?: { git?: { details?: string; reason?: string }; syfon?: { details?: string; reason?: string }; config?: { details?: string; reason?: string } } }) => {
+        const configured = response?.configured === true;
+        let error: string | undefined;
+        if (!configured) {
+          const reasons = [
+            response?.readiness?.config?.details || response?.readiness?.config?.reason,
+            response?.readiness?.git?.details || response?.readiness?.git?.reason,
+            response?.readiness?.syfon?.details || response?.readiness?.syfon?.reason,
+          ]
+            .filter((value): value is string => Boolean(value))
+            .filter((value, index, all) => all.indexOf(value) === index);
+          error = reasons.length > 0 ? reasons.join(' | ') : 'Project setup incomplete';
+        }
+        return {
+          success: configured,
+          configured,
+          error,
+        };
+      },
       transformErrorResponse: (response) => {
         const errorData = response.data as { error?: string; message?: string } | undefined;
         return {
@@ -386,6 +428,7 @@ export const geckoApi = gen3Api.injectEndpoints({
       GeckoMutationResponse,
       GeckoDeleteProjectMutationArgs
     >({
+      invalidatesTags: ['GeckoProjects', 'GeckoGitProjects'],
       query: ({ organization, project }) => ({
         url: `${CALYPR_EXPLORER_CONFIG_API}/projects/${encodeURIComponent(organization)}/${encodeURIComponent(project)}`,
         method: 'DELETE',
@@ -408,6 +451,7 @@ export const geckoApi = gen3Api.injectEndpoints({
       },
     }),
     getGeckoGitProjects: builder.query<Array<GeckoGitProjectStatus>, void>({
+      providesTags: ['GeckoGitProjects'],
       query: () => ({
         url: '/gecko/git/projects',
         method: 'GET',

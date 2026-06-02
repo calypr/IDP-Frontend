@@ -53,7 +53,7 @@ export const buildExactProjectScope = (
   organization: string,
   project: string,
 ): string =>
-  normalizeSyfonResourcePath(`/organization/${organization}/project/${project}`);
+  normalizeSyfonResourcePath(`/programs/${organization}/projects/${project}`);
 
 export const extractAccessibleProjects = (
   authzMapping: Record<string, unknown>,

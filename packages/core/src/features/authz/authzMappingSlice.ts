@@ -82,7 +82,7 @@ export const authzApi = authzTags.injectEndpoints({
       AuthzOwnershipResponse,
       CreateAuthzOwnedDescendantRequest
     >({
-      invalidatesTags: [TAGS],
+      invalidatesTags: (_result, error) => (error ? [] : [TAGS]),
       query: (request) => ({
         body: request,
         method: 'POST',
@@ -93,7 +93,7 @@ export const authzApi = authzTags.injectEndpoints({
       AuthzOwnershipResponse,
       AuthzOwnerMutationRequest
     >({
-      invalidatesTags: [TAGS],
+      invalidatesTags: (_result, error) => (error ? [] : [TAGS]),
       query: (request) => ({
         body: request,
         method: 'POST',
@@ -101,7 +101,7 @@ export const authzApi = authzTags.injectEndpoints({
       }),
     }),
     removeAuthzOwner: builder.mutation<void, AuthzOwnerMutationRequest>({
-      invalidatesTags: [TAGS],
+      invalidatesTags: (_result, error) => (error ? [] : [TAGS]),
       query: (request) => ({
         body: request,
         method: 'DELETE',
@@ -112,7 +112,7 @@ export const authzApi = authzTags.injectEndpoints({
       AuthzOwnershipResponse,
       AuthzUserAccessMutationRequest
     >({
-      invalidatesTags: [TAGS],
+      invalidatesTags: (_result, error) => (error ? [] : [TAGS]),
       query: (request) => ({
         body: request,
         method: 'POST',
@@ -123,7 +123,7 @@ export const authzApi = authzTags.injectEndpoints({
       void,
       AuthzUserAccessMutationRequest
     >({
-      invalidatesTags: [TAGS],
+      invalidatesTags: (_result, error) => (error ? [] : [TAGS]),
       query: (request) => ({
         body: request,
         method: 'DELETE',
