@@ -40,7 +40,6 @@ import type {
 } from '@gen3/core';
 import {
   useConnectGeckoGitOrganizationMutation,
-  useCreateAuthzOwnedDescendantMutation,
   useCreateGeckoProjectMutation,
   useGetAuthzMappingsQuery,
   useGetGeckoGitOrganizationsStatusQuery,
@@ -133,100 +132,104 @@ const parseGitSetupSessionID = (
 const isValidEmail = (value: string): boolean =>
   /^[^\s@]+@[^\s@]+\.[^\s@]+$/i.test(value.trim());
 
-const apiErrorStatus = (error: unknown): number | undefined => {
-  if (error && typeof error === 'object' && 'status' in error) {
-    const status = (error as { status?: unknown }).status;
-    return typeof status === 'number' ? status : undefined;
-  }
-  return undefined;
-};
-
 const apiErrorMessage = (error: unknown): string | undefined => {
+  if (typeof error === 'string') {
+    const trimmed = error.trim();
+    if (!trimmed) {
+      return undefined;
+    }
+    try {
+      return apiErrorMessage(JSON.parse(trimmed)) ?? trimmed;
+    } catch {
+      return trimmed;
+    }
+  }
   if (!error || typeof error !== 'object') {
     return undefined;
   }
-  if (
-    'error' in error &&
-    typeof (error as { error?: unknown }).error === 'string'
-  ) {
-    return (error as { error: string }).error;
+
+  const record = error as {
+    readonly data?: unknown;
+    readonly error?: unknown;
+    readonly message?: unknown;
+  };
+  if (typeof record.message === 'string' && record.message.trim()) {
+    return record.message;
   }
-  if ('data' in error) {
-    const data = (error as { data?: unknown }).data;
-    if (typeof data === 'string') {
-      return data;
+  if (typeof record.error === 'string' && record.error.trim()) {
+    return record.error;
+  }
+  if (record.error && typeof record.error === 'object') {
+    const nestedMessage = apiErrorMessage(record.error);
+    if (nestedMessage) {
+      return nestedMessage;
     }
-    if (data && typeof data === 'object') {
-      const nestedError = (data as { error?: unknown }).error;
-      if (nestedError && typeof nestedError === 'object') {
-        const message = (nestedError as { message?: unknown }).message;
-        if (typeof message === 'string') {
-          return message;
-        }
-      }
-      const message = (data as { message?: unknown }).message;
-      if (typeof message === 'string') {
-        return message;
-      }
+  }
+  if (record.data !== undefined) {
+    const dataMessage = apiErrorMessage(record.data);
+    if (dataMessage) {
+      return dataMessage;
     }
   }
   return undefined;
 };
 
-const isExistingAuthzResourceError = (error: unknown): boolean =>
-  apiErrorStatus(error) === 409 &&
-  (apiErrorMessage(error) ?? '').includes('resource already exists:');
-
-const joinStoragePath = (
-  organizationPath: string,
-  projectPath: string,
+const setupErrorMessage = (
+  error: unknown,
+  organization: string,
+  project: string,
 ): string | undefined => {
-  const segments = [organizationPath, projectPath]
-    .map((segment) => segment.trim().replace(/^\/+|\/+$/g, ''))
-    .filter(Boolean);
-
-  return segments.length > 0 ? segments.join('/') : undefined;
-};
-
-const getOrganizationStatusColor = (status?: string): string => {
-  switch (status) {
-    case 'connected':
-      return 'green';
-    case 'partially_configured':
-      return 'blue';
-    case 'installed_unconfigured':
-      return 'yellow';
-    default:
-      return 'gray';
+  const message = apiErrorMessage(error);
+  if (!message) {
+    return undefined;
   }
-};
 
-const getOrganizationStatusLabel = (
-  status?: string,
-  configuredProjects = 0,
-  totalProjects = 0,
-): string => {
-  switch (status) {
-    case 'connected':
-      return totalProjects > 0
-        ? `${configuredProjects}/${totalProjects} repos connected`
-        : 'Connected';
-    case 'partially_configured':
-      return `${configuredProjects}/${totalProjects} repos connected`;
-    case 'installed_unconfigured':
-      return 'Installed, no tracked repos connected';
-    default:
-      return 'Not connected';
+  const createProjectMatch = message.match(
+    /user is not allowed to create descendants under (\/programs\/[^/]+\/projects)/,
+  );
+  if (createProjectMatch) {
+    return `Organization "${organization}" already exists, but you do not have permission to create project "${project}" in it.`;
   }
+
+  const createOrganizationMatch = message.match(
+    /user is not allowed to create descendants under \/programs\b/,
+  );
+  if (createOrganizationMatch) {
+    return `Organization "${organization}" does not appear to exist yet, and you do not have permission to create new organizations. Ask an administrator to create it or grant organization creation access.`;
+  }
+
+  if (message.includes('resource already exists:')) {
+    return `A Calypr resource for "${organization}/${project}" already exists. Refresh the Git page; if it still does not appear, the existing Arborist resource is stale and needs cleanup.`;
+  }
+
+  return message;
 };
 
-const actionAllows = (
-  action: { readonly method: string; readonly service: string },
-  service: string,
-  method: string,
-): boolean =>
-  (action.service === service || action.service === '*') &&
-  (action.method === method || action.method === '*');
+const isOrganizationMembershipResource = (
+  resourcePath: string,
+): { organization: string } | null => {
+  const parts = resourcePath.split('/').filter(Boolean);
+  if (parts[0] !== 'programs' || !parts[1]) {
+    return null;
+  }
+
+  if (parts.length === 2) {
+    return { organization: parts[1] };
+  }
+
+  if (parts.length === 3 && parts[2] === 'projects') {
+    return { organization: parts[1] };
+  }
+
+  return null;
+};
+
+const isOrganizationMemberOrOwnerAction = (action: {
+  readonly method: string;
+  readonly service: string;
+}): boolean =>
+  action.service === 'arborist' &&
+  (action.method === 'create-descendant' || action.method === 'manage-owners');
 
 const canManageOrganizationSettings = (
   authzMapping: Record<string, Array<{ method: string; service: string }>>,
@@ -236,27 +239,7 @@ const canManageOrganizationSettings = (
   return candidatePaths.some((path) =>
     (authzMapping[path] ?? []).some(
       (action) =>
-        actionAllows(action, 'arborist', 'manage-owners') ||
-        actionAllows(action, '*', '*'),
-    ),
-  );
-};
-
-const canConnectOrganization = (
-  authzMapping: Record<string, Array<{ method: string; service: string }>>,
-  organization: string,
-): boolean => {
-  const candidatePaths = [
-    `/programs/${organization}`,
-    `/programs/${organization}/projects`,
-  ];
-  return candidatePaths.some((path) =>
-    (authzMapping[path] ?? []).some(
-      (action) =>
-        actionAllows(action, 'arborist', 'create-descendant') ||
-        actionAllows(action, 'arborist', 'manage-owners') ||
-        actionAllows(action, 'arborist', '*') ||
-        actionAllows(action, '*', '*'),
+        action.service === 'arborist' && action.method === 'manage-owners',
     ),
   );
 };
@@ -329,8 +312,6 @@ const CreateProjectModal = ({
   );
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [createGeckoProject, { isLoading }] = useCreateGeckoProjectMutation();
-  const [createAuthzOwnedDescendant, { isLoading: isCreatingOwnership }] =
-    useCreateAuthzOwnedDescendantMutation();
 
   const resetForm = () => {
     setFormState(initialFormState || defaultProjectConfig(organization));
@@ -367,14 +348,10 @@ const CreateProjectModal = ({
     toSlug(formState.org_title) || formState.org_title.trim();
   const submittedProject = toSlug(formState.project_name);
   const submittedResourceKey = `${submittedOrganization}/${submittedProject}`;
-  const organizationExists = existingOrganizations.includes(
-    submittedOrganization,
-  );
   const projectExists = existingProjectKeys.has(submittedResourceKey);
   const isNewProject = !projectExists;
-  const isNewOrganization = !organizationExists;
   const requiresStorageConfig = isPendingCreation && isNewProject;
-  const isSubmitting = isLoading || isCreatingOwnership;
+  const isSubmitting = isLoading;
 
   const handleSubmit = async () => {
     const trimmedOrganization =
@@ -433,37 +410,6 @@ const CreateProjectModal = ({
     setSubmitError(null);
 
     try {
-      const createOwnedDescendantOrContinue = async (request: {
-        readonly name: string;
-        readonly parent_path: string;
-        readonly template: string;
-      }): Promise<void> => {
-        try {
-          await createAuthzOwnedDescendant(request).unwrap();
-        } catch (error) {
-          if (isExistingAuthzResourceError(error)) {
-            return;
-          }
-          throw error;
-        }
-      };
-
-      if (isPendingCreation && isNewOrganization) {
-        await createOwnedDescendantOrContinue({
-          name: trimmedOrganization,
-          parent_path: '/programs',
-          template: 'gen3-program',
-        });
-      }
-
-      if (isPendingCreation && isNewProject) {
-        await createOwnedDescendantOrContinue({
-          name: trimmedProjectKey,
-          parent_path: `/programs/${trimmedOrganization}/projects`,
-          template: 'gen3-project',
-        });
-      }
-
       const response = await createGeckoProject({
         configData,
         organization: trimmedOrganization,
@@ -475,11 +421,11 @@ const CreateProjectModal = ({
               bucket: formState.bucket.trim(),
               endpoint: formState.bucket_endpoint_url.trim() || undefined,
               organization: trimmedOrganization,
-              path: joinStoragePath(
-                formState.bucket_org_path,
-                formState.bucket_project_path,
-              ),
+              organization_sub_path:
+                formState.bucket_org_path.trim() || undefined,
               project_id: trimmedProjectKey,
+              project_sub_path:
+                formState.bucket_project_path.trim() || undefined,
               provider: formState.bucket_provider.trim(),
               region: formState.bucket_region.trim() || undefined,
               secret_key: formState.bucket_secret_key.trim() || undefined,
@@ -499,7 +445,7 @@ const CreateProjectModal = ({
       }
     } catch (error) {
       const errorMessage =
-        apiErrorMessage(error) ??
+        setupErrorMessage(error, trimmedOrganization, trimmedProjectKey) ??
         'Failed to finish creating this project. Please check the fields and try again.';
       setSubmitError(errorMessage);
     }
@@ -710,48 +656,40 @@ const CompactProjectRow = ({
       role="link"
       tabIndex={0}
     >
-    <div className="min-w-0">
-      <Group gap="xs" wrap="nowrap">
-        <img
-          alt="Calypr"
-          className="h-4 w-4 shrink-0"
-          src="/icons/calypr-mark-mono.svg"
-        />
-        {repositoryURL ? (
+      <div className="min-w-0">
+        <Group gap="xs" wrap="nowrap">
+          <img
+            alt="Calypr"
+            className="h-4 w-4 shrink-0"
+            src="/icons/calypr-mark-mono.svg"
+          />
           <a
             className="min-w-0 truncate font-semibold text-slate-900 transition hover:text-slate-700 hover:underline"
+            href={localProjectHref}
+            onClick={(event) => event.stopPropagation()}
+          >
+            {project}
+          </a>
+          <Badge color={configured ? 'green' : 'gray'} size="sm" variant="light">
+            {configured ? 'Connected' : 'Not connected'}
+          </Badge>
+        </Group>
+        {repositoryURL ? (
+          <a
+            className="inline-flex max-w-full items-center gap-1 truncate text-xs text-slate-500 underline decoration-slate-300 underline-offset-4 transition hover:text-slate-700"
             href={repositoryURL}
             onClick={(event) => event.stopPropagation()}
             rel="noreferrer"
             target="_blank"
           >
-            {project}
+            <IconBrandGithub className="shrink-0" size={13} />
+            {repositoryLabel || repositoryURL}
           </a>
-        ) : (
-          <Text fw={600} truncate>
-            {project}
-          </Text>
-        )}
-        <Badge color={configured ? 'green' : 'gray'} size="sm" variant="light">
-          {configured ? 'Connected' : 'Not connected'}
-        </Badge>
-      </Group>
-      {repositoryURL ? (
-        <a
-          className="inline-flex max-w-full items-center gap-1 truncate text-xs text-slate-500 underline decoration-slate-300 underline-offset-4 transition hover:text-slate-700"
-          href={repositoryURL}
-          onClick={(event) => event.stopPropagation()}
-          rel="noreferrer"
-          target="_blank"
-        >
-          <IconBrandGithub className="shrink-0" size={13} />
-          {repositoryLabel || repositoryURL}
-        </a>
-      ) : null}
-    </div>
-    <Text c="dimmed" size="sm">
-      Open
-    </Text>
+        ) : null}
+      </div>
+      <Text c="dimmed" size="sm">
+        Open
+      </Text>
     </div>
   );
 };
@@ -771,14 +709,6 @@ const OrganizationRow = ({
 }) => {
   const [isOpen, setIsOpen] = useState(initiallyOpen);
   const isExpanded = hideCollapse ? true : isOpen;
-  const statusLabel = getOrganizationStatusLabel(
-    gitStatus?.configuration_state,
-    gitStatus?.configured_projects ?? 0,
-    gitStatus?.total_projects ?? group.projects.length,
-  );
-  const statusColor = getOrganizationStatusColor(
-    gitStatus?.configuration_state,
-  );
   const configuredProjects = new Set(
     (gitStatus?.projects ?? [])
       .filter((projectStatus) => projectStatus.configured)
@@ -799,7 +729,7 @@ const OrganizationRow = ({
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       {hideCollapse ? (
-        <div className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-3 bg-slate-50 px-6 py-4">
+        <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3 bg-slate-50 px-6 py-4">
           <Link href="/git" legacyBehavior>
             <a className="inline-flex w-fit items-center gap-1 text-sm font-medium text-slate-500 transition hover:text-slate-900">
               <IconChevronLeft size={16} />
@@ -807,21 +737,10 @@ const OrganizationRow = ({
             </a>
           </Link>
           <div className="min-w-0 text-center">
-            <Text
-              c="dimmed"
-              className="mb-0.5 tracking-[0.14em]"
-              size="10px"
-              tt="uppercase"
-            >
-              Organization
-            </Text>
             <Text fw={700} size="lg" truncate>
               {group.organization}
             </Text>
           </div>
-          <Badge color={statusColor} variant="light">
-            {statusLabel}
-          </Badge>
           {canManageSettings ? (
             <Link
               href={`/git/${encodeURIComponent(group.organization)}/settings`}
@@ -839,7 +758,7 @@ const OrganizationRow = ({
           )}
         </div>
       ) : (
-        <div className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-3 bg-slate-50 px-6 py-4 transition hover:bg-slate-100/80">
+        <div className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 bg-slate-50 px-6 py-4 transition hover:bg-slate-100/80">
           <button
             aria-label={`${isOpen ? 'Collapse' : 'Expand'} ${group.organization}`}
             className="inline-flex items-center justify-center border border-transparent p-1 transition hover:border-slate-200 hover:bg-white hover:shadow-sm focus-visible:border-slate-300 focus-visible:bg-white focus-visible:shadow-sm"
@@ -853,14 +772,6 @@ const OrganizationRow = ({
             )}
           </button>
           <div className="min-w-0">
-            <Text
-              c="dimmed"
-              className="mb-0.5 tracking-[0.14em]"
-              size="10px"
-              tt="uppercase"
-            >
-              Organization
-            </Text>
             <Tooltip label={`Visit ${group.organization} page`}>
               <Link
                 href={`/git/${encodeURIComponent(group.organization)}`}
@@ -874,9 +785,6 @@ const OrganizationRow = ({
               </Link>
             </Tooltip>
           </div>
-          <Badge color={statusColor} variant="light">
-            {statusLabel}
-          </Badge>
           {canManageSettings ? (
             <Link
               href={`/git/${encodeURIComponent(group.organization)}/settings`}
@@ -948,8 +856,15 @@ const GitLandingPage = ({
     () => parseGitSetupSessionID(router.query.state),
     [router.query.state],
   );
-  const { data: geckoProjects = [], isLoading } = useGetGeckoProjectsQuery();
-  const { data: authzMapping = {} } = useGetAuthzMappingsQuery();
+  const {
+    data: geckoProjects = [],
+    isLoading,
+    refetch: refetchGeckoProjects,
+  } = useGetGeckoProjectsQuery();
+  const {
+    data: authzMapping = {},
+    refetch: refetchAuthzMapping,
+  } = useGetAuthzMappingsQuery();
   const [searchQuery, setSearchQuery] = useState('');
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [connectError, setConnectError] = useState<string | null>(null);
@@ -986,49 +901,31 @@ const GitLandingPage = ({
     () => groupProjectsByOrganization(accessibleProjects),
     [accessibleProjects],
   );
-  const connectableOrganizations = useMemo(() => {
+  const membershipOrganizationOptions = useMemo(() => {
     const organizations = new Set<string>();
     Object.entries(authzMapping).forEach(([resource, perms]) => {
-      const parts = resource.split('/').filter(Boolean);
-      if (parts.length < 3 || parts[0] !== 'programs') {
+      const membershipResource = isOrganizationMembershipResource(resource);
+      if (!membershipResource || !Array.isArray(perms)) {
         return;
       }
-      const organization = parts[1];
-      const canConnect = canConnectOrganization(
-        authzMapping,
-        organization,
-      );
-      if (canConnect) {
-        organizations.add(organization);
-      }
-      if (Array.isArray(perms)) {
-        perms.forEach((action) => {
-          if (
-            actionAllows(action, 'arborist', 'create-descendant') ||
-            actionAllows(action, 'arborist', 'manage-owners') ||
-            actionAllows(action, 'arborist', '*') ||
-            actionAllows(action, '*', '*')
-          ) {
-            organizations.add(organization);
-          }
-        });
+      if (perms.some(isOrganizationMemberOrOwnerAction)) {
+        organizations.add(membershipResource.organization);
       }
     });
     return Array.from(organizations).sort((left, right) =>
       left.localeCompare(right),
     );
   }, [authzMapping]);
+  const connectableOrganizations = membershipOrganizationOptions;
   const displayOrganizationGroups = useMemo(() => {
     const groupsByOrganization = new Map(
       organizationGroups.map((group) => [group.organization, group]),
     );
     const allowedOrganizations = new Set(connectableOrganizations);
-    const visibleOrganizations = new Set<string>();
+    const visibleOrganizations = new Set(allowedOrganizations);
 
     organizationGroups.forEach((group) => {
-      if (allowedOrganizations.has(group.organization)) {
-        visibleOrganizations.add(group.organization);
-      }
+      visibleOrganizations.add(group.organization);
     });
     (organizationsStatus?.organizations ?? []).forEach((status) => {
       if (allowedOrganizations.has(status.organization)) {
@@ -1055,16 +952,13 @@ const GitLandingPage = ({
     displayOrganizationGroups.forEach((group) =>
       organizations.add(group.organization),
     );
-    (organizationsStatus?.organizations ?? []).forEach((status) =>
-      organizations.add(status.organization),
-    );
     return Array.from(organizations).sort((left, right) =>
       left.localeCompare(right),
     );
-  }, [displayOrganizationGroups, organizationsStatus?.organizations]);
+  }, [displayOrganizationGroups]);
   const normalizedSearchQuery = searchQuery.trim().toLowerCase();
   const connectionAuthorizationOrganization =
-    connectableOrganizations[0] || organizationOptions[0] || null;
+    membershipOrganizationOptions[0] || organizationOptions[0] || null;
   const organizationStatuses = useMemo(
     () =>
       new Map(
@@ -1282,12 +1176,13 @@ const GitLandingPage = ({
     }
   };
 
-  const handlePendingProjectCreated = async (createdPendingRepoID?: string) => {
-    await fetchPendingRepositories();
-    await refetchOrganizationsStatus();
-    if (!createdPendingRepoID) {
-      return;
-    }
+  const handlePendingProjectCreated = async () => {
+    await Promise.all([
+      fetchPendingRepositories(),
+      refetchOrganizationsStatus(),
+      refetchGeckoProjects(),
+      refetchAuthzMapping(),
+    ]);
     setActivePendingRepoID(null);
     setCreateModalOpen(false);
   };
@@ -1520,11 +1415,9 @@ const GitLandingPage = ({
               ) : null}
             </Stack>
           </Container>
-              {selectedOrganization ? (
+          {selectedOrganization ? (
             <CreateProjectModal
-              existingOrganizations={[
-                ...new Set([...organizationOptions, ...connectableOrganizations]),
-              ]}
+              existingOrganizations={membershipOrganizationOptions}
               existingProjectKeys={
                 new Set(
                   accessibleProjects.map(
@@ -1534,16 +1427,14 @@ const GitLandingPage = ({
               }
               onClose={() => setCreateModalOpen(false)}
               onCreated={() => {
-                void router.reload();
+                void handlePendingProjectCreated();
               }}
               opened={createModalOpen}
               organization={selectedOrganization}
             />
           ) : createModalOpen && activePendingRepository ? (
             <CreateProjectModal
-              existingOrganizations={[
-                ...new Set([...organizationOptions, ...connectableOrganizations]),
-              ]}
+              existingOrganizations={membershipOrganizationOptions}
               existingProjectKeys={
                 new Set(
                   accessibleProjects.map(
@@ -1562,8 +1453,8 @@ const GitLandingPage = ({
                 }
                 setCreateModalOpen(false);
               }}
-              onCreated={(createdPendingRepoID) => {
-                void handlePendingProjectCreated(createdPendingRepoID);
+              onCreated={() => {
+                void handlePendingProjectCreated();
               }}
               opened={createModalOpen}
               organization={activePendingRepository.organization}

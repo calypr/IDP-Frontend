@@ -17,12 +17,32 @@ declare module '@gen3/core' {
 
   export interface GeckoMutationResponse {
     readonly success: boolean;
+    readonly configured?: boolean;
     readonly error?: string;
+  }
+
+  export interface GeckoProjectStorageIntent {
+    readonly bucket: string;
+    readonly provider: string;
+    readonly endpoint?: string;
+    readonly region?: string;
+    readonly access_key?: string;
+    readonly secret_key?: string;
+    readonly organization: string;
+    readonly project_id: string;
+    readonly path?: string;
+    readonly path_prefix?: string;
+    readonly organization_sub_path?: string;
+    readonly project_sub_path?: string;
   }
 
   export interface GeckoDeleteProjectMutationArgs {
     readonly organization: string;
     readonly project: string;
+  }
+
+  export interface GeckoDeleteOrganizationMutationArgs {
+    readonly organization: string;
   }
 
   export interface GeckoGitRepositoryIdentity {
@@ -226,6 +246,7 @@ declare module '@gen3/core' {
   export function useGetGeckoProjectsQuery(): {
     data?: Array<GeckoProjectRecord>;
     isLoading: boolean;
+    refetch: () => Promise<unknown>;
   };
 
   export function useCreateGeckoProjectMutation(): [
@@ -234,6 +255,7 @@ declare module '@gen3/core' {
       organization: string;
       pendingRepoID?: string;
       project: string;
+      storage?: GeckoProjectStorageIntent;
     }) => { unwrap: () => Promise<GeckoMutationResponse> },
     { isLoading: boolean },
   ];
@@ -241,6 +263,13 @@ declare module '@gen3/core' {
   export function useDeleteGeckoProjectMutation(): [
     (
       args: GeckoDeleteProjectMutationArgs,
+    ) => { unwrap: () => Promise<GeckoMutationResponse> },
+    { isLoading: boolean },
+  ];
+
+  export function useDeleteGeckoOrganizationMutation(): [
+    (
+      args: GeckoDeleteOrganizationMutationArgs,
     ) => { unwrap: () => Promise<GeckoMutationResponse> },
     { isLoading: boolean },
   ];

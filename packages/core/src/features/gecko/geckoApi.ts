@@ -33,6 +33,9 @@ export interface GeckoProjectStorageIntent {
   readonly organization: string;
   readonly project_id: string;
   readonly path?: string;
+  readonly path_prefix?: string;
+  readonly organization_sub_path?: string;
+  readonly project_sub_path?: string;
 }
 
 export interface GeckoCreateProjectMutationArgs {
@@ -47,6 +50,24 @@ export interface GeckoDeleteProjectMutationArgs {
   readonly organization: string;
   readonly project: string;
 }
+
+const geckoErrorMessage = (data: unknown): string | undefined => {
+  if (!data || typeof data !== 'object') {
+    return typeof data === 'string' ? data : undefined;
+  }
+  const error = (data as { error?: unknown }).error;
+  if (typeof error === 'string') {
+    return error;
+  }
+  if (error && typeof error === 'object') {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === 'string') {
+      return message;
+    }
+  }
+  const message = (data as { message?: unknown }).message;
+  return typeof message === 'string' ? message : undefined;
+};
 
 export interface GeckoGitRepositoryIdentity {
   readonly host: string;
@@ -414,12 +435,10 @@ export const geckoApi = geckoTaggedApi.injectEndpoints({
         };
       },
       transformErrorResponse: (response) => {
-        const errorData = response.data as { error?: string; message?: string } | undefined;
         return {
           success: false,
           error:
-            errorData?.error ||
-            errorData?.message ||
+            geckoErrorMessage(response.data) ||
             `Failed to create project (Status: ${response.status})`,
         };
       },
@@ -438,15 +457,33 @@ export const geckoApi = geckoTaggedApi.injectEndpoints({
         success: true,
       }),
       transformErrorResponse: (response) => {
-        const errorData = response.data as
-          | { error?: string; message?: string }
-          | undefined;
         return {
           success: false,
           error:
-            errorData?.error ||
-            errorData?.message ||
+            geckoErrorMessage(response.data) ||
             `Failed to delete project (Status: ${response.status})`,
+        };
+      },
+    }),
+    deleteGeckoOrganization: builder.mutation<
+      GeckoMutationResponse,
+      { organization: string }
+    >({
+      invalidatesTags: ['GeckoProjects', 'GeckoGitProjects'],
+      query: ({ organization }) => ({
+        url: `${CALYPR_EXPLORER_CONFIG_API}/projects/${encodeURIComponent(organization)}`,
+        method: 'DELETE',
+        credentials: 'include',
+      }),
+      transformResponse: () => ({
+        success: true,
+      }),
+      transformErrorResponse: (response) => {
+        return {
+          success: false,
+          error:
+            geckoErrorMessage(response.data) ||
+            `Failed to delete organization (Status: ${response.status})`,
         };
       },
     }),
@@ -704,6 +741,7 @@ export const {
   useConnectGeckoGitOrganizationMutation,
   useCreateGeckoGitUploadSessionMutation,
   useCreateGeckoProjectMutation,
+  useDeleteGeckoOrganizationMutation,
   useDeleteGeckoProjectMutation,
   useFinalizeGeckoGitUploadSessionMutation,
   useGetGeckoGitOrganizationStatusQuery,

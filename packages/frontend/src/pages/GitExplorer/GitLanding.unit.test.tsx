@@ -26,7 +26,6 @@ jest.mock('@gen3/core', () => ({
 
     return normalized.startsWith('/') ? normalized : `/${normalized}`;
   },
-  useCreateAuthzOwnedDescendantMutation: jest.fn(),
   useConnectGeckoGitOrganizationMutation: jest.fn(),
   useCreateGeckoProjectMutation: jest.fn(),
   useGetAuthzMappingsQuery: jest.fn(),
@@ -49,7 +48,6 @@ jest.mock('../../components/Protected/ProtectedContent', () => ({
 }));
 
 const {
-  useCreateAuthzOwnedDescendantMutation,
   useConnectGeckoGitOrganizationMutation,
   useCreateGeckoProjectMutation,
   useGetAuthzMappingsQuery,
@@ -59,7 +57,6 @@ const {
   useReconcileGeckoGitPendingRepositoriesMutation,
   useUpsertSyfonBucketCredentialMutation,
 } = jest.requireMock('@gen3/core') as {
-  useCreateAuthzOwnedDescendantMutation: jest.Mock;
   useConnectGeckoGitOrganizationMutation: jest.Mock;
   useCreateGeckoProjectMutation: jest.Mock;
   useGetAuthzMappingsQuery: jest.Mock;
@@ -102,10 +99,6 @@ describe('GitLandingPage', () => {
       jest.fn(),
       { isLoading: false },
     ]);
-    useCreateAuthzOwnedDescendantMutation.mockReturnValue([
-      jest.fn(),
-      { isLoading: false },
-    ]);
     useGetGeckoGitOrganizationsStatusQuery.mockReturnValue({
       data: undefined,
       isLoading: false,
@@ -133,6 +126,17 @@ describe('GitLandingPage', () => {
   });
 
   it('renders Gecko projects grouped by organization', () => {
+    useGetAuthzMappingsQuery.mockReturnValue({
+      data: {
+        '/programs/org-a/projects': [
+          { method: 'create-descendant', service: 'arborist' },
+        ],
+        '/programs/org-b/projects': [
+          { method: 'create-descendant', service: 'arborist' },
+        ],
+      },
+      refetch: jest.fn(),
+    });
     useGetGeckoProjectsQuery.mockReturnValue({
       data: [
         { resourcePath: '/programs/org-b/projects/proj-z' },
@@ -164,10 +168,7 @@ describe('GitLandingPage', () => {
     );
 
     expect(
-      screen.getByRole('button', { name: /connect github app/i }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/0 of 2 tracked repos configured/i),
+      screen.getByRole('button', { name: /github connections/i }),
     ).toBeInTheDocument();
     expect(screen.getAllByText('org-a').length).toBeGreaterThan(0);
 
@@ -180,6 +181,14 @@ describe('GitLandingPage', () => {
   });
 
   it('filters to a single organization and searches project names', () => {
+    useGetAuthzMappingsQuery.mockReturnValue({
+      data: {
+        '/programs/org-a/projects': [
+          { method: 'create-descendant', service: 'arborist' },
+        ],
+      },
+      refetch: jest.fn(),
+    });
     useGetGeckoProjectsQuery.mockReturnValue({
       data: [
         { resourcePath: '/programs/org-b/projects/proj-z' },
@@ -231,7 +240,81 @@ describe('GitLandingPage', () => {
     );
   });
 
-  it('shows a new project action on a scoped organization page', () => {
+  it('renders an organization card from org membership even without visible projects', () => {
+    useGetAuthzMappingsQuery.mockReturnValue({
+      data: {
+        '/programs/Ellrott_Lab/projects': [
+          { method: 'create-descendant', service: 'arborist' },
+        ],
+      },
+      refetch: jest.fn(),
+    });
+    useGetGeckoProjectsQuery.mockReturnValue({
+      data: [],
+      isLoading: false,
+      refetch: jest.fn(),
+    });
+
+    render(
+      <MantineProvider>
+        <GitLandingPage {...layoutProps} />
+      </MantineProvider>,
+    );
+
+    expect(
+      screen.getByRole('button', { name: /Ellrott_Lab/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /You can manage this organization, but no project-level access is currently visible here./i,
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('renders organization cards for project-level permissions if project exists in gecko projects list', () => {
+    useGetAuthzMappingsQuery.mockReturnValue({
+      data: {
+        '/programs/aced/projects/not-visible': [
+          { method: 'manage-owners', service: 'arborist' },
+        ],
+        '/programs/Ellrott_Lab/projects': [
+          { method: 'create-descendant', service: 'arborist' },
+        ],
+      },
+      refetch: jest.fn(),
+    });
+    useGetGeckoProjectsQuery.mockReturnValue({
+      data: [
+        { resourcePath: '/programs/aced/projects/not-visible' },
+        { resourcePath: '/programs/Ellrott_Lab/projects/visible-project' },
+      ],
+      isLoading: false,
+      refetch: jest.fn(),
+    });
+
+    render(
+      <MantineProvider>
+        <GitLandingPage {...layoutProps} />
+      </MantineProvider>,
+    );
+
+    expect(
+      screen.getByRole('button', { name: /Ellrott_Lab/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /aced/i }),
+    ).toBeInTheDocument();
+  });
+
+  it('hides global GitHub actions on a scoped organization page', () => {
+    useGetAuthzMappingsQuery.mockReturnValue({
+      data: {
+        '/programs/org-a/projects': [
+          { method: 'create-descendant', service: 'arborist' },
+        ],
+      },
+      refetch: jest.fn(),
+    });
     useGetGeckoProjectsQuery.mockReturnValue({
       data: [{ resourcePath: '/programs/org-a/projects/proj-alpha' }],
       isLoading: false,
@@ -243,12 +326,12 @@ describe('GitLandingPage', () => {
       </MantineProvider>,
     );
 
-    expect(
-      screen.getByRole('button', { name: /new project/i }),
-    ).toBeInTheDocument();
     expect(screen.queryByText(/github app installed/i)).not.toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: /configure github/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /github connections/i }),
     ).not.toBeInTheDocument();
   });
 });

@@ -32,12 +32,6 @@ export type AuthzMapping = Record<string, ServiceAndMethod[]>;
 
 export type ResourceAuthzMapping = Record<string, AuthzMapping>;
 
-export interface CreateAuthzOwnedDescendantRequest {
-  parent_path: string;
-  name: string;
-  template: string;
-}
-
 export interface AuthzOwnershipBinding {
   readonly policy?: string;
   readonly resource?: string;

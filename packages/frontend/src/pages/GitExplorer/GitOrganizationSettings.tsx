@@ -36,9 +36,8 @@ import {
   useAddAuthzOwnerMutation,
   useAddAuthzOwnershipUserAccessMutation,
   useAddAuthzUserAccessMutation,
-  useDeleteAuthzResourceMutation,
+  useDeleteGeckoOrganizationMutation,
   useDeleteSyfonBucketScopeMutation,
-  useDeleteSyfonProjectMutation,
   useGetAuthzOwnershipResourceQuery,
   useGetGeckoGitOrganizationsStatusQuery,
   useGetGeckoProjectsQuery,
@@ -82,12 +81,6 @@ const actionButtonClassName =
 
 const actionIconClassName =
   'text-sky-700 transition hover:bg-sky-50 hover:text-sky-900';
-
-const joinStoragePath = (...parts: Array<string>): string =>
-  parts
-    .map((part) => part.trim().replace(/^\/+|\/+$/g, ''))
-    .filter(Boolean)
-    .join('/');
 
 const errorStatus = (error: unknown): number | undefined => {
   if (error && typeof error === 'object' && 'status' in error) {
@@ -547,21 +540,22 @@ const GitOrganizationSettingsPage = ({
     },
     { skip: !orgResourcePath || !isAuthenticated },
   );
-  const { data: gitOrganizationsStatus } = useGetGeckoGitOrganizationsStatusQuery(
-    undefined,
-    { skip: !isAuthenticated },
-  );
+  const {
+    data: gitOrganizationsStatus,
+    refetch: refetchGitOrganizationsStatus,
+  } = useGetGeckoGitOrganizationsStatusQuery(undefined, {
+    skip: !isAuthenticated,
+  });
   const [addOwner] = useAddAuthzOwnerMutation();
   const [removeOwner] = useRemoveAuthzOwnerMutation();
   const [grantOwnershipUser] = useAddAuthzOwnershipUserAccessMutation();
   const [revokeOwnershipUser] = useRemoveAuthzOwnershipUserAccessMutation();
   const [grantUser] = useAddAuthzUserAccessMutation();
   const [revokeUser] = useRemoveAuthzUserAccessMutation();
-  const [deleteAuthzResource] = useDeleteAuthzResourceMutation();
+  const [deleteGeckoOrganization] = useDeleteGeckoOrganizationMutation();
   const [deleteGeckoProject] = useDeleteGeckoProjectMutation();
   const [upsertBucket] = useUpsertSyfonBucketCredentialMutation();
   const [deleteBucketScope] = useDeleteSyfonBucketScopeMutation();
-  const [deleteSyfonProject] = useDeleteSyfonProjectMutation();
 
   const projects = useMemo(
     () =>
@@ -897,8 +891,9 @@ const GitOrganizationSettingsPage = ({
         bucket: request.bucket.trim(),
         endpoint: request.endpoint.trim() || undefined,
         organization: org,
-        path: joinStoragePath(request.org_path, request.project_path),
+        organization_sub_path: request.org_path.trim() || undefined,
         project_id: project,
+        project_sub_path: request.project_path.trim() || undefined,
         provider: request.provider.trim(),
         region: request.region.trim() || undefined,
         secret_key: request.secret_key.trim() || undefined,
@@ -945,13 +940,10 @@ const GitOrganizationSettingsPage = ({
     project: AccessibleOrganizationProject,
   ) => {
     const projectID = project.project;
-    const resourcePath = projectResourcePath(organization, projectID);
 
     setActionError(null);
 
-    await deleteSyfonProject({ organization, project_id: projectID }).unwrap();
     await deleteGeckoProject({ organization, project: projectID }).unwrap();
-    await deleteAuthzResource({ resource_path: resourcePath }).unwrap();
   };
 
   const handleDeleteProject = async () => {
@@ -966,7 +958,7 @@ const GitOrganizationSettingsPage = ({
       await purgeProjectFromCalypr(projectDeleteTarget);
       setDeletedProjectIDs(
         (current) =>
-          new Set([...current, projectDeleteTarget.project]),
+          new Set([...Array.from(current), projectDeleteTarget.project]),
       );
       setSelectedProject((current) =>
         current === projectDeleteTarget.project ? null : current,
@@ -989,10 +981,15 @@ const GitOrganizationSettingsPage = ({
       for (const project of projects) {
         await purgeProjectFromCalypr(project);
       }
-      await deleteAuthzResource({ resource_path: orgResourcePath }).unwrap();
+      await deleteGeckoOrganization({ organization }).unwrap();
+      await Promise.all([
+        refetchOwnership().catch(() => undefined),
+        refetchBuckets().catch(() => undefined),
+        refetchGitOrganizationsStatus().catch(() => undefined),
+      ]);
       setOrgDeleteOpen(false);
       setOrgDeleteConfirm('');
-      await router.push('/git');
+      window.location.assign('/git');
     } catch (error) {
       setActionError(errorMessage(error, 'Failed to delete organization.'));
     }

@@ -125,8 +125,10 @@ export interface SyfonUpsertBucketCredentialArgs {
   bucket: string;
   endpoint?: string;
   organization: string;
+  organization_sub_path?: string;
   path?: string;
   project_id: string;
+  project_sub_path?: string;
   provider?: string;
   region?: string;
   secret_key?: string;

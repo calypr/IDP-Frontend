@@ -1,12 +1,6 @@
 import '@gen3/core';
 
 declare module '@gen3/core' {
-  export interface CreateAuthzOwnedDescendantRequest {
-    parent_path: string;
-    name: string;
-    template: string;
-  }
-
   export interface DeleteAuthzResourceRequest {
     readonly resource_path: string;
   }
@@ -77,13 +71,6 @@ declare module '@gen3/core' {
     readonly include_admins?: boolean;
     readonly bindings: Array<AuthzOwnershipResourceBinding>;
   }
-
-  export function useCreateAuthzOwnedDescendantMutation(): [
-    (
-      args: CreateAuthzOwnedDescendantRequest,
-    ) => { unwrap: () => Promise<AuthzOwnershipResponse> },
-    { isLoading: boolean },
-  ];
 
   export function useDeleteAuthzResourceMutation(): [
     (args: DeleteAuthzResourceRequest) => { unwrap: () => Promise<void> },
