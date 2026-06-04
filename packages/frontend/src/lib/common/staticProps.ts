@@ -61,17 +61,17 @@ export const getNavPageLayoutPropsFromConfig = async (
       const explorerItems = appCards
         .filter((card: any) => card?.href?.toLowerCase() !== '/upload')
         .map((card: any) => {
-        const item: any = {
-          title: card.title || card.name,
-          description: card.description || '',
-          icon: card.icon || '/icons/apps/gen3_app.svg',
-          href: card.href,
-          perms: card.perms || '',
-        };
-        if (card.dynamicProps !== undefined) {
-          item.dynamicProps = card.dynamicProps;
-        }
-        return item;
+          const item: any = {
+            title: card.title || card.name,
+            description: card.description || '',
+            icon: card.icon || '/icons/apps/gen3_app.svg',
+            href: card.href,
+            perms: card.perms || '',
+          };
+          if (card.dynamicProps !== undefined) {
+            item.dynamicProps = card.dynamicProps;
+          }
+          return item;
         });
 
       // Find the Explorers item or add it if it doesn't exist
@@ -91,7 +91,7 @@ export const getNavPageLayoutPropsFromConfig = async (
           title: 'Explorers',
           description: 'Explore available applications',
           icon: '/icons/apps/gen3_app.svg',
-          href: '/Apps',
+          href: '/',
           perms: '',
           subItems: explorerItems,
         });
@@ -119,7 +119,10 @@ export const getNavPageLayoutPropsFromConfig = async (
     }
     return result;
   } catch (err: unknown) {
-    console.warn('Failed to fetch navigation configuration from microservice:', err);
+    console.warn(
+      'Failed to fetch navigation configuration from microservice:',
+      err,
+    );
     // Return minimal skeleton properties to keep page rendering possible so logic can show login modal
     return {
       headerProps: {

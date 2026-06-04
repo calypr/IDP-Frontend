@@ -1,8 +1,9 @@
 import { GetServerSideProps } from 'next';
 import { GEN3_COMMONS_NAME } from '@gen3/core';
 import { getNavPageLayoutPropsFromConfig } from '../../lib/common/staticProps';
-import ContentSource from '../../lib/content';
+import ContentSource, { microserviceDb } from '../../lib/content';
 import { type CalyprProps } from './types';
+import { type AppsProps } from '../Apps/types';
 import type { NavPageLayoutProps } from '../../features/Navigation';
 
 export const CalyprPageGetServerSideProps: GetServerSideProps<
@@ -12,7 +13,8 @@ export const CalyprPageGetServerSideProps: GetServerSideProps<
   const cookieHeader = context.req.headers.cookie;
   const authorizationHeader = context.req.headers.authorization;
   const hasAuthenticatedSession =
-    (typeof authorizationHeader === 'string' && authorizationHeader.length > 0) ||
+    (typeof authorizationHeader === 'string' &&
+      authorizationHeader.length > 0) ||
     (typeof cookieHeader === 'string' &&
       /(?:^|;\s*)(?:access_token|credentials_token)=/i.test(cookieHeader));
 
@@ -27,8 +29,12 @@ export const CalyprPageGetServerSideProps: GetServerSideProps<
     await ContentSource.getContentDatabase().get(
       `${GEN3_COMMONS_NAME}/calyprLandingPage.json`,
     );
+  const appsPageProps: AppsProps = await microserviceDb
+    .get<AppsProps>('apps_page/1', requestHeaders)
+    .catch(() => ({ appsConfig: { appCards: [] } }));
 
-  const navPageLayoutProps = await getNavPageLayoutPropsFromConfig(requestHeaders);
+  const navPageLayoutProps =
+    await getNavPageLayoutPropsFromConfig(requestHeaders);
   if (!hasAuthenticatedSession) {
     navPageLayoutProps.headerProps.topBar.items =
       navPageLayoutProps.headerProps.topBar.items.filter(
@@ -40,6 +46,9 @@ export const CalyprPageGetServerSideProps: GetServerSideProps<
     props: {
       ...navPageLayoutProps,
       calyprConfig: calyprConfig ? calyprConfig : null,
+      appsConfig: (appsPageProps as any)?.appsConfig ??
+        (appsPageProps as any) ?? { appCards: [] },
+      hasAuthenticatedSession,
     },
   };
 };

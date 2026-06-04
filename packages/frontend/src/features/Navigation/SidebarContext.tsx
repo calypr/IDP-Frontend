@@ -1,4 +1,11 @@
-import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  useEffect,
+  ReactNode,
+} from 'react';
 import { useRouter } from 'next/router';
 import { SidebarState, LeftNavBarProps } from './types';
 
@@ -8,12 +15,16 @@ interface SidebarContextType {
   buttonState: SidebarState;
   setButtonState: (state: SidebarState) => void;
   expandedItems: Record<string, boolean>;
-  setExpandedItems: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
+  setExpandedItems: React.Dispatch<
+    React.SetStateAction<Record<string, boolean>>
+  >;
   toggleSidebar: () => void;
   resizeState: SidebarState;
 }
 
 const SidebarContext = createContext<SidebarContextType | undefined>(undefined);
+const isAppHomePath = (path?: string): boolean =>
+  path === '/' || Boolean(path?.startsWith('/Apps'));
 
 export const useSidebarContext = () => {
   const context = useContext(SidebarContext);
@@ -23,14 +34,22 @@ export const useSidebarContext = () => {
   return context;
 };
 
-export const SidebarProvider = ({ children, items }: { children: ReactNode; items?: LeftNavBarProps[] }) => {
+export const SidebarProvider = ({
+  children,
+  items,
+}: {
+  children: ReactNode;
+  items?: LeftNavBarProps[];
+}) => {
   const router = useRouter();
-  const isAppsPath = router.asPath.startsWith('/Apps');
+  const isAppsPath = isAppHomePath(router.asPath);
   const [userOpened, setUserOpened] = useState(false);
   const [buttonState, setButtonState] = useState<SidebarState>(
     isAppsPath ? 'open' : 'closed',
   );
-  const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
+  const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>(
+    {},
+  );
 
   const CLOSE_BREAKPOINT = 1024;
 
@@ -84,5 +103,7 @@ export const SidebarProvider = ({ children, items }: { children: ReactNode; item
     resizeState,
   };
 
-  return <SidebarContext.Provider value={value}>{children}</SidebarContext.Provider>;
+  return (
+    <SidebarContext.Provider value={value}>{children}</SidebarContext.Provider>
+  );
 };

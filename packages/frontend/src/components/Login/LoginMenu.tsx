@@ -19,7 +19,7 @@ const filterRedirect = (redirect: string | string[] | undefined) => {
   if (Array.isArray(redirect)) {
     redirectPath = redirect[0];
   } else {
-    redirectPath = redirect ?? '/Apps';
+    redirectPath = redirect ?? '/';
   }
 
   if (/^https?:\/\//i.test(redirectPath) || redirectPath.startsWith('/')) {
@@ -77,8 +77,8 @@ const LoginMenu = ({
           zIndex={zIndex}
         />
       ) : frontBanner ? (
-        <UnstyledButton className="mx-2" onClick={() => router.push('/Apps')}>
-          <div className={classNames.label}> To Apps Page </div>
+        <UnstyledButton className="mx-2" onClick={() => router.push('/')}>
+          <div className={classNames.label}> Open CALYPR </div>
         </UnstyledButton>
       ) : (
         <UserNavigationMenu classNames={classNames} />

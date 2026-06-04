@@ -2,9 +2,7 @@ import React, { ReactNode, useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { useSession } from '../../lib/session/session';
 import { Loader, Text } from '@mantine/core';
-import {
-  type JWTSessionStatus,
-} from '@gen3/core';
+import { type JWTSessionStatus } from '@gen3/core';
 import { LoginView } from '../Modals/LoginModal';
 
 import Custom403Page from '../../pages/403/Custom403Page';
@@ -14,17 +12,25 @@ export interface ProtectedContentProps {
   errorStatus?: number;
 }
 
-
 import { useGetAuthzMappingsQuery } from '@gen3/core';
 import { useHasAccess, NoAccessOverlay } from './NoAccessOverlay';
 
 import { VerifyingAccessLoader } from './VerifyingAccessLoader';
 export { VerifyingAccessLoader };
 
-const AccessGate = ({ children, errorStatus, onBlocked }: ProtectedContentProps & { onBlocked: () => void }) => {
+const isAppHomePath = (path?: string): boolean =>
+  path === '/' || Boolean(path?.startsWith('/Apps'));
+
+const AccessGate = ({
+  children,
+  errorStatus,
+  onBlocked,
+}: ProtectedContentProps & { onBlocked: () => void }) => {
   const router = useRouter();
-  const { data: authzMapping = {}, isLoading: isAuthZLoading } = useGetAuthzMappingsQuery();
-  const { hasAccess, isLoading: isFileCountLoading } = useHasAccess(authzMapping);
+  const { data: authzMapping = {}, isLoading: isAuthZLoading } =
+    useGetAuthzMappingsQuery();
+  const { hasAccess, isLoading: isFileCountLoading } =
+    useHasAccess(authzMapping);
 
   useEffect(() => {
     if (!isAuthZLoading && !isFileCountLoading) {
@@ -37,7 +43,7 @@ const AccessGate = ({ children, errorStatus, onBlocked }: ProtectedContentProps 
   }, [hasAccess, isAuthZLoading, isFileCountLoading, onBlocked]);
 
   if (isAuthZLoading || isFileCountLoading) {
-    if (router.pathname.startsWith('/Apps')) {
+    if (isAppHomePath(router.pathname)) {
       return <VerifyingAccessLoader />;
     }
     return null;
@@ -86,7 +92,7 @@ const ProtectedContent = ({ children, errorStatus }: ProtectedContentProps) => {
   }
 
   if (pending) {
-    if (router.pathname.startsWith('/Apps')) {
+    if (isAppHomePath(router.pathname)) {
       return <VerifyingAccessLoader />;
     }
     return null;

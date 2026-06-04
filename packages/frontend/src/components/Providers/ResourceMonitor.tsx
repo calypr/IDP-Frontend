@@ -16,6 +16,7 @@ import {
 import { notifications } from '@mantine/notifications';
 import { useDeepCompareEffect } from 'use-deep-compare';
 import { convertSecondsToMilliseconds } from '../../utils';
+import { WORKSPACES_ENABLED } from '../../features/Workspace/config';
 
 
 enum NotificationStatus {
@@ -73,6 +74,7 @@ const workspaceShutdownAlertLimit = 30000; // 5 minutes: 5 * 60 * 1000 TODO Figu
  */
 
 export const useWorkspaceResourceMonitor = (monitorWorkspace: boolean) => {
+  const workspaceMonitoringEnabled = monitorWorkspace && WORKSPACES_ENABLED;
   const [pollingInterval, setPollingInterval] = useState<number>(0);
   const [paymentPollingInterval, setPaymentPollingInterval] =
     useState<number>(0);
@@ -80,7 +82,7 @@ export const useWorkspaceResourceMonitor = (monitorWorkspace: boolean) => {
     data: workspaceStatusData,
     isError: isWorkspaceStatusError,
     error: workspaceStatusError,
-  } = useGetWorkspaceStatusQuery(undefined, monitorWorkspace ? {
+  } = useGetWorkspaceStatusQuery(undefined, workspaceMonitoringEnabled ? {
     pollingInterval: pollingInterval,
     refetchOnMountOrArgChange: 1800,
     refetchOnFocus: true,
@@ -92,7 +94,7 @@ export const useWorkspaceResourceMonitor = (monitorWorkspace: boolean) => {
     data: paymentModelData,
     isError: isPaymentModelError,
     error: paymentModelError,
-  } = useGetWorkspacePayModelsQuery(undefined,  monitorWorkspace ?  {
+  } = useGetWorkspacePayModelsQuery(undefined, workspaceMonitoringEnabled ?  {
     pollingInterval: paymentPollingInterval,
     refetchOnMountOrArgChange: true,
   } : { skip: true });

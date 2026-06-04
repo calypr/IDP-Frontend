@@ -29,6 +29,7 @@ describe('syfon utils', () => {
 
     expect(buckets).toEqual([
       {
+        bucket: 'bucket-a',
         endpointUrl: 'https://s3.example.org',
         name: 'bucket-a',
         programs: ['/programs/org-a/projects/project-a', '/programs/org-a'],
@@ -46,7 +47,13 @@ describe('syfon utils', () => {
     expect(normalizeSyfonResourcePath('/programs/org/projects/proj')).toBe(
       '/programs/org/projects/proj',
     );
+    expect(normalizeSyfonResourcePath('/organization/org/project/proj')).toBe(
+      '/programs/org/projects/proj',
+    );
     expect(normalizeSyfonResourcePath('https://calypr.org/programs/org/projects/proj')).toBe(
+      '/programs/org/projects/proj',
+    );
+    expect(normalizeSyfonResourcePath('https://calypr.org/organization/org/project/proj')).toBe(
       '/programs/org/projects/proj',
     );
     expect(normalizeSyfonResourcePath('org')).toBe('/programs/org');
@@ -97,6 +104,30 @@ describe('syfon utils', () => {
     );
 
     expect(bucket.name).toBe('org-bucket');
+  });
+
+  it('normalizes canonical organization/project bucket metadata before scope matching', () => {
+    const bucket = resolveSyfonBucketForScope(
+      [
+        {
+          endpointUrl: undefined,
+          name: 'project-bucket',
+          programs: ['/organization/o/project/p'],
+          provider: undefined,
+          region: undefined,
+          resources: normalizeSyfonBuckets({
+            S3_BUCKETS: {
+              'project-bucket': {
+                programs: ['/organization/o/project/p'],
+              },
+            },
+          })[0].resources,
+        },
+      ],
+      { organization: 'o', projectId: 'p' },
+    );
+
+    expect(bucket.name).toBe('project-bucket');
   });
 
   it('errors on ambiguous or missing scope matches', () => {

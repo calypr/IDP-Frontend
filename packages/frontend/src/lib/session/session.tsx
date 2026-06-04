@@ -30,8 +30,11 @@ import { Center, Loader, Text } from '@mantine/core';
 import { MinutesToMilliseconds } from '../../utils';
 import { useWorkspaceResourceMonitor } from '../../components/Providers/ResourceMonitor';
 import { VerifyingAccessLoader } from '../../components/Protected/VerifyingAccessLoader';
+import { WORKSPACES_ENABLED } from '../../features/Workspace/config';
 
 const ACTIVITY_CHANNEL = 'gen3-user-activity';
+const isAppHomePath = (path?: string): boolean =>
+  path === '/' || Boolean(path?.startsWith('/Apps'));
 
 export const logoutSession = async () => {
   // logged in using credentials then execute credentials logout first
@@ -177,14 +180,14 @@ export const SessionProvider = ({
   inactiveTimeLimit = 1440,
   workspaceInactivityTimeLimit = 0,
   logoutInactiveUsers = true,
-  monitorWorkspace = true,
+  monitorWorkspace = false,
 }: SessionProviderProps) => {
   const router = useRouter();
   const coreDispatch = useCoreDispatch();
 
   const { isSuccess: isGetCSRFSuccess, isError: isGetCSRFError } =
     useGetCSRFQuery();
-  useWorkspaceResourceMonitor(monitorWorkspace); // monitor workspaces if any are running or configured
+  useWorkspaceResourceMonitor(monitorWorkspace && WORKSPACES_ENABLED); // monitor workspaces if explicitly enabled
 
   const [getUserDetails, { isLoading: isUserDetailsLoading }] =
     useLazyFetchUserDetailsQuery(); // Fetch user details
@@ -381,7 +384,7 @@ export const SessionProvider = ({
       </SessionContext.Provider>
     );
 
-  if (router.pathname.startsWith('/Apps')) {
+  if (isAppHomePath(router.pathname)) {
     return <VerifyingAccessLoader />;
   }
 

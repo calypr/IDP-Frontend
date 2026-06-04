@@ -31,8 +31,8 @@ jest.mock('@gen3/core', () => ({
   useGetAuthzMappingsQuery: jest.fn(),
   useGetGeckoGitOrganizationsStatusQuery: jest.fn(),
   useGetGeckoProjectsQuery: jest.fn(),
-  useLazyGetGeckoGitPendingRepositoriesQuery: jest.fn(),
-  useReconcileGeckoGitPendingRepositoriesMutation: jest.fn(),
+  useReconcileGeckoGitOrganizationsMutation: jest.fn(),
+  useUpdateGeckoProjectStorageMutation: jest.fn(),
   useUpsertSyfonBucketCredentialMutation: jest.fn(),
 }));
 
@@ -53,8 +53,8 @@ const {
   useGetAuthzMappingsQuery,
   useGetGeckoGitOrganizationsStatusQuery,
   useGetGeckoProjectsQuery,
-  useLazyGetGeckoGitPendingRepositoriesQuery,
-  useReconcileGeckoGitPendingRepositoriesMutation,
+  useReconcileGeckoGitOrganizationsMutation,
+  useUpdateGeckoProjectStorageMutation,
   useUpsertSyfonBucketCredentialMutation,
 } = jest.requireMock('@gen3/core') as {
   useConnectGeckoGitOrganizationMutation: jest.Mock;
@@ -62,8 +62,8 @@ const {
   useGetAuthzMappingsQuery: jest.Mock;
   useGetGeckoGitOrganizationsStatusQuery: jest.Mock;
   useGetGeckoProjectsQuery: jest.Mock;
-  useLazyGetGeckoGitPendingRepositoriesQuery: jest.Mock;
-  useReconcileGeckoGitPendingRepositoriesMutation: jest.Mock;
+  useReconcileGeckoGitOrganizationsMutation: jest.Mock;
+  useUpdateGeckoProjectStorageMutation: jest.Mock;
   useUpsertSyfonBucketCredentialMutation: jest.Mock;
 };
 
@@ -96,7 +96,9 @@ const layoutProps = {
 describe('GitLandingPage', () => {
   beforeEach(() => {
     useConnectGeckoGitOrganizationMutation.mockReturnValue([
-      jest.fn(),
+      jest.fn(() => ({
+        unwrap: jest.fn().mockResolvedValue({ redirect_url: '/git' }),
+      })),
       { isLoading: false },
     ]);
     useGetGeckoGitOrganizationsStatusQuery.mockReturnValue({
@@ -109,13 +111,15 @@ describe('GitLandingPage', () => {
       { isLoading: false },
     ]);
     useGetAuthzMappingsQuery.mockReturnValue({ data: {} });
-    useLazyGetGeckoGitPendingRepositoriesQuery.mockReturnValue([
-      jest.fn().mockResolvedValue({}),
-      { data: undefined, isLoading: false },
-    ]);
-    useReconcileGeckoGitPendingRepositoriesMutation.mockReturnValue([
+    useReconcileGeckoGitOrganizationsMutation.mockReturnValue([
       jest.fn(() => ({
-        unwrap: jest.fn().mockResolvedValue({ pending: [] }),
+        unwrap: jest.fn().mockResolvedValue({ organizations: [] }),
+      })),
+      { isLoading: false },
+    ]);
+    useUpdateGeckoProjectStorageMutation.mockReturnValue([
+      jest.fn(() => ({
+        unwrap: jest.fn().mockResolvedValue({ success: true }),
       })),
       { isLoading: false },
     ]);
@@ -168,7 +172,7 @@ describe('GitLandingPage', () => {
     );
 
     expect(
-      screen.getByRole('button', { name: /github connections/i }),
+      screen.getByRole('button', { name: /refresh connections/i }),
     ).toBeInTheDocument();
     expect(screen.getAllByText('org-a').length).toBeGreaterThan(0);
 
@@ -301,9 +305,7 @@ describe('GitLandingPage', () => {
     expect(
       screen.getByRole('button', { name: /Ellrott_Lab/i }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: /aced/i }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /aced/i })).toBeInTheDocument();
   });
 
   it('hides global GitHub actions on a scoped organization page', () => {

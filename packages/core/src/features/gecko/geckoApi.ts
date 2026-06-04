@@ -1,10 +1,15 @@
 import type { Middleware, Reducer } from '@reduxjs/toolkit';
-import { CALYPR_EXPLORER_CONFIG_API } from '../../constants';
+import type { FetchBaseQueryError } from '@reduxjs/toolkit/query';
+import { CALYPR_EXPLORER_CONFIG_API, GEN3_API } from '../../constants';
+import { CoreState } from '../../reducers';
 import { resourcePathFromProjectID } from '../submission/authMappingUtils';
 import { gen3Api } from '../gen3';
+import { selectCSRFToken } from '../user/userSliceRTK';
+import { getCookie } from 'cookies-next';
 
 export interface GeckoProjectRecord {
   readonly resourcePath: string;
+  readonly configData?: GeckoProjectConfig;
 }
 
 export interface GeckoProjectConfig {
@@ -21,6 +26,12 @@ export interface GeckoMutationResponse {
   readonly success: boolean;
   readonly configured?: boolean;
   readonly error?: string;
+}
+
+export interface GeckoIntegrationCheck {
+  readonly pass: boolean;
+  readonly reason?: string;
+  readonly details?: string;
 }
 
 export interface GeckoProjectStorageIntent {
@@ -42,11 +53,38 @@ export interface GeckoCreateProjectMutationArgs {
   readonly configData: GeckoProjectConfig;
   readonly organization: string;
   readonly project: string;
-  readonly pendingRepoID?: string;
   readonly storage?: GeckoProjectStorageIntent;
 }
 
+export interface GeckoUpdateProjectStorageMutationArgs {
+  readonly organization: string;
+  readonly project: string;
+  readonly storage: GeckoProjectStorageIntent;
+}
+
+export interface GeckoUpdateProjectMutationArgs {
+  readonly organization: string;
+  readonly project: string;
+  readonly configData: GeckoProjectConfig;
+}
+
 export interface GeckoDeleteProjectMutationArgs {
+  readonly organization: string;
+  readonly project: string;
+}
+
+export interface GeckoProjectThumbnail {
+  readonly data_url: string;
+  readonly content_type: string;
+}
+
+export interface GeckoUploadProjectThumbnailMutationArgs {
+  readonly organization: string;
+  readonly project: string;
+  readonly file: File;
+}
+
+export interface GeckoDeleteProjectThumbnailMutationArgs {
   readonly organization: string;
   readonly project: string;
 }
@@ -99,7 +137,6 @@ export interface GeckoGitProjectStatus {
 
 export interface GeckoGitOrganizationConnectResponse {
   readonly redirect_url: string;
-  readonly setup_session_id?: string;
 }
 
 export interface GeckoGitRepositoryInstallationStatus {
@@ -113,8 +150,13 @@ export interface GeckoGitRepositoryInstallationStatus {
 export interface GeckoGitOrganizationProjectStatus {
   readonly project_id: string;
   readonly project: string;
+  readonly resource_path?: string;
   readonly repository: GeckoGitRepositoryIdentity;
   readonly configured: boolean;
+  readonly integrations?: {
+    readonly github: GeckoIntegrationCheck;
+    readonly storage: GeckoIntegrationCheck;
+  };
   readonly installation: GeckoGitRepositoryInstallationStatus;
 }
 
@@ -130,29 +172,6 @@ export interface GeckoGitOrganizationStatus {
   readonly configured_projects: number;
   readonly total_projects: number;
   readonly projects: Array<GeckoGitOrganizationProjectStatus>;
-}
-
-export interface GeckoGitPendingRepository {
-  readonly id: string;
-  readonly installation_id: number;
-  readonly setup_session_id?: string;
-  readonly created_by_user_id?: string;
-  readonly organization: string;
-  readonly repo_id: number;
-  readonly repo_name: string;
-  readonly repo_full_name: string;
-  readonly repo_html_url?: string;
-  readonly repo_clone_url?: string;
-  readonly repo_host: string;
-  readonly repo_owner: string;
-  readonly repo_path: string;
-  readonly added_at: string;
-}
-
-export interface GeckoGitPendingRepositoriesResponse {
-  readonly installation_id?: number;
-  readonly setup_session_id?: string;
-  readonly pending: Array<GeckoGitPendingRepository>;
 }
 
 export interface GeckoGitOrganizationsStatus {
@@ -343,6 +362,48 @@ const toProjectScopedResourcePath = (value: string): string => {
   return resourcePathFromProjectID(trimmed);
 };
 
+const geckoRequestHeaders = (getState: () => unknown): Headers => {
+  const headers = new Headers();
+  const csrfToken = selectCSRFToken(getState() as CoreState);
+  if (csrfToken) {
+    headers.set('X-CSRF-Token', csrfToken);
+  }
+  if (process.env.NODE_ENV === 'development') {
+    const accessToken = getCookie('credentials_token');
+    if (accessToken) {
+      headers.set('Authorization', `Bearer ${accessToken}`);
+    }
+  }
+  return headers;
+};
+
+const blobToDataURL = async (blob: Blob): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () =>
+      reject(reader.error || new Error('Failed to read thumbnail blob.'));
+    reader.onload = () =>
+      resolve(typeof reader.result === 'string' ? reader.result : '');
+    reader.readAsDataURL(blob);
+  });
+
+const responseErrorMessage = async (response: Response): Promise<string> => {
+  const text = await response.text();
+  return (
+    geckoErrorMessage(text) ||
+    text ||
+    `Request failed with status ${response.status}`
+  );
+};
+
+const geckoFetchBaseQueryError = (
+  status: number,
+  message: string,
+): FetchBaseQueryError => ({
+  data: { error: message },
+  status,
+});
+
 export const normalizeGeckoProjectRecord = (
   value: unknown,
 ): GeckoProjectRecord | null => {
@@ -356,24 +417,30 @@ export const normalizeGeckoProjectRecord = (
   }
 
   const candidate = value as {
+    configData?: unknown;
     id?: unknown;
     projectId?: unknown;
     resourcePath?: unknown;
   };
 
+  const configData =
+    candidate.configData && typeof candidate.configData === 'object'
+      ? (candidate.configData as GeckoProjectConfig)
+      : undefined;
+
   if (typeof candidate.resourcePath === 'string' && candidate.resourcePath) {
     const resourcePath = toProjectScopedResourcePath(candidate.resourcePath);
-    return resourcePath ? { resourcePath } : null;
+    return resourcePath ? { resourcePath, configData } : null;
   }
 
   if (typeof candidate.projectId === 'string' && candidate.projectId) {
     const resourcePath = toProjectScopedResourcePath(candidate.projectId);
-    return resourcePath ? { resourcePath } : null;
+    return resourcePath ? { resourcePath, configData } : null;
   }
 
   if (typeof candidate.id === 'string' && candidate.id) {
     const resourcePath = toProjectScopedResourcePath(candidate.id);
-    return resourcePath ? { resourcePath } : null;
+    return resourcePath ? { resourcePath, configData } : null;
   }
 
   return null;
@@ -396,42 +463,26 @@ export const geckoApi = geckoTaggedApi.injectEndpoints({
         Array.isArray(response)
           ? response
               .map(normalizeGeckoProjectRecord)
-              .filter(
-                (record): record is GeckoProjectRecord => record !== null,
-              )
+              .filter((record): record is GeckoProjectRecord => record !== null)
           : [],
     }),
     createGeckoProject: builder.mutation<
       GeckoMutationResponse,
       GeckoCreateProjectMutationArgs
     >({
-      query: ({ configData, organization, project, pendingRepoID, storage }) => ({
+      invalidatesTags: ['GeckoProjects', 'GeckoGitProjects'],
+      query: ({ configData, organization, project, storage }) => ({
         url: `/gecko/git/projects/${encodeURIComponent(organization)}/${encodeURIComponent(project)}/setup`,
         method: 'PUT',
         body: {
           config: configData,
-          pending_repo_id: pendingRepoID,
           storage,
         },
         credentials: 'include',
       }),
-      transformResponse: (response: { configured?: boolean; readiness?: { git?: { details?: string; reason?: string }; syfon?: { details?: string; reason?: string }; config?: { details?: string; reason?: string } } }) => {
-        const configured = response?.configured === true;
-        let error: string | undefined;
-        if (!configured) {
-          const reasons = [
-            response?.readiness?.config?.details || response?.readiness?.config?.reason,
-            response?.readiness?.git?.details || response?.readiness?.git?.reason,
-            response?.readiness?.syfon?.details || response?.readiness?.syfon?.reason,
-          ]
-            .filter((value): value is string => Boolean(value))
-            .filter((value, index, all) => all.indexOf(value) === index);
-          error = reasons.length > 0 ? reasons.join(' | ') : 'Project setup incomplete';
-        }
+      transformResponse: () => {
         return {
-          success: configured,
-          configured,
-          error,
+          success: true,
         };
       },
       transformErrorResponse: (response) => {
@@ -442,6 +493,153 @@ export const geckoApi = geckoTaggedApi.injectEndpoints({
             `Failed to create project (Status: ${response.status})`,
         };
       },
+    }),
+    updateGeckoProjectStorage: builder.mutation<
+      GeckoMutationResponse,
+      GeckoUpdateProjectStorageMutationArgs
+    >({
+      invalidatesTags: ['GeckoGitProjects'],
+      query: ({ organization, project, storage }) => ({
+        url: `/gecko/git/projects/${encodeURIComponent(organization)}/${encodeURIComponent(project)}/storage`,
+        method: 'PUT',
+        body: { storage },
+        credentials: 'include',
+      }),
+      transformResponse: () => ({
+        success: true,
+      }),
+      transformErrorResponse: (response) => ({
+        success: false,
+        error:
+          geckoErrorMessage(response.data) ||
+          `Failed to update project storage (Status: ${response.status})`,
+      }),
+    }),
+    updateGeckoProject: builder.mutation<
+      GeckoMutationResponse,
+      GeckoUpdateProjectMutationArgs
+    >({
+      invalidatesTags: ['GeckoProjects', 'GeckoGitProjects'],
+      query: ({ organization, project, configData }) => ({
+        url: `${CALYPR_EXPLORER_CONFIG_API}/projects/${encodeURIComponent(organization)}/${encodeURIComponent(project)}`,
+        method: 'PUT',
+        body: configData,
+        credentials: 'include',
+      }),
+      transformResponse: () => ({
+        success: true,
+      }),
+      transformErrorResponse: (response) => ({
+        success: false,
+        error:
+          geckoErrorMessage(response.data) ||
+          `Failed to update project (Status: ${response.status})`,
+      }),
+    }),
+    getGeckoProjectThumbnail: builder.query<
+      GeckoProjectThumbnail | null,
+      { organization: string; project: string }
+    >({
+      async queryFn({ organization, project }, { getState }) {
+        const response = await fetch(
+          `${GEN3_API}${buildGitProjectApiPath(organization, project, '/thumbnail')}`,
+          {
+            credentials: 'include',
+            headers: geckoRequestHeaders(getState),
+            method: 'GET',
+          },
+        );
+        if (response.status === 404) {
+          return { data: null };
+        }
+        if (!response.ok) {
+          return {
+            error: geckoFetchBaseQueryError(
+              response.status,
+              await responseErrorMessage(response),
+            ),
+          };
+        }
+        const blob = await response.blob();
+        return {
+          data: {
+            content_type:
+              response.headers.get('content-type') || blob.type || 'image/*',
+            data_url: await blobToDataURL(blob),
+          },
+        };
+      },
+      providesTags: (_result, _error, { organization, project }) => [
+        {
+          type: 'GeckoGitProjects',
+          id: `thumbnail:${organization}/${project}`,
+        },
+      ],
+    }),
+    uploadGeckoProjectThumbnail: builder.mutation<
+      GeckoMutationResponse,
+      GeckoUploadProjectThumbnailMutationArgs
+    >({
+      async queryFn({ organization, project, file }, { getState }) {
+        const formData = new FormData();
+        formData.append('thumbnail', file);
+        const response = await fetch(
+          `${GEN3_API}${buildGitProjectApiPath(organization, project, '/thumbnail')}`,
+          {
+            body: formData,
+            credentials: 'include',
+            headers: geckoRequestHeaders(getState),
+            method: 'PUT',
+          },
+        );
+        if (!response.ok) {
+          return {
+            error: geckoFetchBaseQueryError(
+              response.status,
+              await responseErrorMessage(response),
+            ),
+          };
+        }
+        return { data: { success: true } };
+      },
+      invalidatesTags: (_result, _error, { organization, project }) => [
+        'GeckoGitProjects',
+        {
+          type: 'GeckoGitProjects',
+          id: `thumbnail:${organization}/${project}`,
+        },
+      ],
+    }),
+    deleteGeckoProjectThumbnail: builder.mutation<
+      GeckoMutationResponse,
+      GeckoDeleteProjectThumbnailMutationArgs
+    >({
+      async queryFn({ organization, project }, { getState }) {
+        const response = await fetch(
+          `${GEN3_API}${buildGitProjectApiPath(organization, project, '/thumbnail')}`,
+          {
+            credentials: 'include',
+            headers: geckoRequestHeaders(getState),
+            method: 'DELETE',
+          },
+        );
+        if (!response.ok) {
+          return {
+            error: geckoFetchBaseQueryError(
+              response.status,
+              await responseErrorMessage(response),
+            ),
+          };
+        }
+        return { data: { success: true } };
+      },
+      invalidatesTags: (_result, _error, { organization, project }) => [
+        'GeckoGitProjects',
+        {
+          type: 'GeckoGitProjects',
+          id: `thumbnail:${organization}/${project}`,
+        },
+      ],
     }),
     deleteGeckoProject: builder.mutation<
       GeckoMutationResponse,
@@ -512,39 +710,6 @@ export const geckoApi = geckoTaggedApi.injectEndpoints({
       query: () => ({
         url: '/gecko/git/organizations/status',
         method: 'GET',
-        credentials: 'include',
-      }),
-    }),
-    getGeckoGitPendingRepositories: builder.query<
-      GeckoGitPendingRepositoriesResponse,
-      { installationID?: number; setupSessionID?: string } | void
-    >({
-      query: (args) => {
-        const params = new URLSearchParams();
-        if (args?.installationID) {
-          params.set('installation_id', String(args.installationID));
-        }
-        if (args?.setupSessionID) {
-          params.set('setup_session_id', args.setupSessionID);
-        }
-        return {
-          url: `/gecko/git/pending${params.toString() ? `?${params.toString()}` : ''}`,
-          method: 'GET',
-          credentials: 'include',
-        };
-      },
-    }),
-    reconcileGeckoGitPendingRepositories: builder.mutation<
-      GeckoGitPendingRepositoriesResponse,
-      { installationID: number; setupSessionID?: string }
-    >({
-      query: ({ installationID, setupSessionID }) => ({
-        url: '/gecko/git/pending/reconcile',
-        method: 'POST',
-        body: {
-          installation_id: installationID,
-          setup_session_id: setupSessionID,
-        },
         credentials: 'include',
       }),
     }),
@@ -741,13 +906,13 @@ export const {
   useConnectGeckoGitOrganizationMutation,
   useCreateGeckoGitUploadSessionMutation,
   useCreateGeckoProjectMutation,
+  useDeleteGeckoProjectThumbnailMutation,
   useDeleteGeckoOrganizationMutation,
   useDeleteGeckoProjectMutation,
   useFinalizeGeckoGitUploadSessionMutation,
   useGetGeckoGitOrganizationStatusQuery,
   useGetGeckoGitOrganizationsStatusQuery,
-  useGetGeckoGitPendingRepositoriesQuery,
-  useLazyGetGeckoGitPendingRepositoriesQuery,
+  useGetGeckoProjectThumbnailQuery,
   useLazyGetGeckoGitProjectFileQuery,
   useGetGeckoGitUploadSessionQuery,
   useAttachGeckoGitUploadSessionFilesMutation,
@@ -757,7 +922,9 @@ export const {
   useGetGeckoGitProjectTreeQuery,
   useGetGeckoGitProjectsQuery,
   useGetGeckoProjectsQuery,
-  useReconcileGeckoGitPendingRepositoriesMutation,
+  useUpdateGeckoProjectMutation,
+  useUpdateGeckoProjectStorageMutation,
+  useUploadGeckoProjectThumbnailMutation,
   useReconcileGeckoGitOrganizationMutation,
   useReconcileGeckoGitOrganizationsMutation,
   useRefreshGeckoGitProjectMutation,

@@ -7,6 +7,16 @@ import {
 
 const CANONICAL_ORGANIZATION_SEGMENT = 'programs';
 const CANONICAL_PROJECT_SEGMENT = 'projects';
+const ORGANIZATION_SEGMENT_ALIASES = new Set([
+  'organization',
+  'organizations',
+  'program',
+  CANONICAL_ORGANIZATION_SEGMENT,
+]);
+const PROJECT_SEGMENT_ALIASES = new Set([
+  'project',
+  CANONICAL_PROJECT_SEGMENT,
+]);
 const CALYPR_NAMESPACE_UUID = '468a0e14-baa7-3c83-8e2a-8747811465da';
 const S3_PROVIDER = 's3';
 const GCS_PROVIDER = 'gcs';
@@ -146,8 +156,8 @@ export const normalizeSyfonResourcePath = (resource: string): string => {
 
   const [head, organization, relation, projectId] = segments;
 
-  if (head === CANONICAL_ORGANIZATION_SEGMENT && organization) {
-    if (relation === CANONICAL_PROJECT_SEGMENT && projectId) {
+  if (ORGANIZATION_SEGMENT_ALIASES.has(head) && organization) {
+    if (PROJECT_SEGMENT_ALIASES.has(relation) && projectId) {
       return `/${CANONICAL_ORGANIZATION_SEGMENT}/${organization}/${CANONICAL_PROJECT_SEGMENT}/${projectId}`;
     }
 

@@ -57,6 +57,7 @@ import BrowserPage from './pages/Browser';
 import { BrowserPageGetServerSideProps } from './pages/Browser';
 import {
   GitExplorerPageGetServerSideProps,
+  GitHubReturnPage,
   GitLandingPage,
   GitOrganizationSettingsPage,
   GitProjectFilePage,
@@ -211,6 +212,7 @@ export {
   BrowserPage,
   BrowserPageGetServerSideProps,
   GitLandingPage,
+  GitHubReturnPage,
   GitOrganizationSettingsPage,
   GitProjectFilePage,
   GitProjectPage,

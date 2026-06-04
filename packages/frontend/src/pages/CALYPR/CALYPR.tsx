@@ -6,13 +6,18 @@ import {
   Button,
   Divider,
   Image,
+  Center,
+  Loader,
 } from '@mantine/core';
 import { CalyprLandingPageProps } from './types';
 import { LandingPageProps } from '../../components/Content/LandingPageContent';
 import { NavPageLayout } from '../../features/Navigation';
 import LoginMenu from '../../components/Login/LoginMenu';
+import AppsPage from '../Apps/Apps';
+import { AppsProps } from '../Apps/types';
+import { useSession } from '../../lib/session/session';
 
-interface Props extends CalyprLandingPageProps {
+interface Props extends CalyprLandingPageProps, AppsProps {
   landingPage: LandingPageProps;
 }
 
@@ -46,7 +51,37 @@ const BannerPanel = ({
     </div>
   );
 };
-const CalyprPage = ({ headerProps, footerProps }: Props) => {
+const CalyprPage = ({
+  headerProps,
+  footerProps,
+  appsConfig,
+  hasAuthenticatedSession = false,
+}: Props) => {
+  const session = useSession(false);
+  const shouldShowAuthenticatedHome =
+    hasAuthenticatedSession || session.status === 'issued';
+
+  if (session.pending && !shouldShowAuthenticatedHome) {
+    return (
+      <NavPageLayout
+        {...{ headerProps, footerProps }}
+        headerMetadata={{
+          title: 'CALYPR Home',
+          content: 'Loading home page',
+          key: 'calypr-home-loading',
+        }}
+      >
+        <Center className="min-h-[60vh]">
+          <Loader />
+        </Center>
+      </NavPageLayout>
+    );
+  }
+
+  if (shouldShowAuthenticatedHome) {
+    return <AppsPage {...{ headerProps, footerProps, appsConfig }} />;
+  }
+
   return (
     <NavPageLayout
       {...{ headerProps, footerProps }}

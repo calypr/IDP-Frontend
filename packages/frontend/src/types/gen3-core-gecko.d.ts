@@ -3,6 +3,7 @@ import '@gen3/core';
 declare module '@gen3/core' {
   export interface GeckoProjectRecord {
     readonly resourcePath: string;
+    readonly configData?: GeckoProjectConfig;
   }
 
   export interface GeckoProjectConfig {
@@ -41,8 +42,36 @@ declare module '@gen3/core' {
     readonly project: string;
   }
 
+  export interface GeckoUpdateProjectStorageMutationArgs {
+    readonly organization: string;
+    readonly project: string;
+    readonly storage: GeckoProjectStorageIntent;
+  }
+
+  export interface GeckoProjectThumbnail {
+    readonly data_url: string;
+    readonly content_type: string;
+  }
+
+  export interface GeckoUploadProjectThumbnailMutationArgs {
+    readonly organization: string;
+    readonly project: string;
+    readonly file: File;
+  }
+
+  export interface GeckoDeleteProjectThumbnailMutationArgs {
+    readonly organization: string;
+    readonly project: string;
+  }
+
   export interface GeckoDeleteOrganizationMutationArgs {
     readonly organization: string;
+  }
+
+  export interface GeckoUpdateProjectMutationArgs {
+    readonly organization: string;
+    readonly project: string;
+    readonly configData: GeckoProjectConfig;
   }
 
   export interface GeckoGitRepositoryIdentity {
@@ -92,8 +121,21 @@ declare module '@gen3/core' {
   export interface GeckoGitOrganizationProjectStatus {
     readonly project_id: string;
     readonly project: string;
+    readonly resource_path?: string;
     readonly repository: GeckoGitRepositoryIdentity;
     readonly configured: boolean;
+    readonly integrations?: {
+      readonly github: {
+        readonly pass: boolean;
+        readonly reason?: string;
+        readonly details?: string;
+      };
+      readonly storage: {
+        readonly pass: boolean;
+        readonly reason?: string;
+        readonly details?: string;
+      };
+    };
     readonly installation: GeckoGitRepositoryInstallationStatus;
   }
 
@@ -109,29 +151,6 @@ declare module '@gen3/core' {
     readonly configured_projects: number;
     readonly total_projects: number;
     readonly projects: Array<GeckoGitOrganizationProjectStatus>;
-  }
-
-  export interface GeckoGitPendingRepository {
-    readonly id: string;
-    readonly installation_id: number;
-    readonly setup_session_id?: string;
-    readonly created_by_user_id?: string;
-    readonly organization: string;
-    readonly repo_id: number;
-    readonly repo_name: string;
-    readonly repo_full_name: string;
-    readonly repo_html_url?: string;
-    readonly repo_clone_url?: string;
-    readonly repo_host: string;
-    readonly repo_owner: string;
-    readonly repo_path: string;
-    readonly added_at: string;
-  }
-
-  export interface GeckoGitPendingRepositoriesResponse {
-    readonly installation_id?: number;
-    readonly setup_session_id?: string;
-    readonly pending: Array<GeckoGitPendingRepository>;
   }
 
   export interface GeckoGitOrganizationsStatus {
@@ -249,28 +268,70 @@ declare module '@gen3/core' {
     refetch: () => Promise<unknown>;
   };
 
+  export function useGetGeckoGitProjectsQuery(): {
+    data?: Array<GeckoGitProjectStatus>;
+    isLoading: boolean;
+    refetch: () => Promise<unknown>;
+  };
+
   export function useCreateGeckoProjectMutation(): [
     (args: {
       configData: GeckoProjectConfig;
       organization: string;
-      pendingRepoID?: string;
       project: string;
       storage?: GeckoProjectStorageIntent;
     }) => { unwrap: () => Promise<GeckoMutationResponse> },
     { isLoading: boolean },
   ];
 
+  export function useUpdateGeckoProjectMutation(): [
+    (args: GeckoUpdateProjectMutationArgs) => {
+      unwrap: () => Promise<GeckoMutationResponse>;
+    },
+    { isLoading: boolean },
+  ];
+
+  export function useUpdateGeckoProjectStorageMutation(): [
+    (args: GeckoUpdateProjectStorageMutationArgs) => {
+      unwrap: () => Promise<GeckoMutationResponse>;
+    },
+    { isLoading: boolean },
+  ];
+
+  export function useGetGeckoProjectThumbnailQuery(
+    args: { organization: string; project: string },
+    options?: { skip?: boolean },
+  ): {
+    data?: GeckoProjectThumbnail | null;
+    isFetching: boolean;
+    refetch: () => Promise<unknown>;
+  };
+
+  export function useUploadGeckoProjectThumbnailMutation(): [
+    (args: GeckoUploadProjectThumbnailMutationArgs) => {
+      unwrap: () => Promise<GeckoMutationResponse>;
+    },
+    { isLoading: boolean },
+  ];
+
+  export function useDeleteGeckoProjectThumbnailMutation(): [
+    (args: GeckoDeleteProjectThumbnailMutationArgs) => {
+      unwrap: () => Promise<GeckoMutationResponse>;
+    },
+    { isLoading: boolean },
+  ];
+
   export function useDeleteGeckoProjectMutation(): [
-    (
-      args: GeckoDeleteProjectMutationArgs,
-    ) => { unwrap: () => Promise<GeckoMutationResponse> },
+    (args: GeckoDeleteProjectMutationArgs) => {
+      unwrap: () => Promise<GeckoMutationResponse>;
+    },
     { isLoading: boolean },
   ];
 
   export function useDeleteGeckoOrganizationMutation(): [
-    (
-      args: GeckoDeleteOrganizationMutationArgs,
-    ) => { unwrap: () => Promise<GeckoMutationResponse> },
+    (args: GeckoDeleteOrganizationMutationArgs) => {
+      unwrap: () => Promise<GeckoMutationResponse>;
+    },
     { isLoading: boolean },
   ];
 
@@ -299,30 +360,6 @@ declare module '@gen3/core' {
     isLoading: boolean;
     refetch: () => Promise<unknown>;
   };
-
-  export function useGetGeckoGitPendingRepositoriesQuery(
-    args?: { installationID?: number; setupSessionID?: string },
-    options?: { skip?: boolean },
-  ): {
-    data?: GeckoGitPendingRepositoriesResponse;
-    isLoading: boolean;
-    refetch: () => Promise<unknown>;
-  };
-
-  export function useLazyGetGeckoGitPendingRepositoriesQuery(): [
-    (args?: { installationID?: number; setupSessionID?: string }) => Promise<unknown>,
-    {
-      data?: GeckoGitPendingRepositoriesResponse;
-      isLoading: boolean;
-    },
-  ];
-
-  export function useReconcileGeckoGitPendingRepositoriesMutation(): [
-    (args: { installationID: number; setupSessionID?: string }) => {
-      unwrap: () => Promise<GeckoGitPendingRepositoriesResponse>;
-    },
-    { isLoading: boolean },
-  ];
 
   export function useReconcileGeckoGitOrganizationsMutation(): [
     () => { unwrap: () => Promise<unknown> },
@@ -424,10 +461,9 @@ declare module '@gen3/core' {
   ];
 
   export function useRefreshGeckoGitProjectMutation(): [
-    (args: {
-      organization: string;
-      project: string;
-    }) => { unwrap: () => Promise<unknown> },
+    (args: { organization: string; project: string }) => {
+      unwrap: () => Promise<unknown>;
+    },
     { isLoading: boolean },
   ];
 }
