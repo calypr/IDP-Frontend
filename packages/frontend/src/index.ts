@@ -53,12 +53,11 @@ import '@gen3/core';
 import SmmartPage from './pages/Smmart/Smmart';
 import CalyprPage from './pages/CALYPR/CALYPR';
 
-import BrowserPage from './pages/Browser';
-import { BrowserPageGetServerSideProps } from './pages/Browser';
 import {
   GitExplorerPageGetServerSideProps,
   GitHubReturnPage,
   GitLandingPage,
+  GitNewProjectPage,
   GitOrganizationSettingsPage,
   GitProjectFilePage,
   GitProjectPage,
@@ -173,6 +172,7 @@ import sessionToken from './api/auth/sessionToken';
 import sessionLogout from './api/auth/sessionLogout';
 import credentialsLogin from './api/auth/credentialsLogin';
 import credentialsLogout from './api/auth/credentialsLogout';
+import projectThumbnail from './api/gecko/projectThumbnail';
 import analysisApiCohortDiscovery from './features/CohortDiscovery/api/analysisApiCohortDiscovery';
 import staticNotebookAPI from './features/StaticNotebook/api/staticNotebookAPI';
 
@@ -209,9 +209,8 @@ export {
   SmmartPageGetServerSideProps,
   CalyprPage,
   CalyprPageGetServerSideProps,
-  BrowserPage,
-  BrowserPageGetServerSideProps,
   GitLandingPage,
+  GitNewProjectPage,
   GitHubReturnPage,
   GitOrganizationSettingsPage,
   GitProjectFilePage,
@@ -263,6 +262,7 @@ export {
   sessionLogout,
   credentialsLogin,
   credentialsLogout,
+  projectThumbnail,
   createMantineTheme,
   AiSearchPage,
   AISearchPageGetServerSideProps,

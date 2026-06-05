@@ -35,14 +35,27 @@ export const LandingPageGetServerSideProps: GetServerSideProps = async (
 
   try {
     navPageLayoutProps = await getNavPageLayoutPropsFromConfig(requestHeaders);
-    if (!hasAuthenticatedSession) {
-      navPageLayoutProps.headerProps.topBar.items =
-        navPageLayoutProps.headerProps.topBar.items.filter(
-          (item) => item.href !== '/git',
-        );
+    if (navPageLayoutProps && !hasAuthenticatedSession) {
+      const filteredItems = navPageLayoutProps.headerProps.topBar.items.filter(
+        (item: { href: string }) => item.href !== '/git',
+      );
+      navPageLayoutProps = {
+        ...navPageLayoutProps,
+        headerProps: {
+          ...navPageLayoutProps.headerProps,
+          topBar: {
+            ...navPageLayoutProps.headerProps.topBar,
+            items: filteredItems,
+          },
+        },
+      };
     }
   } catch (err) {
     console.error('Error fetching NavPageLayoutProps:', err);
+  }
+
+  if (!navPageLayoutProps) {
+    return { notFound: true };
   }
 
   try {

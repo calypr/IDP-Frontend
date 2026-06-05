@@ -18,8 +18,8 @@ import {
 import {
   SYFON_API,
   useGetGeckoGitProjectFileQuery,
+  useGetGeckoGitProjectsQuery,
   useGetGeckoGitProjectRefsQuery,
-  useGetGeckoGitProjectStatusQuery,
   useGetSyfonObjectsByChecksumQuery,
   useLazyGetSyfonObjectsByChecksumQuery,
 } from '@gen3/core';
@@ -76,11 +76,16 @@ const GitProjectFilePage = ({
 
   const shouldSkip = !organization || !project || !filePath;
   const {
-    data: projectStatus,
+    data: gitProjects = [],
     isLoading: isStatusLoading,
-  } = useGetGeckoGitProjectStatusQuery(
-    { organization, project },
-    { skip: !organization || !project },
+  } = useGetGeckoGitProjectsQuery();
+  const projectStatus = useMemo(
+    () =>
+      gitProjects.find(
+        (candidate) =>
+          candidate.organization === organization && candidate.project === project,
+      ),
+    [gitProjects, organization, project],
   );
   const effectiveRef =
     selectedRef ?? requestedRef ?? projectStatus?.default_branch ?? null;

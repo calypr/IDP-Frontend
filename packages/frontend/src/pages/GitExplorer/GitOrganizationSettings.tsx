@@ -34,17 +34,14 @@ import {
   normalizeSyfonBuckets,
   type SyfonBucket,
   useAddAuthzOwnerMutation,
-  useAddAuthzOwnershipUserAccessMutation,
   useAddAuthzUserAccessMutation,
   useDeleteGeckoOrganizationMutation,
   useDeleteSyfonBucketScopeMutation,
   useGetAuthzOwnershipResourceQuery,
   useGetGeckoGitOrganizationsStatusQuery,
-  useGetGeckoProjectsQuery,
   useDeleteGeckoProjectMutation,
   useListSyfonBucketsQuery,
   useRemoveAuthzOwnerMutation,
-  useRemoveAuthzOwnershipUserAccessMutation,
   useRemoveAuthzUserAccessMutation,
   useUpsertSyfonBucketCredentialMutation,
 } from '@gen3/core';
@@ -81,14 +78,6 @@ const actionButtonClassName =
 
 const actionIconClassName =
   'text-sky-700 transition hover:bg-sky-50 hover:text-sky-900';
-
-const errorStatus = (error: unknown): number | undefined => {
-  if (error && typeof error === 'object' && 'status' in error) {
-    const status = (error as { status?: unknown }).status;
-    return typeof status === 'number' ? status : undefined;
-  }
-  return undefined;
-};
 
 const errorMessage = (error: unknown, fallback: string): string => {
   if (error && typeof error === 'object' && 'data' in error) {
@@ -145,20 +134,20 @@ interface ProjectBucketFormState {
 }
 
 const ProjectAccessSection = ({
+  canManageSettings,
   organization,
   project,
   buckets,
-  bindings,
   onEditBucket,
   onRequestDeleteProject,
   onRemoveBucket,
   onRemoveOwner,
   onRevokeAccess,
 }: {
+  canManageSettings: boolean;
   organization: string;
   project: AccessibleOrganizationProject;
   buckets: Array<SyfonBucket>;
-  bindings: Array<AuthzOwnershipResourceBinding>;
   onEditBucket: (project: string, bucket: SyfonBucket) => void;
   onRequestDeleteProject: (project: AccessibleOrganizationProject) => void;
   onRemoveBucket: (
@@ -175,6 +164,16 @@ const ProjectAccessSection = ({
 }) => {
   const [editingUserKey, setEditingUserKey] = useState<string | null>(null);
   const resourcePath = projectResourcePath(organization, project.project);
+  const { data: ownership, isLoading: ownershipLoading } =
+    useGetAuthzOwnershipResourceQuery(
+      {
+        resource_path: resourcePath,
+        include_children: false,
+        include_admins: false,
+      },
+      { skip: !canManageSettings },
+    );
+  const bindings = ownership?.bindings ?? [];
   const projectOwnerBindings = bindings.filter(
     (binding) =>
       binding.resource_path === resourcePath &&
@@ -215,6 +214,14 @@ const ProjectAccessSection = ({
       withBorder
     >
       <Stack gap="md">
+        {ownershipLoading ? (
+          <Group justify="center">
+            <Loader size="sm" />
+            <Text c="dimmed" size="sm">
+              Loading project access...
+            </Text>
+          </Group>
+        ) : null}
         <Group align="flex-start" justify="space-between">
           <div>
             <Text fw={700}>{project.project}</Text>
@@ -520,16 +527,26 @@ const GitOrganizationSettingsPage = ({
   const [formError, setFormError] = useState<string | null>(null);
   const [bucketError, setBucketError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const { data: geckoProjects = [], isLoading: projectsLoading } =
-    useGetGeckoProjectsQuery();
   const {
     data: bucketResponse,
     isLoading: bucketsLoading,
     refetch: refetchBuckets,
   } = useListSyfonBucketsQuery(undefined, { skip: !isAuthenticated });
   const {
+    data: gitOrganizationsStatus,
+    isLoading: gitOrganizationsStatusLoading,
+    refetch: refetchGitOrganizationsStatus,
+  } = useGetGeckoGitOrganizationsStatusQuery(undefined, {
+    skip: !isAuthenticated,
+  });
+  const organizationGitStatus = gitOrganizationsStatus?.organizations.find(
+    (entry) => entry.organization === organization,
+  );
+  const canAccessSettings = organizationGitStatus?.can_access_settings ?? false;
+  const canManagePeople = organizationGitStatus?.can_manage_people ?? false;
+  const canDeleteOrg = organizationGitStatus?.can_delete_org ?? false;
+  const {
     data: ownership,
-    error: ownershipError,
     isLoading: ownershipLoading,
     refetch: refetchOwnership,
   } = useGetAuthzOwnershipResourceQuery(
@@ -538,18 +555,10 @@ const GitOrganizationSettingsPage = ({
       include_children: true,
       include_admins: false,
     },
-    { skip: !orgResourcePath || !isAuthenticated },
+    { skip: !orgResourcePath || !isAuthenticated || !canManagePeople },
   );
-  const {
-    data: gitOrganizationsStatus,
-    refetch: refetchGitOrganizationsStatus,
-  } = useGetGeckoGitOrganizationsStatusQuery(undefined, {
-    skip: !isAuthenticated,
-  });
   const [addOwner] = useAddAuthzOwnerMutation();
   const [removeOwner] = useRemoveAuthzOwnerMutation();
-  const [grantOwnershipUser] = useAddAuthzOwnershipUserAccessMutation();
-  const [revokeOwnershipUser] = useRemoveAuthzOwnershipUserAccessMutation();
   const [grantUser] = useAddAuthzUserAccessMutation();
   const [revokeUser] = useRemoveAuthzUserAccessMutation();
   const [deleteGeckoOrganization] = useDeleteGeckoOrganizationMutation();
@@ -557,14 +566,25 @@ const GitOrganizationSettingsPage = ({
   const [upsertBucket] = useUpsertSyfonBucketCredentialMutation();
   const [deleteBucketScope] = useDeleteSyfonBucketScopeMutation();
 
+  const manageableProjectStatuses = useMemo(
+    () =>
+      (organizationGitStatus?.projects ?? []).filter(
+        (projectStatus) => projectStatus.can_manage_settings,
+      ),
+    [organizationGitStatus?.projects],
+  );
   const projects = useMemo(
     () =>
-      extractProjectsFromResourcePaths(
-        geckoProjects.map((project) => project.resourcePath),
-      )
-        .filter((project) => project.organization === organization)
+      manageableProjectStatuses
+        .map((projectStatus) => ({
+          organization,
+          project: projectStatus.project,
+          resourcePath:
+            projectStatus.resource_path ??
+            projectResourcePath(organization, projectStatus.project),
+        }))
         .filter((project) => !deletedProjectIDs.has(project.project)),
-    [deletedProjectIDs, geckoProjects, organization],
+    [deletedProjectIDs, manageableProjectStatuses, organization],
   );
   const projectOptions = useMemo(
     () =>
@@ -590,14 +610,11 @@ const GitOrganizationSettingsPage = ({
     (binding) =>
       binding.resource_path === orgProjectsResourcePath &&
       binding.subject_type === 'user' &&
-      binding.kind === 'delegated' &&
+      ['delegated', 'direct'].includes(binding.kind) &&
       binding.role_id === 'org-member',
   );
   const orgPeopleBindings = [...orgOwnerBindings, ...orgMemberBindings].sort(
     (left, right) => bindingLabel(left).localeCompare(bindingLabel(right)),
-  );
-  const organizationGitStatus = gitOrganizationsStatus?.organizations.find(
-    (entry) => entry.organization === organization,
   );
   const organizationGitHubInstallationUrl =
     organizationGitStatus?.html_url ?? null;
@@ -616,19 +633,6 @@ const GitOrganizationSettingsPage = ({
     );
   };
 
-  const bindingsForProject = (project: string) => {
-    const resourcePath = projectResourcePath(organization, project);
-    return bindings.filter(
-      (binding) =>
-        binding.resource_path === resourcePath &&
-        binding.subject_type === 'user' &&
-        !binding.protected &&
-        (binding.role_id === 'owner'
-          ? isEditableUserBinding(binding)
-          : isRemovableProjectAccessBinding(binding)),
-    );
-  };
-
   const addOwnerForResource = async (
     resourcePath: string,
     username: string,
@@ -637,7 +641,9 @@ const GitOrganizationSettingsPage = ({
     try {
       setActionError(null);
       await addOwner({ resource_path: resourcePath, username }).unwrap();
-      await refetchOwnership();
+      if (canManagePeople) {
+        await refetchOwnership();
+      }
     } catch (error) {
       setActionError(errorMessage(error, errorFallback));
       throw error;
@@ -652,14 +658,16 @@ const GitOrganizationSettingsPage = ({
     try {
       setActionError(null);
       await removeOwner({ resource_path: resourcePath, username }).unwrap();
-      await refetchOwnership();
+      if (canManagePeople) {
+        await refetchOwnership();
+      }
     } catch (error) {
       setActionError(errorMessage(error, errorFallback));
       throw error;
     }
   };
 
-  const grantOwnershipUserForResource = async (
+  const grantUserAccessForResource = async (
     resourcePath: string,
     username: string,
     roleID: string,
@@ -667,19 +675,21 @@ const GitOrganizationSettingsPage = ({
   ) => {
     try {
       setActionError(null);
-      await grantOwnershipUser({
+      await grantUser({
         resource_path: resourcePath,
         username,
         role_id: roleID,
       }).unwrap();
-      await refetchOwnership();
+      if (canManagePeople) {
+        await refetchOwnership();
+      }
     } catch (error) {
       setActionError(errorMessage(error, errorFallback));
       throw error;
     }
   };
 
-  const revokeOwnershipUserForResource = async (
+  const revokeUserAccessForResource = async (
     resourcePath: string,
     username: string,
     roleID: string,
@@ -687,12 +697,14 @@ const GitOrganizationSettingsPage = ({
   ) => {
     try {
       setActionError(null);
-      await revokeOwnershipUser({
+      await revokeUser({
         resource_path: resourcePath,
         username,
         role_id: roleID,
       }).unwrap();
-      await refetchOwnership();
+      if (canManagePeople) {
+        await refetchOwnership();
+      }
     } catch (error) {
       setActionError(errorMessage(error, errorFallback));
       throw error;
@@ -714,7 +726,7 @@ const GitOrganizationSettingsPage = ({
           'Failed to add organization owner.',
         );
       } else {
-        await grantOwnershipUserForResource(
+        await grantUserAccessForResource(
           orgProjectsResourcePath,
           username,
           'org-member',
@@ -733,7 +745,7 @@ const GitOrganizationSettingsPage = ({
   ) => {
     try {
       if (binding.role_id === 'org-member') {
-        await revokeOwnershipUserForResource(
+        await revokeUserAccessForResource(
           orgProjectsResourcePath,
           binding.subject_name,
           'org-member',
@@ -847,7 +859,9 @@ const GitOrganizationSettingsPage = ({
         username,
         role_id: roleID,
       }).unwrap();
-      await refetchOwnership();
+      if (canManagePeople) {
+        await refetchOwnership();
+      }
     } catch (error) {
       setActionError(errorMessage(error, 'Failed to add project access.'));
     }
@@ -873,7 +887,9 @@ const GitOrganizationSettingsPage = ({
             .join(', ')}`,
         );
       }
-      await refetchOwnership();
+      if (canManagePeople) {
+        await refetchOwnership();
+      }
     } catch (error) {
       setActionError(errorMessage(error, 'Failed to remove project access.'));
     }
@@ -978,9 +994,6 @@ const GitOrganizationSettingsPage = ({
     }
     try {
       setActionError(null);
-      for (const project of projects) {
-        await purgeProjectFromCalypr(project);
-      }
       await deleteGeckoOrganization({ organization }).unwrap();
       await Promise.all([
         refetchOwnership().catch(() => undefined),
@@ -995,11 +1008,14 @@ const GitOrganizationSettingsPage = ({
     }
   };
 
-  const ownershipStatus = errorStatus(ownershipError);
-  const noAccess = ownershipStatus === 403;
-  const unauthorized = ownershipStatus === 401;
+  const unauthorized = sessionReady && isAuthenticated && !canAccessSettings;
   const isLoading =
-    !sessionReady || projectsLoading || ownershipLoading || bucketsLoading;
+    !sessionReady ||
+    gitOrganizationsStatusLoading ||
+    bucketsLoading ||
+    (canManagePeople && ownershipLoading);
+  const hasProjectSettings = projects.length > 0;
+  const hasAnySettings = hasProjectSettings || canManagePeople || canDeleteOrg;
   const addPanel = activeAddForm ? (
     <Card
       className="absolute right-0 top-full z-20 mt-2 w-[min(46rem,calc(100vw-3rem))] border-slate-200 shadow-xl"
@@ -1191,7 +1207,7 @@ const GitOrganizationSettingsPage = ({
                   <Text c="dimmed">Loading access settings...</Text>
                 </Group>
               </Card>
-            ) : !isAuthenticated || unauthorized ? (
+            ) : !isAuthenticated ? (
               <Card padding="xl" radius="lg" withBorder>
                 <Stack gap="md">
                   <Alert color="yellow" variant="light">
@@ -1200,7 +1216,7 @@ const GitOrganizationSettingsPage = ({
                   <LoginView redirectPath={router.asPath} />
                 </Stack>
               </Card>
-            ) : noAccess ? (
+            ) : unauthorized ? (
               <Alert color="yellow" variant="light">
                 You do not have permission to manage this organization.
               </Alert>
@@ -1214,7 +1230,7 @@ const GitOrganizationSettingsPage = ({
                 <Stack gap="sm">
                   <Group justify="space-between">
                     <Text fw={700}>Projects</Text>
-                    {projects.length > 0 ? (
+                    {hasProjectSettings ? (
                       <div className="relative">
                         <Group gap="xs">
                           <Button
@@ -1245,10 +1261,12 @@ const GitOrganizationSettingsPage = ({
                       </div>
                     ) : null}
                   </Group>
-                  {projects.length === 0 ? (
+                  {!hasProjectSettings ? (
                     <Card padding="md" radius="lg" withBorder>
                       <Text c="dimmed" size="sm">
-                        No Gecko projects are registered for this organization.
+                        {hasAnySettings
+                          ? 'No project settings are available for this organization.'
+                          : 'No configurable settings are available for this organization.'}
                       </Text>
                     </Card>
                   ) : (
@@ -1260,10 +1278,10 @@ const GitOrganizationSettingsPage = ({
                         );
                         return (
                           <ProjectAccessSection
-                            bindings={bindings}
                             buckets={buckets.filter((bucket) =>
                               bucket.resources.includes(projectBucketResource),
                             )}
+                            canManageSettings
                             key={project.resourcePath}
                             onEditBucket={handleEditBucket}
                             onRemoveBucket={(
@@ -1299,190 +1317,194 @@ const GitOrganizationSettingsPage = ({
                   )}
                 </Stack>
 
-                <Card
-                  className="border-slate-200 bg-white/70 shadow-none"
-                  padding="md"
-                  radius="md"
-                  withBorder
-                >
-                  <Stack gap="md">
-                    <Group justify="space-between">
-                      <div>
-                        <Text fw={700}>Organization people</Text>
-                        <Text c="dimmed" size="sm">
-                          Owners can manage every project and organization
-                          people. Members can create new projects, then own
-                          the projects they create.
-                        </Text>
-                      </div>
-                      <Button
-                        className={actionButtonClassName}
-                        color="sky"
-                        leftSection={<IconPlus size={14} />}
-                        onClick={() =>
-                          setOrgOwnerFormOpen((current) => !current)
-                        }
-                        size="xs"
-                        variant="light"
-                      >
-                        Person
-                      </Button>
-                    </Group>
-                    {orgOwnerFormOpen ? (
-                      <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_11rem_auto_auto] md:items-end">
-                        <TextInput
-                          error={orgOwnerError}
-                          label="Add organization person"
-                          onChange={(event) =>
-                            setOrgOwnerEmail(event.currentTarget.value)
-                          }
-                          placeholder="name@example.org"
-                          value={orgOwnerEmail}
-                        />
-                        <Select
-                          allowDeselect={false}
-                          data={[
-                            { label: 'Member', value: 'org-member' },
-                            { label: 'Owner', value: 'owner' },
-                          ]}
-                          label="Role"
-                          onChange={(value) =>
-                            setOrgPersonRole(
-                              value === 'owner' ? 'owner' : 'org-member',
-                            )
-                          }
-                          value={orgPersonRole}
-                        />
+                {canManagePeople ? (
+                  <Card
+                    className="border-slate-200 bg-white/70 shadow-none"
+                    padding="md"
+                    radius="md"
+                    withBorder
+                  >
+                    <Stack gap="md">
+                      <Group justify="space-between">
+                        <div>
+                          <Text fw={700}>Organization people</Text>
+                          <Text c="dimmed" size="sm">
+                            Owners can manage every project and organization
+                            people. Members can create new projects, then own
+                            the projects they create.
+                          </Text>
+                        </div>
                         <Button
                           className={actionButtonClassName}
                           color="sky"
-                          leftSection={<IconUserPlus size={16} />}
-                          onClick={handleAddOrgOwner}
+                          leftSection={<IconPlus size={14} />}
+                          onClick={() =>
+                            setOrgOwnerFormOpen((current) => !current)
+                          }
+                          size="xs"
                           variant="light"
                         >
-                          Add person
+                          Person
                         </Button>
-                        <ActionIcon
-                          aria-label="Close organization owner form"
-                          className={actionIconClassName}
-                          onClick={() => setOrgOwnerFormOpen(false)}
-                          variant="subtle"
-                        >
-                          <IconX size={16} />
-                        </ActionIcon>
-                      </div>
-                    ) : null}
-                    <Table striped withTableBorder>
-                      <Table.Thead>
-                        <Table.Tr>
-                          <Table.Th>User</Table.Th>
-                          <Table.Th>Role</Table.Th>
-                          <Table.Th />
-                        </Table.Tr>
-                      </Table.Thead>
-                      <Table.Tbody>
-                        {orgPeopleBindings.length === 0 ? (
+                      </Group>
+                      {orgOwnerFormOpen ? (
+                        <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_11rem_auto_auto] md:items-end">
+                          <TextInput
+                            error={orgOwnerError}
+                            label="Add organization person"
+                            onChange={(event) =>
+                              setOrgOwnerEmail(event.currentTarget.value)
+                            }
+                            placeholder="name@example.org"
+                            value={orgOwnerEmail}
+                          />
+                          <Select
+                            allowDeselect={false}
+                            data={[
+                              { label: 'Member', value: 'org-member' },
+                              { label: 'Owner', value: 'owner' },
+                            ]}
+                            label="Role"
+                            onChange={(value) =>
+                              setOrgPersonRole(
+                                value === 'owner' ? 'owner' : 'org-member',
+                              )
+                            }
+                            value={orgPersonRole}
+                          />
+                          <Button
+                            className={actionButtonClassName}
+                            color="sky"
+                            leftSection={<IconUserPlus size={16} />}
+                            onClick={handleAddOrgOwner}
+                            variant="light"
+                          >
+                            Add person
+                          </Button>
+                          <ActionIcon
+                            aria-label="Close organization owner form"
+                            className={actionIconClassName}
+                            onClick={() => setOrgOwnerFormOpen(false)}
+                            variant="subtle"
+                          >
+                            <IconX size={16} />
+                          </ActionIcon>
+                        </div>
+                      ) : null}
+                      <Table striped withTableBorder>
+                        <Table.Thead>
                           <Table.Tr>
-                            <Table.Td colSpan={3}>
-                              <Text c="dimmed" size="sm">
-                                No organization owners or members have been
-                                added.
-                              </Text>
-                            </Table.Td>
+                            <Table.Th>User</Table.Th>
+                            <Table.Th>Role</Table.Th>
+                            <Table.Th />
                           </Table.Tr>
-                        ) : (
-                          orgPeopleBindings.map((binding) => (
-                            <Table.Tr
-                              key={`${binding.resource_path}:${binding.kind}:${binding.role_id}:${binding.subject_type}:${binding.subject_name}`}
-                            >
-                              <Table.Td>
-                                <Text size="sm">{bindingLabel(binding)}</Text>
-                              </Table.Td>
-                              <Table.Td>
-                                <Badge
-                                  color={
-                                    binding.role_id === 'org-member'
-                                      ? 'blue'
-                                      : 'green'
-                                  }
-                                  variant="light"
-                                >
-                                  {binding.role_id === 'org-member'
-                                    ? 'member'
-                                    : 'owner'}
-                                </Badge>
-                              </Table.Td>
-                              <Table.Td className="text-right">
-                                {isEditableUserBinding(binding) ? (
-                                  <Menu
-                                    position="bottom-end"
-                                    shadow="md"
-                                    width={190}
-                                  >
-                                    <Menu.Target>
-                                      <ActionIcon
-                                        aria-label={`Manage organization owner ${binding.subject_name}`}
-                                        className={actionIconClassName}
-                                        variant="subtle"
-                                      >
-                                        <IconDotsVertical size={16} />
-                                      </ActionIcon>
-                                    </Menu.Target>
-                                    <Menu.Dropdown>
-                                      <Menu.Item
-                                        color="red"
-                                        leftSection={<IconTrash size={14} />}
-                                        onClick={() =>
-                                          handleRemoveOrgOwner(binding)
-                                        }
-                                      >
-                                        Delete{' '}
-                                        {binding.role_id === 'org-member'
-                                          ? 'member'
-                                          : 'owner'}
-                                      </Menu.Item>
-                                    </Menu.Dropdown>
-                                  </Menu>
-                                ) : null}
+                        </Table.Thead>
+                        <Table.Tbody>
+                          {orgPeopleBindings.length === 0 ? (
+                            <Table.Tr>
+                              <Table.Td colSpan={3}>
+                                <Text c="dimmed" size="sm">
+                                  No organization owners or members have been
+                                  added.
+                                </Text>
                               </Table.Td>
                             </Table.Tr>
-                          ))
-                        )}
-                      </Table.Tbody>
-                    </Table>
-                  </Stack>
-                </Card>
+                          ) : (
+                            orgPeopleBindings.map((binding) => (
+                              <Table.Tr
+                                key={`${binding.resource_path}:${binding.kind}:${binding.role_id}:${binding.subject_type}:${binding.subject_name}`}
+                              >
+                                <Table.Td>
+                                  <Text size="sm">{bindingLabel(binding)}</Text>
+                                </Table.Td>
+                                <Table.Td>
+                                  <Badge
+                                    color={
+                                      binding.role_id === 'org-member'
+                                        ? 'blue'
+                                        : 'green'
+                                    }
+                                    variant="light"
+                                  >
+                                    {binding.role_id === 'org-member'
+                                      ? 'member'
+                                      : 'owner'}
+                                  </Badge>
+                                </Table.Td>
+                                <Table.Td className="text-right">
+                                  {isEditableUserBinding(binding) ? (
+                                    <Menu
+                                      position="bottom-end"
+                                      shadow="md"
+                                      width={190}
+                                    >
+                                      <Menu.Target>
+                                        <ActionIcon
+                                          aria-label={`Manage organization owner ${binding.subject_name}`}
+                                          className={actionIconClassName}
+                                          variant="subtle"
+                                        >
+                                          <IconDotsVertical size={16} />
+                                        </ActionIcon>
+                                      </Menu.Target>
+                                      <Menu.Dropdown>
+                                        <Menu.Item
+                                          color="red"
+                                          leftSection={<IconTrash size={14} />}
+                                          onClick={() =>
+                                            handleRemoveOrgOwner(binding)
+                                          }
+                                        >
+                                          Delete{' '}
+                                          {binding.role_id === 'org-member'
+                                            ? 'member'
+                                            : 'owner'}
+                                        </Menu.Item>
+                                      </Menu.Dropdown>
+                                    </Menu>
+                                  ) : null}
+                                </Table.Td>
+                              </Table.Tr>
+                            ))
+                          )}
+                        </Table.Tbody>
+                      </Table>
+                    </Stack>
+                  </Card>
+                ) : null}
 
-                <Card
-                  className="border-red-200 bg-red-50/60 shadow-none"
-                  padding="md"
-                  radius="md"
-                  withBorder
-                >
-                  <Group align="center" justify="space-between">
-                    <div>
-                      <Text c="red" fw={700}>
+                {canDeleteOrg ? (
+                  <Card
+                    className="border-red-200 bg-red-50/60 shadow-none"
+                    padding="md"
+                    radius="md"
+                    withBorder
+                  >
+                    <Group align="center" justify="space-between">
+                      <div>
+                        <Text c="red" fw={700}>
+                          Delete organization
+                        </Text>
+                        <Text c="dimmed" size="sm">
+                          Permanently remove every project, access grant, and
+                          Syfon record for this organization from Calypr. Bucket
+                          data itself is not deleted.
+                        </Text>
+                      </div>
+                      <Button
+                        color="red"
+                        leftSection={<IconTrash size={14} />}
+                        onClick={() => {
+                          setOrgDeleteOpen(true);
+                          setOrgDeleteConfirm('');
+                        }}
+                        variant="light"
+                      >
                         Delete organization
-                      </Text>
-                      <Text c="dimmed" size="sm">
-                        Permanently remove every project, access grant, and
-                        Syfon record for this organization from Calypr. Bucket
-                        data itself is not deleted.
-                      </Text>
-                    </div>
-                    <Button
-                      color="red"
-                      leftSection={<IconTrash size={14} />}
-                      onClick={() => {
-                        setOrgDeleteOpen(true);
-                        setOrgDeleteConfirm('');
-                      }}
-                      variant="light"
-                    >
-                      Delete organization
-                    </Button>
-                  </Group>
-                </Card>
+                      </Button>
+                    </Group>
+                  </Card>
+                ) : null}
               </>
             )}
           </Stack>

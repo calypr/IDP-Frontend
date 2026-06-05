@@ -4,6 +4,21 @@ declare module '@gen3/core' {
   export interface GeckoProjectRecord {
     readonly resourcePath: string;
     readonly configData?: GeckoProjectConfig;
+    readonly organization?: string;
+    readonly project?: string;
+    readonly title?: string;
+    readonly contact_email?: string;
+    readonly description?: string;
+    readonly thumbnail_url?: string;
+  }
+
+  export interface GeckoProjectSummaryRecord {
+    readonly organization: string;
+    readonly project: string;
+    readonly title: string;
+    readonly contact_email: string;
+    readonly description: string;
+    readonly thumbnail_url?: string;
   }
 
   export interface GeckoProjectConfig {
@@ -13,7 +28,7 @@ declare module '@gen3/core' {
     readonly org_title: string;
     readonly description: string;
     readonly project_title: string;
-    readonly icon_name: string;
+    readonly icon_name?: string;
   }
 
   export interface GeckoMutationResponse {
@@ -110,12 +125,28 @@ declare module '@gen3/core' {
     readonly mirror_ready: boolean;
   }
 
+  export interface GeckoGitInstallationRepository {
+    readonly id: number;
+    readonly name: string;
+    readonly full_name: string;
+    readonly html_url: string;
+    readonly clone_url: string;
+  }
+
+  export interface GeckoGitOrganizationConnectResponse {
+    readonly mode: 'redirect' | 'select_repository';
+    readonly redirect_url?: string;
+    readonly installation_id?: number;
+    readonly repositories?: Array<GeckoGitInstallationRepository>;
+  }
+
   export interface GeckoGitRepositoryInstallationStatus {
     readonly installed: boolean;
     readonly installation_id?: number;
     readonly target?: string;
     readonly target_type?: string;
     readonly html_url?: string;
+    readonly repository_selection?: string;
   }
 
   export interface GeckoGitOrganizationProjectStatus {
@@ -124,6 +155,10 @@ declare module '@gen3/core' {
     readonly resource_path?: string;
     readonly repository: GeckoGitRepositoryIdentity;
     readonly configured: boolean;
+    readonly accessible?: boolean;
+    readonly can_manage_settings?: boolean;
+    readonly request_access?: boolean;
+    readonly request_access_resource_path?: string;
     readonly integrations?: {
       readonly github: {
         readonly pass: boolean;
@@ -143,6 +178,10 @@ declare module '@gen3/core' {
     readonly organization: string;
     readonly connected: boolean;
     readonly app_installed: boolean;
+    readonly can_access_settings?: boolean;
+    readonly can_create_projects?: boolean;
+    readonly can_manage_people?: boolean;
+    readonly can_delete_org?: boolean;
     readonly installation_id?: number;
     readonly html_url?: string;
     readonly repository_selection?: string;
@@ -264,6 +303,12 @@ declare module '@gen3/core' {
 
   export function useGetGeckoProjectsQuery(): {
     data?: Array<GeckoProjectRecord>;
+    isLoading: boolean;
+    refetch: () => Promise<unknown>;
+  };
+
+  export function useGetGeckoProjectSummaryQuery(): {
+    data?: Array<GeckoProjectSummaryRecord>;
     isLoading: boolean;
     refetch: () => Promise<unknown>;
   };

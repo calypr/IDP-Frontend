@@ -1,9 +1,8 @@
 import { GetServerSideProps } from 'next';
 import { GEN3_COMMONS_NAME } from '@gen3/core';
 import { getNavPageLayoutPropsFromConfig } from '../../lib/common/staticProps';
-import ContentSource, { microserviceDb } from '../../lib/content';
+import ContentSource from '../../lib/content';
 import { type CalyprProps } from './types';
-import { type AppsProps } from '../Apps/types';
 import type { NavPageLayoutProps } from '../../features/Navigation';
 
 export const CalyprPageGetServerSideProps: GetServerSideProps<
@@ -29,25 +28,33 @@ export const CalyprPageGetServerSideProps: GetServerSideProps<
     await ContentSource.getContentDatabase().get(
       `${GEN3_COMMONS_NAME}/calyprLandingPage.json`,
     );
-  const appsPageProps: AppsProps = await microserviceDb
-    .get<AppsProps>('apps_page/1', requestHeaders)
-    .catch(() => ({ appsConfig: { appCards: [] } }));
 
-  const navPageLayoutProps =
+  let navPageLayoutProps =
     await getNavPageLayoutPropsFromConfig(requestHeaders);
   if (!hasAuthenticatedSession) {
-    navPageLayoutProps.headerProps.topBar.items =
-      navPageLayoutProps.headerProps.topBar.items.filter(
-        (item) => item.href !== '/git',
-      );
+    const filteredItems = navPageLayoutProps.headerProps.topBar.items.filter(
+      (item: { href: string }) => item.href !== '/git',
+    );
+    navPageLayoutProps = {
+      ...navPageLayoutProps,
+      headerProps: {
+        ...navPageLayoutProps.headerProps,
+        topBar: {
+          ...navPageLayoutProps.headerProps.topBar,
+          items: filteredItems,
+        },
+      },
+    };
+  }
+
+  if (!navPageLayoutProps) {
+    return { notFound: true };
   }
 
   return {
     props: {
       ...navPageLayoutProps,
       calyprConfig: calyprConfig ? calyprConfig : null,
-      appsConfig: (appsPageProps as any)?.appsConfig ??
-        (appsPageProps as any) ?? { appCards: [] },
       hasAuthenticatedSession,
     },
   };

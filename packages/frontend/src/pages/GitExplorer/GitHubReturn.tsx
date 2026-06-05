@@ -6,6 +6,49 @@ import type { GitExplorerPageProps } from './types';
 
 const gitHubReturnSignalKey = 'gecko:git-github-return';
 
+const normalizeReturnPath = (value: string | string[] | undefined): string => {
+  const candidate = Array.isArray(value) ? value[0] : value;
+  if (typeof candidate !== 'string') {
+    return '/git';
+  }
+  const trimmed = candidate.trim();
+  if (!trimmed) {
+    return '/git';
+  }
+
+  let decoded = trimmed;
+  try {
+    decoded = decodeURIComponent(trimmed);
+  } catch {
+    decoded = trimmed;
+  }
+
+  if (!decoded.startsWith('/') || decoded.startsWith('//')) {
+    return '/git';
+  }
+  return decoded;
+};
+
+const appendGitHubReturnParams = (
+  path: string,
+  setupAction: string | undefined,
+  installationID: string | undefined,
+): string => {
+  if (!setupAction || !installationID) {
+    return path;
+  }
+
+  const [pathWithoutHash, hash = ''] = path.split('#', 2);
+  const [pathname, queryString = ''] = pathWithoutHash.split('?', 2);
+  const params = new URLSearchParams(queryString);
+  params.set('setup_action', setupAction);
+  params.set('installation_id', installationID);
+  const nextQueryString = params.toString();
+  return `${pathname}${nextQueryString ? `?${nextQueryString}` : ''}${
+    hash ? `#${hash}` : ''
+  }`;
+};
+
 const GitHubReturnPage = ({
   headerProps,
   footerProps,
@@ -19,24 +62,28 @@ const GitHubReturnPage = ({
     typeof router.query.installation_id === 'string'
       ? router.query.installation_id
       : undefined;
-  const returnHref =
-    setupAction === 'update' && installationID
-      ? `/git?setup_action=${encodeURIComponent(setupAction)}&installation_id=${encodeURIComponent(installationID)}`
-      : '/git';
+  const returnPath = normalizeReturnPath(router.query.state);
+  const returnHref = appendGitHubReturnParams(
+    returnPath,
+    setupAction,
+    installationID,
+  );
 
   useEffect(() => {
-    if (typeof window === 'undefined') {
+    if (!router.isReady || typeof window === 'undefined') {
       return;
     }
     window.localStorage.setItem(
       gitHubReturnSignalKey,
       JSON.stringify({
         installationID,
+        returnPath,
         setupAction,
         timestamp: Date.now(),
       }),
     );
-  }, [installationID, setupAction]);
+    void router.replace(returnHref);
+  }, [installationID, returnHref, returnPath, router, router.isReady, setupAction]);
 
   return (
     <NavPageLayout
@@ -55,7 +102,8 @@ const GitHubReturnPage = ({
               <Title order={2}>GitHub configuration updated</Title>
               <Text c="dimmed">
                 Caliper has received the GitHub response. You can close this tab
-                and return to the Git page.
+                and return to the Git page if the redirect does not complete
+                automatically.
               </Text>
               <Alert color="blue" variant="light">
                 The main Git page will refresh connection state automatically.

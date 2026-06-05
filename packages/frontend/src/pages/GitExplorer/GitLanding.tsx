@@ -42,8 +42,8 @@ import {
   IconX,
 } from '@tabler/icons-react';
 import type {
+  GeckoGitInstallationRepository,
   GeckoGitOrganizationStatus,
-  GeckoGitProjectStatus,
   GeckoProjectConfig,
   GeckoProjectRecord,
   GeckoGitOrganizationProjectStatus,
@@ -53,10 +53,10 @@ import {
   useCreateGeckoProjectMutation,
   useDeleteGeckoProjectThumbnailMutation,
   useGetAuthzMappingsQuery,
-  useGetGeckoGitProjectsQuery,
   useGetGeckoGitOrganizationsStatusQuery,
-  useGetGeckoProjectThumbnailQuery,
   useGetGeckoProjectsQuery,
+  useInitConnectGeckoGitOrganizationMutation,
+  useReconcileGeckoGitOrganizationMutation,
   useReconcileGeckoGitOrganizationsMutation,
   useUpdateGeckoProjectMutation,
   useUpdateGeckoProjectStorageMutation,
@@ -83,7 +83,67 @@ const actionButtonClassName =
 
 const gitHubReturnSignalKey = 'gecko:git-github-return';
 
-const buildGitHubConnectReturnPath = (): string => '/git/github-return';
+const buildGitHubConnectReturnPath = (
+  organization: string,
+  project: string,
+): string => {
+  const normalizedOrganization = organization.trim();
+  const normalizedProject = project.trim();
+  if (!normalizedOrganization || !normalizedProject) {
+    return '/git';
+  }
+  return `/git/${encodeURIComponent(normalizedOrganization)}/project/${encodeURIComponent(normalizedProject)}`;
+};
+
+const normalizeGitHubCallbackStatePath = (
+  value: string | string[] | undefined,
+): string => {
+  const candidate = Array.isArray(value) ? value[0] : value;
+  if (typeof candidate !== 'string') {
+    return '/git';
+  }
+  const trimmed = candidate.trim();
+  if (!trimmed) {
+    return '/git';
+  }
+
+  let decoded = trimmed;
+  try {
+    decoded = decodeURIComponent(trimmed);
+  } catch {
+    decoded = trimmed;
+  }
+
+  if (!decoded.startsWith('/') || decoded.startsWith('//')) {
+    return '/git';
+  }
+  return decoded;
+};
+
+const gitCallbackTargetFromStatePath = (
+  value: string | string[] | undefined,
+): { organization: string; project: string } | null => {
+  const normalizedPath = normalizeGitHubCallbackStatePath(value);
+  const segments = normalizedPath
+    .split('?')[0]
+    .split('#')[0]
+    .replace(/^\/+|\/+$/g, '')
+    .split('/')
+    .filter(Boolean);
+  if (
+    segments.length >= 4 &&
+    segments[0] === 'git' &&
+    segments[1] &&
+    segments[2] === 'project' &&
+    segments[3]
+  ) {
+    return {
+      organization: decodeURIComponent(segments[1]),
+      project: decodeURIComponent(segments[3]),
+    };
+  }
+  return null;
+};
 
 const toSlug = (value: string): string =>
   value
@@ -131,7 +191,8 @@ type CreateProjectField =
   | 'project_name'
   | 'project_title'
   | 'contact_email'
-  | 'description';
+  | 'description'
+  | 'src_repo';
 
 type CreateProjectFieldErrors = Partial<Record<CreateProjectField, string>>;
 
@@ -140,7 +201,7 @@ const isValidEmail = (value: string): boolean =>
 
 const thumbnailAccept = 'image/png,image/jpeg';
 const maxThumbnailBytes = 1 << 20;
-const minThumbnailPixels = 500;
+const minThumbnailPixels = 100;
 const maxThumbnailPixels = 3000;
 
 const readFileAsDataURL = async (file: File): Promise<string> =>
@@ -152,6 +213,30 @@ const readFileAsDataURL = async (file: File): Promise<string> =>
       resolve(typeof reader.result === 'string' ? reader.result : '');
     reader.readAsDataURL(file);
   });
+
+const extractThumbnailPreviewFromImage = (
+  image: HTMLImageElement,
+): string | null => {
+  const width = image.naturalWidth || image.width;
+  const height = image.naturalHeight || image.height;
+  if (!width || !height) {
+    return null;
+  }
+
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d');
+    if (!context) {
+      return null;
+    }
+    context.drawImage(image, 0, 0, width, height);
+    return canvas.toDataURL('image/png');
+  } catch {
+    return null;
+  }
+};
 
 const readImageDimensions = async (
   file: File,
@@ -303,17 +388,50 @@ const actionMatches = (
 const canManageOrganizationSettings = (
   authzMapping: Record<string, Array<{ method: string; service: string }>>,
   organization: string,
+  gitStatus?: GeckoGitOrganizationStatus,
   isAdmin = false,
 ): boolean => {
   if (isAdmin) {
     return true;
   }
+  if (typeof gitStatus?.can_access_settings === 'boolean') {
+    return gitStatus.can_access_settings;
+  }
   const candidatePaths = [`/programs/${organization}`, '/programs', '/', '*'];
   return candidatePaths.some((path) =>
     (authzMapping[path] ?? []).some(
-      (action) =>
-        actionMatches(action, 'arborist', 'manage-owners') ||
-        actionMatches(action, 'arborist', 'create-descendant'),
+      (action) => actionMatches(action, 'arborist', 'manage-owners'),
+    ),
+  );
+};
+
+const canCreateProjectsInOrganization = (
+  authzMapping: Record<string, Array<{ method: string; service: string }>>,
+  organization: string,
+  gitStatus?: GeckoGitOrganizationStatus,
+  isAdmin = false,
+): boolean => {
+  if (isAdmin) {
+    return true;
+  }
+  if (typeof gitStatus?.can_create_projects === 'boolean') {
+    return gitStatus.can_create_projects;
+  }
+  if (
+    canManageOrganizationSettings(authzMapping, organization, gitStatus, isAdmin)
+  ) {
+    return true;
+  }
+  const candidatePaths = [
+    `/programs/${organization}/projects`,
+    `/programs/${organization}`,
+    '/programs',
+    '/',
+    '*',
+  ];
+  return candidatePaths.some((path) =>
+    (authzMapping[path] ?? []).some((action) =>
+      actionMatches(action, 'arborist', 'create-descendant'),
     ),
   );
 };
@@ -347,6 +465,57 @@ const defaultIntegrationCheck = (
   pass: false,
   details,
 });
+
+const normalizeRepositoryURL = (value?: string | null): string => {
+  const trimmed = value?.trim() || '';
+  if (!trimmed) {
+    return '';
+  }
+  try {
+    const url = new URL(trimmed);
+    if (url.protocol === 'http:' || url.protocol === 'https:') {
+      return trimmed;
+    }
+  } catch {
+    return '';
+  }
+  return '';
+};
+
+const repositoryFullNameFromSrcRepo = (value?: string | null): string => {
+  const trimmed = value?.trim() || '';
+  if (!trimmed) {
+    return '';
+  }
+
+  try {
+    const url = new URL(trimmed);
+    const segments = url.pathname
+      .replace(/^\/+|\/+$/g, '')
+      .replace(/\.git$/i, '')
+      .split('/')
+      .filter(Boolean);
+    if (segments.length >= 2) {
+      return `${segments[0]}/${segments[1]}`;
+    }
+  } catch {
+    const normalized = trimmed
+      .replace(/^https?:\/\//i, '')
+      .replace(/^git@/i, '')
+      .replace(/^[^:]+:/, '')
+      .replace(/^\/+|\/+$/g, '')
+      .replace(/\.git$/i, '');
+    const segments = normalized.split('/').filter(Boolean);
+    if (segments.length >= 3) {
+      return `${segments[1]}/${segments[2]}`;
+    }
+    if (segments.length >= 2) {
+      return `${segments[segments.length - 2]}/${segments[segments.length - 1]}`;
+    }
+  }
+
+  return '';
+};
 
 const projectIntegrations = (status?: GeckoGitOrganizationProjectStatus) => ({
   github:
@@ -395,29 +564,42 @@ const integrationIssuesForProject = (
   return issues;
 };
 
-const integrationIssueBadgeLabel = (
-  issues: Array<{ key: 'github' | 'storage'; label: string }>,
-): string => {
-  const keys = issues.map((issue) => issue.key);
-  if (keys.includes('github') && keys.includes('storage')) {
-    return 'GitHub + storage';
+const projectConnectionBadge = (
+  status?: GeckoGitOrganizationProjectStatus,
+  isRefreshing = false,
+): { color: string; label: string } => {
+  if (isRefreshing) {
+    return { color: 'gray', label: 'Refreshing...' };
   }
-  if (keys.includes('github')) {
-    return 'GitHub missing';
+  const integrations = projectIntegrations(status);
+  const missingIntegrations: Array<'GitHub' | 'Storage'> = [];
+  if (!integrations.github.pass) {
+    missingIntegrations.push('GitHub');
   }
-  if (keys.includes('storage')) {
-    return 'Storage missing';
+  if (!integrations.storage.pass) {
+    missingIntegrations.push('Storage');
   }
-  return 'Needs attention';
+  if (missingIntegrations.length === 2) {
+    return { color: 'red', label: 'GitHub + Storage missing' };
+  }
+  if (missingIntegrations[0] === 'GitHub') {
+    return { color: 'red', label: 'GitHub missing' };
+  }
+  if (missingIntegrations[0] === 'Storage') {
+    return { color: 'yellow', label: 'Storage missing' };
+  }
+  return { color: 'green', label: 'Connected' };
 };
 
 const ThumbnailField = ({
+  configured = false,
   error,
   fileName,
   onFileSelected,
   onRemove,
   previewURL,
 }: {
+  configured?: boolean;
   error?: string | null;
   fileName?: string;
   onFileSelected: (file: File | null) => void;
@@ -429,7 +611,7 @@ const ThumbnailField = ({
       Project thumbnail
     </Text>
     <Text c="dimmed" size="sm">
-      Optional. PNG or JPG only, between 500x500 and 3000x3000 pixels, and under
+      Optional. PNG or JPG only, between 100x100 and 3000x3000 pixels, and under
       1MB. Stored by Gecko on persistent project storage and served separately
       from the project config.
     </Text>
@@ -438,12 +620,12 @@ const ThumbnailField = ({
         {previewURL ? (
           <img
             alt="Project thumbnail preview"
-            className="h-full w-full object-cover"
+            className="h-full w-full object-contain p-1"
             src={previewURL}
           />
         ) : (
           <Text c="dimmed" size="xs">
-            No thumbnail
+            {configured ? 'Configured' : 'No thumbnail'}
           </Text>
         )}
       </div>
@@ -458,6 +640,10 @@ const ThumbnailField = ({
         {fileName ? (
           <Text c="dimmed" size="sm">
             Selected: {fileName}
+          </Text>
+        ) : configured ? (
+          <Text c="dimmed" size="sm">
+            A thumbnail is already configured for this project.
           </Text>
         ) : null}
         <Group gap="xs">
@@ -481,9 +667,13 @@ const ThumbnailField = ({
 );
 
 const ThumbnailSummary = ({
+  configured = false,
+  error,
   onEdit,
   previewURL,
 }: {
+  configured?: boolean;
+  error?: string | null;
   onEdit: () => void;
   previewURL?: string;
 }) => (
@@ -506,17 +696,17 @@ const ThumbnailSummary = ({
             {previewURL ? (
               <img
                 alt="Project thumbnail preview"
-                className="h-full w-full object-cover"
+                className="h-full w-full object-contain p-1"
                 src={previewURL}
               />
             ) : (
               <Text c="dimmed" size="xs">
-                None
+                {configured ? 'Set' : 'None'}
               </Text>
             )}
           </div>
           <Text c="dimmed" size="sm">
-            {previewURL
+            {previewURL || configured
               ? 'Thumbnail configured.'
               : 'No thumbnail yet. Add one later if you want a project image.'}
           </Text>
@@ -524,6 +714,11 @@ const ThumbnailSummary = ({
       }
       title="Project thumbnail"
     />
+    {error ? (
+      <Alert className="mt-4" color="red" variant="light">
+        {error}
+      </Alert>
+    ) : null}
   </section>
 );
 
@@ -626,7 +821,7 @@ const StorageFields = ({
   </Stack>
 );
 
-const CreateProjectModal = ({
+export const CreateProjectModal = ({
   allowDismiss = true,
   existingOrganizations = [],
   initialFormState,
@@ -634,6 +829,7 @@ const CreateProjectModal = ({
   onCreated,
   opened,
   organization,
+  renderInline = false,
 }: {
   allowDismiss?: boolean;
   existingOrganizations?: Array<string>;
@@ -642,6 +838,7 @@ const CreateProjectModal = ({
   onCreated: () => void;
   opened: boolean;
   organization: string;
+  renderInline?: boolean;
 }) => {
   const [activeTab, setActiveTab] = useState<string | null>('details');
   const [thumbnailEditorOpen, setThumbnailEditorOpen] = useState(false);
@@ -685,7 +882,11 @@ const CreateProjectModal = ({
   }, [initialFormState, organization, opened]);
 
   const handleClose = () => {
+    const shouldRefreshProjects = Boolean(createdProjectKey);
     resetForm();
+    if (shouldRefreshProjects) {
+      onCreated();
+    }
     onClose();
   };
 
@@ -695,7 +896,8 @@ const CreateProjectModal = ({
       field === 'project_name' ||
       field === 'project_title' ||
       field === 'contact_email' ||
-      field === 'description'
+      field === 'description' ||
+      field === 'src_repo'
     ) {
       setFieldErrors((current) => {
         if (!current[field]) {
@@ -725,6 +927,7 @@ const CreateProjectModal = ({
   const submittedProject = toSlug(formState.project_name);
   const submittedResourceKey = `${submittedOrganization}/${submittedProject}`;
   const isSubmitting = isLoading || isUploadingThumbnail;
+  const isRetryingThumbnailUpload = Boolean(createdProjectKey && thumbnailFile);
   const hasStorageInput = Boolean(
     formState.bucket.trim() ||
     formState.bucket_endpoint_url.trim() ||
@@ -756,7 +959,36 @@ const CreateProjectModal = ({
 
   const handleSubmit = async () => {
     if (createdProjectKey) {
-      handleClose();
+      if (!thumbnailFile) {
+        handleClose();
+        return;
+      }
+
+      setSubmitError(null);
+      setThumbnailError(null);
+
+      try {
+        const thumbnailResponse = await uploadThumbnail({
+          file: thumbnailFile,
+          organization: submittedOrganization,
+          project: submittedProject,
+        }).unwrap();
+        if (!thumbnailResponse.success) {
+          setThumbnailError(
+            thumbnailResponse.error || 'Failed to upload thumbnail image.',
+          );
+          return;
+        }
+      } catch (error) {
+        setThumbnailError(
+          apiErrorMessage(error) || 'Failed to upload thumbnail image.',
+        );
+        return;
+      }
+
+      resetForm();
+      onCreated();
+      onClose();
       return;
     }
     const trimmedOrganization =
@@ -765,7 +997,6 @@ const CreateProjectModal = ({
     const configData: GeckoProjectConfig = {
       contact_email: formState.contact_email.trim(),
       description: formState.description.trim(),
-      icon_name: formState.icon_name.trim(),
       org_title: trimmedOrganization,
       project_title: formState.project_title.trim(),
       src_repo: formState.src_repo.trim(),
@@ -797,6 +1028,7 @@ const CreateProjectModal = ({
     }
 
     setSubmitError(null);
+    setThumbnailError(null);
 
     try {
       let storage:
@@ -868,20 +1100,20 @@ const CreateProjectModal = ({
           }).unwrap();
           if (!thumbnailResponse.success) {
             setCreatedProjectKey(submittedResourceKey);
-            setSubmitError(
-              'Project was created, but the thumbnail upload failed. You can reopen Edit project and try again.',
+            setThumbnailError(
+              `Project was created, but the thumbnail upload failed: ${
+                thumbnailResponse.error || 'Failed to upload thumbnail image.'
+              }`,
             );
-            onCreated();
             return;
           }
         } catch (error) {
           setCreatedProjectKey(submittedResourceKey);
-          setSubmitError(
+          setThumbnailError(
             `Project was created, but the thumbnail upload failed: ${
-              apiErrorMessage(error) || 'Unknown error'
+              apiErrorMessage(error) || 'Failed to upload thumbnail image.'
             }`,
           );
-          onCreated();
           return;
         }
       }
@@ -896,6 +1128,202 @@ const CreateProjectModal = ({
       setSubmitError(errorMessage);
     }
   };
+
+  const formContent = (
+    <Stack gap="lg">
+      {renderInline ? (
+        <div>
+          <Text fw={700} size="xl">
+            Create project
+          </Text>
+          {organization ? (
+            <Text c="dimmed" size="sm">
+              Organization: {organization}
+            </Text>
+          ) : null}
+        </div>
+      ) : null}
+      <Tabs onChange={setActiveTab} value={activeTab}>
+        <Tabs.List>
+          <Tabs.Tab value="details">Project details</Tabs.Tab>
+          <Tabs.Tab value="storage">Storage</Tabs.Tab>
+        </Tabs.List>
+
+        <Tabs.Panel pt="md" value="details">
+          <Stack gap="xl">
+            <section>
+              <Text c="dimmed" size="sm">
+                Start with the project metadata. Storage can be configured now
+                or later.
+              </Text>
+              <div className="mt-4">
+                <Stack gap="xs">
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <Autocomplete
+                      data-autofocus
+                      data={existingOrganizations}
+                      error={fieldErrors.org_title}
+                      label="Calypr organization"
+                      onChange={(value) => updateField('org_title', value)}
+                      placeholder="Existing org or new org"
+                      value={formState.org_title}
+                    />
+                    <TextInput
+                      error={fieldErrors.project_name}
+                      label="Calypr project ID"
+                      onChange={(event) =>
+                        updateField('project_name', event.currentTarget.value)
+                      }
+                      placeholder="example_project"
+                      value={formState.project_name}
+                    />
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <TextInput
+                      error={fieldErrors.project_title}
+                      label="Project title"
+                      onChange={(event) =>
+                        updateField('project_title', event.currentTarget.value)
+                      }
+                      placeholder="Human-readable project label"
+                      value={formState.project_title}
+                    />
+                    <TextInput
+                      error={fieldErrors.contact_email}
+                      label="Contact email"
+                      onChange={(event) =>
+                        updateField('contact_email', event.currentTarget.value)
+                      }
+                      placeholder="name@example.org"
+                      value={formState.contact_email}
+                    />
+                  </div>
+                  <Textarea
+                    autosize
+                    error={fieldErrors.description}
+                    label="Description"
+                    minRows={2}
+                    onChange={(event) =>
+                      updateField('description', event.currentTarget.value)
+                    }
+                    placeholder="Project description"
+                    value={formState.description}
+                  />
+                  <TextInput
+                    error={fieldErrors.src_repo}
+                    label="GitHub repository URL"
+                    onChange={(event) =>
+                      updateField('src_repo', event.currentTarget.value)
+                    }
+                    placeholder="https://github.com/org/repo"
+                    value={formState.src_repo}
+                  />
+                  <Text c="dimmed" size="sm">
+                    Link the project to a GitHub repository now, or leave this
+                    blank and add it later in Edit project.
+                  </Text>
+                </Stack>
+              </div>
+            </section>
+
+            <ThumbnailSummary
+              error={thumbnailError}
+              onEdit={() => setThumbnailEditorOpen(true)}
+              previewURL={thumbnailPreview}
+            />
+          </Stack>
+        </Tabs.Panel>
+
+        <Tabs.Panel pt="md" value="storage">
+          <Stack gap="md">
+            <Text c="dimmed" size="sm">
+              Configure storage now if you want the project ready for uploads
+              immediately. You can come back and add this later.
+            </Text>
+            <StorageFields formState={formState} onUpdateField={updateField} />
+          </Stack>
+        </Tabs.Panel>
+      </Tabs>
+
+      <Group
+        className="border-t border-slate-200 pt-4"
+        justify="space-between"
+        align="flex-start"
+      >
+        {submitError ? (
+          <Alert className="max-w-2xl flex-1" color="red" variant="light">
+            {submitError}
+          </Alert>
+        ) : (
+          <div />
+        )}
+        <Group justify="flex-end">
+          {allowDismiss ? (
+            <Button color="gray" onClick={handleClose} variant="subtle">
+              Cancel
+            </Button>
+          ) : null}
+          <Button
+            className={actionButtonClassName}
+            color="sky"
+            leftSection={<IconPlus size={16} />}
+            loading={isSubmitting}
+            onClick={handleSubmit}
+            variant="light"
+          >
+            {isRetryingThumbnailUpload
+              ? 'Retry thumbnail upload'
+              : createdProjectKey
+                ? 'Done'
+                : 'Create project'}
+          </Button>
+        </Group>
+      </Group>
+    </Stack>
+  );
+
+  const thumbnailEditor = (
+    <Modal
+      onClose={() => setThumbnailEditorOpen(false)}
+      opened={thumbnailEditorOpen}
+      size="md"
+      title="Project thumbnail"
+    >
+      <Stack gap="md">
+        <ThumbnailField
+          error={thumbnailError}
+          fileName={thumbnailFile?.name}
+          onFileSelected={(file) => {
+            void updateThumbnailFile(file);
+          }}
+          onRemove={() => {
+            void updateThumbnailFile(null);
+          }}
+          previewURL={thumbnailPreview}
+        />
+        <Group justify="flex-end">
+          <Button
+            color="gray"
+            onClick={() => setThumbnailEditorOpen(false)}
+            variant="subtle"
+          >
+            Done
+          </Button>
+        </Group>
+      </Stack>
+    </Modal>
+  );
+
+  if (renderInline) {
+    return (
+      <>
+        <div className="mx-auto w-full max-w-6xl px-4 py-4 sm:px-6">
+          {formContent}
+        </div>
+        {thumbnailEditor}
+      </>
+    );
+  }
 
   return (
     <Modal
@@ -915,164 +1343,8 @@ const CreateProjectModal = ({
         </div>
       }
     >
-      <Stack gap="lg">
-        <Tabs onChange={setActiveTab} value={activeTab}>
-          <Tabs.List>
-            <Tabs.Tab value="details">Project details</Tabs.Tab>
-            <Tabs.Tab value="storage">Storage</Tabs.Tab>
-          </Tabs.List>
-
-          <Tabs.Panel pt="md" value="details">
-            <Stack gap="xl">
-              <section>
-                <Text c="dimmed" size="sm">
-                  Start with the project metadata. Storage can be configured now
-                  or later.
-                </Text>
-                <div className="mt-4">
-                  <Stack gap="xs">
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <Autocomplete
-                        data-autofocus
-                        data={existingOrganizations}
-                        error={fieldErrors.org_title}
-                        label="Calypr organization"
-                        onChange={(value) => updateField('org_title', value)}
-                        placeholder="Existing org or new org"
-                        value={formState.org_title}
-                      />
-                      <TextInput
-                        error={fieldErrors.project_name}
-                        label="Calypr project ID"
-                        onChange={(event) =>
-                          updateField('project_name', event.currentTarget.value)
-                        }
-                        placeholder="example_project"
-                        value={formState.project_name}
-                      />
-                    </div>
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <TextInput
-                        error={fieldErrors.project_title}
-                        label="Project title"
-                        onChange={(event) =>
-                          updateField(
-                            'project_title',
-                            event.currentTarget.value,
-                          )
-                        }
-                        placeholder="Human-readable project label"
-                        value={formState.project_title}
-                      />
-                      <TextInput
-                        error={fieldErrors.contact_email}
-                        label="Contact email"
-                        onChange={(event) =>
-                          updateField(
-                            'contact_email',
-                            event.currentTarget.value,
-                          )
-                        }
-                        placeholder="name@example.org"
-                        value={formState.contact_email}
-                      />
-                    </div>
-                    <Textarea
-                      autosize
-                      error={fieldErrors.description}
-                      label="Description"
-                      minRows={2}
-                      onChange={(event) =>
-                        updateField('description', event.currentTarget.value)
-                      }
-                      placeholder="Project description"
-                      value={formState.description}
-                    />
-                  </Stack>
-                </div>
-              </section>
-
-              <ThumbnailSummary
-                onEdit={() => setThumbnailEditorOpen(true)}
-                previewURL={thumbnailPreview}
-              />
-            </Stack>
-          </Tabs.Panel>
-
-          <Tabs.Panel pt="md" value="storage">
-            <Stack gap="md">
-              <Text c="dimmed" size="sm">
-                Configure storage now if you want the project ready for uploads
-                immediately. You can come back and add this later.
-              </Text>
-              <StorageFields
-                formState={formState}
-                onUpdateField={updateField}
-              />
-            </Stack>
-          </Tabs.Panel>
-        </Tabs>
-
-        <Group
-          className="border-t border-slate-200 pt-4"
-          justify="space-between"
-          align="flex-start"
-        >
-          {submitError ? (
-            <Alert className="max-w-2xl flex-1" color="red" variant="light">
-              {submitError}
-            </Alert>
-          ) : (
-            <div />
-          )}
-          <Group justify="flex-end">
-            {allowDismiss ? (
-              <Button color="gray" onClick={handleClose} variant="subtle">
-                Cancel
-              </Button>
-            ) : null}
-            <Button
-              className={actionButtonClassName}
-              color="sky"
-              leftSection={<IconPlus size={16} />}
-              loading={isSubmitting}
-              onClick={handleSubmit}
-              variant="light"
-            >
-              {createdProjectKey ? 'Done' : 'Create project'}
-            </Button>
-          </Group>
-        </Group>
-      </Stack>
-      <Modal
-        onClose={() => setThumbnailEditorOpen(false)}
-        opened={thumbnailEditorOpen}
-        size="md"
-        title="Project thumbnail"
-      >
-        <Stack gap="md">
-          <ThumbnailField
-            error={thumbnailError}
-            fileName={thumbnailFile?.name}
-            onFileSelected={(file) => {
-              void updateThumbnailFile(file);
-            }}
-            onRemove={() => {
-              void updateThumbnailFile(null);
-            }}
-            previewURL={thumbnailPreview}
-          />
-          <Group justify="flex-end">
-            <Button
-              color="gray"
-              onClick={() => setThumbnailEditorOpen(false)}
-              variant="subtle"
-            >
-              Done
-            </Button>
-          </Group>
-        </Stack>
-      </Modal>
+      {formContent}
+      {thumbnailEditor}
     </Modal>
   );
 };
@@ -1088,6 +1360,10 @@ const ProjectManagementModal = ({
   repositoryLabel,
   repositoryURL,
   status,
+  thumbnailPreviewData,
+  thumbnailURL,
+  onThumbnailPreviewChange,
+  onThumbnailRemoved,
 }: {
   config?: GeckoProjectConfig;
   onClose: () => void;
@@ -1099,6 +1375,10 @@ const ProjectManagementModal = ({
   repositoryLabel?: string;
   repositoryURL?: string;
   status?: GeckoGitOrganizationProjectStatus;
+  thumbnailPreviewData?: string;
+  thumbnailURL?: string;
+  onThumbnailPreviewChange?: (thumbnailURL: string, previewData: string) => void;
+  onThumbnailRemoved?: (thumbnailURL: string) => void;
 }) => {
   const [activeTab, setActiveTab] = useState<string | null>('details');
   const [thumbnailEditorOpen, setThumbnailEditorOpen] = useState(false);
@@ -1119,14 +1399,6 @@ const ProjectManagementModal = ({
     useDeleteGeckoProjectThumbnailMutation();
   const [updateStorage, { isLoading: isSavingStorage }] =
     useUpdateGeckoProjectStorageMutation();
-  const {
-    data: existingThumbnail,
-    isFetching: isFetchingThumbnail,
-    refetch: refetchThumbnail,
-  } = useGetGeckoProjectThumbnailQuery(
-    { organization, project },
-    { skip: !opened },
-  );
   const integrations = projectIntegrations(status);
 
   useEffect(() => {
@@ -1136,7 +1408,7 @@ const ProjectManagementModal = ({
     setStorageError(null);
     setThumbnailError(null);
     setThumbnailFile(null);
-    setThumbnailPreview('');
+    setThumbnailPreview(thumbnailPreviewData || '');
     setThumbnailRemoved(false);
     setFormState({
       ...defaultProjectConfig(organization),
@@ -1146,24 +1418,31 @@ const ProjectManagementModal = ({
       org_title: config?.org_title || organization,
       project_name: project,
       project_title: config?.project_title || project,
-      src_repo: config?.src_repo || repositoryURL || repositoryLabel || '',
+      src_repo:
+        normalizeRepositoryURL(config?.src_repo) ||
+        normalizeRepositoryURL(repositoryURL),
     });
-  }, [config, opened, organization, project, repositoryLabel, repositoryURL]);
-
-  useEffect(() => {
-    if (!opened || thumbnailFile || thumbnailRemoved) {
-      return;
-    }
-    setThumbnailPreview(existingThumbnail?.data_url || '');
-  }, [existingThumbnail, opened, thumbnailFile, thumbnailRemoved]);
+  }, [
+    config,
+    opened,
+    organization,
+    project,
+    repositoryLabel,
+    repositoryURL,
+    thumbnailPreviewData,
+    thumbnailURL,
+  ]);
 
   const issues = integrationIssuesForProject(status);
+  const hasPendingThumbnailChanges = Boolean(thumbnailFile) || thumbnailRemoved;
+  const hasExistingThumbnail = Boolean(thumbnailURL) && !thumbnailRemoved;
+  const isSavingThumbnail = isUploadingThumbnail || isDeletingThumbnail;
 
   const updateThumbnailFile = async (file: File | null): Promise<void> => {
     if (!file) {
       setThumbnailFile(null);
       setThumbnailPreview(
-        thumbnailRemoved ? '' : existingThumbnail?.data_url || '',
+        thumbnailRemoved ? '' : thumbnailPreviewData || '',
       );
       setThumbnailError(null);
       return;
@@ -1182,14 +1461,67 @@ const ProjectManagementModal = ({
     }
   };
 
+  const saveThumbnailChanges = async () => {
+    if (!hasPendingThumbnailChanges) {
+      setThumbnailEditorOpen(false);
+      return;
+    }
+
+    setThumbnailError(null);
+    try {
+      if (thumbnailRemoved && hasExistingThumbnail) {
+        const deleteResponse = await deleteThumbnail({
+          organization,
+          project,
+        }).unwrap();
+        if (!deleteResponse.success) {
+          setThumbnailError(
+            deleteResponse.error || 'Failed to remove project thumbnail.',
+          );
+          return;
+        }
+      } else if (thumbnailFile) {
+        const uploadResponse = await uploadThumbnail({
+          file: thumbnailFile,
+          organization,
+          project,
+        }).unwrap();
+        if (!uploadResponse.success) {
+          setThumbnailError(
+            uploadResponse.error || 'Failed to upload project thumbnail.',
+          );
+          return;
+        }
+      }
+
+      if (thumbnailRemoved && thumbnailURL) {
+        onThumbnailRemoved?.(thumbnailURL);
+      }
+      if (thumbnailFile && thumbnailPreview && thumbnailURL) {
+        onThumbnailPreviewChange?.(thumbnailURL, thumbnailPreview);
+      }
+      setThumbnailFile(null);
+      setThumbnailRemoved(false);
+      if (thumbnailRemoved) {
+        setThumbnailPreview('');
+      }
+      setThumbnailEditorOpen(false);
+      onProjectSaved();
+    } catch (error) {
+      setThumbnailError(
+        apiErrorMessage(error) ||
+          'Failed to save project thumbnail changes.',
+      );
+    }
+  };
+
   const saveOverview = async () => {
     const nextConfig: GeckoProjectConfig = {
       contact_email: formState.contact_email.trim(),
       description: formState.description.trim(),
-      icon_name: formState.icon_name.trim() || 'binoculars',
       org_title: organization,
       project_title: formState.project_title.trim(),
-      src_repo: formState.src_repo.trim(),
+      src_repo: normalizeRepositoryURL(formState.src_repo),
       title: formState.project_title.trim(),
     };
 
@@ -1220,40 +1552,12 @@ const ProjectManagementModal = ({
         setOverviewError(response.error || 'Failed to save project settings.');
         return;
       }
-
-      if (thumbnailRemoved && existingThumbnail) {
-        const deleteResponse = await deleteThumbnail({
-          organization,
-          project,
-        }).unwrap();
-        if (!deleteResponse.success) {
-          setThumbnailError('Failed to remove project thumbnail.');
-          return;
-        }
-      } else if (thumbnailFile) {
-        const uploadResponse = await uploadThumbnail({
-          file: thumbnailFile,
-          organization,
-          project,
-        }).unwrap();
-        if (!uploadResponse.success) {
-          setThumbnailError('Failed to upload project thumbnail.');
-          return;
-        }
-      }
-
-      setThumbnailFile(null);
-      setThumbnailRemoved(false);
-      await refetchThumbnail();
       onProjectSaved();
+      onClose();
     } catch (error) {
-      const message =
-        apiErrorMessage(error) || 'Failed to save project settings.';
-      if (message.toLowerCase().includes('thumbnail')) {
-        setThumbnailError(message);
-        return;
-      }
-      setOverviewError(message);
+      setOverviewError(
+        apiErrorMessage(error) || 'Failed to save project settings.',
+      );
     }
   };
 
@@ -1358,22 +1662,24 @@ const ProjectManagementModal = ({
                     <div className="grid gap-3 md:grid-cols-2">
                       <TextInput
                         label="Project title"
-                        onChange={(event) =>
+                        onChange={(event) => {
+                          const { value } = event.currentTarget;
                           setFormState((current) => ({
                             ...current,
-                            project_title: event.currentTarget.value,
-                          }))
-                        }
+                            project_title: value,
+                          }));
+                        }}
                         value={formState.project_title}
                       />
                       <TextInput
                         label="Contact email"
-                        onChange={(event) =>
+                        onChange={(event) => {
+                          const { value } = event.currentTarget;
                           setFormState((current) => ({
                             ...current,
-                            contact_email: event.currentTarget.value,
-                          }))
-                        }
+                            contact_email: value,
+                          }));
+                        }}
                         value={formState.contact_email}
                       />
                     </div>
@@ -1381,12 +1687,13 @@ const ProjectManagementModal = ({
                       autosize
                       label="Description"
                       minRows={2}
-                      onChange={(event) =>
+                      onChange={(event) => {
+                        const { value } = event.currentTarget;
                         setFormState((current) => ({
                           ...current,
-                          description: event.currentTarget.value,
-                        }))
-                      }
+                          description: value,
+                        }));
+                      }}
                       value={formState.description}
                     />
                     {overviewError ? (
@@ -1399,6 +1706,8 @@ const ProjectManagementModal = ({
               </section>
 
               <ThumbnailSummary
+                configured={hasExistingThumbnail}
+                error={thumbnailError}
                 onEdit={() => setThumbnailEditorOpen(true)}
                 previewURL={thumbnailPreview}
               />
@@ -1451,13 +1760,11 @@ const ProjectManagementModal = ({
 
         <Group className="border-t border-slate-200 pt-4" justify="flex-end">
           <Button
-            loading={
-              isSavingProject ||
-              isUploadingThumbnail ||
-              isDeletingThumbnail ||
-              isFetchingThumbnail
-            }
+            className={actionButtonClassName}
+            color="sky"
+            loading={isSavingProject}
             onClick={() => void saveOverview()}
+            variant="light"
           >
             Save project
           </Button>
@@ -1471,6 +1778,7 @@ const ProjectManagementModal = ({
       >
         <Stack gap="md">
           <ThumbnailField
+            configured={hasExistingThumbnail}
             error={thumbnailError}
             fileName={thumbnailFile?.name}
             onFileSelected={(file) => {
@@ -1480,7 +1788,7 @@ const ProjectManagementModal = ({
               setThumbnailFile(null);
               setThumbnailError(null);
               setThumbnailPreview('');
-              setThumbnailRemoved(Boolean(existingThumbnail));
+              setThumbnailRemoved(Boolean(thumbnailURL));
             }}
             previewURL={thumbnailPreview}
           />
@@ -1490,7 +1798,13 @@ const ProjectManagementModal = ({
               onClick={() => setThumbnailEditorOpen(false)}
               variant="subtle"
             >
-              Done
+              Cancel
+            </Button>
+            <Button
+              loading={isSavingThumbnail}
+              onClick={() => void saveThumbnailChanges()}
+            >
+              {hasPendingThumbnailChanges ? 'Save thumbnail' : 'Done'}
             </Button>
           </Group>
         </Stack>
@@ -1500,14 +1814,17 @@ const ProjectManagementModal = ({
 };
 
 const CompactProjectRow = ({
+  onThumbnailPreviewAvailable,
   status,
   organization,
   onManageProject,
   project,
   repositoryURL,
   repositoryLabel,
+  thumbnail_url,
   isRefreshingConnections = false,
 }: AccessibleOrganizationProject & {
+  onThumbnailPreviewAvailable?: (thumbnailURL: string, previewData: string) => void;
   status?: GeckoGitOrganizationProjectStatus;
   onManageProject: (
     organization: string,
@@ -1520,8 +1837,7 @@ const CompactProjectRow = ({
 }) => {
   const router = useRouter();
   const localProjectHref = `/git/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}`;
-  const issues = integrationIssuesForProject(status);
-  const isHealthy = Boolean(status) && issues.length === 0;
+  const badge = projectConnectionBadge(status, isRefreshingConnections);
 
   return (
     <div
@@ -1540,11 +1856,27 @@ const CompactProjectRow = ({
     >
       <div className="min-w-0">
         <Group gap="xs" wrap="nowrap">
-          <img
-            alt="Calypr"
-            className="h-4 w-4 shrink-0"
-            src="/icons/calypr-mark-mono.svg"
-          />
+          {thumbnail_url ? (
+            <img
+              alt={`${project} thumbnail`}
+              className="h-5 w-5 shrink-0 rounded object-contain"
+              onLoad={(event) => {
+                const preview = extractThumbnailPreviewFromImage(
+                  event.currentTarget,
+                );
+                if (preview) {
+                  onThumbnailPreviewAvailable?.(thumbnail_url, preview);
+                }
+              }}
+              src={thumbnail_url}
+            />
+          ) : (
+            <img
+              alt="Calypr"
+              className="h-4 w-4 shrink-0"
+              src="/icons/calypr-mark-mono.svg"
+            />
+          )}
           <a
             className="min-w-0 truncate font-semibold text-slate-900 transition hover:text-slate-700 hover:underline"
             href={localProjectHref}
@@ -1552,19 +1884,9 @@ const CompactProjectRow = ({
           >
             {project}
           </a>
-          {isRefreshingConnections ? (
-            <Badge color="gray" size="sm" variant="light">
-              Refreshing...
-            </Badge>
-          ) : (
-            <Badge
-              color={isHealthy ? 'green' : 'red'}
-              size="sm"
-              variant="light"
-            >
-              {isHealthy ? 'Connected' : integrationIssueBadgeLabel(issues)}
-            </Badge>
-          )}
+          <Badge color={badge.color} size="sm" variant="light">
+            {badge.label}
+          </Badge>
         </Group>
         {repositoryURL ? (
           <a
@@ -1610,14 +1932,17 @@ const OrganizationRow = ({
   group,
   gitStatus,
   canManageSettings = false,
+  canCreateProjects = false,
   initiallyOpen = false,
   hideCollapse = false,
   onManageProject,
+  onThumbnailPreviewAvailable,
   isRefreshingConnections = false,
 }: {
   group: OrganizationGroup;
   gitStatus?: GeckoGitOrganizationStatus;
   canManageSettings?: boolean;
+  canCreateProjects?: boolean;
   initiallyOpen?: boolean;
   hideCollapse?: boolean;
   onManageProject: (
@@ -1625,6 +1950,7 @@ const OrganizationRow = ({
     project: string,
     status?: GeckoGitOrganizationProjectStatus,
   ) => void;
+  onThumbnailPreviewAvailable?: (thumbnailURL: string, previewData: string) => void;
   isRefreshingConnections?: boolean;
 }) => {
   const [isOpen, setIsOpen] = useState(initiallyOpen);
@@ -1738,6 +2064,7 @@ const OrganizationRow = ({
                 {...project}
                 isRefreshingConnections={isRefreshingConnections}
                 onManageProject={onManageProject}
+                onThumbnailPreviewAvailable={onThumbnailPreviewAvailable}
                 repositoryLabel={
                   repositoryDetailsByProject.get(project.project)?.label
                 }
@@ -1749,8 +2076,11 @@ const OrganizationRow = ({
             ))
           ) : (
             <div className="px-6 py-3 text-sm text-slate-500">
-              You can manage this organization, but no project-level access is
-              currently visible here.
+              {canManageSettings
+                ? 'You can manage this organization, but no project-level access is currently visible here.'
+                : canCreateProjects
+                  ? 'You can create projects in this organization, but no project-level access is currently visible here.'
+                  : 'No project-level access is currently visible here.'}
             </div>
           )}
         </div>
@@ -1768,18 +2098,29 @@ const GitLandingPage = ({
   const session = useSession(false);
   const isAdmin = session.user?.is_admin === true;
   const lastAutoRefreshKeyRef = useRef<string | null>(null);
+  const [connectionRefreshCount, setConnectionRefreshCount] = useState(0);
   const {
     data: geckoProjects = [],
     isLoading,
     refetch: refetchGeckoProjects,
   } = useGetGeckoProjectsQuery();
-  const { data: gitProjects = [], refetch: refetchGitProjects } =
-    useGetGeckoGitProjectsQuery();
   const { data: authzMapping = {}, refetch: refetchAuthzMapping } =
     useGetAuthzMappingsQuery();
   const [searchQuery, setSearchQuery] = useState('');
-  const [createModalOpen, setCreateModalOpen] = useState(false);
   const [connectChooserOpen, setConnectChooserOpen] = useState(false);
+  const [connectBindingState, setConnectBindingState] = useState<{
+    installationID?: number;
+    organization: string;
+    project: string;
+    repositories: Array<GeckoGitInstallationRepository>;
+    selectedRepository: string;
+  } | null>(null);
+  const [connectBindingError, setConnectBindingError] = useState<string | null>(
+    null,
+  );
+  const [thumbnailPreviewByURL, setThumbnailPreviewByURL] = useState<
+    Record<string, string>
+  >({});
   const [manageProject, setManageProject] = useState<{
     organization: string;
     project: string;
@@ -1787,21 +2128,112 @@ const GitLandingPage = ({
   } | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
   const [connectOrganization] = useConnectGeckoGitOrganizationMutation();
-  const [reconcileOrganizations, { isLoading: isRefreshingConnections }] =
+  const [initConnectOrganization] = useInitConnectGeckoGitOrganizationMutation();
+  const [updateProjectBinding, { isLoading: isBindingRepository }] =
+    useUpdateGeckoProjectMutation();
+  const [reconcileOrganization, { isLoading: isReconcilingOrganization }] =
+    useReconcileGeckoGitOrganizationMutation();
+  const [reconcileOrganizations, { isLoading: isReconcilingOrganizations }] =
     useReconcileGeckoGitOrganizationsMutation();
-  const { data: organizationsStatus, refetch: refetchOrganizationsStatus } =
-    useGetGeckoGitOrganizationsStatusQuery(undefined, {
+  const organizationsStatusQuery = useGetGeckoGitOrganizationsStatusQuery(
+    undefined,
+    {
       skip: false,
-    });
+    },
+  );
+  const {
+    data: organizationsStatus,
+    refetch: refetchOrganizationsStatus,
+    isLoading: isOrganizationsStatusLoading,
+  } = organizationsStatusQuery;
+  const isOrganizationsStatusFetching =
+    'isFetching' in organizationsStatusQuery &&
+    typeof organizationsStatusQuery.isFetching === 'boolean'
+      ? organizationsStatusQuery.isFetching
+      : false;
+  const withConnectionRefresh = useCallback(
+    async (work: () => Promise<void>) => {
+      setConnectionRefreshCount((current) => current + 1);
+      try {
+        await work();
+      } finally {
+        setConnectionRefreshCount((current) => Math.max(0, current - 1));
+      }
+    },
+    [],
+  );
+  const isRefreshingConnections =
+    connectionRefreshCount > 0 ||
+    isReconcilingOrganizations ||
+    isReconcilingOrganization ||
+    isOrganizationsStatusLoading ||
+    isOrganizationsStatusFetching;
+  const geckoProjectRecordByResourcePath = useMemo(
+    () =>
+      new Map(
+        geckoProjects.map(
+          (project) => [project.resourcePath, project] as const,
+        ),
+      ),
+    [geckoProjects],
+  );
+  const resolveProjectRecord = useCallback(
+    async (organization: string, project: string) => {
+      const resourcePath = `/programs/${organization}/projects/${project}`;
+      const cached = geckoProjectRecordByResourcePath.get(resourcePath);
+      if (cached?.configData) {
+        return cached;
+      }
+
+      const refreshed = (await refetchGeckoProjects()) as {
+        data?: Array<GeckoProjectRecord>;
+      };
+      const refreshedProjects = Array.isArray(refreshed.data)
+        ? (refreshed.data as Array<GeckoProjectRecord>)
+        : [];
+      return (
+        refreshedProjects.find(
+          (candidate) =>
+            candidate.resourcePath === resourcePath && candidate.configData,
+        ) || null
+      );
+    },
+    [geckoProjectRecordByResourcePath, refetchGeckoProjects],
+  );
   const accessibleProjects = useMemo(
     () =>
       extractProjectsFromResourcePaths(
         geckoProjects.map(
           (project: GeckoProjectRecord) => project.resourcePath,
         ),
-      ),
-    [geckoProjects],
+      ).map((project) => ({
+        ...project,
+        thumbnail_url: geckoProjectRecordByResourcePath.get(
+          project.resourcePath,
+        )?.thumbnail_url,
+      })),
+    [geckoProjectRecordByResourcePath, geckoProjects],
   );
+  const rememberThumbnailPreview = useCallback(
+    (thumbnailURL: string, previewData: string) => {
+      setThumbnailPreviewByURL((current) =>
+        current[thumbnailURL] === previewData
+          ? current
+          : { ...current, [thumbnailURL]: previewData },
+      );
+    },
+    [],
+  );
+  const forgetThumbnailPreview = useCallback((thumbnailURL: string) => {
+    setThumbnailPreviewByURL((current) => {
+      if (!current[thumbnailURL]) {
+        return current;
+      }
+      const next = { ...current };
+      delete next[thumbnailURL];
+      return next;
+    });
+  }, []);
   const organizationGroups = useMemo(
     () => groupProjectsByOrganization(accessibleProjects),
     [accessibleProjects],
@@ -1831,11 +2263,6 @@ const GitLandingPage = ({
     organizationGroups.forEach((group) => {
       visibleOrganizations.add(group.organization);
     });
-    (organizationsStatus?.organizations ?? []).forEach((status) => {
-      if (allowedOrganizations.has(status.organization)) {
-        visibleOrganizations.add(status.organization);
-      }
-    });
 
     return Array.from(visibleOrganizations)
       .sort((left, right) => left.localeCompare(right))
@@ -1849,7 +2276,6 @@ const GitLandingPage = ({
   }, [
     membershipOrganizationOptions,
     organizationGroups,
-    organizationsStatus?.organizations,
   ]);
   const normalizedSearchQuery = searchQuery.trim().toLowerCase();
   const organizationStatuses = useMemo(
@@ -1862,119 +2288,35 @@ const GitLandingPage = ({
       ),
     [organizationsStatus?.organizations],
   );
-  const manageableOrganizationOptions = useMemo(() => {
-    const organizations = new Set<string>();
-    displayOrganizationGroups.forEach((group) => {
-      if (
-        canManageOrganizationSettings(authzMapping, group.organization, isAdmin)
-      ) {
-        organizations.add(group.organization);
-      }
-    });
-    (organizationsStatus?.organizations ?? []).forEach((status) => {
-      if (
-        canManageOrganizationSettings(
-          authzMapping,
-          status.organization,
-          isAdmin,
-        )
-      ) {
-        organizations.add(status.organization);
-      }
-    });
-    return Array.from(organizations).sort((left, right) =>
-      left.localeCompare(right),
-    );
-  }, [
-    authzMapping,
-    displayOrganizationGroups,
-    isAdmin,
-    organizationsStatus?.organizations,
-  ]);
   const githubConnectTargets = useMemo(() => {
-    const displayGroupsByOrganization = new Map(
-      displayOrganizationGroups.map((group) => [group.organization, group]),
-    );
-    const targets = manageableOrganizationOptions.flatMap((organization) => {
-      const visibleGroup = displayGroupsByOrganization.get(organization);
-      const statusProjects =
-        organizationStatuses.get(organization)?.projects ?? [];
-      const targetsByProjectID = new Map<
-        string,
-        {
-          organization: string;
-          project: string;
-          projectID: string;
-          repoLabel?: string;
-          needsConnection: boolean;
-          statusDetails?: string;
-        }
-      >();
-
-      statusProjects.forEach((projectStatus) => {
-        const github = projectIntegrations(projectStatus).github;
-        const hasRepository =
-          Boolean(projectStatus.repository?.owner) &&
-          Boolean(projectStatus.repository?.repo);
-        const projectID = `${organization}/${projectStatus.project}`;
-        targetsByProjectID.set(projectID, {
-          organization,
-          project: projectStatus.project,
-          projectID,
-          repoLabel: hasRepository
-            ? `${projectStatus.repository.owner}/${projectStatus.repository.repo}`
-            : undefined,
-          needsConnection: !github.pass,
-          statusDetails: github.details,
-        });
-      });
-
-      (visibleGroup?.projects ?? []).forEach((project) => {
-        const projectID = `${organization}/${project.project}`;
-        if (targetsByProjectID.has(projectID)) {
-          return;
-        }
-        targetsByProjectID.set(projectID, {
-          organization,
+    return displayOrganizationGroups
+      .filter((group) =>
+        selectedOrganization
+          ? group.organization === selectedOrganization
+          : true,
+      )
+      .flatMap((group) =>
+        group.projects.map((project) => ({
+          organization: group.organization,
           project: project.project,
-          projectID,
-          needsConnection: true,
-          statusDetails: 'GitHub connection status is unavailable.',
-        });
-      });
-
-      return Array.from(targetsByProjectID.values());
-    });
-
-    const filteredTargets = selectedOrganization
-      ? targets.filter((target) => target.organization === selectedOrganization)
-      : targets;
-
-    return filteredTargets.sort((left, right) => {
-      if (left.needsConnection !== right.needsConnection) {
-        return left.needsConnection ? -1 : 1;
-      }
-      if (left.organization !== right.organization) {
-        return left.organization.localeCompare(right.organization);
-      }
-      return left.project.localeCompare(right.project);
-    });
-  }, [
-    displayOrganizationGroups,
-    manageableOrganizationOptions,
-    organizationStatuses,
-    selectedOrganization,
-  ]);
-  const gitProjectDetailsByID = useMemo(
-    () =>
-      new Map(
-        gitProjects.map((projectStatus: GeckoGitProjectStatus) => [
-          projectStatus.project_id,
-          projectStatus,
-        ]),
-      ),
-    [gitProjects],
-  );
+          resourcePath: project.resourcePath,
+        })),
+      )
+      .sort((left, right) =>
+        left.organization === right.organization
+          ? left.project.localeCompare(right.project)
+          : left.organization.localeCompare(right.organization),
+      );
+  }, [displayOrganizationGroups, selectedOrganization]);
+  const connectBindingRepositoryOptions = useMemo(() => {
+    if (!connectBindingState) {
+      return [];
+    }
+    return connectBindingState.repositories.map((repository) => ({
+      label: repository.full_name,
+      value: repository.full_name,
+    }));
+  }, [connectBindingState]);
   const searchResults = useMemo(() => {
     if (!normalizedSearchQuery) {
       return [];
@@ -2060,18 +2402,192 @@ const GitLandingPage = ({
   }, [displayOrganizationGroups, normalizedSearchQuery, selectedOrganization]);
 
   const refreshConnections = useCallback(async () => {
-    setConnectError(null);
-    await reconcileOrganizations().unwrap();
-    await Promise.all([
-      refetchOrganizationsStatus(),
-      refetchGeckoProjects(),
-      refetchAuthzMapping(),
-    ]);
+    await withConnectionRefresh(async () => {
+      setConnectError(null);
+      await reconcileOrganizations().unwrap();
+      await Promise.all([
+        refetchOrganizationsStatus(),
+        refetchGeckoProjects(),
+        refetchAuthzMapping(),
+      ]);
+    });
   }, [
     reconcileOrganizations,
     refetchAuthzMapping,
     refetchGeckoProjects,
     refetchOrganizationsStatus,
+    withConnectionRefresh,
+  ]);
+
+  const refreshConnectionsForOrganization = useCallback(
+    async (organization: string) => {
+      const normalizedOrganization = organization.trim();
+      if (!normalizedOrganization) {
+        await refreshConnections();
+        return;
+      }
+      await withConnectionRefresh(async () => {
+        setConnectError(null);
+        await reconcileOrganization({
+          organization: normalizedOrganization,
+        }).unwrap();
+        await Promise.all([
+          refetchOrganizationsStatus(),
+          refetchGeckoProjects(),
+          refetchAuthzMapping(),
+        ]);
+      });
+    },
+    [
+      reconcileOrganization,
+      refetchAuthzMapping,
+      refetchGeckoProjects,
+      refetchOrganizationsStatus,
+      refreshConnections,
+      withConnectionRefresh,
+    ],
+  );
+
+  const openConnectBindingState = useCallback(
+    (
+      organization: string,
+      project: string,
+      repositories: Array<GeckoGitInstallationRepository>,
+    ) => {
+      const projectRecord = geckoProjectRecordByResourcePath.get(
+        `/programs/${organization}/projects/${project}`,
+      );
+      const existingRepository = repositoryFullNameFromSrcRepo(
+        projectRecord?.configData?.src_repo,
+      );
+      const matchingRepository = repositories.some(
+        (repository) => repository.full_name === existingRepository,
+      )
+        ? existingRepository
+        : repositories[0]?.full_name || '';
+      setConnectChooserOpen(false);
+      setConnectBindingError(null);
+      setConnectBindingState({
+        organization,
+        project,
+        repositories,
+        selectedRepository: matchingRepository,
+      });
+    },
+    [geckoProjectRecordByResourcePath],
+  );
+
+  const handleInitConnectResponse = useCallback(
+    async (
+      organization: string,
+      project: string,
+      response: {
+        mode: 'redirect' | 'select_repository';
+        redirect_url?: string;
+        repositories?: Array<GeckoGitInstallationRepository>;
+      },
+    ) => {
+      if (response.mode === 'redirect' && response.redirect_url) {
+        window.location.assign(response.redirect_url);
+        return;
+      }
+      if (response.mode === 'select_repository') {
+        const repositories = response.repositories ?? [];
+        if (repositories.length === 1) {
+          const repository = repositories[0];
+          const projectRecord = await resolveProjectRecord(
+            organization,
+            project,
+          );
+          if (!projectRecord?.configData) {
+            throw new Error('The selected project could not be resolved.');
+          }
+          const nextConfig: GeckoProjectConfig = {
+            ...projectRecord.configData,
+            src_repo: repository.html_url,
+          };
+          const updateResponse = await updateProjectBinding({
+            organization,
+            project,
+            configData: nextConfig,
+          }).unwrap();
+          if (!updateResponse.success) {
+            throw new Error(
+              updateResponse.error ||
+                'Failed to link the GitHub repository.',
+            );
+          }
+          await refreshConnectionsForOrganization(organization);
+          setConnectBindingState(null);
+          setConnectBindingError(null);
+          return;
+        }
+        openConnectBindingState(organization, project, repositories);
+        return;
+      }
+      throw new Error('GitHub connect response was missing a redirect or repository list.');
+    },
+    [
+      openConnectBindingState,
+      refreshConnectionsForOrganization,
+      resolveProjectRecord,
+      updateProjectBinding,
+    ],
+  );
+
+  const handleBindRepository = useCallback(async () => {
+    if (!connectBindingState) {
+      return;
+    }
+
+    const { organization, project, repositories, selectedRepository } =
+      connectBindingState;
+    if (!selectedRepository) {
+      setConnectBindingError('Choose a GitHub repository.');
+      return;
+    }
+    const repository = repositories.find(
+      (candidate) => candidate.full_name === selectedRepository,
+    );
+    const projectRecord = await resolveProjectRecord(organization, project);
+    if (!projectRecord?.configData || !repository) {
+      setConnectBindingError(
+        'The selected project or repository could not be resolved.',
+      );
+      return;
+    }
+
+    const nextConfig: GeckoProjectConfig = {
+      ...projectRecord.configData,
+      src_repo: repository.html_url,
+    };
+
+    try {
+      const response = await updateProjectBinding({
+        organization,
+        project,
+        configData: nextConfig,
+      }).unwrap();
+      if (!response.success) {
+        setConnectBindingError(
+          response.error || 'Failed to link the GitHub repository.',
+        );
+        return;
+      }
+      await refreshConnectionsForOrganization(organization);
+      setConnectBindingState(null);
+      setConnectChooserOpen(false);
+      setConnectBindingError(null);
+    } catch (error) {
+      setConnectBindingError(
+        apiErrorMessage(error) || 'Failed to link the GitHub repository.',
+      );
+    }
+  }, [
+    connectBindingState,
+    refreshConnectionsForOrganization,
+    resolveProjectRecord,
+    updateProjectBinding,
   ]);
 
   useEffect(() => {
@@ -2080,7 +2596,12 @@ const GitLandingPage = ({
     }
     const setupAction = router.query.setup_action;
     const installationID = router.query.installation_id;
-    if (setupAction !== 'update' || typeof installationID !== 'string') {
+    const callbackState = router.query.state;
+    if (
+      typeof setupAction !== 'string' ||
+      !setupAction.trim() ||
+      typeof installationID !== 'string'
+    ) {
       return;
     }
     const refreshKey = `${setupAction}:${installationID}`;
@@ -2088,27 +2609,84 @@ const GitLandingPage = ({
       return;
     }
     lastAutoRefreshKeyRef.current = refreshKey;
+    const target = gitCallbackTargetFromStatePath(callbackState);
+    const callbackReturnPath = router.asPath.split('?', 1)[0] || '/git';
+    const parsedInstallationID = Number.parseInt(installationID, 10);
     const run = async () => {
       try {
-        await refreshConnections();
+        if (target) {
+          if (!Number.isFinite(parsedInstallationID)) {
+            throw new Error('GitHub did not return a valid installation id.');
+          }
+          const response = await connectOrganization({
+            organization: target.organization,
+            installationId: parsedInstallationID,
+          }).unwrap();
+          await handleInitConnectResponse(
+            target.organization,
+            target.project,
+            response,
+          );
+          void router.replace(callbackReturnPath, undefined, { shallow: true });
+        } else {
+          await refreshConnections();
+          void router.replace(callbackReturnPath, undefined, { shallow: true });
+        }
       } catch (error) {
         setConnectError(
           apiErrorMessage(error) ||
-            'Failed to refresh GitHub and storage connections.',
+            'Failed to finalize the GitHub connection.',
         );
-      } finally {
-        void router.replace('/git', undefined, { shallow: true });
       }
     };
     void run();
-  }, [refreshConnections, router]);
+  }, [
+    handleInitConnectResponse,
+    connectOrganization,
+    refreshConnectionsForOrganization,
+    refreshConnections,
+    router,
+  ]);
 
   useEffect(() => {
     const handleStorageSignal = (event: StorageEvent) => {
       if (event.key !== gitHubReturnSignalKey || !event.newValue) {
         return;
       }
-      void refreshConnections().catch((error) => {
+      let target:
+        | { organization: string; project: string }
+        | null = null;
+      let installationID: number | null = null;
+      try {
+        const payload = JSON.parse(event.newValue) as {
+          installationID?: string;
+          returnPath?: string;
+        };
+        target = gitCallbackTargetFromStatePath(payload.returnPath);
+        installationID =
+          typeof payload.installationID === 'string'
+            ? Number.parseInt(payload.installationID, 10)
+            : null;
+      } catch {
+        target = null;
+        installationID = null;
+      }
+      const run = async () => {
+        if (target && installationID && Number.isFinite(installationID)) {
+          const response = await connectOrganization({
+            organization: target.organization,
+            installationId: installationID,
+          }).unwrap();
+          await handleInitConnectResponse(
+            target.organization,
+            target.project,
+            response,
+          );
+          return;
+        }
+        await refreshConnections();
+      };
+      void run().catch((error) => {
         setConnectError(
           apiErrorMessage(error) ||
             'Failed to refresh GitHub and storage connections.',
@@ -2119,21 +2697,38 @@ const GitLandingPage = ({
     return () => {
       window.removeEventListener('storage', handleStorageSignal);
     };
-  }, [refreshConnections]);
+  }, [
+    handleInitConnectResponse,
+    connectOrganization,
+    refreshConnections,
+    refreshConnectionsForOrganization,
+  ]);
 
-  const handleOrganizationConnectFor = async (organization: string) => {
+  const hasReconciled = useRef(false);
+  useEffect(() => {
+    if (hasReconciled.current) {
+      return;
+    }
+    hasReconciled.current = true;
+    void refreshConnections();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleProjectConnectFor = async (
+    organization: string,
+    project: string,
+  ) => {
     setConnectError(null);
-    setConnectChooserOpen(false);
     try {
-      const response = await connectOrganization({
+      const response = await initConnectOrganization({
         organization,
-        redirectPath: buildGitHubConnectReturnPath(),
+        redirectPath: buildGitHubConnectReturnPath(organization, project),
       }).unwrap();
-      window.location.assign(response.redirect_url);
+      await handleInitConnectResponse(organization, project, response);
     } catch (error) {
       setConnectError(
         apiErrorMessage(error) ||
-          'Failed to start the GitHub App installation flow.',
+          'Failed to start the GitHub connection flow.',
       );
     }
   };
@@ -2283,19 +2878,19 @@ const GitLandingPage = ({
                             GitHub connection targets
                           </Text>
                           <Text c="dimmed" size="xs">
-                            Select the Calypr project you want to fix. Gecko
-                            will open the GitHub settings for that
-                            project&apos;s organization.
+                            Select the Calypr project you want to bind to a
+                            GitHub repository.
                           </Text>
                           {githubConnectTargets.length > 0 ? (
                             githubConnectTargets.map((target) => (
                               <button
                                 className="rounded-md px-2 py-1.5 text-left transition hover:bg-slate-50"
                                 disabled={isRefreshingConnections}
-                                key={target.projectID}
+                                key={target.resourcePath}
                                 onClick={() => {
-                                  void handleOrganizationConnectFor(
+                                  void handleProjectConnectFor(
                                     target.organization,
+                                    target.project,
                                   );
                                 }}
                                 type="button"
@@ -2312,17 +2907,15 @@ const GitLandingPage = ({
                                     <Text c="dimmed" size="xs">
                                       {target.organization}
                                     </Text>
-                                    {target.repoLabel ? (
-                                      <Text
-                                        c="dimmed"
-                                        className="truncate"
-                                        size="xs"
-                                      >
-                                        {target.repoLabel}
-                                      </Text>
-                                    ) : null}
                                   </div>
                                   <Group gap={6} wrap="nowrap">
+                                    <Badge
+                                      color="sky"
+                                      size="xs"
+                                      variant="light"
+                                    >
+                                      Connect
+                                    </Badge>
                                     {isRefreshingConnections ? (
                                       <Badge
                                         color="gray"
@@ -2331,23 +2924,7 @@ const GitLandingPage = ({
                                       >
                                         Refreshing...
                                       </Badge>
-                                    ) : target.needsConnection ? (
-                                      <Badge
-                                        color="red"
-                                        size="xs"
-                                        variant="light"
-                                      >
-                                        Needs GitHub
-                                      </Badge>
-                                    ) : (
-                                      <Badge
-                                        color="green"
-                                        size="xs"
-                                        variant="light"
-                                      >
-                                        Connected
-                                      </Badge>
-                                    )}
+                                    ) : null}
                                     <IconChevronRight
                                       className="text-slate-400"
                                       size={14}
@@ -2358,42 +2935,23 @@ const GitLandingPage = ({
                             ))
                           ) : (
                             <Text c="dimmed" size="sm">
-                              No manageable projects are available.
+                              No accessible projects are available.
                             </Text>
                           )}
                         </Stack>
                       </Popover.Dropdown>
                     </Popover>
-                    {!selectedOrganization ? (
-                      <Button
-                        className={actionButtonClassName}
-                        color="sky"
-                        loading={isRefreshingConnections}
-                        onClick={() => {
-                          void handleRefreshConnections();
-                        }}
-                        variant="light"
-                      >
-                        Refresh connections
-                      </Button>
-                    ) : (
-                      <Button
-                        className={actionButtonClassName}
-                        color="sky"
-                        loading={isRefreshingConnections}
-                        onClick={() => {
-                          void handleRefreshConnections();
-                        }}
-                        variant="light"
-                      >
-                        Refresh
-                      </Button>
-                    )}
                     <Button
                       className={actionButtonClassName}
                       color="sky"
                       leftSection={<IconPlus size={16} />}
-                      onClick={() => setCreateModalOpen(true)}
+                      onClick={() =>
+                        void router.push(
+                          selectedOrganization
+                            ? `/git/new?org=${encodeURIComponent(selectedOrganization)}`
+                            : '/git/new',
+                        )
+                      }
                       variant="light"
                     >
                       Create project
@@ -2431,9 +2989,16 @@ const GitLandingPage = ({
                 <section className="space-y-4">
                   {visibleOrganizationGroups.map((group) => (
                     <OrganizationRow
+                      canCreateProjects={canCreateProjectsInOrganization(
+                        authzMapping,
+                        group.organization,
+                        organizationStatuses.get(group.organization),
+                        isAdmin,
+                      )}
                       canManageSettings={canManageOrganizationSettings(
                         authzMapping,
                         group.organization,
+                        organizationStatuses.get(group.organization),
                         isAdmin,
                       )}
                       group={group}
@@ -2445,40 +3010,25 @@ const GitLandingPage = ({
                       onManageProject={(organization, project, status) =>
                         setManageProject({ organization, project, status })
                       }
+                      onThumbnailPreviewAvailable={rememberThumbnailPreview}
                     />
                   ))}
                 </section>
               )}
             </Stack>
           </Container>
-          {createModalOpen ? (
-            <CreateProjectModal
-              existingOrganizations={membershipOrganizationOptions}
-              onClose={() => setCreateModalOpen(false)}
-              onCreated={() => {
-                void Promise.all([
-                  refetchOrganizationsStatus(),
-                  refetchGeckoProjects(),
-                  refetchAuthzMapping(),
-                ]);
-              }}
-              opened={createModalOpen}
-              organization={selectedOrganization || ''}
-            />
-          ) : null}
           {manageProject ? (
             <ProjectManagementModal
               config={
-                gitProjectDetailsByID.get(
-                  `${manageProject.organization}/${manageProject.project}`,
-                )?.config
+                geckoProjectRecordByResourcePath.get(
+                  `/programs/${manageProject.organization}/projects/${manageProject.project}`,
+                )?.configData
               }
               onClose={() => setManageProject(null)}
               onProjectSaved={() => {
                 void Promise.all([
                   refetchOrganizationsStatus(),
                   refetchGeckoProjects(),
-                  refetchGitProjects(),
                 ]);
               }}
               onStorageSaved={() => {
@@ -2494,8 +3044,106 @@ const GitLandingPage = ({
               }
               repositoryURL={manageProject.status?.repository?.url}
               status={manageProject.status}
+              thumbnailPreviewData={
+                thumbnailPreviewByURL[
+                  geckoProjectRecordByResourcePath.get(
+                    `/programs/${manageProject.organization}/projects/${manageProject.project}`,
+                  )?.thumbnail_url || ''
+                ]
+              }
+              thumbnailURL={
+                geckoProjectRecordByResourcePath.get(
+                  `/programs/${manageProject.organization}/projects/${manageProject.project}`,
+                )?.thumbnail_url
+              }
+              onThumbnailPreviewChange={rememberThumbnailPreview}
+              onThumbnailRemoved={forgetThumbnailPreview}
             />
           ) : null}
+          <Modal
+            onClose={() => {
+              setConnectBindingState(null);
+              setConnectBindingError(null);
+            }}
+            opened={Boolean(connectBindingState)}
+            size="md"
+            title="Connect GitHub repository"
+          >
+            <Stack gap="md">
+              <Text c="dimmed" size="sm">
+                Bind a Calypr project to one repository from the installed
+                GitHub App scope.
+              </Text>
+              {connectBindingState ? (
+                <>
+                  <Text fw={600} size="sm">
+                    Organization: {connectBindingState.organization}
+                  </Text>
+                  <Text fw={600} size="sm">
+                    Project: {connectBindingState.project}
+                  </Text>
+                  <Select
+                    data={connectBindingRepositoryOptions}
+                    label="GitHub repository"
+                    onChange={(value) =>
+                      setConnectBindingState((current) =>
+                        current
+                          ? {
+                              ...current,
+                              selectedRepository: value || '',
+                            }
+                          : current,
+                      )
+                    }
+                    placeholder={
+                      connectBindingRepositoryOptions.length > 0
+                        ? 'Choose repository'
+                        : 'No installation repositories available'
+                    }
+                    searchable
+                    value={connectBindingState.selectedRepository}
+                  />
+                  {connectBindingState.selectedRepository ? (
+                    <Text c="dimmed" size="xs">
+                      {connectBindingState.repositories.find(
+                        (repository) =>
+                          repository.full_name ===
+                          connectBindingState.selectedRepository,
+                      )?.html_url || ''}
+                    </Text>
+                  ) : null}
+                  {connectBindingError ? (
+                    <Alert color="red" variant="light">
+                      {connectBindingError}
+                    </Alert>
+                  ) : null}
+                  <Group justify="flex-end">
+                    <Button
+                      color="gray"
+                      onClick={() => {
+                        setConnectBindingState(null);
+                        setConnectBindingError(null);
+                      }}
+                      variant="subtle"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      className={actionButtonClassName}
+                      color="sky"
+                      loading={isBindingRepository}
+                      onClick={() => {
+                        void handleBindRepository();
+                      }}
+                      variant="light"
+                    >
+                      Connect repository
+                    </Button>
+                  </Group>
+                </>
+              ) : null}
+            </Stack>
+          </Modal>
         </div>
       </ProtectedContent>
     </NavPageLayout>

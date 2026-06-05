@@ -262,7 +262,7 @@ export const SessionProvider = ({
           });
         })
         .finally(() => {
-          if (shouldRedirect) router.push(`${GEN3_REDIRECT_URL}`); // TODO replace with config option
+          if (shouldRedirect) router.push('/'); // TODO replace with config option
         });
     },
     [getUserDetails, router],

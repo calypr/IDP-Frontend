@@ -1,4 +1,4 @@
-import { ReactElement, ComponentType, HTMLAttributes } from 'react';
+import { ReactElement, ReactNode, ComponentType, HTMLAttributes } from 'react';
 import { TopBarProps } from './TopBar/TopBar';
 import { BannerProps } from './Banner';
 import { StylingOverrideWithMergeControl } from '../../types';
@@ -41,6 +41,7 @@ export interface LeftNavBarProps {
   readonly title: string;
   readonly description: string;
   readonly icon: string;
+  readonly iconNode?: ReactNode;
   readonly href: string;
   readonly perms: string;
   readonly subItems?: ReadonlyArray<LeftNavBarProps>;

@@ -102,8 +102,10 @@ export const authzApi = authzTags.injectEndpoints({
             };
           }
         } finally {
-          if ('unsubscribe' in userResult) {
-            userResult.unsubscribe();
+          const unsubscribe =
+            'unsubscribe' in userResult ? userResult.unsubscribe : undefined;
+          if (typeof unsubscribe === 'function') {
+            unsubscribe();
           }
         }
 

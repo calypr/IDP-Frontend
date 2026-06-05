@@ -27,9 +27,8 @@ const NavPageLayout = ({
       paddingBottom = `pb-[${footerRef.current.offsetHeight}px]`; // Dynamic footer height
     }
     const padding = `${paddingTop} ${paddingBottom}`;
-    if (leftNavDisabled) return padding;
-    return finalState === 'open' ? `${padding} pl-48` : `${padding} pl-0`;
-  }, [finalState, leftNavDisabled]);
+    return padding;
+  }, []);
 
   return (
     <div className="flex flex-col min-h-screen">

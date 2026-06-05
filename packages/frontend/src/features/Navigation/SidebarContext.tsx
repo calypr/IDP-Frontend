@@ -44,9 +44,7 @@ export const SidebarProvider = ({
   const router = useRouter();
   const isAppsPath = isAppHomePath(router.asPath);
   const [userOpened, setUserOpened] = useState(false);
-  const [buttonState, setButtonState] = useState<SidebarState>(
-    isAppsPath ? 'open' : 'closed',
-  );
+  const [buttonState, setButtonState] = useState<SidebarState>('closed');
   const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>(
     {},
   );
@@ -54,15 +52,14 @@ export const SidebarProvider = ({
   const CLOSE_BREAKPOINT = 1024;
 
   const getResizeState = useCallback((): SidebarState => {
-    if (typeof window === 'undefined') return 'open';
-    const width = window.innerWidth;
-    return width < CLOSE_BREAKPOINT ? 'closed' : 'open';
+    if (typeof window === 'undefined') return 'closed';
+    return window.innerWidth < CLOSE_BREAKPOINT ? 'closed' : 'closed';
   }, []);
 
   const [resizeState, setResizeState] = useState<SidebarState>(getResizeState);
 
   useEffect(() => {
-    setButtonState(isAppsPath ? 'open' : 'closed');
+    setButtonState('closed');
     setUserOpened(false);
   }, [isAppsPath]);
 

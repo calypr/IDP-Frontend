@@ -24,8 +24,8 @@ import {
 import {
   SYFON_API,
   useLazyGetGeckoGitProjectFileQuery,
+  useGetGeckoGitProjectsQuery,
   useGetGeckoGitProjectRefsQuery,
-  useGetGeckoGitProjectStatusQuery,
   useGetGeckoGitProjectTreeQuery,
   useLazyGetSyfonObjectsByChecksumQuery,
   useRefreshGeckoGitProjectMutation,
@@ -156,12 +156,17 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
 
   const shouldSkip = !organization || !project;
   const {
-    data: projectStatus,
+    data: gitProjects = [],
     isLoading: isStatusLoading,
-    refetch: refetchStatus,
-  } = useGetGeckoGitProjectStatusQuery(
-    { organization, project },
-    { skip: shouldSkip },
+    refetch: refetchGitProjects,
+  } = useGetGeckoGitProjectsQuery();
+  const projectStatus = useMemo(
+    () =>
+      gitProjects.find(
+        (candidate) =>
+          candidate.organization === organization && candidate.project === project,
+      ),
+    [gitProjects, organization, project],
   );
   const effectiveRef =
     selectedRef ?? requestedRef ?? projectStatus?.default_branch ?? null;
@@ -256,7 +261,7 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
     }
 
     const timeout = window.setTimeout(() => {
-      void refetchStatus();
+      void refetchGitProjects();
     }, MIRROR_STATUS_POLL_INTERVAL_MS);
 
     return () => window.clearTimeout(timeout);
@@ -264,7 +269,7 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
     isStatusLoading,
     projectStatus?.installation_state,
     projectStatus?.mirror_ready,
-    refetchStatus,
+    refetchGitProjects,
     shouldSkip,
   ]);
 
@@ -371,13 +376,15 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
     }
 
     try {
-      const statusResult = (await refetchStatus()) as {
-        data?: GeckoGitProjectStatus;
+      const statusResult = (await refetchGitProjects()) as {
+        data?: Array<GeckoGitProjectStatus>;
       };
-      const refreshedDefaultBranch =
-        'data' in statusResult && statusResult.data
-          ? statusResult.data.default_branch?.trim()
-          : undefined;
+      const refreshedDefaultBranch = statusResult.data
+        ?.find(
+          (candidate) =>
+            candidate.organization === organization && candidate.project === project,
+        )
+        ?.default_branch?.trim();
 
       if (!refreshedDefaultBranch) {
         setSelectedRef(null);

@@ -4,6 +4,9 @@ import { AppCardProps } from './types';
 import Image from 'next/image';
 import { useRouter } from 'next/router';
 
+const isProjectThumbnailIcon = (icon: string): boolean =>
+  icon.includes('/api/gecko/projects/') || icon.includes('/gecko/git/projects/');
+
 const AppCard = ({ title, description, icon, href }: AppCardProps) => {
   const router = useRouter();
 
@@ -19,6 +22,7 @@ const AppCard = ({ title, description, icon, href }: AppCardProps) => {
             alt={`${title} logo`}
             fill
             className="object-contain"
+            unoptimized={isProjectThumbnailIcon(icon)}
           />
         </div>
         <div className="items-left p-3">

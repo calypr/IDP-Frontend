@@ -14,10 +14,9 @@ import { LandingPageProps } from '../../components/Content/LandingPageContent';
 import { NavPageLayout } from '../../features/Navigation';
 import LoginMenu from '../../components/Login/LoginMenu';
 import AppsPage from '../Apps/Apps';
-import { AppsProps } from '../Apps/types';
 import { useSession } from '../../lib/session/session';
 
-interface Props extends CalyprLandingPageProps, AppsProps {
+interface Props extends CalyprLandingPageProps {
   landingPage: LandingPageProps;
 }
 
@@ -54,7 +53,6 @@ const BannerPanel = ({
 const CalyprPage = ({
   headerProps,
   footerProps,
-  appsConfig,
   hasAuthenticatedSession = false,
 }: Props) => {
   const session = useSession(false);
@@ -79,7 +77,16 @@ const CalyprPage = ({
   }
 
   if (shouldShowAuthenticatedHome) {
-    return <AppsPage {...{ headerProps, footerProps, appsConfig }} />;
+    return (
+      <AppsPage
+        {...{ headerProps, footerProps }}
+        headerMetadata={{
+          title: 'CALYPR Projects',
+          content: 'Project catalog',
+          key: 'calypr-project-catalog-home',
+        }}
+      />
+    );
   }
 
   return (

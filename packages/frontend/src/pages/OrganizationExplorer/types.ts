@@ -6,6 +6,7 @@ export interface AccessibleOrganizationProject {
   readonly organization: string;
   readonly project: string;
   readonly resourcePath: string;
+  readonly thumbnail_url?: string;
 }
 
 export interface OrganizationGroup {
