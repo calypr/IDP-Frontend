@@ -2478,7 +2478,7 @@ const GitLandingPage = ({
     }
     hasReconciled.current = true;
     void refreshConnections();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line reactHooks/exhaustive-deps
   }, []);
 
 

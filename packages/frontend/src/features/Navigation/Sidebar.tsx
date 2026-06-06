@@ -70,11 +70,11 @@ export const Sidebar = ({ items, state }: SidebarProps) => {
           (item) => item.href === href || item.title === title,
         );
 
-        let icon =
+        const icon =
           matchingNavItem?.icon ||
           project.thumbnail_url ||
           fallbackProjectThumbnailURL;
-        let iconNode = matchingNavItem?.iconNode;
+        const iconNode = matchingNavItem?.iconNode;
 
         return {
           title,

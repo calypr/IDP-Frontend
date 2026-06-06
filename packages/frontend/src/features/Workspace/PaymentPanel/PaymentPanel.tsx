@@ -64,10 +64,6 @@ const PaymentPanel = () => {
       skip: !WORKSPACES_ENABLED,
     });
 
-  if (!WORKSPACES_ENABLED) {
-    return null;
-  }
-
   const [setWorkspacePayModel] = useSetCurrentPayModelMutation();
 
   const [selectedPayModel, setSelectedPayModel] = useState<string | null>(null);
@@ -120,6 +116,10 @@ const PaymentPanel = () => {
         hardLimit: data.currentPayModel['hard-limit'],
       };
     }, [data]);
+
+  if (!WORKSPACES_ENABLED) {
+    return null;
+  }
 
   const PayModelSelectItem: SelectProps['renderOption'] = ({ option }) => {
     const menuItem = usersPayModels[Number(option.value)];
