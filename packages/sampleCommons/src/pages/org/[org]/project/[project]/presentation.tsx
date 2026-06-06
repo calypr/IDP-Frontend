@@ -4,8 +4,17 @@ import {
   NavPageLayout,
   ProtectedContent,
 } from '@gen3/frontend';
+import {
+  useGetGeckoProjectSummaryQuery,
+  useGetGeckoProjectsQuery,
+} from '@gen3/core';
+import { Center, Loader } from '@mantine/core';
 import { GetServerSideProps } from 'next';
 import { useRouter } from 'next/router';
+import {
+  buildProjectPresentationDraft,
+  ProjectPresentationView,
+} from '../../../../../features/projectPresentation';
 
 const ProjectPresentationPage = ({
   headerProps,
@@ -16,6 +25,26 @@ const ProjectPresentationPage = ({
     typeof router.query.org === 'string' ? router.query.org : '';
   const project =
     typeof router.query.project === 'string' ? router.query.project : '';
+  const { data: geckoProjects = [], isLoading: isProjectsLoading } =
+    useGetGeckoProjectsQuery();
+  const { data: geckoProjectSummary = [], isLoading: isSummaryLoading } =
+    useGetGeckoProjectSummaryQuery();
+
+  const projectRecord = geckoProjects.find((candidate) => {
+    const parts = candidate.resourcePath.split('/').filter(Boolean);
+    return parts[1] === organization && parts[3] === project;
+  });
+  const projectSummary = geckoProjectSummary.find(
+    (candidate) =>
+      candidate.organization === organization && candidate.project === project,
+  );
+  const draft = buildProjectPresentationDraft({
+    organization,
+    project,
+    projectConfig: projectRecord?.configData,
+    projectRecord,
+    projectSummary,
+  });
 
   return (
     <ProtectedContent>
@@ -27,16 +56,15 @@ const ProjectPresentationPage = ({
           key: 'project-presentation',
         }}
       >
-        <div className="px-8 py-8">
-          <div className="rounded-2xl border border-slate-200 bg-white px-8 py-10 shadow-sm">
-            <h1 className="text-2xl font-semibold text-slate-900">
-              {organization}/{project}
-            </h1>
-            <p className="mt-4 text-sm text-slate-600">
-              This presentation page is intentionally blank for now.
-            </p>
+        {isProjectsLoading || isSummaryLoading ? (
+          <Center className="min-h-[55vh]">
+            <Loader />
+          </Center>
+        ) : (
+          <div className="px-6 py-8 lg:px-8">
+            <ProjectPresentationView draft={draft} />
           </div>
-        </div>
+        )}
       </NavPageLayout>
     </ProtectedContent>
   );

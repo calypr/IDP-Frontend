@@ -20,8 +20,7 @@ const fallbackProjectThumbnailURL = '/icons/calypr-mark-mono.svg';
 
 const AppsPage = ({ headerProps, footerProps }: AppsPageProps) => {
   const router = useRouter();
-  const { data: geckoProjects = [], isLoading: isGeckoProjectsLoading } =
-    useGetGeckoProjectsQuery();
+  const { isLoading: isGeckoProjectsLoading } = useGetGeckoProjectsQuery();
   const {
     data: geckoProjectSummary = [],
     isLoading: isGeckoProjectSummaryLoading,
@@ -178,14 +177,14 @@ const AppsPage = ({ headerProps, footerProps }: AppsPageProps) => {
                       </Menu.Target>
                       <Menu.Dropdown
                         onClick={(event) => {
-                          event.preventDefault();
                           event.stopPropagation();
                         }}
                       >
                         <Menu.Item
-                          component="a"
-                          href={editHref}
                           leftSection={<IconPencil size={14} />}
+                          onClick={() => {
+                            void router.push(editHref);
+                          }}
                         >
                           Edit
                         </Menu.Item>
