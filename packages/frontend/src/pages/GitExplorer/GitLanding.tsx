@@ -42,7 +42,6 @@ import {
   IconX,
 } from '@tabler/icons-react';
 import type {
-  GeckoGitInstallationRepository,
   GeckoGitOrganizationStatus,
   GeckoProjectConfig,
   GeckoProjectRecord,
@@ -83,68 +82,6 @@ const actionButtonClassName =
 
 const gitHubReturnSignalKey = 'gecko:git-github-return';
 
-const buildGitHubConnectReturnPath = (
-  organization: string,
-  project: string,
-): string => {
-  const normalizedOrganization = organization.trim();
-  const normalizedProject = project.trim();
-  if (!normalizedOrganization || !normalizedProject) {
-    return '/git';
-  }
-  return `/git/${encodeURIComponent(normalizedOrganization)}/project/${encodeURIComponent(normalizedProject)}`;
-};
-
-const normalizeGitHubCallbackStatePath = (
-  value: string | string[] | undefined,
-): string => {
-  const candidate = Array.isArray(value) ? value[0] : value;
-  if (typeof candidate !== 'string') {
-    return '/git';
-  }
-  const trimmed = candidate.trim();
-  if (!trimmed) {
-    return '/git';
-  }
-
-  let decoded = trimmed;
-  try {
-    decoded = decodeURIComponent(trimmed);
-  } catch {
-    decoded = trimmed;
-  }
-
-  if (!decoded.startsWith('/') || decoded.startsWith('//')) {
-    return '/git';
-  }
-  return decoded;
-};
-
-const gitCallbackTargetFromStatePath = (
-  value: string | string[] | undefined,
-): { organization: string; project: string } | null => {
-  const normalizedPath = normalizeGitHubCallbackStatePath(value);
-  const segments = normalizedPath
-    .split('?')[0]
-    .split('#')[0]
-    .replace(/^\/+|\/+$/g, '')
-    .split('/')
-    .filter(Boolean);
-  if (
-    segments.length >= 4 &&
-    segments[0] === 'git' &&
-    segments[1] &&
-    segments[2] === 'project' &&
-    segments[3]
-  ) {
-    return {
-      organization: decodeURIComponent(segments[1]),
-      project: decodeURIComponent(segments[3]),
-    };
-  }
-  return null;
-};
-
 const toSlug = (value: string): string =>
   value
     .trim()
@@ -183,6 +120,9 @@ interface CreateProjectFormState {
   readonly org_title: string;
   readonly project_name: string;
   readonly project_title: string;
+}
+
+interface ProjectManagementFormState extends CreateProjectFormState {
   readonly src_repo: string;
 }
 
@@ -191,8 +131,7 @@ type CreateProjectField =
   | 'project_name'
   | 'project_title'
   | 'contact_email'
-  | 'description'
-  | 'src_repo';
+  | 'description';
 
 type CreateProjectFieldErrors = Partial<Record<CreateProjectField, string>>;
 
@@ -453,7 +392,6 @@ const defaultProjectConfig = (
   org_title: organization,
   project_name: '',
   project_title: '',
-  src_repo: '',
 });
 
 const defaultIntegrationCheck = (
@@ -516,6 +454,9 @@ const repositoryFullNameFromSrcRepo = (value?: string | null): string => {
 
   return '';
 };
+
+const isValidRepositoryFullName = (value: string): boolean =>
+  /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(value.trim());
 
 const projectIntegrations = (status?: GeckoGitOrganizationProjectStatus) => ({
   github:
@@ -679,20 +620,14 @@ const ThumbnailSummary = ({
 }) => (
   <section className="border-t border-slate-200 pt-6">
     <SectionHeader
-      action={
-        <Button
-          className={actionButtonClassName}
-          color="sky"
-          onClick={onEdit}
-          size="sm"
-          variant="light"
-        >
-          Edit thumbnail
-        </Button>
-      }
       body={
-        <Group gap="sm" wrap="nowrap">
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-dashed border-slate-300 bg-slate-50">
+        <button
+          aria-label="Edit project thumbnail"
+          className="group flex w-full items-center gap-4 rounded-md border border-slate-200 bg-white px-4 py-4 text-left shadow-none transition hover:border-sky-300 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
+          onClick={onEdit}
+          type="button"
+        >
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-md border border-slate-200 bg-slate-50 transition group-hover:border-sky-200 group-hover:bg-white">
             {previewURL ? (
               <img
                 alt="Project thumbnail preview"
@@ -705,12 +640,23 @@ const ThumbnailSummary = ({
               </Text>
             )}
           </div>
-          <Text c="dimmed" size="sm">
-            {previewURL || configured
-              ? 'Thumbnail configured.'
-              : 'No thumbnail yet. Add one later if you want a project image.'}
-          </Text>
-        </Group>
+          <div className="min-w-0 flex-1">
+            <Text fw={600} size="sm">
+              {previewURL || configured
+                ? 'Thumbnail configured'
+                : 'No thumbnail yet'}
+            </Text>
+            <Text c="dimmed" size="sm">
+              {previewURL || configured
+                ? 'Click anywhere to change the image.'
+                : 'Click anywhere to add a project image.'}
+            </Text>
+          </div>
+          <IconChevronRight
+            className="shrink-0 text-slate-400 transition group-hover:text-sky-600"
+            size={16}
+          />
+        </button>
       }
       title="Project thumbnail"
     />
@@ -896,8 +842,7 @@ export const CreateProjectModal = ({
       field === 'project_name' ||
       field === 'project_title' ||
       field === 'contact_email' ||
-      field === 'description' ||
-      field === 'src_repo'
+      field === 'description'
     ) {
       setFieldErrors((current) => {
         if (!current[field]) {
@@ -999,7 +944,7 @@ export const CreateProjectModal = ({
       description: formState.description.trim(),
       org_title: trimmedOrganization,
       project_title: formState.project_title.trim(),
-      src_repo: formState.src_repo.trim(),
+      src_repo: '',
       title: formState.project_title.trim(),
     };
 
@@ -1209,19 +1154,6 @@ export const CreateProjectModal = ({
                     placeholder="Project description"
                     value={formState.description}
                   />
-                  <TextInput
-                    error={fieldErrors.src_repo}
-                    label="GitHub repository URL"
-                    onChange={(event) =>
-                      updateField('src_repo', event.currentTarget.value)
-                    }
-                    placeholder="https://github.com/org/repo"
-                    value={formState.src_repo}
-                  />
-                  <Text c="dimmed" size="sm">
-                    Link the project to a GitHub repository now, or leave this
-                    blank and add it later in Edit project.
-                  </Text>
                 </Stack>
               </div>
             </section>
@@ -1388,9 +1320,10 @@ const ProjectManagementModal = ({
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [thumbnailPreview, setThumbnailPreview] = useState<string>('');
   const [thumbnailRemoved, setThumbnailRemoved] = useState(false);
-  const [formState, setFormState] = useState(() =>
-    defaultProjectConfig(organization),
-  );
+  const [formState, setFormState] = useState<ProjectManagementFormState>(() => ({
+    ...defaultProjectConfig(organization),
+    src_repo: '',
+  }));
   const [updateProject, { isLoading: isSavingProject }] =
     useUpdateGeckoProjectMutation();
   const [uploadThumbnail, { isLoading: isUploadingThumbnail }] =
@@ -2107,17 +2040,6 @@ const GitLandingPage = ({
   const { data: authzMapping = {}, refetch: refetchAuthzMapping } =
     useGetAuthzMappingsQuery();
   const [searchQuery, setSearchQuery] = useState('');
-  const [connectChooserOpen, setConnectChooserOpen] = useState(false);
-  const [connectBindingState, setConnectBindingState] = useState<{
-    installationID?: number;
-    organization: string;
-    project: string;
-    repositories: Array<GeckoGitInstallationRepository>;
-    selectedRepository: string;
-  } | null>(null);
-  const [connectBindingError, setConnectBindingError] = useState<string | null>(
-    null,
-  );
   const [thumbnailPreviewByURL, setThumbnailPreviewByURL] = useState<
     Record<string, string>
   >({});
@@ -2128,9 +2050,6 @@ const GitLandingPage = ({
   } | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
   const [connectOrganization] = useConnectGeckoGitOrganizationMutation();
-  const [initConnectOrganization] = useInitConnectGeckoGitOrganizationMutation();
-  const [updateProjectBinding, { isLoading: isBindingRepository }] =
-    useUpdateGeckoProjectMutation();
   const [reconcileOrganization, { isLoading: isReconcilingOrganization }] =
     useReconcileGeckoGitOrganizationMutation();
   const [reconcileOrganizations, { isLoading: isReconcilingOrganizations }] =
@@ -2288,35 +2207,7 @@ const GitLandingPage = ({
       ),
     [organizationsStatus?.organizations],
   );
-  const githubConnectTargets = useMemo(() => {
-    return displayOrganizationGroups
-      .filter((group) =>
-        selectedOrganization
-          ? group.organization === selectedOrganization
-          : true,
-      )
-      .flatMap((group) =>
-        group.projects.map((project) => ({
-          organization: group.organization,
-          project: project.project,
-          resourcePath: project.resourcePath,
-        })),
-      )
-      .sort((left, right) =>
-        left.organization === right.organization
-          ? left.project.localeCompare(right.project)
-          : left.organization.localeCompare(right.organization),
-      );
-  }, [displayOrganizationGroups, selectedOrganization]);
-  const connectBindingRepositoryOptions = useMemo(() => {
-    if (!connectBindingState) {
-      return [];
-    }
-    return connectBindingState.repositories.map((repository) => ({
-      label: repository.full_name,
-      value: repository.full_name,
-    }));
-  }, [connectBindingState]);
+
   const searchResults = useMemo(() => {
     if (!normalizedSearchQuery) {
       return [];
@@ -2448,147 +2339,26 @@ const GitLandingPage = ({
     ],
   );
 
-  const openConnectBindingState = useCallback(
-    (
-      organization: string,
-      project: string,
-      repositories: Array<GeckoGitInstallationRepository>,
-    ) => {
-      const projectRecord = geckoProjectRecordByResourcePath.get(
-        `/programs/${organization}/projects/${project}`,
-      );
-      const existingRepository = repositoryFullNameFromSrcRepo(
-        projectRecord?.configData?.src_repo,
-      );
-      const matchingRepository = repositories.some(
-        (repository) => repository.full_name === existingRepository,
-      )
-        ? existingRepository
-        : repositories[0]?.full_name || '';
-      setConnectChooserOpen(false);
-      setConnectBindingError(null);
-      setConnectBindingState({
-        organization,
-        project,
-        repositories,
-        selectedRepository: matchingRepository,
-      });
-    },
-    [geckoProjectRecordByResourcePath],
-  );
-
   const handleInitConnectResponse = useCallback(
     async (
-      organization: string,
-      project: string,
+      organization: string | null,
       response: {
-        mode: 'redirect' | 'select_repository';
+        mode?: string;
         redirect_url?: string;
-        repositories?: Array<GeckoGitInstallationRepository>;
       },
     ) => {
-      if (response.mode === 'redirect' && response.redirect_url) {
+      if (response.redirect_url) {
         window.location.assign(response.redirect_url);
         return;
       }
-      if (response.mode === 'select_repository') {
-        const repositories = response.repositories ?? [];
-        if (repositories.length === 1) {
-          const repository = repositories[0];
-          const projectRecord = await resolveProjectRecord(
-            organization,
-            project,
-          );
-          if (!projectRecord?.configData) {
-            throw new Error('The selected project could not be resolved.');
-          }
-          const nextConfig: GeckoProjectConfig = {
-            ...projectRecord.configData,
-            src_repo: repository.html_url,
-          };
-          const updateResponse = await updateProjectBinding({
-            organization,
-            project,
-            configData: nextConfig,
-          }).unwrap();
-          if (!updateResponse.success) {
-            throw new Error(
-              updateResponse.error ||
-                'Failed to link the GitHub repository.',
-            );
-          }
-          await refreshConnectionsForOrganization(organization);
-          setConnectBindingState(null);
-          setConnectBindingError(null);
-          return;
-        }
-        openConnectBindingState(organization, project, repositories);
+      if (organization) {
+        await refreshConnectionsForOrganization(organization);
         return;
       }
-      throw new Error('GitHub connect response was missing a redirect or repository list.');
+      await refreshConnections();
     },
-    [
-      openConnectBindingState,
-      refreshConnectionsForOrganization,
-      resolveProjectRecord,
-      updateProjectBinding,
-    ],
+    [refreshConnections, refreshConnectionsForOrganization],
   );
-
-  const handleBindRepository = useCallback(async () => {
-    if (!connectBindingState) {
-      return;
-    }
-
-    const { organization, project, repositories, selectedRepository } =
-      connectBindingState;
-    if (!selectedRepository) {
-      setConnectBindingError('Choose a GitHub repository.');
-      return;
-    }
-    const repository = repositories.find(
-      (candidate) => candidate.full_name === selectedRepository,
-    );
-    const projectRecord = await resolveProjectRecord(organization, project);
-    if (!projectRecord?.configData || !repository) {
-      setConnectBindingError(
-        'The selected project or repository could not be resolved.',
-      );
-      return;
-    }
-
-    const nextConfig: GeckoProjectConfig = {
-      ...projectRecord.configData,
-      src_repo: repository.html_url,
-    };
-
-    try {
-      const response = await updateProjectBinding({
-        organization,
-        project,
-        configData: nextConfig,
-      }).unwrap();
-      if (!response.success) {
-        setConnectBindingError(
-          response.error || 'Failed to link the GitHub repository.',
-        );
-        return;
-      }
-      await refreshConnectionsForOrganization(organization);
-      setConnectBindingState(null);
-      setConnectChooserOpen(false);
-      setConnectBindingError(null);
-    } catch (error) {
-      setConnectBindingError(
-        apiErrorMessage(error) || 'Failed to link the GitHub repository.',
-      );
-    }
-  }, [
-    connectBindingState,
-    refreshConnectionsForOrganization,
-    resolveProjectRecord,
-    updateProjectBinding,
-  ]);
 
   useEffect(() => {
     if (!router.isReady) {
@@ -2596,7 +2366,10 @@ const GitLandingPage = ({
     }
     const setupAction = router.query.setup_action;
     const installationID = router.query.installation_id;
-    const callbackState = router.query.state;
+    const githubState =
+      typeof router.query.github_state === 'string'
+        ? router.query.github_state
+        : undefined;
     if (
       typeof setupAction !== 'string' ||
       !setupAction.trim() ||
@@ -2604,31 +2377,29 @@ const GitLandingPage = ({
     ) {
       return;
     }
-    const refreshKey = `${setupAction}:${installationID}`;
+    const refreshKey = `${setupAction}:${installationID}:${githubState ?? ''}`;
     if (lastAutoRefreshKeyRef.current === refreshKey) {
       return;
     }
     lastAutoRefreshKeyRef.current = refreshKey;
-    const target = gitCallbackTargetFromStatePath(callbackState);
     const callbackReturnPath = router.asPath.split('?', 1)[0] || '/git';
     const parsedInstallationID = Number.parseInt(installationID, 10);
     const run = async () => {
       try {
-        if (target) {
-          if (!Number.isFinite(parsedInstallationID)) {
-            throw new Error('GitHub did not return a valid installation id.');
-          }
+        if (!Number.isFinite(parsedInstallationID)) {
+          throw new Error('GitHub did not return a valid installation id.');
+        }
+        if (githubState) {
           const response = await connectOrganization({
-            organization: target.organization,
             installationId: parsedInstallationID,
+            state: githubState,
           }).unwrap();
-          await handleInitConnectResponse(
-            target.organization,
-            target.project,
-            response,
-          );
+          await handleInitConnectResponse(null, response);
           void router.replace(callbackReturnPath, undefined, { shallow: true });
         } else {
+          setConnectError(
+            'GitHub returned without the expected connection session. Start the repository connection again from Calypr.',
+          );
           await refreshConnections();
           void router.replace(callbackReturnPath, undefined, { shallow: true });
         }
@@ -2653,35 +2424,31 @@ const GitLandingPage = ({
       if (event.key !== gitHubReturnSignalKey || !event.newValue) {
         return;
       }
-      let target:
-        | { organization: string; project: string }
-        | null = null;
+      let githubState: string | null = null;
       let installationID: number | null = null;
       try {
         const payload = JSON.parse(event.newValue) as {
+          githubState?: string;
           installationID?: string;
           returnPath?: string;
         };
-        target = gitCallbackTargetFromStatePath(payload.returnPath);
+        githubState =
+          typeof payload.githubState === 'string' ? payload.githubState : null;
         installationID =
           typeof payload.installationID === 'string'
             ? Number.parseInt(payload.installationID, 10)
             : null;
       } catch {
-        target = null;
+        githubState = null;
         installationID = null;
       }
       const run = async () => {
-        if (target && installationID && Number.isFinite(installationID)) {
+        if (githubState && installationID && Number.isFinite(installationID)) {
           const response = await connectOrganization({
-            organization: target.organization,
             installationId: installationID,
+            state: githubState,
           }).unwrap();
-          await handleInitConnectResponse(
-            target.organization,
-            target.project,
-            response,
-          );
+          await handleInitConnectResponse(null, response);
           return;
         }
         await refreshConnections();
@@ -2714,24 +2481,6 @@ const GitLandingPage = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleProjectConnectFor = async (
-    organization: string,
-    project: string,
-  ) => {
-    setConnectError(null);
-    try {
-      const response = await initConnectOrganization({
-        organization,
-        redirectPath: buildGitHubConnectReturnPath(organization, project),
-      }).unwrap();
-      await handleInitConnectResponse(organization, project, response);
-    } catch (error) {
-      setConnectError(
-        apiErrorMessage(error) ||
-          'Failed to start the GitHub connection flow.',
-      );
-    }
-  };
 
   const handleRefreshConnections = async () => {
     try {
@@ -2852,95 +2601,7 @@ const GitLandingPage = ({
                         </div>
                       </Popover.Dropdown>
                     </Popover>
-                    <Popover
-                      onChange={setConnectChooserOpen}
-                      opened={connectChooserOpen}
-                      position="bottom-end"
-                      shadow="md"
-                      width={300}
-                      withinPortal
-                    >
-                      <Popover.Target>
-                        <Button
-                          className={actionButtonClassName}
-                          color="sky"
-                          onClick={() =>
-                            setConnectChooserOpen((current) => !current)
-                          }
-                          variant="light"
-                        >
-                          Connect GitHub
-                        </Button>
-                      </Popover.Target>
-                      <Popover.Dropdown p="sm">
-                        <Stack gap={6}>
-                          <Text fw={600} size="sm">
-                            GitHub connection targets
-                          </Text>
-                          <Text c="dimmed" size="xs">
-                            Select the Calypr project you want to bind to a
-                            GitHub repository.
-                          </Text>
-                          {githubConnectTargets.length > 0 ? (
-                            githubConnectTargets.map((target) => (
-                              <button
-                                className="rounded-md px-2 py-1.5 text-left transition hover:bg-slate-50"
-                                disabled={isRefreshingConnections}
-                                key={target.resourcePath}
-                                onClick={() => {
-                                  void handleProjectConnectFor(
-                                    target.organization,
-                                    target.project,
-                                  );
-                                }}
-                                type="button"
-                              >
-                                <Group
-                                  align="center"
-                                  justify="space-between"
-                                  wrap="nowrap"
-                                >
-                                  <div className="min-w-0">
-                                    <Text fw={600} size="sm">
-                                      {target.project}
-                                    </Text>
-                                    <Text c="dimmed" size="xs">
-                                      {target.organization}
-                                    </Text>
-                                  </div>
-                                  <Group gap={6} wrap="nowrap">
-                                    <Badge
-                                      color="sky"
-                                      size="xs"
-                                      variant="light"
-                                    >
-                                      Connect
-                                    </Badge>
-                                    {isRefreshingConnections ? (
-                                      <Badge
-                                        color="gray"
-                                        size="xs"
-                                        variant="light"
-                                      >
-                                        Refreshing...
-                                      </Badge>
-                                    ) : null}
-                                    <IconChevronRight
-                                      className="text-slate-400"
-                                      size={14}
-                                    />
-                                  </Group>
-                                </Group>
-                              </button>
-                            ))
-                          ) : (
-                            <Text c="dimmed" size="sm">
-                              No accessible projects are available.
-                            </Text>
-                          )}
-                        </Stack>
-                      </Popover.Dropdown>
-                    </Popover>
+
                     <Button
                       className={actionButtonClassName}
                       color="sky"
@@ -3060,90 +2721,6 @@ const GitLandingPage = ({
               onThumbnailRemoved={forgetThumbnailPreview}
             />
           ) : null}
-          <Modal
-            onClose={() => {
-              setConnectBindingState(null);
-              setConnectBindingError(null);
-            }}
-            opened={Boolean(connectBindingState)}
-            size="md"
-            title="Connect GitHub repository"
-          >
-            <Stack gap="md">
-              <Text c="dimmed" size="sm">
-                Bind a Calypr project to one repository from the installed
-                GitHub App scope.
-              </Text>
-              {connectBindingState ? (
-                <>
-                  <Text fw={600} size="sm">
-                    Organization: {connectBindingState.organization}
-                  </Text>
-                  <Text fw={600} size="sm">
-                    Project: {connectBindingState.project}
-                  </Text>
-                  <Select
-                    data={connectBindingRepositoryOptions}
-                    label="GitHub repository"
-                    onChange={(value) =>
-                      setConnectBindingState((current) =>
-                        current
-                          ? {
-                              ...current,
-                              selectedRepository: value || '',
-                            }
-                          : current,
-                      )
-                    }
-                    placeholder={
-                      connectBindingRepositoryOptions.length > 0
-                        ? 'Choose repository'
-                        : 'No installation repositories available'
-                    }
-                    searchable
-                    value={connectBindingState.selectedRepository}
-                  />
-                  {connectBindingState.selectedRepository ? (
-                    <Text c="dimmed" size="xs">
-                      {connectBindingState.repositories.find(
-                        (repository) =>
-                          repository.full_name ===
-                          connectBindingState.selectedRepository,
-                      )?.html_url || ''}
-                    </Text>
-                  ) : null}
-                  {connectBindingError ? (
-                    <Alert color="red" variant="light">
-                      {connectBindingError}
-                    </Alert>
-                  ) : null}
-                  <Group justify="flex-end">
-                    <Button
-                      color="gray"
-                      onClick={() => {
-                        setConnectBindingState(null);
-                        setConnectBindingError(null);
-                      }}
-                      variant="subtle"
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      className={actionButtonClassName}
-                      color="sky"
-                      loading={isBindingRepository}
-                      onClick={() => {
-                        void handleBindRepository();
-                      }}
-                      variant="light"
-                    >
-                      Connect repository
-                    </Button>
-                  </Group>
-                </>
-              ) : null}
-            </Stack>
-          </Modal>
         </div>
       </ProtectedContent>
     </NavPageLayout>

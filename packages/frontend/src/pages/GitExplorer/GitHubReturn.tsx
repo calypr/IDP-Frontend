@@ -33,6 +33,7 @@ const appendGitHubReturnParams = (
   path: string,
   setupAction: string | undefined,
   installationID: string | undefined,
+  githubState: string | undefined,
 ): string => {
   if (!setupAction || !installationID) {
     return path;
@@ -43,6 +44,9 @@ const appendGitHubReturnParams = (
   const params = new URLSearchParams(queryString);
   params.set('setup_action', setupAction);
   params.set('installation_id', installationID);
+  if (githubState) {
+    params.set('github_state', githubState);
+  }
   const nextQueryString = params.toString();
   return `${pathname}${nextQueryString ? `?${nextQueryString}` : ''}${
     hash ? `#${hash}` : ''
@@ -62,11 +66,17 @@ const GitHubReturnPage = ({
     typeof router.query.installation_id === 'string'
       ? router.query.installation_id
       : undefined;
-  const returnPath = normalizeReturnPath(router.query.state);
+  const githubState =
+    typeof router.query.state === 'string' ? router.query.state : undefined;
+  const returnPath =
+    githubState && githubState.startsWith('/')
+      ? normalizeReturnPath(githubState)
+      : '/git';
   const returnHref = appendGitHubReturnParams(
     returnPath,
     setupAction,
     installationID,
+    githubState && !githubState.startsWith('/') ? githubState : undefined,
   );
 
   useEffect(() => {
@@ -77,13 +87,22 @@ const GitHubReturnPage = ({
       gitHubReturnSignalKey,
       JSON.stringify({
         installationID,
+        githubState,
         returnPath,
         setupAction,
         timestamp: Date.now(),
       }),
     );
     void router.replace(returnHref);
-  }, [installationID, returnHref, returnPath, router, router.isReady, setupAction]);
+  }, [
+    githubState,
+    installationID,
+    returnHref,
+    returnPath,
+    router,
+    router.isReady,
+    setupAction,
+  ]);
 
   return (
     <NavPageLayout

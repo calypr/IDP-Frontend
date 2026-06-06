@@ -151,19 +151,13 @@ export interface GeckoGitProjectStatus {
 }
 
 export interface GeckoGitOrganizationConnectResponse {
-  readonly mode: 'redirect' | 'select_repository';
+  readonly mode?: 'redirect' | 'connected';
   readonly redirect_url?: string;
   readonly installation_id?: number;
-  readonly repositories?: Array<GeckoGitInstallationRepository>;
+  readonly state?: string;
 }
 
-export interface GeckoGitInstallationRepository {
-  readonly id: number;
-  readonly name: string;
-  readonly full_name: string;
-  readonly html_url: string;
-  readonly clone_url: string;
-}
+
 
 export interface GeckoGitRepositoryInstallationStatus {
   readonly installed: boolean;
@@ -892,27 +886,37 @@ export const geckoApi = geckoTaggedApi.injectEndpoints({
       GeckoGitOrganizationConnectResponse,
       {
         organization: string;
+        project: string;
+        repositoryFullName: string;
         redirectPath?: string;
       }
     >({
-      query: ({ organization, redirectPath }) => ({
+      query: ({ organization, project, repositoryFullName, redirectPath }) => ({
         url: `/gecko/git/organizations/${encodeURIComponent(organization)}/init-connect`,
         method: 'POST',
-        body: redirectPath ? { redirect_path: redirectPath } : undefined,
+        body: {
+          project,
+          repository_full_name: repositoryFullName,
+          ...(redirectPath ? { redirect_path: redirectPath } : {}),
+        },
         credentials: 'include',
       }),
     }),
+
     connectGeckoGitOrganization: builder.mutation<
       GeckoGitOrganizationConnectResponse,
       {
-        organization: string;
         installationId: number;
+        state: string;
       }
     >({
-      query: ({ organization, installationId }) => ({
-        url: `/gecko/git/organizations/${encodeURIComponent(organization)}/connect`,
+      query: ({ installationId, state }) => ({
+        url: '/gecko/git/connect',
         method: 'POST',
-        body: { installation_id: installationId },
+        body: {
+          installation_id: installationId,
+          state,
+        },
         credentials: 'include',
       }),
     }),
@@ -1061,6 +1065,37 @@ export const geckoApi = geckoTaggedApi.injectEndpoints({
         credentials: 'include',
       }),
     }),
+    getGeckoGitOrganizationRepositories: builder.query<
+      Array<GeckoGitRepositoryIdentity>,
+      { organization: string; installationId: number }
+    >({
+      query: ({ organization, installationId }) => ({
+        url: `/gecko/git/organizations/${encodeURIComponent(organization)}/connect`,
+        method: 'POST',
+        body: {
+          installation_id: installationId,
+        },
+        credentials: 'include',
+      }),
+      transformResponse: (response: {
+        repositories?: Array<{
+          id: number;
+          name: string;
+          full_name: string;
+          html_url: string;
+          clone_url: string;
+        }>;
+      }) =>
+        (response.repositories ?? []).map((repo) => {
+          const parts = repo.full_name.split('/');
+          return {
+            host: 'github.com',
+            owner: parts[0] || '',
+            repo: parts[1] || repo.name || '',
+            url: repo.html_url,
+          };
+        }),
+    }),
   }),
 });
 
@@ -1092,6 +1127,8 @@ export const {
   useReconcileGeckoGitOrganizationMutation,
   useReconcileGeckoGitOrganizationsMutation,
   useRefreshGeckoGitProjectMutation,
+  useGetGeckoGitOrganizationRepositoriesQuery,
+  useLazyGetGeckoGitOrganizationRepositoriesQuery,
 } = geckoApi;
 
 export const geckoReducerPath = geckoApi.reducerPath;

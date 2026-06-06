@@ -27,6 +27,7 @@ jest.mock('@gen3/core', () => ({
     return normalized.startsWith('/') ? normalized : `/${normalized}`;
   },
   useCreateGeckoProjectMutation: jest.fn(),
+  useConnectGeckoGitOrganizationMutation: jest.fn(),
   useGetAuthzMappingsQuery: jest.fn(),
   useGetGeckoGitOrganizationsStatusQuery: jest.fn(),
   useGetGeckoProjectsQuery: jest.fn(),
@@ -48,8 +49,13 @@ jest.mock('../../components/Protected/ProtectedContent', () => ({
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
+jest.mock('../../lib/session/session', () => ({
+  useSession: () => ({ user: { is_admin: false } }),
+}));
+
 const {
   useCreateGeckoProjectMutation,
+  useConnectGeckoGitOrganizationMutation,
   useGetAuthzMappingsQuery,
   useGetGeckoGitOrganizationsStatusQuery,
   useGetGeckoProjectsQuery,
@@ -60,6 +66,7 @@ const {
   useUpsertSyfonBucketCredentialMutation,
 } = jest.requireMock('@gen3/core') as {
   useCreateGeckoProjectMutation: jest.Mock;
+  useConnectGeckoGitOrganizationMutation: jest.Mock;
   useGetAuthzMappingsQuery: jest.Mock;
   useGetGeckoGitOrganizationsStatusQuery: jest.Mock;
   useGetGeckoProjectsQuery: jest.Mock;
@@ -113,7 +120,11 @@ describe('GitLandingPage', () => {
       jest.fn(),
       { isLoading: false },
     ]);
-    useGetAuthzMappingsQuery.mockReturnValue({ data: {} });
+    useConnectGeckoGitOrganizationMutation.mockReturnValue([
+      jest.fn(),
+      { isLoading: false },
+    ]);
+    useGetAuthzMappingsQuery.mockReturnValue({ data: {}, refetch: jest.fn() });
     useReconcileGeckoGitOrganizationsMutation.mockReturnValue([
       jest.fn(() => ({
         unwrap: jest.fn().mockResolvedValue({ organizations: [] }),
@@ -156,6 +167,7 @@ describe('GitLandingPage', () => {
         { resourcePath: '/programs/org-a/projects/proj-a' },
       ],
       isLoading: false,
+      refetch: jest.fn(),
     });
     useGetGeckoGitOrganizationsStatusQuery.mockReturnValue({
       data: {
@@ -180,9 +192,6 @@ describe('GitLandingPage', () => {
       </MantineProvider>,
     );
 
-    expect(
-      screen.getByRole('button', { name: /refresh connections/i }),
-    ).toBeInTheDocument();
     expect(screen.getAllByText('org-a').length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole('button', { name: /org-a/i }));
@@ -208,6 +217,7 @@ describe('GitLandingPage', () => {
         { resourcePath: '/programs/org-a/projects/proj-alpha' },
       ],
       isLoading: false,
+      refetch: jest.fn(),
     });
 
     render(
@@ -231,10 +241,11 @@ describe('GitLandingPage', () => {
   });
 
   it('shows organization settings for manageable organizations', () => {
-    useGetAuthzMappingsQuery.mockReturnValue({ data: {} });
+    useGetAuthzMappingsQuery.mockReturnValue({ data: {}, refetch: jest.fn() });
     useGetGeckoProjectsQuery.mockReturnValue({
       data: [{ resourcePath: '/programs/org-a/projects/proj-alpha' }],
       isLoading: false,
+      refetch: jest.fn(),
     });
     useGetGeckoGitOrganizationsStatusQuery.mockReturnValue({
       data: {
@@ -354,7 +365,14 @@ describe('GitLandingPage', () => {
       refetch: jest.fn(),
     });
     useGetGeckoProjectsQuery.mockReturnValue({
-      data: [{ resourcePath: '/programs/org-a/projects/proj-alpha' }],
+      data: [
+        {
+          resourcePath: '/programs/org-a/projects/proj-alpha',
+          configData: {
+            src_repo: 'github.com/existing/current_repo',
+          },
+        },
+      ],
       isLoading: false,
       refetch: jest.fn(),
     });
@@ -371,50 +389,5 @@ describe('GitLandingPage', () => {
     expect(
       screen.queryByRole('button', { name: /github connections/i }),
     ).not.toBeInTheDocument();
-  });
-
-  it('uses an organization-scoped redirect path for GitHub connect', async () => {
-    const connectOrganization = jest.fn(() => ({
-      unwrap: jest.fn().mockResolvedValue({ redirect_url: '/git' }),
-    }));
-    useInitConnectGeckoGitOrganizationMutation.mockReturnValue([
-      connectOrganization,
-      { isLoading: false },
-    ]);
-    useGetAuthzMappingsQuery.mockReturnValue({
-      data: {
-        '/programs/org-a/projects': [
-          { method: 'create-descendant', service: 'arborist' },
-        ],
-      },
-      refetch: jest.fn(),
-    });
-    useGetGeckoProjectsQuery.mockReturnValue({
-      data: [{ resourcePath: '/programs/org-a/projects/proj-alpha' }],
-      isLoading: false,
-      refetch: jest.fn(),
-    });
-    const assign = jest.fn();
-    Object.defineProperty(window, 'location', {
-      configurable: true,
-      value: { assign },
-    });
-
-    render(
-      <MantineProvider>
-        <GitLandingPage {...layoutProps} />
-      </MantineProvider>,
-    );
-
-    fireEvent.click(screen.getByRole('button', { name: /connect github/i }));
-    fireEvent.click(screen.getByRole('button', { name: /org-a/i }));
-
-    await waitFor(() =>
-      expect(connectOrganization).toHaveBeenCalledWith({
-        organization: 'org-a',
-        redirectPath: '/git/org-a',
-      }),
-    );
-    await waitFor(() => expect(assign).toHaveBeenCalledWith('/git'));
   });
 });

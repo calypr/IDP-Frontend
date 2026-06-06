@@ -125,19 +125,11 @@ declare module '@gen3/core' {
     readonly mirror_ready: boolean;
   }
 
-  export interface GeckoGitInstallationRepository {
-    readonly id: number;
-    readonly name: string;
-    readonly full_name: string;
-    readonly html_url: string;
-    readonly clone_url: string;
-  }
-
   export interface GeckoGitOrganizationConnectResponse {
-    readonly mode: 'redirect' | 'select_repository';
+    readonly mode?: 'redirect' | 'connected';
     readonly redirect_url?: string;
     readonly installation_id?: number;
-    readonly repositories?: Array<GeckoGitInstallationRepository>;
+    readonly state?: string;
   }
 
   export interface GeckoGitRepositoryInstallationStatus {
@@ -405,6 +397,24 @@ declare module '@gen3/core' {
     isLoading: boolean;
     refetch: () => Promise<unknown>;
   };
+
+  export function useInitConnectGeckoGitOrganizationMutation(): [
+    (args: {
+      organization: string;
+      project: string;
+      repositoryFullName: string;
+      redirectPath?: string;
+    }) => { unwrap: () => Promise<GeckoGitOrganizationConnectResponse> },
+    { isLoading: boolean },
+  ];
+
+  export function useConnectGeckoGitOrganizationMutation(): [
+    (args: {
+      installationId: number;
+      state: string;
+    }) => { unwrap: () => Promise<GeckoGitOrganizationConnectResponse> },
+    { isLoading: boolean },
+  ];
 
   export function useReconcileGeckoGitOrganizationsMutation(): [
     () => { unwrap: () => Promise<unknown> },

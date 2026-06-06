@@ -1,9 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import {
   ActionIcon,
   Alert,
+  Autocomplete,
   Badge,
   Button,
   Card,
@@ -44,6 +45,8 @@ import {
   useRemoveAuthzOwnerMutation,
   useRemoveAuthzUserAccessMutation,
   useUpsertSyfonBucketCredentialMutation,
+  useInitConnectGeckoGitOrganizationMutation,
+  useLazyGetGeckoGitOrganizationRepositoriesQuery,
 } from '@gen3/core';
 import { LoginView } from '../../components/Modals/LoginModal';
 import { NavPageLayout } from '../../features/Navigation';
@@ -81,7 +84,19 @@ const actionIconClassName =
 
 const errorMessage = (error: unknown, fallback: string): string => {
   if (error && typeof error === 'object' && 'data' in error) {
-    return JSON.stringify((error as { data: unknown }).data);
+    const data = (error as { data: any }).data;
+    if (data && typeof data === 'object') {
+      if (data.error && typeof data.error === 'object' && typeof data.error.message === 'string') {
+        return data.error.message;
+      }
+      if (typeof data.error === 'string') {
+        return data.error;
+      }
+      if (typeof data.message === 'string') {
+        return data.message;
+      }
+    }
+    return JSON.stringify(data);
   }
   return fallback;
 };
@@ -96,7 +111,7 @@ const isEditableUserBinding = (
 ): boolean =>
   binding.subject_type === 'user' &&
   !binding.protected &&
-  ['owner', 'delegated'].includes(binding.kind);
+  ['owner', 'delegated', 'direct'].includes(binding.kind);
 
 const isRemovableProjectAccessBinding = (
   binding: AuthzOwnershipResourceBinding,
@@ -488,7 +503,7 @@ const GitOrganizationSettingsPage = ({
   const sessionReady = !session.pending;
   const isAuthenticated = session.status === 'issued';
   const [activeAddForm, setActiveAddForm] = useState<
-    'access' | 'bucket' | null
+    'access' | 'bucket' | 'github' | null
   >(null);
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
   const [accessEmail, setAccessEmail] = useState('');
@@ -527,6 +542,7 @@ const GitOrganizationSettingsPage = ({
   const [formError, setFormError] = useState<string | null>(null);
   const [bucketError, setBucketError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+
   const {
     data: bucketResponse,
     isLoading: bucketsLoading,
@@ -594,6 +610,129 @@ const GitOrganizationSettingsPage = ({
       })),
     [projects],
   );
+
+  const selectedProjectID = selectedProject ?? projects[0]?.project ?? null;
+  const selectedProjectResourcePath = selectedProjectID
+    ? projectResourcePath(organization, selectedProjectID)
+    : '';
+
+  const [manualGitHubOwner, setManualGitHubOwner] = useState('');
+  const [manualGitHubRepo, setManualGitHubRepo] = useState('');
+  const [gitConnectError, setGitConnectError] = useState<string | null>(null);
+
+  const queryInstallationID = useMemo(() => {
+    if (organizationGitStatus?.installation_id) {
+      return organizationGitStatus.installation_id;
+    }
+    const queryId = router.query.installation_id;
+    if (typeof queryId === 'string' && queryId) {
+      const parsed = parseInt(queryId, 10);
+      if (!isNaN(parsed)) {
+        return parsed;
+      }
+    }
+    return null;
+  }, [organizationGitStatus?.installation_id, router.query.installation_id]);
+
+  const [triggerFetchRepositories, { data: githubRepositories = [], isFetching: isFetchingRepos }] =
+    useLazyGetGeckoGitOrganizationRepositoriesQuery();
+
+  useEffect(() => {
+    if (activeAddForm === 'github' && queryInstallationID) {
+      triggerFetchRepositories({
+        organization,
+        installationId: queryInstallationID,
+      });
+    }
+  }, [activeAddForm, queryInstallationID, organization, triggerFetchRepositories]);
+
+  const githubOwnerSuggestions = useMemo(() => {
+    const owners = githubRepositories
+      .map((repo) => repo.owner)
+      .filter(Boolean);
+    return Array.from(new Set(owners));
+  }, [githubRepositories]);
+
+  const githubRepoSuggestions = useMemo(() => {
+    return githubRepositories
+      .filter(
+        (repo) =>
+          repo.owner &&
+          repo.repo &&
+          (!manualGitHubOwner ||
+            repo.owner.toLowerCase() === manualGitHubOwner.toLowerCase().trim()),
+      )
+      .map((repo) => repo.repo);
+  }, [githubRepositories, manualGitHubOwner]);
+
+  const [initConnectOrganization, { isLoading: isInitConnecting }] = useInitConnectGeckoGitOrganizationMutation();
+
+  const selectedProjectStatus = useMemo(() => {
+    return organizationGitStatus?.projects.find(
+      (p) => p.project === selectedProjectID
+    );
+  }, [organizationGitStatus, selectedProjectID]);
+
+  useEffect(() => {
+    if (selectedProjectStatus?.repository?.owner) {
+      setManualGitHubOwner(selectedProjectStatus.repository.owner);
+    } else {
+      const otherConnectedProject = organizationGitStatus?.projects.find(
+        (p) => p.repository?.owner
+      );
+      if (otherConnectedProject?.repository?.owner) {
+        setManualGitHubOwner(otherConnectedProject.repository.owner);
+      } else {
+        const installedProject = organizationGitStatus?.projects.find(
+          (p) => p.installation?.target
+        );
+        if (installedProject?.installation?.target) {
+          setManualGitHubOwner(installedProject.installation.target);
+        } else {
+          setManualGitHubOwner(organization);
+        }
+      }
+    }
+
+    if (selectedProjectStatus?.repository?.repo) {
+      setManualGitHubRepo(selectedProjectStatus.repository.repo);
+    } else {
+      setManualGitHubRepo(selectedProjectID || '');
+    }
+  }, [selectedProjectStatus, organizationGitStatus, organization, selectedProjectID]);
+
+  const handleLinkGitHub = async () => {
+    const projectToConnect = selectedProjectID;
+    if (!projectToConnect) {
+      setGitConnectError('Select a Calypr project.');
+      return;
+    }
+    if (!manualGitHubOwner.trim() || !manualGitHubRepo.trim()) {
+      setGitConnectError('Enter GitHub owner and repository name.');
+      return;
+    }
+    const repoName = `${manualGitHubOwner.trim()}/${manualGitHubRepo.trim()}`;
+    setGitConnectError(null);
+    try {
+      const response = await initConnectOrganization({
+        organization,
+        project: projectToConnect,
+        redirectPath: `/git/${encodeURIComponent(organization)}/settings`,
+        repositoryFullName: repoName,
+      }).unwrap();
+
+      if (response.redirect_url) {
+        window.location.assign(response.redirect_url);
+      } else {
+        setManualGitHubOwner('');
+        setManualGitHubRepo('');
+        setActiveAddForm(null);
+        await refetchGitOrganizationsStatus().catch(() => undefined);
+      }
+    } catch (error) {
+      setGitConnectError(errorMessage(error, 'Failed to link GitHub repository.'));
+    }
+  };
   const buckets = useMemo(
     () => (bucketResponse ? normalizeSyfonBuckets(bucketResponse) : []),
     [bucketResponse],
@@ -618,10 +757,6 @@ const GitOrganizationSettingsPage = ({
   );
   const organizationGitHubInstallationUrl =
     organizationGitStatus?.html_url ?? null;
-  const selectedProjectID = selectedProject ?? projects[0]?.project ?? null;
-  const selectedProjectResourcePath = selectedProjectID
-    ? projectResourcePath(organization, selectedProjectID)
-    : '';
 
   const bucketsForProject = (project: string) => {
     const projectBucketResource = createSyfonResourcePath(
@@ -1028,9 +1163,11 @@ const GitOrganizationSettingsPage = ({
           <Text fw={700} size="sm">
             {activeAddForm === 'access'
               ? 'Add project access'
-              : editingBucketName
-                ? 'Edit bucket'
-                : 'Add project bucket'}
+              : activeAddForm === 'github'
+                ? 'Connect GitHub'
+                : editingBucketName
+                  ? 'Edit bucket'
+                  : 'Add project bucket'}
           </Text>
           <ActionIcon
             aria-label="Close add panel"
@@ -1078,6 +1215,49 @@ const GitOrganizationSettingsPage = ({
               Add access
             </Button>
           </div>
+        ) : null}
+        {activeAddForm === 'github' ? (
+          <Stack gap="xs">
+            {gitConnectError && (
+              <Alert color="red" variant="light">
+                {gitConnectError}
+              </Alert>
+            )}
+            <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto] md:items-end">
+              <Autocomplete
+                label="GitHub Owner"
+                placeholder="owner"
+                data={githubOwnerSuggestions}
+                value={manualGitHubOwner}
+                onChange={(value) => {
+                  setManualGitHubOwner(value);
+                  setGitConnectError(null);
+                }}
+              />
+              <Text c="dimmed" size="sm" className="mb-2 font-bold text-center">
+                /
+              </Text>
+              <Autocomplete
+                label="Repository"
+                placeholder="repo"
+                data={githubRepoSuggestions}
+                value={manualGitHubRepo}
+                onChange={(value) => {
+                  setManualGitHubRepo(value);
+                  setGitConnectError(null);
+                }}
+              />
+              <Button
+                className={actionButtonClassName}
+                color="sky"
+                loading={isInitConnecting}
+                onClick={handleLinkGitHub}
+                variant="light"
+              >
+                Connect
+              </Button>
+            </div>
+          </Stack>
         ) : null}
         {activeAddForm === 'bucket' ? (
           <Stack gap="xs">
@@ -1242,6 +1422,19 @@ const GitOrganizationSettingsPage = ({
                             variant="light"
                           >
                             Access
+                          </Button>
+                          <Button
+                            className={actionButtonClassName}
+                            color="sky"
+                            leftSection={<IconPlus size={14} />}
+                            onClick={() => {
+                              setGitConnectError(null);
+                              setActiveAddForm('github');
+                            }}
+                            size="xs"
+                            variant="light"
+                          >
+                            GitHub
                           </Button>
                           <Button
                             className={actionButtonClassName}
@@ -1440,7 +1633,7 @@ const GitOrganizationSettingsPage = ({
                                     >
                                       <Menu.Target>
                                         <ActionIcon
-                                          aria-label={`Manage organization owner ${binding.subject_name}`}
+                                          aria-label={`Manage organization ${binding.role_id === 'org-member' ? 'member' : 'owner'} ${binding.subject_name}`}
                                           className={actionIconClassName}
                                           variant="subtle"
                                         >
