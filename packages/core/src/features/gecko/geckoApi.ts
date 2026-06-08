@@ -433,14 +433,6 @@ const geckoFetchBaseQueryError = (
   status,
 });
 
-const frontendBasePath = process.env.NEXT_PUBLIC_BASEPATH || '';
-
-const buildFrontendThumbnailProxyPath = (
-  organization: string,
-  project: string,
-): string =>
-  `${frontendBasePath}/api/gecko/projects/${encodeURIComponent(organization)}/${encodeURIComponent(project)}/thumbnail`;
-
 const normalizeThumbnailURL = (
   thumbnailURL: string | undefined,
   organization?: string,
@@ -451,7 +443,7 @@ const normalizeThumbnailURL = (
   }
 
   if (organization && project) {
-    return buildFrontendThumbnailProxyPath(organization, project);
+    return `/gecko/git/projects/${encodeURIComponent(organization)}/${encodeURIComponent(project)}/thumbnail`;
   }
 
   const normalizedSource = (() => {
@@ -470,10 +462,7 @@ const normalizeThumbnailURL = (
     return thumbnailURL;
   }
 
-  return buildFrontendThumbnailProxyPath(
-    decodeURIComponent(match[1]),
-    decodeURIComponent(match[2]),
-  );
+  return `/gecko/git/projects/${encodeURIComponent(decodeURIComponent(match[1]))}/${encodeURIComponent(decodeURIComponent(match[2]))}/thumbnail`;
 };
 
 export const normalizeGeckoProjectRecord = (
