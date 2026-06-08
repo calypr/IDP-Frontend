@@ -25,6 +25,7 @@ import { notifications } from '@mantine/notifications';
 import { useFullscreen } from '@mantine/hooks';
 import { PayModelStatus } from './types';
 import { useWorkspaceContext } from './WorkspaceProvider';
+import { WORKSPACES_ENABLED } from './config';
 
 const getWorkspaceErrorMessage = (
   error: unknown,
@@ -104,9 +105,15 @@ const WorkspaceStatusProvider = ({ children }: { children: ReactNode }) => {
     data: payModels,
     isLoading: isPayModelLoading,
     isError: isPayModelError,
-  } = useGetWorkspacePayModelsQuery();
+  } = useGetWorkspacePayModelsQuery(undefined, {
+    skip: !WORKSPACES_ENABLED,
+  });
 
   useEffect(() => {
+    if (!WORKSPACES_ENABLED) {
+      setPayModelStatus(PayModelStatus.NOT_REQUIRED);
+      return;
+    }
     if (isPayModelLoading) {
       setPayModelStatus(PayModelStatus.GETTING);
     }
@@ -114,7 +121,12 @@ const WorkspaceStatusProvider = ({ children }: { children: ReactNode }) => {
       setPayModelStatus(PayModelStatus.ERROR);
       showErrorNotification('Payment Error', 'Unable to get payment model');
     } else if (!requirePayModel) setPayModelStatus(PayModelStatus.VALID);
-  }, [isPayModelLoading, isPayModelError, payModelStatus, requirePayModel]);
+  }, [
+    isPayModelLoading,
+    isPayModelError,
+    payModelStatus,
+    requirePayModel,
+  ]);
 
   useEffect(() => {
     if (payModels) {

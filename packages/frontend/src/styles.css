@@ -1,6 +1,7 @@
 @layer components {
   .discovery-subheading {
-    @apply px-0 py-10 border-r-2 primary;
+    @apply px-0 py-10 border-r-2;
+    border-color: theme('colors.primary.DEFAULT');
   }
   .discovery-fieldlabel {
     @apply pr-1;

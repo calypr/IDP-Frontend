@@ -18,6 +18,7 @@ const NavPageLayout = ({
   const footerRef = useRef<HTMLDivElement>(null);
 
   const { finalState, toggleButton } = useResponsiveSidebar(leftNavDisabled);
+  const { className: mainClassName, ...resolvedMainProps } = mainProps ?? {};
 
   const mainPadding = useMemo(() => {
     const paddingTop = 'pt-16'; // For 64px header height
@@ -26,9 +27,8 @@ const NavPageLayout = ({
       paddingBottom = `pb-[${footerRef.current.offsetHeight}px]`; // Dynamic footer height
     }
     const padding = `${paddingTop} ${paddingBottom}`;
-    if (leftNavDisabled) return padding;
-    return finalState === 'open' ? `${padding} pl-48` : `${padding} pl-0`;
-  }, [finalState, leftNavDisabled]);
+    return padding;
+  }, []);
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -67,8 +67,9 @@ const NavPageLayout = ({
           className={`
             flex-1 overflow-hidden transition-all duration-300
             ${mainPadding}
+            ${mainClassName ?? ''}
           `}
-          {...mainProps}
+          {...resolvedMainProps}
         >
           {children}
         </main>

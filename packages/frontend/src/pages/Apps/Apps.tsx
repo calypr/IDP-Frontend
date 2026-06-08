@@ -1,116 +1,215 @@
-import React, { useState } from 'react';
-import { MantineProvider, Loader, Alert } from '@mantine/core';
-import { AppsPageProps } from './types';
+import React, { useMemo } from 'react';
+import { ActionIcon, Loader, MantineProvider, Menu, Text } from '@mantine/core';
+import { IconDotsVertical, IconPencil } from '@tabler/icons-react';
+import { useRouter } from 'next/router';
+import type { AppsPageProps } from './types';
 import { NavPageLayout } from '../../features/Navigation';
 import {
-  useGetAuthzMappingsQuery,
-  userHasMethodForServiceOnResource,
-  resourcePathFromProjectID,
+  useGetGeckoProjectSummaryQuery,
+  useGetGeckoProjectsQuery,
 } from '@gen3/core';
-
-import AppCard from './AppCard';
 import { ProtectedContent } from '../../components/Protected';
-import { useFileTotalCountQuery } from './fetchFileCounts';
-import EqualHeightCards from './EqualHeightCards';
-import { useHasAccess } from '../../components/Protected/NoAccessOverlay';
 
-export function SummaryStatsBanner({
-  len_access_projects,
-  fileCount,
-  isLoading,
-  isError,
-}: {
-  len_access_projects: number;
-  fileCount: number | undefined;
-  isLoading: boolean;
-  isError: boolean;
-}) {
-  const [visible, setVisible] = useState(true);
+const projectPresentationHref = (organization: string, project: string) =>
+  `/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}/presentation`;
 
-  // Don't bother with displaying Banner if query errors out
-  if (!visible || isError) return null;
+const projectEditHref = (organization: string, project: string) =>
+  `/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}/edit`;
 
-  const message =
-    'Welcome to CALYPR! You have access to' +
-    ` ${len_access_projects} project${len_access_projects === 1 ? '' : 's'}` +
-    ` and ${!isLoading ? fileCount : 0} file${fileCount === 1 ? '' : 's'}`;
+const fallbackProjectThumbnailURL = '/icons/calypr-mark-mono.svg';
 
-  return (
-    <Alert
-      classNames={{
-        root: 'rounded-lg mx-8 my-4 py-4',
-        wrapper: 'flex items-center',
-        title: 'text-base font-normal',
-      }}
-      color="secondary.0"
-      variant="filled"
-      withCloseButton
-      onClose={() => setVisible(false)}
-      title={message}
-    ></Alert>
-  );
-}
-
-const AppsPage = ({ headerProps, footerProps, appsConfig }: AppsPageProps) => {
-  // define the content to be returned
-  const { data: authzMapping = {}, isLoading: isAuthZLoading } =
-    useGetAuthzMappingsQuery();
-
+const AppsPage = ({ headerProps, footerProps }: AppsPageProps) => {
+  const router = useRouter();
+  const { isLoading: isGeckoProjectsLoading } = useGetGeckoProjectsQuery();
   const {
-    len_access_projects,
-    fileCount,
-    isLoading: isFileCountLoading,
-    isError: isFileCountError,
-  } = useHasAccess(authzMapping);
+    data: geckoProjectSummary = [],
+    isLoading: isGeckoProjectSummaryLoading,
+  } = useGetGeckoProjectSummaryQuery();
+
+  const projectCatalog = useMemo(
+    () =>
+      geckoProjectSummary
+        .map((project) => ({
+          organization: project.organization,
+          project: project.project,
+          title: project.title,
+          contactEmail: project.contact_email,
+          description: project.description,
+          thumbnailURL: project.thumbnail_url,
+        }))
+        .filter((project) => project.organization && project.project)
+        .sort((left, right) => {
+          const titleComparison = (left.title || left.project)
+            .toLowerCase()
+            .localeCompare((right.title || right.project).toLowerCase());
+          if (titleComparison !== 0) {
+            return titleComparison;
+          }
+          const orgComparison = left.organization
+            .toLowerCase()
+            .localeCompare(right.organization.toLowerCase());
+          if (orgComparison !== 0) {
+            return orgComparison;
+          }
+          return left.project
+            .toLowerCase()
+            .localeCompare(right.project.toLowerCase());
+        }),
+    [geckoProjectSummary],
+  );
+
+
 
   const content = (
-    <EqualHeightCards>
-      <div>
-        <div className="flex flex-col">
-          <SummaryStatsBanner
-            len_access_projects={len_access_projects}
-            fileCount={fileCount}
-            isLoading={isFileCountLoading}
-            isError={isFileCountError}
-          />
-        </div>
-        <div className="grid grid-cols-4 gap-6 px-8 my-4 auto-rows-auto">
-          {appsConfig?.appCards
-            ?.filter(
-              (proj) =>
-                proj?.perms == null ||
-                userHasMethodForServiceOnResource(
-                  'read',
-                  '*',
-                  resourcePathFromProjectID(proj?.perms ?? ''),
-                  authzMapping,
-                ),
-            )
-            .map((project) => (
-              <AppCard
-                key={project.title}
-                title={project.title}
-                description={project.description}
-                icon={project.icon}
-                href={project.href}
-                perms={project.perms}
-              />
-            ))}
-        </div>
+    <div className="px-6 py-4">
+      <div className="mx-2">
+        {isGeckoProjectsLoading || isGeckoProjectSummaryLoading ? (
+          <div className="flex min-h-[18rem] items-center justify-center border border-slate-200 bg-white">
+            <Loader />
+          </div>
+        ) : projectCatalog.length === 0 ? (
+          <div className="border border-slate-200 bg-white px-6 py-8">
+            <Text fw={600}>No Gecko projects are currently available.</Text>
+            <Text c="dimmed" mt="xs" size="sm">
+              Once projects are registered in CALYPR, they will appear here for
+              all logged-in users.
+            </Text>
+          </div>
+        ) : (
+          <div className="bg-white">
+            <div className="grid items-center gap-6 bg-black px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-white md:grid-cols-[4rem_minmax(0,1fr)_minmax(0,1.35fr)_minmax(0,0.8fr)_auto]">
+              <div />
+              <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white">
+                Project/Organization
+              </Text>
+              <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white">
+                Description
+              </Text>
+              <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white">
+                Contact
+              </Text>
+              <div />
+            </div>
+            {projectCatalog.map((project) => {
+              const title = project.title || project.project;
+              const contactEmail =
+                project.contactEmail || 'No contact email configured';
+              const description =
+                project.description || 'No project description provided.';
+              const presentationHref = projectPresentationHref(
+                project.organization,
+                project.project,
+              );
+              const editHref = projectEditHref(
+                project.organization,
+                project.project,
+              );
+
+              return (
+                <div
+                  className="grid cursor-pointer items-center gap-6 px-3 py-3 transition hover:bg-slate-50 focus-within:bg-slate-50 md:grid-cols-[4rem_minmax(0,1fr)_minmax(0,1.35fr)_minmax(0,0.8fr)_auto]"
+                  key={`${project.organization}/${project.project}`}
+                  onClick={() => void router.push(presentationHref)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      void router.push(presentationHref);
+                    }
+                  }}
+                  role="link"
+                  tabIndex={0}
+                >
+                  <div className="flex h-14 w-14 items-center justify-center overflow-hidden">
+                    <img
+                      alt={`${title} thumbnail`}
+                      className="h-full w-full object-contain"
+                      onError={(event) => {
+                        if (
+                          event.currentTarget.src.endsWith(
+                            fallbackProjectThumbnailURL,
+                          )
+                        ) {
+                          return;
+                        }
+                        event.currentTarget.src = fallbackProjectThumbnailURL;
+                      }}
+                      src={project.thumbnailURL || fallbackProjectThumbnailURL}
+                    />
+                  </div>
+
+                  <div className="min-w-0">
+                    <div className="flex min-w-0 items-baseline gap-3">
+                      <Text className="truncate text-[15px] font-semibold text-slate-900">
+                        {title}
+                      </Text>
+                      <Text className="shrink-0 truncate text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                        {project.organization}
+                      </Text>
+                    </div>
+                  </div>
+
+                  <div className="min-w-0">
+                    <Text className="truncate text-sm text-slate-700">
+                      {description}
+                    </Text>
+                  </div>
+
+                  <div className="min-w-0">
+                    <Text className="truncate text-sm text-slate-600" size="sm">
+                      {contactEmail}
+                    </Text>
+                  </div>
+
+                  <div className="flex items-center justify-start md:justify-end">
+                    <Menu position="bottom-end" shadow="sm" withinPortal>
+                      <Menu.Target>
+                        <ActionIcon
+                          aria-label={`Open actions for ${title}`}
+                          color="gray"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                          }}
+                          variant="subtle"
+                        >
+                          <IconDotsVertical size={16} />
+                        </ActionIcon>
+                      </Menu.Target>
+                      <Menu.Dropdown
+                        onClick={(event) => {
+                          event.stopPropagation();
+                        }}
+                      >
+                        <Menu.Item
+                          leftSection={<IconPencil size={14} />}
+                          onClick={() => {
+                            void router.push(editHref);
+                          }}
+                        >
+                          Edit
+                        </Menu.Item>
+                      </Menu.Dropdown>
+                    </Menu>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
-    </EqualHeightCards>
+    </div>
   );
 
-  // return with protected and general page navbar
   return (
     <ProtectedContent>
       <NavPageLayout
-        {...{ headerProps, footerProps }}
+        {...{ footerProps }}
         headerMetadata={{
-          title: 'CALYPR Homepage',
-          content: 'Apps',
-          key: 'gen3-apps',
+          title: 'CALYPR Projects',
+          content: 'Project catalog',
+          key: 'calypr-project-catalog',
         }}
+        headerProps={headerProps}
       >
         <MantineProvider withGlobalClasses>{content}</MantineProvider>
       </NavPageLayout>

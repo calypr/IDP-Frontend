@@ -1,5 +1,5 @@
 import React, { ReactElement } from 'react';
-import { Divider } from '@mantine/core';
+import Link from 'next/link';
 import { mergeDefaultTailwindClassnames } from '../../../utils/mergeDefaultTailwindClassnames';
 import LoginAccountButton from '../../../components/Login/LoginAccountButton';
 import { extractClassName } from '../utils';
@@ -14,41 +14,60 @@ import { NavigationBarLogo } from '../types';
 const processTopBarItems = (
   items: TopIconButtonPropsWithLink[],
   classNames: StylingOverrideWithMergeControl,
-  dividerClassname: string,
-  isLandingPage: boolean,
 ): ReactElement[] => {
-  return items.reduce(
-    (acc: ReactElement[], item: TopIconButtonPropsWithLink, index: number) => {
+  return items.flatMap(
+    (item: TopIconButtonPropsWithLink, index: number): ReactElement[] => {
       const mergedClassnames = item?.classNames
         ? mergeDefaultTailwindClassnames(classNames, item.classNames)
         : classNames;
-      acc.push(
+      const renderedItem = (
         <React.Fragment key={`${item.href}_${item.name}-topbar-item`}>
-          <a
-            className="flex"
-            target="_blank"
-            rel="noopener noreferrer"
-            href={item.href}
-          >
-            <IconButton
-              name={item.name}
-              iconSize={item.iconSize}
-              leftIcon={item.leftIcon}
-              rightIcon={item.rightIcon}
-              classNames={mergedClassnames}
-            />
-          </a>
-          <Divider
-            size="md"
-            orientation="vertical"
-            classNames={{ root: dividerClassname }}
-            color={isLandingPage ? 'black' : 'white'}
-          />
-        </React.Fragment>,
+          <div className="flex h-full items-center">
+            {item.openInNewTab === false ? (
+              <Link className="flex h-full items-center" href={item.href}>
+                <IconButton
+                  name={item.name}
+                  iconSize={item.iconSize}
+                  leftIcon={item.leftIcon}
+                  rightIcon={item.rightIcon}
+                  classNames={mergedClassnames}
+                />
+              </Link>
+            ) : (
+              <a
+                className="flex h-full items-center"
+                target="_blank"
+                rel="noopener noreferrer"
+                href={item.href}
+              >
+                <IconButton
+                  name={item.name}
+                  iconSize={item.iconSize}
+                  leftIcon={item.leftIcon}
+                  rightIcon={item.rightIcon}
+                  classNames={mergedClassnames}
+                />
+              </a>
+            )}
+          </div>
+        </React.Fragment>
       );
-      return acc;
+
+      if (index === items.length - 1) {
+        return [renderedItem];
+      }
+
+      return [
+        renderedItem,
+        <span
+          aria-hidden="true"
+          className="mx-1 text-white/80"
+          key={`${item.href}_${item.name}-topbar-divider`}
+        >
+          |
+        </span>,
+      ];
     },
-    [],
   );
 };
 
@@ -80,27 +99,26 @@ const TopBar = ({
   const isLandingPage = title === 'CALYPR Landing Page';
 
   const classNamesDefaults = {
-    root: `flex items-center align-middle border-b-8 fixed top-0 left-0 right-0 w-full z-10
+    root: `fixed top-0 left-0 right-0 z-10 flex h-16 w-full items-center border-b shadow-sm
    ${
      isLandingPage
-       ? 'bg-white text-black border-white'
-       : 'bg-primary text-white border-accent'
+       ? 'bg-white text-black border-slate-100'
+       : 'bg-primary text-white border-black/10'
    }`,
     login: isLandingPage
       ? 'font-content text-black hover:border-black'
       : 'font-content text-white hover:border-white',
-    divider: isLandingPage ? 'border-black my-2' : 'border-white my-2',
     loginMenu: isLandingPage
-      ? 'mx-2 text-black border-b-2 border-transparent border-white hover:border-black'
-      : 'mx-2 text-white border-b-2 border-transparent border-primary hover:border-white',
+      ? 'flex h-full items-center px-2 text-black border-b-2 border-transparent border-white transition-colors duration-150 hover:border-black'
+      : 'flex h-full items-center px-2 text-white border-b-2 border-transparent border-primary transition-colors duration-150 hover:border-white',
   };
 
   const itemClassnameDefaults = {
-    logoAndTitlePanel: 'flex justify-center items-center align-middle',
-    root: `flex items-center align-middle px-2`,
+    logoAndTitlePanel: 'flex h-full items-center',
+    root: 'flex h-full items-center px-2',
     button: isLandingPage
-      ? 'flex items-center align-middle border-b-2 h-full border-white hover:border-black'
-      : 'flex items-center align-middle border-b-2 h-full border-primary hover:border-white',
+      ? 'flex h-full items-center border-b-2 border-white transition-colors duration-150 hover:border-black'
+      : 'flex h-full items-center border-b-2 border-primary transition-colors duration-150 hover:border-white',
     leftIcon: isLandingPage
       ? 'text-black pr-1 flex-shrink-0'
       : 'text-white pr-1 flex-shrink-0',
@@ -137,13 +155,13 @@ const TopBar = ({
         <div
           role="navigation"
           aria-label="top most navigation"
-          className="flex items-center align-middle"
+          className="flex h-full items-center"
         >
-          {processTopBarItems(
-            items,
-            mergedItemClassnames,
-            extractClassName('divider', mergedClassnames),
-            isLandingPage,
+          {processTopBarItems(items, mergedItemClassnames)}
+          {items.length > 0 && (
+            <span aria-hidden="true" className="mx-1 text-white/80">
+              |
+            </span>
           )}
           <div className={extractClassName('loginMenu', mergedClassnames)}>
             <LoginMenu frontBanner={false} classNames={classNamesDefaults} />

@@ -1,6 +1,6 @@
 import { selectCSRFToken } from '../features/user';
 import { coreStore } from '../store';
-import { GEN3_FENCE_API, GEN3_API } from '../constants';
+import { GEN3_API, SYFON_API } from '../constants';
 import { getCookie } from 'cookies-next';
 
 export enum HttpMethod {
@@ -107,7 +107,7 @@ export const fetchFencePresignedURL = async ({
   }
   if (csrfToken) headers.set('X-CSRF-Token', csrfToken);
 
-  const url = `${GEN3_FENCE_API}/data/download/${guid}`;
+  const url = `${SYFON_API}/download/${guid}`;
   try {
     const response = await fetch(url, {
       method: method,

@@ -44,7 +44,6 @@ if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
   axe(React, ReactDOM, 1000);
 }
 
-
 // TODO fix app registration
 
 interface Gen3AppProps {
@@ -84,7 +83,9 @@ const Gen3App = ({
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const isAppsPortal = window.location.pathname.startsWith('/Apps');
+      const isAppsPortal =
+        window.location.pathname === '/' ||
+        window.location.pathname.startsWith('/Apps');
       if (isAppsPortal) {
         document.body.classList.add('bg-gray-100');
       } else {
@@ -125,8 +126,11 @@ Gen3App.getInitialProps = async (
       ...ctx,
       ...res,
     };
-    } catch (error: unknown) {
-    console.error('Provider Wrapper error loading config', error instanceof Error ? error.message : String(error));
+  } catch (error: unknown) {
+    console.error(
+      'Provider Wrapper error loading config',
+      error instanceof Error ? error.message : String(error),
+    );
   }
 
   // Return default values in case of an error

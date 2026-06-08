@@ -8,11 +8,20 @@ import {
 } from '@gen3/core';
 import { ErrorCard } from '../../components/MessageCards';
 import NotebookCard from './NotebookCard';
+import { WORKSPACES_ENABLED } from './config';
 
 const WorkspacePanel = () => {
-  const { data, isLoading, isError } = useGetWorkspaceOptionsQuery();
+  const { data, isLoading, isError } = useGetWorkspaceOptionsQuery(undefined, {
+    skip: !WORKSPACES_ENABLED,
+  });
 
-  const { data: workspaceStatusData } = useGetWorkspaceStatusQuery(undefined);
+  const { data: workspaceStatusData } = useGetWorkspaceStatusQuery(undefined, {
+    skip: !WORKSPACES_ENABLED,
+  });
+
+  if (!WORKSPACES_ENABLED) {
+    return null;
+  }
 
   if (isError) {
     return (

@@ -16,6 +16,7 @@ export * from './features/Query';
 export * from './features/Workspace';
 export * from './features/Analysis';
 export * from './features/StaticNotebook';
+export * from './features/Upload';
 import {
   RenderFileActions,
   ExplorerTableCellRendererFactory,
@@ -52,8 +53,20 @@ import '@gen3/core';
 import SmmartPage from './pages/Smmart/Smmart';
 import CalyprPage from './pages/CALYPR/CALYPR';
 
-import BrowserPage from './pages/Browser';
-import { BrowserPageGetServerSideProps } from './pages/Browser';
+import {
+  GitExplorerPageGetServerSideProps,
+  GitHubReturnPage,
+  GitLandingPage,
+  GitNewProjectPage,
+  GitOrganizationSettingsPage,
+  GitProjectFilePage,
+  GitProjectPage,
+} from './pages/GitExplorer';
+import {
+  OrganizationExplorerPageGetServerSideProps,
+  OrganizationLandingPage,
+  OrganizationProjectPage,
+} from './pages/OrganizationExplorer';
 
 import { SmmartPageGetServerSideProps } from './pages/Smmart';
 import { CalyprPageGetServerSideProps } from './pages/CALYPR';
@@ -66,11 +79,16 @@ import { ConfiguratorPageGetServerSideProps } from './pages/Configurator';
 
 import AppsPage from './pages/Apps/Apps';
 import { AppsPageGetServerSideProps } from './pages/Apps';
+import AvailableImagesPage, {
+  AvailableImagesPageGetServerSideProps,
+} from './pages/AvailableImages';
 // export Gen3 data UI standard pages
 import Gen3Provider, {
   createMantineTheme,
 } from './components/Providers/Gen3Provider';
-import DiscoveryPage, { DiscoveryMainContent } from './pages/Discovery/Discovery';
+import DiscoveryPage, {
+  DiscoveryMainContent,
+} from './pages/Discovery/Discovery';
 import { DiscoveryPageGetServerSideProps } from './pages/Discovery/data';
 
 import QueryPage from './pages/Query/Query';
@@ -140,6 +158,7 @@ import { NotebookLitePageGetServerSideProps } from './pages/NotebookLite';
 import DataLibraryPage, {
   DataLibraryPageGetServerSideProps,
 } from './pages/DataLibrary';
+import UploadPage, { UploadPageGetServerSideProps } from './pages/Upload';
 // TODO Replace with AppTool plugin
 import CrosswalkPage from './pages/Crosswalk';
 import { CrosswalkPageGetServerSideProps } from './pages/Crosswalk/data';
@@ -153,6 +172,7 @@ import sessionToken from './api/auth/sessionToken';
 import sessionLogout from './api/auth/sessionLogout';
 import credentialsLogin from './api/auth/credentialsLogin';
 import credentialsLogout from './api/auth/credentialsLogout';
+import projectThumbnail from './api/gecko/projectThumbnail';
 import analysisApiCohortDiscovery from './features/CohortDiscovery/api/analysisApiCohortDiscovery';
 import staticNotebookAPI from './features/StaticNotebook/api/staticNotebookAPI';
 
@@ -189,12 +209,22 @@ export {
   SmmartPageGetServerSideProps,
   CalyprPage,
   CalyprPageGetServerSideProps,
-  BrowserPage,
-  BrowserPageGetServerSideProps,
+  GitLandingPage,
+  GitNewProjectPage,
+  GitHubReturnPage,
+  GitOrganizationSettingsPage,
+  GitProjectFilePage,
+  GitProjectPage,
+  GitExplorerPageGetServerSideProps,
+  OrganizationLandingPage,
+  OrganizationProjectPage,
+  OrganizationExplorerPageGetServerSideProps,
   FileSummaryPage,
   FileSummaryPageGetServerSideProps,
   AppsPage,
   AppsPageGetServerSideProps,
+  AvailableImagesPage,
+  AvailableImagesPageGetServerSideProps,
   LandingPage,
   LandingPageGetServerSideProps,
   ColorThemePage,
@@ -232,6 +262,7 @@ export {
   sessionLogout,
   credentialsLogin,
   credentialsLogout,
+  projectThumbnail,
   createMantineTheme,
   AiSearchPage,
   AISearchPageGetServerSideProps,
@@ -241,6 +272,8 @@ export {
   SubmissionPageGetServerSideProps,
   DataLibraryPage,
   DataLibraryPageGetServerSideProps,
+  UploadPage,
+  UploadPageGetServerSideProps,
   NotebookLitePage,
   NotebookLitePageGetServerSideProps,
   registerMetadataSchemaApp,

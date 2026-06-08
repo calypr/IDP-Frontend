@@ -1,7 +1,12 @@
-import {
-  AppsPage,
-  AppsPageGetServerSideProps as getServerSideProps,
-} from '@gen3/frontend';
-export default AppsPage;
+import { GetServerSideProps } from 'next';
 
-export { getServerSideProps };
+const LegacyAppsPage = () => null;
+
+export const getServerSideProps: GetServerSideProps = async () => ({
+  redirect: {
+    destination: '/',
+    permanent: false,
+  },
+});
+
+export default LegacyAppsPage;

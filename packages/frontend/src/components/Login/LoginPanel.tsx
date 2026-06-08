@@ -16,7 +16,11 @@ const filterRedirect = (redirect: string | string[] | undefined) => {
   if (Array.isArray(redirect)) {
     redirectPath = redirect[0];
   } else {
-    redirectPath = redirect ?? '/Explorer';
+    redirectPath = redirect ?? '/';
+  }
+
+  if (/^https?:\/\//i.test(redirectPath) || redirectPath.startsWith('/')) {
+    return redirectPath;
   }
 
   return GEN3_REDIRECT_URL

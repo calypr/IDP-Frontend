@@ -8,6 +8,7 @@ import {
   GEN3_DOWNLOADS_ENDPOINT,
   GEN3_FENCE_API,
   GEN3_GRIP_API,
+  GEN3_GECKO_API,
   GEN3_GUPPY_API,
   GEN3_MANIFEST_API,
   GEN3_MDS_API,
@@ -15,6 +16,8 @@ import {
   GEN3_SOWER_API,
   GEN3_SUBMISSION_API,
   GEN3_WORKSPACE_API,
+  SYFON_API,
+  SYFON_DRS_API,
   CALYPR_EXPLORER_CONFIG_API,
 } from './constants';
 import { type CoreState } from './reducers';
@@ -37,6 +40,7 @@ export * from './features/fence';
 export * from './features/filters';
 export * from './features/gen3';
 export * from './features/gen3Apps';
+export * from './features/gecko';
 export * from './features/graphQL';
 export * from './features/guppy';
 export * from './features/manifest';
@@ -45,6 +49,7 @@ export * from './features/modals';
 export * from './features/requestor';
 export * from './features/sower';
 export * from './features/submission';
+export * from './features/syfon';
 export * from './features/workspace';
 export * from './features/grip';
 export * from './features/configurator';
@@ -58,6 +63,7 @@ export {
   GEN3_DOWNLOADS_ENDPOINT,
   GEN3_GUPPY_API,
   GEN3_GRIP_API,
+  GEN3_GECKO_API,
   GEN3_FENCE_API,
   GEN3_AUTHZ_API,
   GEN3_MDS_API,
@@ -68,5 +74,7 @@ export {
   GEN3_SOWER_API,
   GEN3_MANIFEST_API,
   CALYPR_EXPLORER_CONFIG_API,
+  SYFON_API,
+  SYFON_DRS_API,
   Accessibility,
 };

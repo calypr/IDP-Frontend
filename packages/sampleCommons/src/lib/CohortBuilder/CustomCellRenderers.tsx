@@ -4,7 +4,7 @@ import {
   type CellRendererFunctionProps,
   RenderFileActions,
 } from '@gen3/frontend';
-import { GEN3_FENCE_API } from '@gen3/core';
+import { SYFON_API } from '@gen3/core';
 import { ActionIcon, Text } from '@mantine/core';
 import { FaExternalLinkAlt, FaImage, FaFileDownload } from 'react-icons/fa';
 
@@ -47,7 +47,7 @@ const RenderFileDownloadLink = (
 ) => {
   const arg0 = args[0] as Record<string, unknown>;
   const fileId = cell?.getValue();
-  const downloadBaseUrl = arg0?.actionUrl || arg0?.downloadURL || `${GEN3_FENCE_API}/data/download`;
+  const downloadBaseUrl = arg0?.actionUrl || arg0?.downloadURL || `${SYFON_API}/download`;
 
   if (Number(row.getValue('document_reference_size') as number) !== 0 && fileId) {
     return (

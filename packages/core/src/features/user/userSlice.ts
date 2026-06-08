@@ -109,8 +109,9 @@ export const userReducer = slice.reducer;
 
 export const { resetUserState } = slice.actions;
 
-export interface Gen3UserSelectorResponse<T>
-  extends CoreDataSelectorResponse<T> {
+export interface Gen3UserSelectorResponse<
+  T,
+> extends CoreDataSelectorResponse<T> {
   readonly loginStatus: LoginStatus;
 }
 

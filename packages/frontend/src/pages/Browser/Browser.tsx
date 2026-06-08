@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Center,
   Paper,
@@ -23,12 +23,17 @@ import {
   useGetConfigContentQuery,
   DirItem,
   DirectoryContents,
-  GEN3_FENCE_API,
+  SYFON_API,
 } from '@gen3/core';
 import ProtectedContent from '../../components/Protected/ProtectedContent';
 import { ColumnItem, type BrowserPageProps, FileActionsConfig } from './types';
 import { type DocumentReferenceData } from '@gen3/core';
 import { formatBytes } from '../../utils/labels';
+import {
+  buildBrowserColumns,
+  getDirectoryCacheKey,
+  isBrowserItemSelected,
+} from './utils';
 
 const ProjectIcon = ({ className = 'w-5 h-5 mr-3 text-purple-500' }) => (
   <svg
@@ -143,7 +148,7 @@ export const FileMetadataPanel = ({
 
   const downloadUrl = isGithubFile
     ? url
-    : `${GEN3_FENCE_API}/data/download/${downloadIdentifier}?redirect=true`;
+    : `${SYFON_API}/download/${downloadIdentifier}?redirect=true`;
 
   const extension = fileName.includes('.') ? fileName.split('.').pop()?.toLowerCase() || '' : '';
   const currentActions = fileActions?.extensions?.[extension] || fileActions?.extensions?.['default'] || ['file_download'];
@@ -282,17 +287,12 @@ const BrowserPage = ({
   errorStatus,
   fileActions: topFileActions,
 }: BrowserPageProps) => {
-  const [columns, setColumns] = useState<
-    {
-      id: string;
-      items?: ColumnItem[];
-      metadata?: DirItem;
-      loading?: boolean;
-    }[]
-  >([]);
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
   const [selectedPath, setSelectedPath] = useState<string[]>([]);
   const [selectedFile, setSelectedFile] = useState<DirItem | null>(null);
+  const [directoryCache, setDirectoryCache] = useState<
+    Record<string, DirectoryContents>
+  >({});
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   // Fetch projects
@@ -309,7 +309,7 @@ const BrowserPage = ({
     error: dirError,
   } = useGetDirectoryContentsQuery(
     { projectId: selectedProject ?? '', path: selectedPath },
-    { skip: !selectedProject || !!selectedFile },
+    { skip: !selectedProject },
   ) as { data: DirectoryContents | undefined; isLoading: boolean; error: any };
 
   const { data: explorerConfig } = useGetConfigContentQuery(
@@ -317,8 +317,10 @@ const BrowserPage = ({
     { skip: !selectedProject }
   );
 
-  // Global loading flag to disable interactions during fetches (hardens against races)
   const isLoading = isLoadingProjects || isLoadingDirectory;
+  const currentDirectoryPathKey = selectedProject
+    ? getDirectoryCacheKey(selectedProject, selectedPath)
+    : null;
 
   useEffect(() => {
     if (process.env.NODE_ENV === 'development') {
@@ -334,57 +336,43 @@ const BrowserPage = ({
     }
   }, [selectedProject, explorerConfig]);
 
-  // Populate first column with projects
   useEffect(() => {
-    if (Array.isArray(projectItems)) {
-      setColumns([{ id: 'root-projects', items: projectItems }]);
+    if (selectedProject && dirContents) {
+      const items = Array.isArray(dirContents) ? dirContents : dirContents.items;
+      if (!Array.isArray(items) || !currentDirectoryPathKey) return;
+
+      setDirectoryCache((prev) => ({
+        ...prev,
+        [currentDirectoryPathKey]: {
+          ...(Array.isArray(dirContents) ? { items } : dirContents),
+          items,
+        },
+      }));
     }
-  }, [projectItems]);
+  }, [currentDirectoryPathKey, dirContents, selectedProject]);
 
-  // Replace loading column with directory contents when ready
-  useEffect(() => {
-    if (selectedProject && dirContents && !selectedFile) {
-      const items = Array.isArray(dirContents) 
-        ? dirContents 
-        : dirContents.items;
-      
-      if (!Array.isArray(items)) return;
-
-      setColumns((prev) => {
-        const next = [...prev];
-        next[next.length - 1] = {
-          id: `dir-${selectedProject}-${selectedPath.join('/') || 'root'}`,
-          items: items,
-        };
-        return next;
-      });
-    }
-  }, [dirContents, selectedProject, selectedPath, selectedFile]);
-
-  // Handle file metadata column
-  useEffect(() => {
-    if (selectedFile) {
-      setColumns((prev) => {
-        const lastCol = prev[prev.length - 1];
-        // If we're already showing this exact file, do nothing
-        if (lastCol?.metadata?.id === selectedFile.id) return prev;
-
-        // Otherwise replace or add metadata column
-        if (lastCol?.metadata) {
-          return [
-            ...prev.slice(0, -1),
-            { id: `file-metadata-${selectedFile.id}`, metadata: selectedFile },
-          ];
-        }
-        return [
-          ...prev,
-          { id: `file-metadata-${selectedFile.id}`, metadata: selectedFile },
-        ];
-      });
-    } else {
-      setColumns((prev) => prev.filter((col) => !col.metadata));
-    }
-  }, [selectedFile]);
+  const columns = useMemo(
+    () =>
+      buildBrowserColumns({
+        projectItems,
+        selectedProject,
+        selectedPath,
+        selectedFile,
+        directoryCache,
+        isLoadingProjects,
+        loadingPathKey: isLoadingDirectory ? currentDirectoryPathKey : null,
+      }),
+    [
+      currentDirectoryPathKey,
+      directoryCache,
+      isLoadingDirectory,
+      isLoadingProjects,
+      projectItems,
+      selectedFile,
+      selectedPath,
+      selectedProject,
+    ],
+  );
 
   // Auto-scroll to newest column
   const prevColumnCountRef = useRef<number>(0);
@@ -406,18 +394,11 @@ const BrowserPage = ({
     prevColumnCountRef.current = currentLen;
   }, [columns]);
 
-  // Handle item clicks (disabled during loading)
   const handleItemClick = (item: ColumnItem, columnIndex: number) => {
-    if (isLoading) return;
-
     if (item.type === 'project') {
       setSelectedProject(item.name);
       setSelectedPath([]);
       setSelectedFile(null);
-      setColumns((prev) => [
-        ...prev.slice(0, 1),
-        { id: 'loading-project', loading: true },
-      ]);
       return;
     }
 
@@ -425,29 +406,13 @@ const BrowserPage = ({
       const newPath = [...selectedPath.slice(0, columnIndex - 1), item.name];
       setSelectedPath(newPath);
       setSelectedFile(null);
-
-      // Always truncate to the clicked folder + loading column
-      setColumns((prev) => [
-        ...prev.slice(0, columnIndex + 1),
-        { id: 'loading-dir', loading: true },
-      ]);
       return;
     }
 
     if (item.type === 'file') {
-      // THIS IS THE KEY FIX
-      const parentPath = selectedPath.slice(0, columnIndex - 1); // path up to parent folder
+      const parentPath = selectedPath.slice(0, columnIndex - 1);
       setSelectedPath(parentPath);
       setSelectedFile(item);
-
-      // Collapse everything after the parent folder, then add metadata
-      setColumns((prev) => {
-        const keepUpToParent = columnIndex + 1; // root + project + folders up to parent
-        return [
-          ...prev.slice(0, keepUpToParent),
-          { id: `file-metadata-${item.id}`, metadata: item },
-        ];
-      });
       return;
     }
   };
@@ -496,7 +461,6 @@ const BrowserPage = ({
       : selectedPath.length + 2; // normal folder navigation
 
     const handleCrumbClick = (targetDepth: number) => {
-      if (isLoading) return; // Harden: prevent races from quick clicks
       if (targetDepth >= currentDepth) {
         return;
       }
@@ -505,14 +469,12 @@ const BrowserPage = ({
         setSelectedProject(null);
         setSelectedPath([]);
         setSelectedFile(null);
-        setColumns([{ id: 'root-projects', items: Array.isArray(projectItems) ? projectItems : [] }]);
         return;
       }
 
       if (targetDepth === 2) {
         setSelectedPath([]);
         setSelectedFile(null);
-        setColumns((prev) => prev.slice(0, 2));
         return;
       }
 
@@ -521,16 +483,6 @@ const BrowserPage = ({
       const newPath = selectedPath.slice(0, folderIndex + 1);
       setSelectedPath(newPath);
       setSelectedFile(null);
-
-      setColumns((prev) => {
-        const lastIsMetadata = !!prev[prev.length - 1]?.metadata;
-        const shouldJustTruncate =
-          lastIsMetadata && prev.length === targetDepth + 1;
-        if (shouldJustTruncate) {
-          return prev.slice(0, targetDepth);
-        }
-        return prev.slice(0, targetDepth);
-      });
     };
 
     if (breadcrumbs.length <= 1) return null;
@@ -626,19 +578,18 @@ const BrowserPage = ({
                       ) : (
                         <ul>
                           {Array.isArray(column.items) && column.items.map((item) => {
-                            let isSelected = false;
-                            if (colIndex === 0 && selectedProject) {
-                              isSelected = selectedProject === item.name;
-                            } else if (colIndex > 0) {
-                              isSelected =
-                                selectedPath[colIndex - 1] === item.name;
-                            }
+                            const isSelected = isBrowserItemSelected({
+                              item,
+                              columnIndex: colIndex,
+                              selectedProject,
+                              selectedPath,
+                              selectedFile,
+                            });
                             return (
                               <li key={item.id}>
                                 <button
-                                  disabled={isLoading} // Harden: disable during loads
                                   onClick={() => handleItemClick(item, colIndex)}
-                                  className={`w-full text-left p-3 flex items-center justify-between transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60 ${
+                                  className={`w-full text-left p-3 flex items-center justify-between transition-colors duration-150 ${
                                     isSelected
                                       ? 'bg-blue-500 text-white'
                                       : 'hover:bg-gray-100 text-gray-800'
