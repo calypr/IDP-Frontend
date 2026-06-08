@@ -34,8 +34,8 @@ export function useResponsiveSidebar(
 
   return { finalState, toggleButton: toggleSidebar };
 }
-const projectPresentationHref = (organization: string, project: string) =>
-  `/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}/presentation`;
+const projectRepoHref = (organization: string, project: string) =>
+  `/git/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}`;
 
 const fallbackProjectThumbnailURL = '/icons/calypr-mark-mono.svg';
 const genericNavIcon = '/icons/apps/gen3_app.svg';
@@ -64,7 +64,7 @@ export const Sidebar = ({ items, state }: SidebarProps) => {
         const projectName = parts[3] || '';
         const title =
           project.configData?.title?.trim() || projectName || organization;
-        const href = projectPresentationHref(organization, projectName);
+        const href = projectRepoHref(organization, projectName);
 
         const matchingNavItem = items?.find(
           (item) => item.href === href || item.title === title,
