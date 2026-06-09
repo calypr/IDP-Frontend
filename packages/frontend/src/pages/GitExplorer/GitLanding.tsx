@@ -16,6 +16,7 @@ import {
   Collapse,
   Container,
   Group,
+  Loader,
   Modal,
   PasswordInput,
   Popover,
@@ -51,6 +52,7 @@ import {
   useConnectGeckoGitOrganizationMutation,
   useCreateGeckoProjectMutation,
   useDeleteGeckoProjectThumbnailMutation,
+  useEditConnectGeckoGitProjectMutation,
   useGetAuthzMappingsQuery,
   useGetGeckoGitOrganizationsStatusQuery,
   useGetGeckoProjectsQuery,
@@ -72,6 +74,10 @@ import {
   extractProjectsFromResourcePaths,
   groupProjectsByOrganization,
 } from '../OrganizationExplorer/utils';
+import {
+  clearPendingProjectConnect,
+  loadPendingProjectConnect,
+} from './githubConnectState';
 import type { GitExplorerPageProps } from './types';
 
 const pluralize = (count: number, singular: string, plural = `${singular}s`) =>
@@ -79,8 +85,6 @@ const pluralize = (count: number, singular: string, plural = `${singular}s`) =>
 
 const actionButtonClassName =
   'border border-sky-200 bg-sky-50 text-sky-700 shadow-sm transition hover:border-sky-300 hover:bg-sky-100 hover:text-sky-900';
-
-const gitHubReturnSignalKey = 'gecko:git-github-return';
 
 const toSlug = (value: string): string =>
   value
@@ -491,14 +495,14 @@ const integrationIssuesForProject = (
   if (!integrations.github.pass) {
     issues.push({
       key: 'github',
-      label: 'GitHub is not connected',
+      label: 'GitHub unconnected',
       details: integrations.github.details,
     });
   }
   if (!integrations.storage.pass) {
     issues.push({
       key: 'storage',
-      label: 'Storage is not configured',
+      label: 'Storage unconnected',
       details: integrations.storage.details,
     });
   }
@@ -508,7 +512,7 @@ const integrationIssuesForProject = (
 const projectConnectionBadge = (
   status?: GeckoGitOrganizationProjectStatus,
   isRefreshing = false,
-): { color: string; label: string } => {
+): { color: 'gray' | 'green' | 'red' | 'yellow'; icon?: React.ReactNode; label: string } => {
   if (isRefreshing) {
     return { color: 'gray', label: 'Refreshing...' };
   }
@@ -521,15 +525,15 @@ const projectConnectionBadge = (
     missingIntegrations.push('Storage');
   }
   if (missingIntegrations.length === 2) {
-    return { color: 'red', label: 'GitHub + Storage missing' };
+    return { color: 'red', icon: <IconX size={12} />, label: 'GitHub + Storage' };
   }
   if (missingIntegrations[0] === 'GitHub') {
-    return { color: 'red', label: 'GitHub missing' };
+    return { color: 'red', icon: <IconX size={12} />, label: 'GitHub' };
   }
   if (missingIntegrations[0] === 'Storage') {
-    return { color: 'yellow', label: 'Storage missing' };
+    return { color: 'yellow', icon: <IconX size={12} />, label: 'Storage' };
   }
-  return { color: 'green', label: 'Connected' };
+  return { color: 'green', label: 'Ready' };
 };
 
 const ThumbnailField = ({
@@ -670,23 +674,32 @@ const ThumbnailSummary = ({
 
 const StatusPill = ({
   color,
+  icon,
   label,
 }: {
-  color: 'gray' | 'green' | 'red' | 'sky';
+  color: 'gray' | 'green' | 'red' | 'sky' | 'yellow';
+  icon?: React.ReactNode;
   label: string;
 }) => (
   <span
     className={[
-      'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold tracking-[0.04em] uppercase',
+      'inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold uppercase leading-none tracking-[0.04em]',
       color === 'green'
         ? 'bg-emerald-50 text-emerald-700'
         : color === 'red'
           ? 'bg-rose-50 text-rose-700'
+          : color === 'yellow'
+            ? 'bg-amber-50 text-amber-700'
           : color === 'sky'
             ? 'bg-sky-50 text-sky-700'
             : 'bg-slate-100 text-slate-600',
     ].join(' ')}
   >
+    {icon ? (
+      <span className="inline-flex h-3 w-3 shrink-0 items-center justify-center self-center translate-y-px [&_svg]:block">
+        {icon}
+      </span>
+    ) : null}
     {label}
   </span>
 );
@@ -1333,6 +1346,7 @@ const ProjectManagementModal = ({
   const [updateStorage, { isLoading: isSavingStorage }] =
     useUpdateGeckoProjectStorageMutation();
   const integrations = projectIntegrations(status);
+  const readinessBadge = projectConnectionBadge(status);
 
   useEffect(() => {
     setActiveTab('details');
@@ -1559,8 +1573,9 @@ const ProjectManagementModal = ({
         <div className="border-b border-slate-200 pb-4">
           <Group gap="sm" wrap="wrap">
             <StatusPill
-              color={issues.length > 0 ? 'red' : 'green'}
-              label={issues.length > 0 ? 'Incomplete' : 'Connected'}
+              color={readinessBadge.color}
+              icon={readinessBadge.icon}
+              label={readinessBadge.label}
             />
             {issues.length > 0 ? (
               <Text c="dimmed" size="sm">
@@ -1568,14 +1583,14 @@ const ProjectManagementModal = ({
                 {issues
                   .map((issue) =>
                     issue.label
-                      .replace('GitHub is not connected', 'GitHub')
-                      .replace('Storage is not configured', 'Storage'),
+                      .replace('GitHub unconnected', 'GitHub')
+                      .replace('Storage unconnected', 'Storage'),
                   )
                   .join(', ')}
               </Text>
             ) : (
               <Text c="dimmed" size="sm">
-                GitHub and storage are configured for this project.
+                GitHub and storage are connected for this project.
               </Text>
             )}
           </Group>
@@ -1652,12 +1667,12 @@ const ProjectManagementModal = ({
               <Group gap="sm" wrap="wrap">
                 <StatusPill
                   color={integrations.storage.pass ? 'green' : 'red'}
-                  label={integrations.storage.pass ? 'Connected' : 'Missing'}
+                  label={integrations.storage.pass ? 'Ready' : 'Unconnected'}
                 />
                 <Text c="dimmed" size="sm">
                   {integrations.storage.pass
-                    ? 'Uploads are configured for this project.'
-                    : 'Uploads are not configured yet.'}
+                    ? 'Uploads are ready for this project.'
+                    : 'Storage is not connected for this project.'}
                 </Text>
               </Group>
               {integrations.storage.details ? (
@@ -1818,7 +1833,10 @@ const CompactProjectRow = ({
             {project}
           </a>
           <Badge color={badge.color} size="sm" variant="light">
-            {badge.label}
+            <span className="inline-flex items-center gap-1">
+              {badge.icon}
+              <span>{badge.label}</span>
+            </span>
           </Badge>
         </Group>
         {repositoryURL ? (
@@ -2050,6 +2068,7 @@ const GitLandingPage = ({
   } | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
   const [connectOrganization] = useConnectGeckoGitOrganizationMutation();
+  const [editConnectProject] = useEditConnectGeckoGitProjectMutation();
   const [reconcileOrganization, { isLoading: isReconcilingOrganization }] =
     useReconcileGeckoGitOrganizationMutation();
   const [reconcileOrganizations, { isLoading: isReconcilingOrganizations }] =
@@ -2087,6 +2106,40 @@ const GitLandingPage = ({
     isReconcilingOrganization ||
     isOrganizationsStatusLoading ||
     isOrganizationsStatusFetching;
+  const pendingGitHubCallback = useMemo(() => {
+    if (!router.isReady) {
+      return null;
+    }
+    const setupAction = router.query.setup_action;
+    const installationID = router.query.installation_id;
+    if (
+      typeof setupAction !== 'string' ||
+      !setupAction.trim() ||
+      typeof installationID !== 'string'
+    ) {
+      return null;
+    }
+    return {
+      githubState:
+        typeof router.query.state === 'string'
+          ? router.query.state
+          : typeof router.query.github_state === 'string'
+            ? router.query.github_state
+            : undefined,
+      installationID,
+      pendingProjectConnect: loadPendingProjectConnect(),
+      setupAction,
+    };
+  }, [
+    router.isReady,
+    router.query.github_state,
+    router.query.installation_id,
+    router.query.setup_action,
+    router.query.state,
+  ]);
+  const blockingGitHubCallback = pendingGitHubCallback?.pendingProjectConnect
+    ? pendingGitHubCallback
+    : null;
   const geckoProjectRecordByResourcePath = useMemo(
     () =>
       new Map(
@@ -2361,22 +2414,15 @@ const GitLandingPage = ({
   );
 
   useEffect(() => {
-    if (!router.isReady) {
+    if (!pendingGitHubCallback) {
       return;
     }
-    const setupAction = router.query.setup_action;
-    const installationID = router.query.installation_id;
-    const githubState =
-      typeof router.query.github_state === 'string'
-        ? router.query.github_state
-        : undefined;
-    if (
-      typeof setupAction !== 'string' ||
-      !setupAction.trim() ||
-      typeof installationID !== 'string'
-    ) {
-      return;
-    }
+    const {
+      githubState,
+      installationID,
+      pendingProjectConnect,
+      setupAction,
+    } = pendingGitHubCallback;
     const refreshKey = `${setupAction}:${installationID}:${githubState ?? ''}`;
     if (lastAutoRefreshKeyRef.current === refreshKey) {
       return;
@@ -2394,92 +2440,66 @@ const GitLandingPage = ({
             installationId: parsedInstallationID,
             state: githubState,
           }).unwrap();
+          if (pendingProjectConnect) {
+            await editConnectProject({
+              organization: pendingProjectConnect.organization,
+              project: pendingProjectConnect.project,
+              repositoryFullName: pendingProjectConnect.repositoryFullName,
+            }).unwrap();
+            clearPendingProjectConnect();
+          }
           await handleInitConnectResponse(null, response);
           void router.replace(callbackReturnPath, undefined, { shallow: true });
-        } else {
-          setConnectError(
-            'GitHub returned without the expected connection session. Start the repository connection again from Calypr.',
+        } else if (setupAction === 'update' && pendingProjectConnect) {
+          await refreshConnectionsForOrganization(
+            pendingProjectConnect.organization,
           );
+          await editConnectProject({
+            organization: pendingProjectConnect.organization,
+            project: pendingProjectConnect.project,
+            repositoryFullName: pendingProjectConnect.repositoryFullName,
+          }).unwrap();
+          clearPendingProjectConnect();
+          await refreshConnectionsForOrganization(
+            pendingProjectConnect.organization,
+          );
+          void router.replace(callbackReturnPath, undefined, { shallow: true });
+        } else {
           await refreshConnections();
           void router.replace(callbackReturnPath, undefined, { shallow: true });
         }
       } catch (error) {
+        clearPendingProjectConnect();
         setConnectError(
           apiErrorMessage(error) ||
             'Failed to finalize the GitHub connection.',
         );
+        await refreshConnections().catch(() => undefined);
+        void router.replace(callbackReturnPath, undefined, { shallow: true });
       }
     };
     void run();
   }, [
+    editConnectProject,
     handleInitConnectResponse,
     connectOrganization,
+    pendingGitHubCallback,
     refreshConnectionsForOrganization,
     refreshConnections,
     router,
-  ]);
-
-  useEffect(() => {
-    const handleStorageSignal = (event: StorageEvent) => {
-      if (event.key !== gitHubReturnSignalKey || !event.newValue) {
-        return;
-      }
-      let githubState: string | null = null;
-      let installationID: number | null = null;
-      try {
-        const payload = JSON.parse(event.newValue) as {
-          githubState?: string;
-          installationID?: string;
-          returnPath?: string;
-        };
-        githubState =
-          typeof payload.githubState === 'string' ? payload.githubState : null;
-        installationID =
-          typeof payload.installationID === 'string'
-            ? Number.parseInt(payload.installationID, 10)
-            : null;
-      } catch {
-        githubState = null;
-        installationID = null;
-      }
-      const run = async () => {
-        if (githubState && installationID && Number.isFinite(installationID)) {
-          const response = await connectOrganization({
-            installationId: installationID,
-            state: githubState,
-          }).unwrap();
-          await handleInitConnectResponse(null, response);
-          return;
-        }
-        await refreshConnections();
-      };
-      void run().catch((error) => {
-        setConnectError(
-          apiErrorMessage(error) ||
-            'Failed to refresh GitHub and storage connections.',
-        );
-      });
-    };
-    window.addEventListener('storage', handleStorageSignal);
-    return () => {
-      window.removeEventListener('storage', handleStorageSignal);
-    };
-  }, [
-    handleInitConnectResponse,
-    connectOrganization,
-    refreshConnections,
-    refreshConnectionsForOrganization,
+    router.asPath,
+    router.replace,
   ]);
 
   const hasReconciled = useRef(false);
   useEffect(() => {
-    if (hasReconciled.current) {
+    if (hasReconciled.current || blockingGitHubCallback) {
       return;
     }
     hasReconciled.current = true;
     void refreshConnections();
     // eslint-disable-next-line reactHooks/exhaustive-deps
-  }, []);
+  }, [blockingGitHubCallback]);
 
 
   const handleRefreshConnections = async () => {
@@ -2507,6 +2527,24 @@ const GitLandingPage = ({
         <div className="min-h-screen bg-[#f4f6f8]">
           <Container maw={1600} px="2.5rem" py="xl">
             <Stack gap="lg">
+              {blockingGitHubCallback ? (
+                <Alert
+                  color="sky"
+                  radius="lg"
+                  title="Finalizing GitHub connection"
+                  variant="light"
+                >
+                  <Group gap="sm" wrap="nowrap">
+                    <Loader color="sky" size="sm" />
+                    <Text size="sm">
+                      Updating Gecko project bindings and refreshing
+                      repository status.
+                    </Text>
+                  </Group>
+                </Alert>
+              ) : null}
+              {!blockingGitHubCallback ? (
+                <>
               <section className="border-b border-slate-200 pb-5">
                 <div className="flex items-center justify-between gap-6">
                   <div className="min-w-0">
@@ -2676,6 +2714,8 @@ const GitLandingPage = ({
                   ))}
                 </section>
               )}
+                </>
+              ) : null}
             </Stack>
           </Container>
           {manageProject ? (

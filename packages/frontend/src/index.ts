@@ -55,7 +55,6 @@ import CalyprPage from './pages/CALYPR/CALYPR';
 
 import {
   GitExplorerPageGetServerSideProps,
-  GitHubReturnPage,
   GitLandingPage,
   GitNewProjectPage,
   GitOrganizationSettingsPage,
@@ -211,7 +210,6 @@ export {
   CalyprPageGetServerSideProps,
   GitLandingPage,
   GitNewProjectPage,
-  GitHubReturnPage,
   GitOrganizationSettingsPage,
   GitProjectFilePage,
   GitProjectPage,

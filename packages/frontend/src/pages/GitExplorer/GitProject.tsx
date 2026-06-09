@@ -972,7 +972,7 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
               {projectStatus?.installation_state !== 'connected' ? (
                 <Alert color="blue" variant="light">
                   {projectStatus?.organization_app_installed
-                    ? 'This organization has the GitHub App installed, but this tracked repository is not configured yet. Update repository access from '
+                    ? 'GitHub is not connected for this project yet. Update repository access from '
                     : 'This organization does not have the GitHub App installed yet. Connect it from '}
                   <Link
                     href="/git"

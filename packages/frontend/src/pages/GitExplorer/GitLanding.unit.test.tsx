@@ -28,13 +28,17 @@ jest.mock('@gen3/core', () => ({
   },
   useCreateGeckoProjectMutation: jest.fn(),
   useConnectGeckoGitOrganizationMutation: jest.fn(),
+  useEditConnectGeckoGitProjectMutation: jest.fn(),
   useGetAuthzMappingsQuery: jest.fn(),
   useGetGeckoGitOrganizationsStatusQuery: jest.fn(),
   useGetGeckoProjectsQuery: jest.fn(),
   useInitConnectGeckoGitOrganizationMutation: jest.fn(),
   useReconcileGeckoGitOrganizationMutation: jest.fn(),
   useReconcileGeckoGitOrganizationsMutation: jest.fn(),
+  useDeleteGeckoProjectThumbnailMutation: jest.fn(),
+  useUpdateGeckoProjectMutation: jest.fn(),
   useUpdateGeckoProjectStorageMutation: jest.fn(),
+  useUploadGeckoProjectThumbnailMutation: jest.fn(),
   useUpsertSyfonBucketCredentialMutation: jest.fn(),
 }));
 
@@ -56,24 +60,32 @@ jest.mock('../../lib/session/session', () => ({
 const {
   useCreateGeckoProjectMutation,
   useConnectGeckoGitOrganizationMutation,
+  useDeleteGeckoProjectThumbnailMutation,
+  useEditConnectGeckoGitProjectMutation,
   useGetAuthzMappingsQuery,
   useGetGeckoGitOrganizationsStatusQuery,
   useGetGeckoProjectsQuery,
   useInitConnectGeckoGitOrganizationMutation,
   useReconcileGeckoGitOrganizationMutation,
   useReconcileGeckoGitOrganizationsMutation,
+  useUpdateGeckoProjectMutation,
   useUpdateGeckoProjectStorageMutation,
+  useUploadGeckoProjectThumbnailMutation,
   useUpsertSyfonBucketCredentialMutation,
 } = jest.requireMock('@gen3/core') as {
   useCreateGeckoProjectMutation: jest.Mock;
   useConnectGeckoGitOrganizationMutation: jest.Mock;
+  useDeleteGeckoProjectThumbnailMutation: jest.Mock;
+  useEditConnectGeckoGitProjectMutation: jest.Mock;
   useGetAuthzMappingsQuery: jest.Mock;
   useGetGeckoGitOrganizationsStatusQuery: jest.Mock;
   useGetGeckoProjectsQuery: jest.Mock;
   useInitConnectGeckoGitOrganizationMutation: jest.Mock;
   useReconcileGeckoGitOrganizationMutation: jest.Mock;
   useReconcileGeckoGitOrganizationsMutation: jest.Mock;
+  useUpdateGeckoProjectMutation: jest.Mock;
   useUpdateGeckoProjectStorageMutation: jest.Mock;
+  useUploadGeckoProjectThumbnailMutation: jest.Mock;
   useUpsertSyfonBucketCredentialMutation: jest.Mock;
 };
 
@@ -124,6 +136,10 @@ describe('GitLandingPage', () => {
       jest.fn(),
       { isLoading: false },
     ]);
+    useEditConnectGeckoGitProjectMutation.mockReturnValue([
+      jest.fn(),
+      { isLoading: false },
+    ]);
     useGetAuthzMappingsQuery.mockReturnValue({ data: {}, refetch: jest.fn() });
     useReconcileGeckoGitOrganizationsMutation.mockReturnValue([
       jest.fn(() => ({
@@ -137,7 +153,25 @@ describe('GitLandingPage', () => {
       })),
       { isLoading: false },
     ]);
+    useUpdateGeckoProjectMutation.mockReturnValue([
+      jest.fn(() => ({
+        unwrap: jest.fn().mockResolvedValue({ success: true }),
+      })),
+      { isLoading: false },
+    ]);
     useUpdateGeckoProjectStorageMutation.mockReturnValue([
+      jest.fn(() => ({
+        unwrap: jest.fn().mockResolvedValue({ success: true }),
+      })),
+      { isLoading: false },
+    ]);
+    useUploadGeckoProjectThumbnailMutation.mockReturnValue([
+      jest.fn(() => ({
+        unwrap: jest.fn().mockResolvedValue({ success: true }),
+      })),
+      { isLoading: false },
+    ]);
+    useDeleteGeckoProjectThumbnailMutation.mockReturnValue([
       jest.fn(() => ({
         unwrap: jest.fn().mockResolvedValue({ success: true }),
       })),
@@ -272,6 +306,182 @@ describe('GitLandingPage', () => {
       'href',
       '/git/org-a/settings',
     );
+  });
+
+  it('shows readiness labels based on missing integrations', async () => {
+    useGetAuthzMappingsQuery.mockReturnValue({
+      data: {
+        '/programs/Ellrott_Lab/projects': [
+          { method: 'create-descendant', service: 'arborist' },
+        ],
+      },
+      refetch: jest.fn(),
+    });
+    useGetGeckoProjectsQuery.mockReturnValue({
+      data: [{ resourcePath: '/programs/Ellrott_Lab/projects/hla2vec' }],
+      isLoading: false,
+      refetch: jest.fn(),
+    });
+    useGetGeckoGitOrganizationsStatusQuery.mockReturnValue({
+      data: {
+        organizations: [
+          {
+            organization: 'Ellrott_Lab',
+            can_access_settings: true,
+            can_create_projects: true,
+            projects: [
+              {
+                project_id: 'Ellrott_Lab/hla2vec',
+                project: 'hla2vec',
+                resource_path: '/programs/Ellrott_Lab/projects/hla2vec',
+                configured: false,
+                workflow_stage: 'awaiting_github_connect',
+                repository: {
+                  host: '',
+                  owner: '',
+                  repo: '',
+                  url: '',
+                },
+                integrations: {
+                  github: {
+                    pass: false,
+                    reason: 'awaiting_github_connect',
+                    details:
+                      'Project creation is complete. Finish the GitHub connect step to link a repository.',
+                  },
+                  storage: {
+                    pass: true,
+                  },
+                },
+                accessible: true,
+                can_manage_settings: true,
+                request_access: false,
+                request_access_resource_path:
+                  '/programs/Ellrott_Lab/projects/hla2vec',
+                installation: {
+                  installed: false,
+                },
+              },
+            ],
+          },
+        ],
+      },
+      isLoading: false,
+      refetch: jest.fn(),
+    });
+
+    render(
+      <MantineProvider>
+        <GitLandingPage {...layoutProps} />
+      </MantineProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /^edit$/i })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /^edit$/i }));
+
+    await waitFor(() => {
+      expect(screen.getAllByText(/^GitHub$/i).length).toBeGreaterThan(0);
+    });
+    expect(screen.getByText(/^Missing:\s*GitHub$/i)).toBeInTheDocument();
+    expect(
+      screen.queryByText(/GitHub connect pending|Next:\s*GitHub/i),
+    ).not.toBeInTheDocument();
+  });
+
+  it('shows the correct readiness label for each integration combination', async () => {
+    useGetAuthzMappingsQuery.mockReturnValue({
+      data: {
+        '/programs/Ellrott_Lab/projects': [
+          { method: 'create-descendant', service: 'arborist' },
+        ],
+      },
+      refetch: jest.fn(),
+    });
+    useGetGeckoProjectsQuery.mockReturnValue({
+      data: [
+        { resourcePath: '/programs/Ellrott_Lab/projects/proj-a' },
+        { resourcePath: '/programs/Ellrott_Lab/projects/proj-b' },
+        { resourcePath: '/programs/Ellrott_Lab/projects/proj-c' },
+        { resourcePath: '/programs/Ellrott_Lab/projects/proj-d' },
+      ],
+      isLoading: false,
+      refetch: jest.fn(),
+    });
+    useGetGeckoGitOrganizationsStatusQuery.mockReturnValue({
+      data: {
+        organizations: [
+          {
+            organization: 'Ellrott_Lab',
+            can_access_settings: true,
+            can_create_projects: true,
+            projects: [
+              {
+                project_id: 'Ellrott_Lab/proj-a',
+                project: 'proj-a',
+                resource_path: '/programs/Ellrott_Lab/projects/proj-a',
+                configured: false,
+                repository: { host: '', owner: '', repo: '', url: '' },
+                integrations: {
+                  github: { pass: false, details: 'missing github' },
+                  storage: { pass: false, details: 'missing storage' },
+                },
+              },
+              {
+                project_id: 'Ellrott_Lab/proj-b',
+                project: 'proj-b',
+                resource_path: '/programs/Ellrott_Lab/projects/proj-b',
+                configured: false,
+                repository: { host: '', owner: '', repo: '', url: '' },
+                integrations: {
+                  github: { pass: false, details: 'missing github' },
+                  storage: { pass: true },
+                },
+              },
+              {
+                project_id: 'Ellrott_Lab/proj-c',
+                project: 'proj-c',
+                resource_path: '/programs/Ellrott_Lab/projects/proj-c',
+                configured: false,
+                repository: { host: '', owner: '', repo: '', url: '' },
+                integrations: {
+                  github: { pass: true },
+                  storage: { pass: false, details: 'missing storage' },
+                },
+              },
+              {
+                project_id: 'Ellrott_Lab/proj-d',
+                project: 'proj-d',
+                resource_path: '/programs/Ellrott_Lab/projects/proj-d',
+                configured: true,
+                repository: { host: '', owner: '', repo: '', url: '' },
+                integrations: {
+                  github: { pass: true },
+                  storage: { pass: true },
+                },
+              },
+            ],
+          },
+        ],
+      },
+      isLoading: false,
+      refetch: jest.fn(),
+    });
+
+    render(
+      <MantineProvider>
+        <GitLandingPage {...layoutProps} />
+      </MantineProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getAllByText('GitHub + Storage').length).toBeGreaterThan(0);
+    });
+    expect(screen.getAllByText(/^GitHub$/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/^Storage$/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Ready').length).toBeGreaterThan(0);
   });
 
   it('renders an organization card from org membership without org settings access', () => {

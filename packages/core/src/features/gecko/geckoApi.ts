@@ -136,6 +136,7 @@ export interface GeckoGitProjectStatus {
   readonly resource_path: string;
   readonly config: GeckoProjectConfig;
   readonly repository: GeckoGitRepositoryIdentity;
+  readonly workflow_stage?: string;
   readonly installation_state: string;
   readonly installation_id?: number;
   readonly installation_target?: string;
@@ -173,6 +174,7 @@ export interface GeckoGitOrganizationProjectStatus {
   readonly project: string;
   readonly resource_path?: string;
   readonly repository: GeckoGitRepositoryIdentity;
+  readonly workflow_stage?: string;
   readonly configured: boolean;
   readonly accessible?: boolean;
   readonly can_manage_settings?: boolean;
@@ -909,6 +911,23 @@ export const geckoApi = geckoTaggedApi.injectEndpoints({
         credentials: 'include',
       }),
     }),
+    editConnectGeckoGitProject: builder.mutation<
+      GeckoGitOrganizationConnectResponse,
+      {
+        organization: string;
+        project: string;
+        repositoryFullName: string;
+      }
+    >({
+      query: ({ organization, project, repositoryFullName }) => ({
+        url: buildGitProjectApiPath(organization, project, '/edit-connect'),
+        method: 'POST',
+        body: {
+          repository_full_name: repositoryFullName,
+        },
+        credentials: 'include',
+      }),
+    }),
     refreshGeckoGitProject: builder.mutation<
       GeckoGitRefreshResponse,
       { organization: string; project: string }
@@ -1090,6 +1109,7 @@ export const geckoApi = geckoTaggedApi.injectEndpoints({
 
 export const {
   useConnectGeckoGitOrganizationMutation,
+  useEditConnectGeckoGitProjectMutation,
   useInitConnectGeckoGitOrganizationMutation,
   useCreateGeckoGitUploadSessionMutation,
   useCreateGeckoProjectMutation,
