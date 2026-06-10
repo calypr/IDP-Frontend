@@ -4,19 +4,50 @@ export const gitHubPendingProjectConnectKey =
 export type PendingProjectConnect = {
   readonly organization: string;
   readonly project: string;
-  readonly repositoryFullName: string;
+  readonly previousRepositoryFullName?: string;
+  readonly targetRepositoryFullName?: string;
 };
 
-export const gitHubOwnerFromRepositoryFullName = (
+export const normalizeRepositoryFullName = (
   repositoryFullName?: string | null,
 ): string | null => {
   if (typeof repositoryFullName !== 'string') {
     return null;
   }
-  const trimmed = repositoryFullName.trim().replace(/^https?:\/\/github\.com\//i, '');
-  const [owner] = trimmed.split('/', 2);
+  const trimmed = repositoryFullName
+    .trim()
+    .replace(/^https?:\/\/github\.com\//i, '')
+    .replace(/\.git$/i, '')
+    .replace(/^\/+|\/+$/g, '');
+  const [owner, repo] = trimmed.split('/', 2);
   const normalizedOwner = owner?.trim();
-  return normalizedOwner ? normalizedOwner : null;
+  const normalizedRepo = repo?.trim();
+  if (!normalizedOwner || !normalizedRepo) {
+    return null;
+  }
+  return `${normalizedOwner}/${normalizedRepo}`;
+};
+
+export const gitHubOwnerFromRepositoryFullName = (
+  repositoryFullName?: string | null,
+): string | null => {
+  const normalized = normalizeRepositoryFullName(repositoryFullName);
+  if (!normalized) {
+    return null;
+  }
+  const [owner] = normalized.split('/', 1);
+  return owner?.trim() || null;
+};
+
+export const repositoryFullNamesEqual = (
+  left?: string | null,
+  right?: string | null,
+): boolean => {
+  const normalizedLeft = normalizeRepositoryFullName(left);
+  const normalizedRight = normalizeRepositoryFullName(right);
+  return Boolean(
+    normalizedLeft && normalizedRight && normalizedLeft === normalizedRight,
+  );
 };
 
 export const organizationFromGitHubState = (
@@ -47,12 +78,20 @@ export const savePendingProjectConnect = (
   if (typeof window === 'undefined') {
     return;
   }
+  const previousRepositoryFullName =
+    normalizeRepositoryFullName(pending.previousRepositoryFullName) ?? '';
+  const targetRepositoryFullName =
+    normalizeRepositoryFullName(pending.targetRepositoryFullName) ?? '';
+  if (!previousRepositoryFullName && !targetRepositoryFullName) {
+    return;
+  }
   window.localStorage.setItem(
     gitHubPendingProjectConnectKey,
     JSON.stringify({
       organization: pending.organization,
       project: pending.project,
-      repositoryFullName: pending.repositoryFullName,
+      previousRepositoryFullName,
+      targetRepositoryFullName,
       timestamp: Date.now(),
     }),
   );
@@ -70,22 +109,34 @@ export const loadPendingProjectConnect = (): PendingProjectConnect | null => {
     const parsed = JSON.parse(raw) as {
       organization?: string;
       project?: string;
-      repositoryFullName?: string;
+      previousRepositoryFullName?: string;
+      targetRepositoryFullName?: string;
     };
     if (
       typeof parsed.organization !== 'string' ||
-      typeof parsed.project !== 'string' ||
-      typeof parsed.repositoryFullName !== 'string'
+      typeof parsed.project !== 'string'
     ) {
       return null;
     }
     const organization = parsed.organization.trim();
     const project = parsed.project.trim();
-    const repositoryFullName = parsed.repositoryFullName.trim();
-    if (!organization || !project || !repositoryFullName) {
+    const previousRepositoryFullName =
+      normalizeRepositoryFullName(parsed.previousRepositoryFullName) ?? undefined;
+    const targetRepositoryFullName =
+      normalizeRepositoryFullName(parsed.targetRepositoryFullName) ?? undefined;
+    if (
+      !organization ||
+      !project ||
+      (!previousRepositoryFullName && !targetRepositoryFullName)
+    ) {
       return null;
     }
-    return { organization, project, repositoryFullName };
+    return {
+      organization,
+      project,
+      previousRepositoryFullName,
+      targetRepositoryFullName,
+    };
   } catch {
     return null;
   }

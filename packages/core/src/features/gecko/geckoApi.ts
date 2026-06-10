@@ -152,10 +152,17 @@ export interface GeckoGitProjectStatus {
 }
 
 export interface GeckoGitOrganizationConnectResponse {
-  readonly mode?: 'redirect' | 'connected';
+  readonly mode?: 'redirect' | 'connected' | 'disconnected' | 'select_repository';
   readonly redirect_url?: string;
   readonly installation_id?: number;
   readonly state?: string;
+  readonly repositories?: Array<{
+    readonly id: number;
+    readonly name: string;
+    readonly full_name: string;
+    readonly html_url: string;
+    readonly clone_url: string;
+  }>;
 }
 
 
@@ -547,7 +554,7 @@ export const normalizeGeckoProjectRecord = (
 };
 
 const geckoTaggedApi = gen3Api.enhanceEndpoints({
-  addTagTypes: ['GeckoProjects', 'GeckoGitProjects'],
+  addTagTypes: ['GeckoProjects', 'GeckoGitProjects', 'GeckoGitOrganizations'],
 });
 
 export const geckoApi = geckoTaggedApi.injectEndpoints({
@@ -733,6 +740,7 @@ export const geckoApi = geckoTaggedApi.injectEndpoints({
         return { data: { success: true } };
       },
       invalidatesTags: (_result, _error, { organization, project }) => [
+        'GeckoProjects',
         'GeckoGitProjects',
         {
           type: 'GeckoGitProjects',
@@ -764,6 +772,7 @@ export const geckoApi = geckoTaggedApi.injectEndpoints({
         return { data: { success: true } };
       },
       invalidatesTags: (_result, _error, { organization, project }) => [
+        'GeckoProjects',
         'GeckoGitProjects',
         {
           type: 'GeckoGitProjects',
@@ -827,6 +836,10 @@ export const geckoApi = geckoTaggedApi.injectEndpoints({
       GeckoGitOrganizationStatus,
       { organization: string }
     >({
+      providesTags: (_result, _error, { organization }) => [
+        'GeckoGitOrganizations',
+        { type: 'GeckoGitOrganizations', id: organization },
+      ],
       query: ({ organization }) => ({
         url: `/gecko/git/organizations/${encodeURIComponent(organization)}/status`,
         method: 'GET',
@@ -837,6 +850,7 @@ export const geckoApi = geckoTaggedApi.injectEndpoints({
       GeckoGitOrganizationsStatus,
       void
     >({
+      providesTags: ['GeckoGitOrganizations'],
       query: () => ({
         url: '/gecko/git/organizations/status',
         method: 'GET',
@@ -847,6 +861,11 @@ export const geckoApi = geckoTaggedApi.injectEndpoints({
       GeckoGitOrganizationsReconcileResponse,
       void
     >({
+      invalidatesTags: [
+        'GeckoProjects',
+        'GeckoGitProjects',
+        'GeckoGitOrganizations',
+      ],
       query: () => ({
         url: '/gecko/git/organizations/reconcile',
         method: 'POST',
@@ -857,6 +876,12 @@ export const geckoApi = geckoTaggedApi.injectEndpoints({
       GeckoGitOrganizationReconcileResponse,
       { organization: string }
     >({
+      invalidatesTags: (_result, _error, { organization }) => [
+        'GeckoProjects',
+        'GeckoGitProjects',
+        'GeckoGitOrganizations',
+        { type: 'GeckoGitOrganizations', id: organization },
+      ],
       query: ({ organization }) => ({
         url: `/gecko/git/organizations/${encodeURIComponent(organization)}/reconcile`,
         method: 'POST',
@@ -902,6 +927,12 @@ export const geckoApi = geckoTaggedApi.injectEndpoints({
         installationId: number;
       }
     >({
+      invalidatesTags: (_result, _error, { organization }) => [
+        'GeckoProjects',
+        'GeckoGitProjects',
+        'GeckoGitOrganizations',
+        { type: 'GeckoGitOrganizations', id: organization },
+      ],
       query: ({ organization, githubOwner, installationId }) => ({
         url: `/gecko/git/organizations/${encodeURIComponent(organization)}/connect`,
         method: 'POST',
@@ -920,6 +951,12 @@ export const geckoApi = geckoTaggedApi.injectEndpoints({
         repositoryFullName: string;
       }
     >({
+      invalidatesTags: (_result, _error, { organization }) => [
+        'GeckoProjects',
+        'GeckoGitProjects',
+        'GeckoGitOrganizations',
+        { type: 'GeckoGitOrganizations', id: organization },
+      ],
       query: ({ organization, project, repositoryFullName }) => ({
         url: buildGitProjectApiPath(organization, project, '/edit-connect'),
         method: 'POST',

@@ -127,10 +127,17 @@ declare module '@gen3/core' {
   }
 
   export interface GeckoGitOrganizationConnectResponse {
-    readonly mode?: 'redirect' | 'connected';
+    readonly mode?: 'redirect' | 'connected' | 'disconnected' | 'select_repository';
     readonly redirect_url?: string;
     readonly installation_id?: number;
     readonly state?: string;
+    readonly repositories?: Array<{
+      readonly id: number;
+      readonly name: string;
+      readonly full_name: string;
+      readonly html_url: string;
+      readonly clone_url: string;
+    }>;
   }
 
   export interface GeckoGitRepositoryInstallationStatus {

@@ -60,6 +60,8 @@ import {
   clearPendingProjectConnect,
   gitHubOwnerFromRepositoryFullName,
   loadPendingProjectConnect,
+  normalizeRepositoryFullName,
+  repositoryFullNamesEqual,
   savePendingProjectConnect,
 } from './githubConnectState';
 import type { GitExplorerPageProps } from './types';
@@ -73,6 +75,19 @@ const projectResourcePath = (organization: string, project: string): string =>
 const gitHubRedirectPath = (organization: string, githubOwner: string): string => {
   const query = new URLSearchParams({ github_owner: githubOwner.trim() });
   return `/git/${encodeURIComponent(organization)}/settings?${query.toString()}`;
+};
+
+const repositoryPresentInInstallation = (
+  repositories: Array<{ full_name: string }> | undefined,
+  repositoryFullName?: string | null,
+): boolean => {
+  const normalizedTarget = normalizeRepositoryFullName(repositoryFullName);
+  if (!normalizedTarget) {
+    return false;
+  }
+  return (repositories ?? []).some((repository) =>
+    repositoryFullNamesEqual(repository.full_name, normalizedTarget),
+  );
 };
 
 const bucketProviderOptions = [{ label: 'Amazon S3', value: 's3' }];
@@ -658,6 +673,20 @@ const GitOrganizationSettingsPage = ({
     );
   }, [organizationGitStatus, selectedProjectID]);
 
+  const currentBoundRepositoryFullName = useMemo(() => {
+    const owner = selectedProjectStatus?.repository?.owner?.trim();
+    const repo = selectedProjectStatus?.repository?.repo?.trim();
+    if (owner && repo) {
+      return `${owner}/${repo}`;
+    }
+    return null;
+  }, [
+    selectedProjectStatus?.repository?.owner,
+    selectedProjectStatus?.repository?.repo,
+  ]);
+  const organizationGitHubInstallationUrl =
+    organizationGitStatus?.html_url ?? null;
+
   const callbackGitHubOwner = useMemo(() => {
     const queryOwner = router.query.github_owner;
     return typeof queryOwner === 'string' ? queryOwner.trim() : '';
@@ -668,22 +697,6 @@ const GitOrganizationSettingsPage = ({
     if (selectedRepositoryOwner) {
       return selectedRepositoryOwner;
     }
-    const selectedInstallationTarget = selectedProjectStatus?.installation?.target?.trim();
-    if (selectedInstallationTarget) {
-      return selectedInstallationTarget;
-    }
-    const knownRepositoryOwner = organizationGitStatus?.projects.find(
-      (projectStatus) => projectStatus.repository?.owner?.trim(),
-    )?.repository?.owner?.trim();
-    if (knownRepositoryOwner) {
-      return knownRepositoryOwner;
-    }
-    const knownInstallationTarget = organizationGitStatus?.projects.find(
-      (projectStatus) => projectStatus.installation?.target?.trim(),
-    )?.installation?.target?.trim();
-    if (knownInstallationTarget) {
-      return knownInstallationTarget;
-    }
     if (callbackGitHubOwner) {
       return callbackGitHubOwner;
     }
@@ -691,8 +704,6 @@ const GitOrganizationSettingsPage = ({
   }, [
     callbackGitHubOwner,
     manualGitHubOwner,
-    organizationGitStatus?.projects,
-    selectedProjectStatus?.installation?.target,
     selectedProjectStatus?.repository?.owner,
   ]);
 
@@ -738,31 +749,29 @@ const GitOrganizationSettingsPage = ({
     if (!router.isReady) {
       return null;
     }
-    const setupAction = router.query.setup_action;
     const installationID = router.query.installation_id;
-    if (
-      typeof setupAction !== 'string' ||
-      !setupAction.trim() ||
-      typeof installationID !== 'string'
-    ) {
+    if (typeof installationID !== 'string' || !installationID.trim()) {
+      return null;
+    }
+    const pendingProjectConnect = loadPendingProjectConnect();
+    const githubState =
+      typeof router.query.state === 'string'
+        ? router.query.state
+        : typeof router.query.github_state === 'string'
+          ? router.query.github_state
+          : undefined;
+    if (!githubState && !pendingProjectConnect) {
       return null;
     }
     return {
-      githubState:
-        typeof router.query.state === 'string'
-          ? router.query.state
-          : typeof router.query.github_state === 'string'
-            ? router.query.github_state
-            : undefined,
+      githubState,
       installationID,
-      pendingProjectConnect: loadPendingProjectConnect(),
-      setupAction,
+      pendingProjectConnect,
     };
   }, [
     router.isReady,
     router.query.github_state,
     router.query.installation_id,
-    router.query.setup_action,
     router.query.state,
   ]);
   const blockingGitHubCallback = pendingGitHubCallback?.pendingProjectConnect
@@ -774,29 +783,15 @@ const GitOrganizationSettingsPage = ({
     if (selectedProjectStatus?.repository?.owner) {
       setManualGitHubOwner(selectedProjectStatus.repository.owner);
     } else {
-      const otherConnectedProject = organizationGitStatus?.projects.find(
-        (p) => p.repository?.owner
-      );
-      if (otherConnectedProject?.repository?.owner) {
-        setManualGitHubOwner(otherConnectedProject.repository.owner);
-      } else {
-        const installedProject = organizationGitStatus?.projects.find(
-          (p) => p.installation?.target
-        );
-        if (installedProject?.installation?.target) {
-          setManualGitHubOwner(installedProject.installation.target);
-        } else {
-          setManualGitHubOwner(organization);
-        }
-      }
+      setManualGitHubOwner('');
     }
 
     if (selectedProjectStatus?.repository?.repo) {
       setManualGitHubRepo(selectedProjectStatus.repository.repo);
     } else {
-      setManualGitHubRepo(selectedProjectID || '');
+      setManualGitHubRepo('');
     }
-  }, [selectedProjectStatus, organizationGitStatus, organization, selectedProjectID]);
+  }, [selectedProjectStatus]);
 
   const handleLinkGitHub = async () => {
     const projectToConnect = selectedProjectID;
@@ -804,13 +799,34 @@ const GitOrganizationSettingsPage = ({
       setGitConnectError('Select a Calypr project.');
       return;
     }
-    if (!manualGitHubOwner.trim() || !manualGitHubRepo.trim()) {
+    const previousRepositoryFullName =
+      normalizeRepositoryFullName(currentBoundRepositoryFullName) ?? '';
+    const repoName =
+      normalizeRepositoryFullName(
+        `${manualGitHubOwner.trim()}/${manualGitHubRepo.trim()}`,
+      ) ?? '';
+    if (!repoName && !previousRepositoryFullName) {
       setGitConnectError('Enter GitHub owner and repository name.');
       return;
     }
-    const repoName = `${manualGitHubOwner.trim()}/${manualGitHubRepo.trim()}`;
     setGitConnectError(null);
     try {
+      if (!repoName) {
+        if (!organizationGitHubInstallationUrl) {
+          setGitConnectError(
+            'GitHub installation settings are unavailable for this organization.',
+          );
+          return;
+        }
+        savePendingProjectConnect({
+          organization,
+          project: projectToConnect,
+          previousRepositoryFullName,
+          targetRepositoryFullName: '',
+        });
+        window.location.assign(organizationGitHubInstallationUrl);
+        return;
+      }
       const response = await initConnectOrganization({
         organization,
         project: projectToConnect,
@@ -822,7 +838,8 @@ const GitOrganizationSettingsPage = ({
         savePendingProjectConnect({
           organization,
           project: projectToConnect,
-          repositoryFullName: repoName,
+          previousRepositoryFullName,
+          targetRepositoryFullName: repoName,
         });
         window.location.assign(response.redirect_url);
       } else {
@@ -840,13 +857,8 @@ const GitOrganizationSettingsPage = ({
     if (!pendingGitHubCallback) {
       return;
     }
-    const {
-      githubState,
-      installationID,
-      pendingProjectConnect,
-      setupAction,
-    } = pendingGitHubCallback;
-    const callbackKey = `${setupAction}:${installationID}:${githubState ?? ''}:${router.asPath.split('?', 1)[0] || ''}`;
+    const { githubState, installationID, pendingProjectConnect } = pendingGitHubCallback;
+    const callbackKey = `${installationID}:${githubState ?? ''}:${pendingProjectConnect?.organization ?? ''}:${pendingProjectConnect?.project ?? ''}:${router.asPath.split('?', 1)[0] || ''}`;
     if (lastGitHubCallbackKeyRef.current === callbackKey) {
       return;
     }
@@ -858,11 +870,19 @@ const GitOrganizationSettingsPage = ({
         if (!Number.isFinite(parsedInstallationID)) {
           throw new Error('GitHub did not return a valid installation id.');
         }
-        if (githubState) {
+        if (githubState || pendingProjectConnect) {
+          const previousRepositoryFullName =
+            normalizeRepositoryFullName(
+              pendingProjectConnect?.previousRepositoryFullName,
+            ) ?? '';
+          const targetRepositoryFullName =
+            normalizeRepositoryFullName(
+              pendingProjectConnect?.targetRepositoryFullName,
+            ) ?? '';
           const githubOwner =
             callbackGitHubOwner ||
             gitHubOwnerFromRepositoryFullName(
-              pendingProjectConnect?.repositoryFullName,
+              targetRepositoryFullName || previousRepositoryFullName,
             );
           if (!githubOwner) {
             throw new Error('GitHub callback did not include a GitHub owner.');
@@ -872,13 +892,46 @@ const GitOrganizationSettingsPage = ({
             organization,
             installationId: parsedInstallationID,
           }).unwrap();
-          if (pendingProjectConnect) {
+          const repositories = response.repositories ?? [];
+          const previousRepositoryPresent = repositoryPresentInInstallation(
+            repositories,
+            previousRepositoryFullName,
+          );
+          const targetRepositoryPresent = repositoryPresentInInstallation(
+            repositories,
+            targetRepositoryFullName,
+          );
+          if (pendingProjectConnect && targetRepositoryFullName) {
+            if (!targetRepositoryPresent) {
+              throw new Error(
+                `GitHub App is not connected to repository "${targetRepositoryFullName}".`,
+              );
+            }
             await editConnectProject({
               organization: pendingProjectConnect.organization,
               project: pendingProjectConnect.project,
-              repositoryFullName: pendingProjectConnect.repositoryFullName,
+              repositoryFullName: targetRepositoryFullName,
             }).unwrap();
             clearPendingProjectConnect();
+          } else if (
+            pendingProjectConnect &&
+            previousRepositoryFullName &&
+            !previousRepositoryPresent
+          ) {
+            await editConnectProject({
+              organization: pendingProjectConnect.organization,
+              project: pendingProjectConnect.project,
+              repositoryFullName: '',
+            }).unwrap();
+            clearPendingProjectConnect();
+          } else if (
+            pendingProjectConnect &&
+            previousRepositoryFullName &&
+            previousRepositoryPresent
+          ) {
+            throw new Error(
+              `Repository "${previousRepositoryFullName}" is still installed in GitHub. Remove it from the GitHub App installation to disconnect this project.`,
+            );
           }
           setManualGitHubOwner('');
           setManualGitHubRepo('');
@@ -888,24 +941,6 @@ const GitOrganizationSettingsPage = ({
             window.location.assign(response.redirect_url);
             return;
           }
-          await refetchGitOrganizationsStatus().catch(() => undefined);
-          void router.replace(callbackReturnPath, undefined, { shallow: true });
-          return;
-        }
-        if (setupAction === 'update' && pendingProjectConnect) {
-          await reconcileOrganization({
-            organization: pendingProjectConnect.organization,
-          }).unwrap();
-          await refetchGitOrganizationsStatus().catch(() => undefined);
-          await editConnectProject({
-            organization: pendingProjectConnect.organization,
-            project: pendingProjectConnect.project,
-            repositoryFullName: pendingProjectConnect.repositoryFullName,
-          }).unwrap();
-          clearPendingProjectConnect();
-          setManualGitHubOwner('');
-          setManualGitHubRepo('');
-          setActiveAddForm(null);
           await refetchGitOrganizationsStatus().catch(() => undefined);
           void router.replace(callbackReturnPath, undefined, { shallow: true });
           return;
@@ -962,9 +997,6 @@ const GitOrganizationSettingsPage = ({
   const orgPeopleBindings = [...orgOwnerBindings, ...orgMemberBindings].sort(
     (left, right) => bindingLabel(left).localeCompare(bindingLabel(right)),
   );
-  const organizationGitHubInstallationUrl =
-    organizationGitStatus?.html_url ?? null;
-
   const bucketsForProject = (project: string) => {
     const projectBucketResource = createSyfonResourcePath(
       organization,
@@ -1436,6 +1468,23 @@ const GitOrganizationSettingsPage = ({
                 placeholder="owner"
                 data={githubOwnerSuggestions}
                 value={manualGitHubOwner}
+                rightSection={
+                  manualGitHubOwner.trim() ? (
+                    <ActionIcon
+                      aria-label="Clear GitHub owner"
+                      color="gray"
+                      onClick={() => {
+                        setManualGitHubOwner('');
+                        setGitConnectError(null);
+                      }}
+                      size="sm"
+                      variant="subtle"
+                    >
+                      <IconX size={14} />
+                    </ActionIcon>
+                  ) : undefined
+                }
+                rightSectionPointerEvents="all"
                 onChange={(value) => {
                   setManualGitHubOwner(value);
                   setGitConnectError(null);
@@ -1449,6 +1498,23 @@ const GitOrganizationSettingsPage = ({
                 placeholder="repo"
                 data={githubRepoSuggestions}
                 value={manualGitHubRepo}
+                rightSection={
+                  manualGitHubRepo.trim() ? (
+                    <ActionIcon
+                      aria-label="Clear GitHub repository"
+                      color="gray"
+                      onClick={() => {
+                        setManualGitHubRepo('');
+                        setGitConnectError(null);
+                      }}
+                      size="sm"
+                      variant="subtle"
+                    >
+                      <IconX size={14} />
+                    </ActionIcon>
+                  ) : undefined
+                }
+                rightSectionPointerEvents="all"
                 onChange={(value) => {
                   setManualGitHubRepo(value);
                   setGitConnectError(null);

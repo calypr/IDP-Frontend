@@ -78,7 +78,9 @@ import {
   clearPendingProjectConnect,
   gitHubOwnerFromRepositoryFullName,
   loadPendingProjectConnect,
+  normalizeRepositoryFullName,
   organizationFromGitHubState,
+  repositoryFullNamesEqual,
 } from './githubConnectState';
 import type { GitExplorerPageProps } from './types';
 
@@ -469,6 +471,19 @@ const repositoryFullNameFromSrcRepo = (value?: string | null): string => {
 const isValidRepositoryFullName = (value: string): boolean =>
   /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(value.trim());
 
+const repositoryPresentInInstallation = (
+  repositories: Array<{ full_name: string }>,
+  repositoryFullName?: string | null,
+): boolean => {
+  const normalizedTarget = normalizeRepositoryFullName(repositoryFullName);
+  if (!normalizedTarget) {
+    return false;
+  }
+  return repositories.some((repository) =>
+    repositoryFullNamesEqual(repository.full_name, normalizedTarget),
+  );
+};
+
 const projectIntegrations = (status?: GeckoGitOrganizationProjectStatus) => ({
   github:
     status?.integrations?.github ??
@@ -519,36 +534,30 @@ const integrationIssuesForProject = (
 const projectConnectionBadge = (
   status?: GeckoGitOrganizationProjectStatus,
   isRefreshing = false,
-): {
+): Array<{
   color: 'gray' | 'green' | 'red' | 'yellow';
   icon?: React.ReactNode;
   label: string;
-} => {
+}> => {
   if (isRefreshing) {
-    return { color: 'gray', label: 'Refreshing...' };
+    return [{ color: 'gray', label: 'Refreshing...' }];
   }
   const integrations = projectIntegrations(status);
-  const missingIntegrations: Array<'GitHub' | 'Storage'> = [];
+  const badges: Array<{
+    color: 'gray' | 'green' | 'red' | 'yellow';
+    icon?: React.ReactNode;
+    label: string;
+  }> = [];
   if (!integrations.github.pass) {
-    missingIntegrations.push('GitHub');
+    badges.push({ color: 'red', icon: <IconX size={12} />, label: 'GitHub' });
   }
   if (!integrations.storage.pass) {
-    missingIntegrations.push('Storage');
+    badges.push({ color: 'red', icon: <IconX size={12} />, label: 'Storage' });
   }
-  if (missingIntegrations.length === 2) {
-    return {
-      color: 'red',
-      icon: <IconX size={12} />,
-      label: 'GitHub + Storage',
-    };
+  if (badges.length > 0) {
+    return badges;
   }
-  if (missingIntegrations[0] === 'GitHub') {
-    return { color: 'red', icon: <IconX size={12} />, label: 'GitHub' };
-  }
-  if (missingIntegrations[0] === 'Storage') {
-    return { color: 'yellow', icon: <IconX size={12} />, label: 'Storage' };
-  }
-  return { color: 'green', label: 'Ready' };
+  return [{ color: 'green', label: 'Ready' }];
 };
 
 const ThumbnailField = ({
@@ -1366,7 +1375,7 @@ const ProjectManagementModal = ({
   const [updateStorage, { isLoading: isSavingStorage }] =
     useUpdateGeckoProjectStorageMutation();
   const integrations = projectIntegrations(status);
-  const readinessBadge = projectConnectionBadge(status);
+  const readinessBadges = projectConnectionBadge(status);
 
   useEffect(() => {
     setActiveTab('details');
@@ -1589,11 +1598,14 @@ const ProjectManagementModal = ({
       <Stack gap="lg">
         <div className="border-b border-slate-200 pb-4">
           <Group gap="sm" wrap="wrap">
-            <StatusPill
-              color={readinessBadge.color}
-              icon={readinessBadge.icon}
-              label={readinessBadge.label}
-            />
+            {readinessBadges.map((badge) => (
+              <StatusPill
+                key={badge.label}
+                color={badge.color}
+                icon={badge.icon}
+                label={badge.label}
+              />
+            ))}
             {issues.length > 0 ? (
               <Text c="dimmed" size="sm">
                 Missing:{' '}
@@ -1805,7 +1817,7 @@ const CompactProjectRow = ({
 }) => {
   const router = useRouter();
   const localProjectHref = `/git/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}`;
-  const badge = projectConnectionBadge(status, isRefreshingConnections);
+  const badges = projectConnectionBadge(status, isRefreshingConnections);
 
   return (
     <div
@@ -1852,12 +1864,16 @@ const CompactProjectRow = ({
           >
             {project}
           </a>
-          <Badge color={badge.color} size="sm" variant="light">
-            <span className="inline-flex items-center gap-1">
-              {badge.icon}
-              <span>{badge.label}</span>
-            </span>
-          </Badge>
+          <Group gap={6} wrap="wrap">
+            {badges.map((badge) => (
+              <Badge key={badge.label} color={badge.color} size="sm" variant="light">
+                <span className="inline-flex items-center gap-1">
+                  {badge.icon}
+                  <span>{badge.label}</span>
+                </span>
+              </Badge>
+            ))}
+          </Group>
         </Group>
         {repositoryURL ? (
           <a
@@ -2078,8 +2094,7 @@ const GitLandingPage = ({
     isLoading,
     refetch: refetchGeckoProjects,
   } = useGetGeckoProjectsQuery();
-  const { data: authzMapping = {}, refetch: refetchAuthzMapping } =
-    useGetAuthzMappingsQuery();
+  const { data: authzMapping = {} } = useGetAuthzMappingsQuery();
   const [searchQuery, setSearchQuery] = useState('');
   const [thumbnailPreviewByURL, setThumbnailPreviewByURL] = useState<
     Record<string, string>
@@ -2104,7 +2119,6 @@ const GitLandingPage = ({
   );
   const {
     data: organizationsStatus,
-    refetch: refetchOrganizationsStatus,
     isLoading: isOrganizationsStatusLoading,
   } = organizationsStatusQuery;
   const isOrganizationsStatusFetching =
@@ -2137,31 +2151,29 @@ const GitLandingPage = ({
     if (!router.isReady) {
       return null;
     }
-    const setupAction = router.query.setup_action;
     const installationID = router.query.installation_id;
-    if (
-      typeof setupAction !== 'string' ||
-      !setupAction.trim() ||
-      typeof installationID !== 'string'
-    ) {
+    if (typeof installationID !== 'string' || !installationID.trim()) {
+      return null;
+    }
+    const pendingProjectConnect = loadPendingProjectConnect();
+    const githubState =
+      typeof router.query.state === 'string'
+        ? router.query.state
+        : typeof router.query.github_state === 'string'
+          ? router.query.github_state
+          : undefined;
+    if (!githubState && !pendingProjectConnect) {
       return null;
     }
     return {
-      githubState:
-        typeof router.query.state === 'string'
-          ? router.query.state
-          : typeof router.query.github_state === 'string'
-            ? router.query.github_state
-            : undefined,
+      githubState,
       installationID,
-      pendingProjectConnect: loadPendingProjectConnect(),
-      setupAction,
+      pendingProjectConnect,
     };
   }, [
     router.isReady,
     router.query.github_state,
     router.query.installation_id,
-    router.query.setup_action,
     router.query.state,
   ]);
   const blockingGitHubCallback = pendingGitHubCallback?.pendingProjectConnect
@@ -2373,17 +2385,9 @@ const GitLandingPage = ({
     await withConnectionRefresh(async () => {
       setConnectError(null);
       await reconcileOrganizations().unwrap();
-      await Promise.all([
-        refetchOrganizationsStatus(),
-        refetchGeckoProjects(),
-        refetchAuthzMapping(),
-      ]);
     });
   }, [
     reconcileOrganizations,
-    refetchAuthzMapping,
-    refetchGeckoProjects,
-    refetchOrganizationsStatus,
     withConnectionRefresh,
   ]);
 
@@ -2399,18 +2403,10 @@ const GitLandingPage = ({
         await reconcileOrganization({
           organization: normalizedOrganization,
         }).unwrap();
-        await Promise.all([
-          refetchOrganizationsStatus(),
-          refetchGeckoProjects(),
-          refetchAuthzMapping(),
-        ]);
       });
     },
     [
       reconcileOrganization,
-      refetchAuthzMapping,
-      refetchGeckoProjects,
-      refetchOrganizationsStatus,
       refreshConnections,
       withConnectionRefresh,
     ],
@@ -2441,9 +2437,9 @@ const GitLandingPage = ({
     if (!pendingGitHubCallback) {
       return;
     }
-    const { githubState, installationID, pendingProjectConnect, setupAction } =
+    const { githubState, installationID, pendingProjectConnect } =
       pendingGitHubCallback;
-    const refreshKey = `${setupAction}:${installationID}:${githubState ?? ''}`;
+    const refreshKey = `${installationID}:${githubState ?? ''}:${pendingProjectConnect?.organization ?? ''}:${pendingProjectConnect?.project ?? ''}`;
     if (lastAutoRefreshKeyRef.current === refreshKey) {
       return;
     }
@@ -2455,14 +2451,22 @@ const GitLandingPage = ({
         if (!Number.isFinite(parsedInstallationID)) {
           throw new Error('GitHub did not return a valid installation id.');
         }
-        if (githubState) {
+        if (githubState || pendingProjectConnect) {
           const organization =
             pendingProjectConnect?.organization ||
             organizationFromGitHubState(githubState);
+          const previousRepositoryFullName =
+            normalizeRepositoryFullName(
+              pendingProjectConnect?.previousRepositoryFullName,
+            ) ?? '';
+          const targetRepositoryFullName =
+            normalizeRepositoryFullName(
+              pendingProjectConnect?.targetRepositoryFullName,
+            ) ?? '';
           const githubOwner =
             callbackGitHubOwner ||
             gitHubOwnerFromRepositoryFullName(
-              pendingProjectConnect?.repositoryFullName,
+              targetRepositoryFullName || previousRepositoryFullName,
             );
           if (!organization) {
             throw new Error(
@@ -2477,29 +2481,48 @@ const GitLandingPage = ({
             organization,
             installationId: parsedInstallationID,
           }).unwrap();
-          if (pendingProjectConnect) {
+          const repositories = response.repositories ?? [];
+          const previousRepositoryPresent = repositoryPresentInInstallation(
+            repositories,
+            previousRepositoryFullName,
+          );
+          const targetRepositoryPresent = repositoryPresentInInstallation(
+            repositories,
+            targetRepositoryFullName,
+          );
+          if (pendingProjectConnect && targetRepositoryFullName) {
+            if (!targetRepositoryPresent) {
+              throw new Error(
+                `GitHub App is not connected to repository "${targetRepositoryFullName}".`,
+              );
+            }
             await editConnectProject({
               organization: pendingProjectConnect.organization,
               project: pendingProjectConnect.project,
-              repositoryFullName: pendingProjectConnect.repositoryFullName,
+              repositoryFullName: targetRepositoryFullName,
             }).unwrap();
             clearPendingProjectConnect();
+          } else if (
+            pendingProjectConnect &&
+            previousRepositoryFullName &&
+            !previousRepositoryPresent
+          ) {
+            await editConnectProject({
+              organization: pendingProjectConnect.organization,
+              project: pendingProjectConnect.project,
+              repositoryFullName: '',
+            }).unwrap();
+            clearPendingProjectConnect();
+          } else if (
+            pendingProjectConnect &&
+            previousRepositoryFullName &&
+            previousRepositoryPresent
+          ) {
+            throw new Error(
+              `Repository "${previousRepositoryFullName}" is still installed in GitHub. Remove it from the GitHub App installation to disconnect this project.`,
+            );
           }
           await handleInitConnectResponse(organization, response);
-          void router.replace(callbackReturnPath, undefined, { shallow: true });
-        } else if (setupAction === 'update' && pendingProjectConnect) {
-          await refreshConnectionsForOrganization(
-            pendingProjectConnect.organization,
-          );
-          await editConnectProject({
-            organization: pendingProjectConnect.organization,
-            project: pendingProjectConnect.project,
-            repositoryFullName: pendingProjectConnect.repositoryFullName,
-          }).unwrap();
-          clearPendingProjectConnect();
-          await refreshConnectionsForOrganization(
-            pendingProjectConnect.organization,
-          );
           void router.replace(callbackReturnPath, undefined, { shallow: true });
         } else {
           await refreshConnections();
@@ -2770,12 +2793,7 @@ const GitLandingPage = ({
                 )?.configData
               }
               onClose={() => setManageProject(null)}
-              onProjectSaved={() => {
-                void Promise.all([
-                  refetchOrganizationsStatus(),
-                  refetchGeckoProjects(),
-                ]);
-              }}
+              onProjectSaved={() => undefined}
               onStorageSaved={() => {
                 void handleRefreshConnections();
               }}
