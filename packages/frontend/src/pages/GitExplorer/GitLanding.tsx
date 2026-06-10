@@ -76,7 +76,9 @@ import {
 } from '../OrganizationExplorer/utils';
 import {
   clearPendingProjectConnect,
+  gitHubOwnerFromRepositoryFullName,
   loadPendingProjectConnect,
+  organizationFromGitHubState,
 } from './githubConnectState';
 import type { GitExplorerPageProps } from './types';
 
@@ -342,8 +344,8 @@ const canManageOrganizationSettings = (
   }
   const candidatePaths = [`/programs/${organization}`, '/programs', '/', '*'];
   return candidatePaths.some((path) =>
-    (authzMapping[path] ?? []).some(
-      (action) => actionMatches(action, 'arborist', 'manage-owners'),
+    (authzMapping[path] ?? []).some((action) =>
+      actionMatches(action, 'arborist', 'manage-owners'),
     ),
   );
 };
@@ -361,7 +363,12 @@ const canCreateProjectsInOrganization = (
     return gitStatus.can_create_projects;
   }
   if (
-    canManageOrganizationSettings(authzMapping, organization, gitStatus, isAdmin)
+    canManageOrganizationSettings(
+      authzMapping,
+      organization,
+      gitStatus,
+      isAdmin,
+    )
   ) {
     return true;
   }
@@ -512,7 +519,11 @@ const integrationIssuesForProject = (
 const projectConnectionBadge = (
   status?: GeckoGitOrganizationProjectStatus,
   isRefreshing = false,
-): { color: 'gray' | 'green' | 'red' | 'yellow'; icon?: React.ReactNode; label: string } => {
+): {
+  color: 'gray' | 'green' | 'red' | 'yellow';
+  icon?: React.ReactNode;
+  label: string;
+} => {
   if (isRefreshing) {
     return { color: 'gray', label: 'Refreshing...' };
   }
@@ -525,7 +536,11 @@ const projectConnectionBadge = (
     missingIntegrations.push('Storage');
   }
   if (missingIntegrations.length === 2) {
-    return { color: 'red', icon: <IconX size={12} />, label: 'GitHub + Storage' };
+    return {
+      color: 'red',
+      icon: <IconX size={12} />,
+      label: 'GitHub + Storage',
+    };
   }
   if (missingIntegrations[0] === 'GitHub') {
     return { color: 'red', icon: <IconX size={12} />, label: 'GitHub' };
@@ -690,9 +705,9 @@ const StatusPill = ({
           ? 'bg-rose-50 text-rose-700'
           : color === 'yellow'
             ? 'bg-amber-50 text-amber-700'
-          : color === 'sky'
-            ? 'bg-sky-50 text-sky-700'
-            : 'bg-slate-100 text-slate-600',
+            : color === 'sky'
+              ? 'bg-sky-50 text-sky-700'
+              : 'bg-slate-100 text-slate-600',
     ].join(' ')}
   >
     {icon ? (
@@ -1322,7 +1337,10 @@ const ProjectManagementModal = ({
   status?: GeckoGitOrganizationProjectStatus;
   thumbnailPreviewData?: string;
   thumbnailURL?: string;
-  onThumbnailPreviewChange?: (thumbnailURL: string, previewData: string) => void;
+  onThumbnailPreviewChange?: (
+    thumbnailURL: string,
+    previewData: string,
+  ) => void;
   onThumbnailRemoved?: (thumbnailURL: string) => void;
 }) => {
   const [activeTab, setActiveTab] = useState<string | null>('details');
@@ -1333,10 +1351,12 @@ const ProjectManagementModal = ({
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [thumbnailPreview, setThumbnailPreview] = useState<string>('');
   const [thumbnailRemoved, setThumbnailRemoved] = useState(false);
-  const [formState, setFormState] = useState<ProjectManagementFormState>(() => ({
-    ...defaultProjectConfig(organization),
-    src_repo: '',
-  }));
+  const [formState, setFormState] = useState<ProjectManagementFormState>(
+    () => ({
+      ...defaultProjectConfig(organization),
+      src_repo: '',
+    }),
+  );
   const [updateProject, { isLoading: isSavingProject }] =
     useUpdateGeckoProjectMutation();
   const [uploadThumbnail, { isLoading: isUploadingThumbnail }] =
@@ -1388,9 +1408,7 @@ const ProjectManagementModal = ({
   const updateThumbnailFile = async (file: File | null): Promise<void> => {
     if (!file) {
       setThumbnailFile(null);
-      setThumbnailPreview(
-        thumbnailRemoved ? '' : thumbnailPreviewData || '',
-      );
+      setThumbnailPreview(thumbnailRemoved ? '' : thumbnailPreviewData || '');
       setThumbnailError(null);
       return;
     }
@@ -1456,8 +1474,7 @@ const ProjectManagementModal = ({
       onProjectSaved();
     } catch (error) {
       setThumbnailError(
-        apiErrorMessage(error) ||
-          'Failed to save project thumbnail changes.',
+        apiErrorMessage(error) || 'Failed to save project thumbnail changes.',
       );
     }
   };
@@ -1772,7 +1789,10 @@ const CompactProjectRow = ({
   thumbnail_url,
   isRefreshingConnections = false,
 }: AccessibleOrganizationProject & {
-  onThumbnailPreviewAvailable?: (thumbnailURL: string, previewData: string) => void;
+  onThumbnailPreviewAvailable?: (
+    thumbnailURL: string,
+    previewData: string,
+  ) => void;
   status?: GeckoGitOrganizationProjectStatus;
   onManageProject: (
     organization: string,
@@ -1901,7 +1921,10 @@ const OrganizationRow = ({
     project: string,
     status?: GeckoGitOrganizationProjectStatus,
   ) => void;
-  onThumbnailPreviewAvailable?: (thumbnailURL: string, previewData: string) => void;
+  onThumbnailPreviewAvailable?: (
+    thumbnailURL: string,
+    previewData: string,
+  ) => void;
   isRefreshingConnections?: boolean;
 }) => {
   const [isOpen, setIsOpen] = useState(initiallyOpen);
@@ -2106,6 +2129,10 @@ const GitLandingPage = ({
     isReconcilingOrganization ||
     isOrganizationsStatusLoading ||
     isOrganizationsStatusFetching;
+  const callbackGitHubOwner = useMemo(() => {
+    const queryOwner = router.query.github_owner;
+    return typeof queryOwner === 'string' ? queryOwner.trim() : '';
+  }, [router.query.github_owner]);
   const pendingGitHubCallback = useMemo(() => {
     if (!router.isReady) {
       return null;
@@ -2245,10 +2272,7 @@ const GitLandingPage = ({
             projects: [],
           },
       );
-  }, [
-    membershipOrganizationOptions,
-    organizationGroups,
-  ]);
+  }, [membershipOrganizationOptions, organizationGroups]);
   const normalizedSearchQuery = searchQuery.trim().toLowerCase();
   const organizationStatuses = useMemo(
     () =>
@@ -2417,12 +2441,8 @@ const GitLandingPage = ({
     if (!pendingGitHubCallback) {
       return;
     }
-    const {
-      githubState,
-      installationID,
-      pendingProjectConnect,
-      setupAction,
-    } = pendingGitHubCallback;
+    const { githubState, installationID, pendingProjectConnect, setupAction } =
+      pendingGitHubCallback;
     const refreshKey = `${setupAction}:${installationID}:${githubState ?? ''}`;
     if (lastAutoRefreshKeyRef.current === refreshKey) {
       return;
@@ -2436,9 +2456,26 @@ const GitLandingPage = ({
           throw new Error('GitHub did not return a valid installation id.');
         }
         if (githubState) {
+          const organization =
+            pendingProjectConnect?.organization ||
+            organizationFromGitHubState(githubState);
+          const githubOwner =
+            callbackGitHubOwner ||
+            gitHubOwnerFromRepositoryFullName(
+              pendingProjectConnect?.repositoryFullName,
+            );
+          if (!organization) {
+            throw new Error(
+              'GitHub callback did not include a Calypr organization.',
+            );
+          }
+          if (!githubOwner) {
+            throw new Error('GitHub callback did not include a GitHub owner.');
+          }
           const response = await connectOrganization({
+            githubOwner,
+            organization,
             installationId: parsedInstallationID,
-            state: githubState,
           }).unwrap();
           if (pendingProjectConnect) {
             await editConnectProject({
@@ -2448,7 +2485,7 @@ const GitLandingPage = ({
             }).unwrap();
             clearPendingProjectConnect();
           }
-          await handleInitConnectResponse(null, response);
+          await handleInitConnectResponse(organization, response);
           void router.replace(callbackReturnPath, undefined, { shallow: true });
         } else if (setupAction === 'update' && pendingProjectConnect) {
           await refreshConnectionsForOrganization(
@@ -2471,8 +2508,7 @@ const GitLandingPage = ({
       } catch (error) {
         clearPendingProjectConnect();
         setConnectError(
-          apiErrorMessage(error) ||
-            'Failed to finalize the GitHub connection.',
+          apiErrorMessage(error) || 'Failed to finalize the GitHub connection.',
         );
         await refreshConnections().catch(() => undefined);
         void router.replace(callbackReturnPath, undefined, { shallow: true });
@@ -2480,6 +2516,7 @@ const GitLandingPage = ({
     };
     void run();
   }, [
+    callbackGitHubOwner,
     editConnectProject,
     handleInitConnectResponse,
     connectOrganization,
@@ -2500,7 +2537,6 @@ const GitLandingPage = ({
     void refreshConnections();
     // eslint-disable-next-line reactHooks/exhaustive-deps
   }, [blockingGitHubCallback]);
-
 
   const handleRefreshConnections = async () => {
     try {
@@ -2528,192 +2564,200 @@ const GitLandingPage = ({
           <Container maw={1600} px="2.5rem" py="xl">
             <Stack gap="lg">
               {blockingGitHubCallback ? (
-                <Alert
-                  color="sky"
-                  radius="lg"
-                  title="Finalizing GitHub connection"
-                  variant="light"
-                >
-                  <Group gap="sm" wrap="nowrap">
-                    <Loader color="sky" size="sm" />
-                    <Text size="sm">
-                      Updating Gecko project bindings and refreshing
-                      repository status.
+                <div className="flex min-h-[70vh] items-center justify-center px-6 py-12">
+                  <div className="max-w-xl text-center">
+                    <Text className="text-2xl font-semibold text-slate-900">
+                      Finalizing your GitHub connection
                     </Text>
-                  </Group>
-                </Alert>
+                    <Text className="mt-3 text-base leading-7 text-slate-600">
+                      Please wait a moment...
+                    </Text>
+                    <div className="mt-8 flex justify-center">
+                      <Loader color="blue" size="md" />
+                    </div>
+                  </div>
+                </div>
               ) : null}
               {!blockingGitHubCallback ? (
                 <>
-              <section className="border-b border-slate-200 pb-5">
-                <div className="flex items-center justify-between gap-6">
-                  <div className="min-w-0">
-                    <Link href="/git" legacyBehavior>
-                      <a className="inline-flex items-center gap-2 text-xl font-bold text-slate-900 transition hover:text-slate-600">
-                        <IconBrandGit size={22} />
-                        Git
-                      </a>
-                    </Link>
-                    <Text c="dimmed" size="sm">
-                      Manage project repositories, GitHub connections, and
-                      project setup across your Calypr organizations.
-                    </Text>
-                  </div>
-                  <div className="flex w-full max-w-5xl items-center justify-end gap-3">
-                    <Popover
-                      opened={normalizedSearchQuery.length > 0}
-                      position="bottom-end"
-                      shadow="md"
-                      width={360}
-                      withinPortal
-                    >
-                      <Popover.Target>
-                        <TextInput
-                          className="w-full max-w-md [&_input]:border-slate-300 [&_input]:bg-white [&_input]:shadow-sm"
-                          leftSection={<IconSearch size={16} />}
-                          onChange={(event) =>
-                            setSearchQuery(event.currentTarget.value)
-                          }
-                          placeholder="Search organizations or projects"
-                          rightSection={
-                            searchQuery ? (
-                              <ActionIcon
-                                aria-label="Clear git project search"
-                                onClick={() => setSearchQuery('')}
-                                size="sm"
-                                variant="subtle"
-                              >
-                                <IconX size={14} />
-                              </ActionIcon>
-                            ) : null
-                          }
-                          size="sm"
-                          value={searchQuery}
-                        />
-                      </Popover.Target>
-                      <Popover.Dropdown p={0}>
-                        <div className="max-h-[24rem] overflow-y-auto py-2">
-                          {searchResults.length > 0 ? (
-                            searchResults.map((result) => (
-                              <Link
-                                href={result.href}
-                                key={result.key}
-                                legacyBehavior
-                              >
-                                <a
-                                  className="flex items-start gap-3 px-3 py-2 text-left hover:bg-slate-50"
-                                  onClick={() => setSearchQuery('')}
-                                >
-                                  {result.kind === 'organization' ? (
-                                    <IconBuildingBank
-                                      className="mt-0.5 text-slate-500"
-                                      size={16}
-                                    />
-                                  ) : (
-                                    <IconFolder
-                                      className="mt-0.5 text-emerald-700"
-                                      size={16}
-                                    />
-                                  )}
-                                  <div className="min-w-0">
-                                    <Text fw={600} size="sm">
-                                      {result.label}
-                                    </Text>
-                                    <Text
-                                      c="dimmed"
-                                      className="truncate"
-                                      size="xs"
+                  <section className="border-b border-slate-200 pb-5">
+                    <div className="flex items-center justify-between gap-6">
+                      <div className="min-w-0">
+                        <Link href="/git" legacyBehavior>
+                          <a className="inline-flex items-center gap-2 text-xl font-bold text-slate-900 transition hover:text-slate-600">
+                            <IconBrandGit size={22} />
+                            Git
+                          </a>
+                        </Link>
+                        <Text c="dimmed" size="sm">
+                          Manage project repositories, GitHub connections, and
+                          project setup across your Calypr organizations.
+                        </Text>
+                      </div>
+                      <div className="flex w-full max-w-5xl items-center justify-end gap-3">
+                        <Popover
+                          opened={normalizedSearchQuery.length > 0}
+                          position="bottom-end"
+                          shadow="md"
+                          width={360}
+                          withinPortal
+                        >
+                          <Popover.Target>
+                            <TextInput
+                              className="w-full max-w-md [&_input]:border-slate-300 [&_input]:bg-white [&_input]:shadow-sm"
+                              leftSection={<IconSearch size={16} />}
+                              onChange={(event) =>
+                                setSearchQuery(event.currentTarget.value)
+                              }
+                              placeholder="Search organizations or projects"
+                              rightSection={
+                                searchQuery ? (
+                                  <ActionIcon
+                                    aria-label="Clear git project search"
+                                    onClick={() => setSearchQuery('')}
+                                    size="sm"
+                                    variant="subtle"
+                                  >
+                                    <IconX size={14} />
+                                  </ActionIcon>
+                                ) : null
+                              }
+                              size="sm"
+                              value={searchQuery}
+                            />
+                          </Popover.Target>
+                          <Popover.Dropdown p={0}>
+                            <div className="max-h-[24rem] overflow-y-auto py-2">
+                              {searchResults.length > 0 ? (
+                                searchResults.map((result) => (
+                                  <Link
+                                    href={result.href}
+                                    key={result.key}
+                                    legacyBehavior
+                                  >
+                                    <a
+                                      className="flex items-start gap-3 px-3 py-2 text-left hover:bg-slate-50"
+                                      onClick={() => setSearchQuery('')}
                                     >
-                                      {result.sublabel}
-                                    </Text>
-                                  </div>
-                                </a>
-                              </Link>
-                            ))
-                          ) : (
-                            <Text c="dimmed" className="px-3 py-3" size="sm">
-                              No organizations or projects match “{searchQuery}
-                              ”.
-                            </Text>
+                                      {result.kind === 'organization' ? (
+                                        <IconBuildingBank
+                                          className="mt-0.5 text-slate-500"
+                                          size={16}
+                                        />
+                                      ) : (
+                                        <IconFolder
+                                          className="mt-0.5 text-emerald-700"
+                                          size={16}
+                                        />
+                                      )}
+                                      <div className="min-w-0">
+                                        <Text fw={600} size="sm">
+                                          {result.label}
+                                        </Text>
+                                        <Text
+                                          c="dimmed"
+                                          className="truncate"
+                                          size="xs"
+                                        >
+                                          {result.sublabel}
+                                        </Text>
+                                      </div>
+                                    </a>
+                                  </Link>
+                                ))
+                              ) : (
+                                <Text
+                                  c="dimmed"
+                                  className="px-3 py-3"
+                                  size="sm"
+                                >
+                                  No organizations or projects match “
+                                  {searchQuery}
+                                  ”.
+                                </Text>
+                              )}
+                            </div>
+                          </Popover.Dropdown>
+                        </Popover>
+
+                        <Button
+                          className={actionButtonClassName}
+                          color="sky"
+                          leftSection={<IconPlus size={16} />}
+                          onClick={() =>
+                            void router.push(
+                              selectedOrganization
+                                ? `/git/new?org=${encodeURIComponent(selectedOrganization)}`
+                                : '/git/new',
+                            )
+                          }
+                          variant="light"
+                        >
+                          Create project
+                        </Button>
+                      </div>
+                    </div>
+                  </section>
+
+                  {connectError ? (
+                    <Alert color="red" variant="light">
+                      {connectError}
+                    </Alert>
+                  ) : null}
+
+                  {isLoading ? (
+                    <section className="border-b border-slate-200 bg-white px-6 py-4">
+                      <Text c="dimmed" size="sm">
+                        Loading Gecko project tree...
+                      </Text>
+                    </section>
+                  ) : visibleOrganizationGroups.length === 0 ? (
+                    <section className="border-b border-slate-200 bg-white px-6 py-4">
+                      <Text fw={700}>
+                        {normalizedSearchQuery
+                          ? 'No matching organizations or projects'
+                          : 'No Gecko projects found'}
+                      </Text>
+                      <Text c="dimmed" className="mt-1" size="sm">
+                        {normalizedSearchQuery
+                          ? 'Try a different search term.'
+                          : 'No organizations or project-scoped resources are currently visible for this account.'}
+                      </Text>
+                    </section>
+                  ) : (
+                    <section className="space-y-4">
+                      {visibleOrganizationGroups.map((group) => (
+                        <OrganizationRow
+                          canCreateProjects={canCreateProjectsInOrganization(
+                            authzMapping,
+                            group.organization,
+                            organizationStatuses.get(group.organization),
+                            isAdmin,
                           )}
-                        </div>
-                      </Popover.Dropdown>
-                    </Popover>
-
-                    <Button
-                      className={actionButtonClassName}
-                      color="sky"
-                      leftSection={<IconPlus size={16} />}
-                      onClick={() =>
-                        void router.push(
-                          selectedOrganization
-                            ? `/git/new?org=${encodeURIComponent(selectedOrganization)}`
-                            : '/git/new',
-                        )
-                      }
-                      variant="light"
-                    >
-                      Create project
-                    </Button>
-                  </div>
-                </div>
-              </section>
-
-              {connectError ? (
-                <Alert color="red" variant="light">
-                  {connectError}
-                </Alert>
-              ) : null}
-
-              {isLoading ? (
-                <section className="border-b border-slate-200 bg-white px-6 py-4">
-                  <Text c="dimmed" size="sm">
-                    Loading Gecko project tree...
-                  </Text>
-                </section>
-              ) : visibleOrganizationGroups.length === 0 ? (
-                <section className="border-b border-slate-200 bg-white px-6 py-4">
-                  <Text fw={700}>
-                    {normalizedSearchQuery
-                      ? 'No matching organizations or projects'
-                      : 'No Gecko projects found'}
-                  </Text>
-                  <Text c="dimmed" className="mt-1" size="sm">
-                    {normalizedSearchQuery
-                      ? 'Try a different search term.'
-                      : 'No organizations or project-scoped resources are currently visible for this account.'}
-                  </Text>
-                </section>
-              ) : (
-                <section className="space-y-4">
-                  {visibleOrganizationGroups.map((group) => (
-                    <OrganizationRow
-                      canCreateProjects={canCreateProjectsInOrganization(
-                        authzMapping,
-                        group.organization,
-                        organizationStatuses.get(group.organization),
-                        isAdmin,
-                      )}
-                      canManageSettings={canManageOrganizationSettings(
-                        authzMapping,
-                        group.organization,
-                        organizationStatuses.get(group.organization),
-                        isAdmin,
-                      )}
-                      group={group}
-                      gitStatus={organizationStatuses.get(group.organization)}
-                      initiallyOpen
-                      isRefreshingConnections={isRefreshingConnections}
-                      hideCollapse={group.organization === selectedOrganization}
-                      key={group.organization}
-                      onManageProject={(organization, project, status) =>
-                        setManageProject({ organization, project, status })
-                      }
-                      onThumbnailPreviewAvailable={rememberThumbnailPreview}
-                    />
-                  ))}
-                </section>
-              )}
+                          canManageSettings={canManageOrganizationSettings(
+                            authzMapping,
+                            group.organization,
+                            organizationStatuses.get(group.organization),
+                            isAdmin,
+                          )}
+                          group={group}
+                          gitStatus={organizationStatuses.get(
+                            group.organization,
+                          )}
+                          initiallyOpen
+                          isRefreshingConnections={isRefreshingConnections}
+                          hideCollapse={
+                            group.organization === selectedOrganization
+                          }
+                          key={group.organization}
+                          onManageProject={(organization, project, status) =>
+                            setManageProject({ organization, project, status })
+                          }
+                          onThumbnailPreviewAvailable={rememberThumbnailPreview}
+                        />
+                      ))}
+                    </section>
+                  )}
                 </>
               ) : null}
             </Stack>

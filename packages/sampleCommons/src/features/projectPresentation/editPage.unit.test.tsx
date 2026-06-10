@@ -13,6 +13,9 @@ jest.mock('@gen3/core', () => ({
 
 jest.mock('@gen3/frontend', () => ({
   NavPageLayout: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  ProjectWorkspaceTabs: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
   ProtectedContent: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   getNavPageLayoutPropsFromConfig: jest.fn(),
 }));

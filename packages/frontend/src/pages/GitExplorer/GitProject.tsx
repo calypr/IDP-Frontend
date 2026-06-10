@@ -9,7 +9,6 @@ import {
   Code,
   Container,
   Group,
-  Loader,
   Menu,
   Popover,
   ScrollArea,
@@ -23,6 +22,7 @@ import {
 } from '@mantine/core';
 import {
   SYFON_API,
+  useGetConfigContentQuery,
   useLazyGetGeckoGitProjectFileQuery,
   useGetGeckoGitProjectsQuery,
   useGetGeckoGitProjectRefsQuery,
@@ -50,7 +50,10 @@ import {
   IconX,
 } from '@tabler/icons-react';
 import ProtectedContent from '../../components/Protected/ProtectedContent';
-import { NavPageLayout } from '../../features/Navigation';
+import {
+  NavPageLayout,
+  ProjectWorkspaceTabs,
+} from '../../features/Navigation';
 import type { GitExplorerPageProps } from './types';
 import GitUploadPRModal from './GitUploadPRModal';
 
@@ -135,6 +138,8 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
     typeof router.query.ref === 'string' ? router.query.ref : null;
   const requestedPath =
     typeof router.query.path === 'string' ? router.query.path : '';
+  const isEmbedded =
+    router.query.embed === '1' || router.query.embed === 'true';
 
   const [selectedRef, setSelectedRef] = useState<string | null>(null);
   const [currentPath, setCurrentPath] = useState<string>(requestedPath);
@@ -160,6 +165,14 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
     isLoading: isStatusLoading,
     refetch: refetchGitProjects,
   } = useGetGeckoGitProjectsQuery();
+  const explorerConfigId =
+    organization && project ? `${organization}-${project}` : '';
+  const { data: explorerConfigResponse } = useGetConfigContentQuery(
+    explorerConfigId,
+    {
+      skip: !explorerConfigId,
+    },
+  );
   const projectStatus = useMemo(
     () =>
       gitProjects.find(
@@ -357,6 +370,21 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
     organization,
     project,
   );
+  const hasExplorerConfig = useMemo(
+    () => Boolean(explorerConfigResponse?.data),
+    [explorerConfigResponse?.data],
+  );
+  const gitProjectHref = useMemo(() => {
+    const query = new URLSearchParams();
+    if (effectiveRef) {
+      query.set('ref', effectiveRef);
+    }
+    if (currentPath) {
+      query.set('path', currentPath);
+    }
+    const serialized = query.toString();
+    return `/git/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}${serialized ? `?${serialized}` : ''}`;
+  }, [currentPath, effectiveRef, organization, project]);
 
   const handleRefresh = async () => {
     setActionError(null);
@@ -365,7 +393,7 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
         organization,
         project,
       }).unwrap()) as GeckoGitRefreshResponse;
-      const defaultBranch = refreshResponse.default_branch?.trim();
+      refreshResponse.default_branch?.trim();
     } catch (error) {
       const message =
         error && typeof error === 'object' && 'data' in error
@@ -710,20 +738,10 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
     </Card>
   );
 
-  return (
-    <NavPageLayout
-      {...{ headerProps, footerProps }}
-      headerMetadata={{
-        content: `${organization}/${project}`,
-        key: 'gecko-git-project',
-        title: `${organization}/${project}`,
-      }}
-      mainProps={{ className: 'bg-[#f6f8fa]' }}
-    >
-      <ProtectedContent>
-        <div className="min-h-screen bg-[#f6f8fa]">
-          <Container py="md" size="xl">
-            <Stack gap="sm">
+  const gitProjectContent = (
+    <div className="min-h-screen bg-[#f6f8fa]">
+      <Container py="md" size="xl">
+        <Stack gap="sm">
               <Group justify="space-between" gap="xs" wrap="nowrap">
                 {isRootView ? (
                   <Group className="min-w-0 flex-1" gap={6} wrap="nowrap">
@@ -1260,9 +1278,35 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
               ) : (
                 repositoryTable
               )}
-            </Stack>
-          </Container>
-        </div>
+        </Stack>
+      </Container>
+    </div>
+  );
+
+  if (isEmbedded) {
+    return <ProtectedContent>{gitProjectContent}</ProtectedContent>;
+  }
+
+  return (
+    <NavPageLayout
+      {...{ headerProps, footerProps }}
+      headerMetadata={{
+        content: `${organization}/${project}`,
+        key: 'gecko-git-project',
+        title: `${organization}/${project}`,
+      }}
+      mainProps={{ className: 'bg-[#f6f8fa]' }}
+    >
+      <ProtectedContent>
+        <ProjectWorkspaceTabs
+          activeTab="git"
+          gitHref={gitProjectHref}
+          hasExplorerConfig={hasExplorerConfig}
+          organization={organization}
+          project={project}
+        >
+          {gitProjectContent}
+        </ProjectWorkspaceTabs>
       </ProtectedContent>
     </NavPageLayout>
   );

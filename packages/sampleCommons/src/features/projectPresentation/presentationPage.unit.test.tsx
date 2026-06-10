@@ -5,14 +5,19 @@ import ProjectPresentationPage from '../../pages/org/[org]/project/[project]/pre
 
 const useGetGeckoProjectsQueryMock = jest.fn();
 const useGetGeckoProjectSummaryQueryMock = jest.fn();
+const useGetConfigContentQueryMock = jest.fn();
 
 jest.mock('@gen3/core', () => ({
   useGetGeckoProjectsQuery: () => useGetGeckoProjectsQueryMock(),
   useGetGeckoProjectSummaryQuery: () => useGetGeckoProjectSummaryQueryMock(),
+  useGetConfigContentQuery: () => useGetConfigContentQueryMock(),
 }));
 
 jest.mock('@gen3/frontend', () => ({
   NavPageLayout: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  ProjectWorkspaceTabs: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
   ProtectedContent: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   getNavPageLayoutPropsFromConfig: jest.fn(),
 }));
@@ -53,6 +58,12 @@ describe('ProjectPresentationPage', () => {
   beforeEach(() => {
     useGetGeckoProjectsQueryMock.mockReset();
     useGetGeckoProjectSummaryQueryMock.mockReset();
+    useGetConfigContentQueryMock.mockReset();
+    useGetConfigContentQueryMock.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+    });
   });
 
   it('renders seeded metadata and visualization placeholders', () => {

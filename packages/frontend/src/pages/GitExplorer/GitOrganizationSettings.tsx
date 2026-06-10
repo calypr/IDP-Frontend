@@ -58,6 +58,7 @@ import { extractProjectsFromResourcePaths } from '../OrganizationExplorer/utils'
 import type { AccessibleOrganizationProject } from '../OrganizationExplorer/types';
 import {
   clearPendingProjectConnect,
+  gitHubOwnerFromRepositoryFullName,
   loadPendingProjectConnect,
   savePendingProjectConnect,
 } from './githubConnectState';
@@ -68,6 +69,11 @@ const isValidEmail = (value: string): boolean =>
 
 const projectResourcePath = (organization: string, project: string): string =>
   `/programs/${organization}/projects/${project}`;
+
+const gitHubRedirectPath = (organization: string, githubOwner: string): string => {
+  const query = new URLSearchParams({ github_owner: githubOwner.trim() });
+  return `/git/${encodeURIComponent(organization)}/settings?${query.toString()}`;
+};
 
 const bucketProviderOptions = [{ label: 'Amazon S3', value: 's3' }];
 
@@ -646,14 +652,65 @@ const GitOrganizationSettingsPage = ({
   const [triggerFetchRepositories, { data: githubRepositories = [], isFetching: isFetchingRepos }] =
     useLazyGetGeckoGitOrganizationRepositoriesQuery();
 
+  const selectedProjectStatus = useMemo(() => {
+    return organizationGitStatus?.projects.find(
+      (p) => p.project === selectedProjectID
+    );
+  }, [organizationGitStatus, selectedProjectID]);
+
+  const callbackGitHubOwner = useMemo(() => {
+    const queryOwner = router.query.github_owner;
+    return typeof queryOwner === 'string' ? queryOwner.trim() : '';
+  }, [router.query.github_owner]);
+
+  const currentGitHubOwner = useMemo(() => {
+    const selectedRepositoryOwner = selectedProjectStatus?.repository?.owner?.trim();
+    if (selectedRepositoryOwner) {
+      return selectedRepositoryOwner;
+    }
+    const selectedInstallationTarget = selectedProjectStatus?.installation?.target?.trim();
+    if (selectedInstallationTarget) {
+      return selectedInstallationTarget;
+    }
+    const knownRepositoryOwner = organizationGitStatus?.projects.find(
+      (projectStatus) => projectStatus.repository?.owner?.trim(),
+    )?.repository?.owner?.trim();
+    if (knownRepositoryOwner) {
+      return knownRepositoryOwner;
+    }
+    const knownInstallationTarget = organizationGitStatus?.projects.find(
+      (projectStatus) => projectStatus.installation?.target?.trim(),
+    )?.installation?.target?.trim();
+    if (knownInstallationTarget) {
+      return knownInstallationTarget;
+    }
+    if (callbackGitHubOwner) {
+      return callbackGitHubOwner;
+    }
+    return manualGitHubOwner.trim();
+  }, [
+    callbackGitHubOwner,
+    manualGitHubOwner,
+    organizationGitStatus?.projects,
+    selectedProjectStatus?.installation?.target,
+    selectedProjectStatus?.repository?.owner,
+  ]);
+
   useEffect(() => {
-    if (activeAddForm === 'github' && queryInstallationID) {
+    if (activeAddForm === 'github' && queryInstallationID && currentGitHubOwner) {
       triggerFetchRepositories({
+        githubOwner: currentGitHubOwner,
         organization,
         installationId: queryInstallationID,
       });
     }
-  }, [activeAddForm, queryInstallationID, organization, triggerFetchRepositories]);
+  }, [
+    activeAddForm,
+    currentGitHubOwner,
+    organization,
+    queryInstallationID,
+    triggerFetchRepositories,
+  ]);
 
   const githubOwnerSuggestions = useMemo(() => {
     const owners = githubRepositories
@@ -713,12 +770,6 @@ const GitOrganizationSettingsPage = ({
     : null;
   const [reconcileOrganization] = useReconcileGeckoGitOrganizationMutation();
 
-  const selectedProjectStatus = useMemo(() => {
-    return organizationGitStatus?.projects.find(
-      (p) => p.project === selectedProjectID
-    );
-  }, [organizationGitStatus, selectedProjectID]);
-
   useEffect(() => {
     if (selectedProjectStatus?.repository?.owner) {
       setManualGitHubOwner(selectedProjectStatus.repository.owner);
@@ -763,7 +814,7 @@ const GitOrganizationSettingsPage = ({
       const response = await initConnectOrganization({
         organization,
         project: projectToConnect,
-        redirectPath: `/git/${encodeURIComponent(organization)}/settings`,
+        redirectPath: gitHubRedirectPath(organization, manualGitHubOwner),
         repositoryFullName: repoName,
       }).unwrap();
 
@@ -808,9 +859,18 @@ const GitOrganizationSettingsPage = ({
           throw new Error('GitHub did not return a valid installation id.');
         }
         if (githubState) {
+          const githubOwner =
+            callbackGitHubOwner ||
+            gitHubOwnerFromRepositoryFullName(
+              pendingProjectConnect?.repositoryFullName,
+            );
+          if (!githubOwner) {
+            throw new Error('GitHub callback did not include a GitHub owner.');
+          }
           const response = await connectOrganization({
+            githubOwner,
+            organization,
             installationId: parsedInstallationID,
-            state: githubState,
           }).unwrap();
           if (pendingProjectConnect) {
             await editConnectProject({
@@ -869,6 +929,7 @@ const GitOrganizationSettingsPage = ({
     };
     void run();
   }, [
+    callbackGitHubOwner,
     connectOrganization,
     editConnectProject,
     organization,

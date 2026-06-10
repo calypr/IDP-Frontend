@@ -9,6 +9,8 @@ jest.mock('next/router', () => ({
 
 jest.mock('@gen3/core', () => ({
   SYFON_API: '/syfon',
+  useGetConfigContentQuery: jest.fn(),
+  useGetGeckoProjectsQuery: jest.fn(),
   useGetGeckoGitProjectsQuery: jest.fn(),
   useGetGeckoGitProjectRefsQuery: jest.fn(),
   useGetGeckoGitProjectStatusQuery: jest.fn(),
@@ -22,6 +24,9 @@ jest.mock('@gen3/core', () => ({
 
 jest.mock('../../features/Navigation', () => ({
   NavPageLayout: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  ProjectWorkspaceTabs: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
 }));
 
 jest.mock('../../components/Protected/ProtectedContent', () => ({
@@ -62,6 +67,8 @@ const { useRouter } = jest.requireMock('next/router') as {
 };
 
 const coreMocks = jest.requireMock('@gen3/core') as {
+  useGetConfigContentQuery: jest.Mock;
+  useGetGeckoProjectsQuery: jest.Mock;
   useGetGeckoGitProjectsQuery: jest.Mock;
   useGetGeckoGitProjectRefsQuery: jest.Mock;
   useGetGeckoGitProjectStatusQuery: jest.Mock;
@@ -112,6 +119,16 @@ describe('GitProjectPage', () => {
       jest.fn(),
       { isLoading: false },
     ]);
+    coreMocks.useGetConfigContentQuery.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+    });
+    coreMocks.useGetGeckoProjectsQuery.mockReturnValue({
+      data: [],
+      isLoading: false,
+      refetch: jest.fn(),
+    });
     coreMocks.useGetGeckoGitProjectsQuery.mockReturnValue({
       data: [],
       isLoading: false,
@@ -199,7 +216,66 @@ describe('GitProjectPage', () => {
         /github is not connected for this project yet\. update repository access from/i,
       ),
     ).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Git' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('tab', { name: 'Presentation' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('tab', { name: 'Explorer' }),
+    ).not.toBeInTheDocument();
     expect(screen.getByText('About')).toBeInTheDocument();
+  });
+
+  it('renders the Explorer tab when Gecko config exists for the project', () => {
+    const projectStatus = {
+      project_id: 'Ellrott_Lab/embedding_rotation',
+      organization: 'Ellrott_Lab',
+      project: 'embedding_rotation',
+      resource_path: '/programs/Ellrott_Lab/projects/embedding_rotation',
+      config: {
+        title: 'Embedding Rotation',
+        contact_email: 'owner@example.org',
+        src_repo: 'github.com/EllrottLab/embedding-rotation',
+        org_title: 'Ellrott Lab',
+        description: 'Test project',
+        project_title: 'Embedding Rotation',
+        icon_name: 'git.png',
+      },
+      repository: {
+        host: 'github.com',
+        owner: 'EllrottLab',
+        repo: 'embedding-rotation',
+        url: 'https://github.com/EllrottLab/embedding-rotation',
+      },
+      installation_state: 'connected',
+      organization_app_installed: true,
+      sync_state: 'ready',
+      default_branch: 'main',
+      mirror_ready: true,
+    };
+    coreMocks.useGetGeckoGitProjectsQuery.mockReturnValue({
+      data: [projectStatus],
+      isLoading: false,
+      refetch: jest.fn(),
+    });
+    coreMocks.useGetConfigContentQuery.mockReturnValue({
+      data: {
+        success: true,
+        data: {
+          explorerConfig: [],
+        },
+      },
+      isLoading: false,
+      isError: false,
+    });
+
+    render(
+      <MantineProvider>
+        <GitProjectPage {...layoutProps} />
+      </MantineProvider>,
+    );
+
+    expect(screen.getByRole('tab', { name: 'Explorer' })).toBeInTheDocument();
   });
 
   it('renders repository tree controls for a connected project', () => {

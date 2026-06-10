@@ -7,6 +7,40 @@ export type PendingProjectConnect = {
   readonly repositoryFullName: string;
 };
 
+export const gitHubOwnerFromRepositoryFullName = (
+  repositoryFullName?: string | null,
+): string | null => {
+  if (typeof repositoryFullName !== 'string') {
+    return null;
+  }
+  const trimmed = repositoryFullName.trim().replace(/^https?:\/\/github\.com\//i, '');
+  const [owner] = trimmed.split('/', 2);
+  const normalizedOwner = owner?.trim();
+  return normalizedOwner ? normalizedOwner : null;
+};
+
+export const organizationFromGitHubState = (
+  githubState?: string | null,
+): string | null => {
+  if (typeof githubState !== 'string') {
+    return null;
+  }
+  const trimmed = githubState.trim();
+  if (!trimmed) {
+    return null;
+  }
+  const withoutQuery = trimmed.split('?', 1)[0] || '';
+  const match = withoutQuery.match(/^\/git\/([^/]+)(?:\/|$)/);
+  if (!match?.[1]) {
+    return null;
+  }
+  try {
+    return decodeURIComponent(match[1]).trim() || null;
+  } catch {
+    return match[1].trim() || null;
+  }
+};
+
 export const savePendingProjectConnect = (
   pending: PendingProjectConnect,
 ): void => {

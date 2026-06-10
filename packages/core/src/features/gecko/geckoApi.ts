@@ -897,16 +897,17 @@ export const geckoApi = geckoTaggedApi.injectEndpoints({
     connectGeckoGitOrganization: builder.mutation<
       GeckoGitOrganizationConnectResponse,
       {
+        organization: string;
+        githubOwner: string;
         installationId: number;
-        state: string;
       }
     >({
-      query: ({ installationId, state }) => ({
-        url: '/gecko/git/connect',
+      query: ({ organization, githubOwner, installationId }) => ({
+        url: `/gecko/git/organizations/${encodeURIComponent(organization)}/connect`,
         method: 'POST',
         body: {
+          github_owner: githubOwner,
           installation_id: installationId,
-          state,
         },
         credentials: 'include',
       }),
@@ -1075,12 +1076,13 @@ export const geckoApi = geckoTaggedApi.injectEndpoints({
     }),
     getGeckoGitOrganizationRepositories: builder.query<
       Array<GeckoGitRepositoryIdentity>,
-      { organization: string; installationId: number }
+      { organization: string; githubOwner: string; installationId: number }
     >({
-      query: ({ organization, installationId }) => ({
+      query: ({ organization, githubOwner, installationId }) => ({
         url: `/gecko/git/organizations/${encodeURIComponent(organization)}/connect`,
         method: 'POST',
         body: {
+          github_owner: githubOwner,
           installation_id: installationId,
         },
         credentials: 'include',

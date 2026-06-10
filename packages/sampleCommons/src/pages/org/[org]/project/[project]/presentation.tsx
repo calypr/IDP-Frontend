@@ -2,9 +2,11 @@ import React from 'react';
 import {
   getNavPageLayoutPropsFromConfig,
   NavPageLayout,
+  ProjectWorkspaceTabs,
   ProtectedContent,
 } from '@gen3/frontend';
 import {
+  useGetConfigContentQuery,
   useGetGeckoProjectSummaryQuery,
   useGetGeckoProjectsQuery,
 } from '@gen3/core';
@@ -25,8 +27,18 @@ const ProjectPresentationPage = ({
     typeof router.query.org === 'string' ? router.query.org : '';
   const project =
     typeof router.query.project === 'string' ? router.query.project : '';
+  const isEmbedded =
+    router.query.embed === '1' || router.query.embed === 'true';
+  const explorerConfigId =
+    organization && project ? `${organization}-${project}` : '';
   const { data: geckoProjects = [], isLoading: isProjectsLoading } =
     useGetGeckoProjectsQuery();
+  const { data: explorerConfigResponse } = useGetConfigContentQuery(
+    explorerConfigId,
+    {
+      skip: !explorerConfigId,
+    },
+  );
   const { data: geckoProjectSummary = [], isLoading: isSummaryLoading } =
     useGetGeckoProjectSummaryQuery();
 
@@ -46,6 +58,21 @@ const ProjectPresentationPage = ({
     projectSummary,
   });
 
+  const presentationContent =
+    isProjectsLoading || isSummaryLoading ? (
+      <Center className="min-h-[55vh]">
+        <Loader />
+      </Center>
+    ) : (
+      <div className="px-6 py-8 lg:px-8">
+        <ProjectPresentationView draft={draft} />
+      </div>
+    );
+
+  if (isEmbedded) {
+    return <ProtectedContent>{presentationContent}</ProtectedContent>;
+  }
+
   return (
     <ProtectedContent>
       <NavPageLayout
@@ -56,15 +83,14 @@ const ProjectPresentationPage = ({
           key: 'project-presentation',
         }}
       >
-        {isProjectsLoading || isSummaryLoading ? (
-          <Center className="min-h-[55vh]">
-            <Loader />
-          </Center>
-        ) : (
-          <div className="px-6 py-8 lg:px-8">
-            <ProjectPresentationView draft={draft} />
-          </div>
-        )}
+        <ProjectWorkspaceTabs
+          activeTab="presentation"
+          hasExplorerConfig={Boolean(explorerConfigResponse?.data)}
+          organization={organization}
+          project={project}
+        >
+          {presentationContent}
+        </ProjectWorkspaceTabs>
       </NavPageLayout>
     </ProtectedContent>
   );
