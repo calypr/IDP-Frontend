@@ -412,8 +412,9 @@ declare module '@gen3/core' {
 
   export function useConnectGeckoGitOrganizationMutation(): [
     (args: {
+      organization: string;
+      githubOwner: string;
       installationId: number;
-      state: string;
     }) => { unwrap: () => Promise<GeckoGitOrganizationConnectResponse> },
     { isLoading: boolean },
   ];
