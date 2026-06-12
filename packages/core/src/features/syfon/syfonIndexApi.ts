@@ -60,13 +60,6 @@ const recordMatchesExactProjectScope = (
 
 const DEFAULT_INDEX_PAGE_LIMIT = 1000;
 
-const getPageCursor = (record: SyfonIndexRecord): string | null => {
-  const did = record.did?.trim();
-  if (did) return did;
-  const id = record.id?.trim();
-  return id || null;
-};
-
 const buildIndexRequestUrl = ({
   limit,
   organization,
@@ -120,90 +113,33 @@ const fetchSyfonIndexRecords = async ({
   >
 > => {
   const pageLimit = args.limit ?? DEFAULT_INDEX_PAGE_LIMIT;
+  const response = await fetchWithBQ({
+    credentials: 'include',
+    method: 'GET',
+    url: buildIndexRequestUrl({
+      limit: pageLimit,
+      organization: args.organization,
+      page: args.page,
+      path: args.path,
+      project: args.project,
+      start: args.start,
+    }),
+  });
 
-  if (typeof args.start === 'string' || typeof args.page === 'number') {
-    const response = await fetchWithBQ({
-      credentials: 'include',
-      method: 'GET',
-      url: buildIndexRequestUrl({
-        limit: pageLimit,
-        organization: args.organization,
-        page: args.page,
-        path: args.path,
-        project: args.project,
-        start: args.start,
-      }),
-    });
-
-    if (response.error) {
-      return { error: response.error };
-    }
-
-    const rawData = (response.data ?? {}) as SyfonIndexListResponse;
-    return {
-      data: {
-        directories: rawData.directories ?? [],
-        records: (rawData.records ?? []).filter((record) =>
-          recordMatchesExactProjectScope(record, args.organization, args.project),
-        ),
-      },
-      meta: response.meta,
-    };
+  if (response.error) {
+    return { error: response.error };
   }
 
-  const allRecords: Array<SyfonIndexRecord> = [];
-  let directories: Array<SyfonIndexDirectory> = [];
-  const seenStarts = new Set<string>();
-  const fetchPage = (start?: string) =>
-    fetchWithBQ({
-      credentials: 'include',
-      method: 'GET',
-      url: buildIndexRequestUrl({
-        limit: pageLimit,
-        organization: args.organization,
-        path: args.path,
-        project: args.project,
-        start,
-      }),
-    });
-
-  let nextPagePromise:
-    | PromiseLike<
-        QueryReturnValue<unknown, FetchBaseQueryError, FetchBaseQueryMeta>
-      >
-    | QueryReturnValue<unknown, FetchBaseQueryError, FetchBaseQueryMeta>
-    | null = fetchPage();
-
-  while (nextPagePromise) {
-    const response = await nextPagePromise;
-
-    if (response.error) {
-      return { error: response.error };
-    }
-
-    const rawData = (response.data ?? {}) as SyfonIndexListResponse;
-    if (directories.length === 0) {
-      directories = rawData.directories ?? [];
-    }
-    const rawRecords = rawData.records ?? [];
-    const lastRecord = rawRecords[rawRecords.length - 1];
-    const nextStart = rawRecords.length >= pageLimit ? getPageCursor(lastRecord) : null;
-
-    if (nextStart && !seenStarts.has(nextStart)) {
-      seenStarts.add(nextStart);
-      nextPagePromise = fetchPage(nextStart);
-    } else {
-      nextPagePromise = null;
-    }
-
-    const pageRecords = (rawData.records ?? []).filter((record) =>
-      recordMatchesExactProjectScope(record, args.organization, args.project),
-    );
-
-    allRecords.push(...pageRecords);
-  }
-
-  return { data: { directories, records: allRecords } };
+  const rawData = (response.data ?? {}) as SyfonIndexListResponse;
+  return {
+    data: {
+      directories: rawData.directories ?? [],
+      records: (rawData.records ?? []).filter((record) =>
+        recordMatchesExactProjectScope(record, args.organization, args.project),
+      ),
+    },
+    meta: response.meta,
+  };
 };
 
 export const syfonIndexApi = gen3Api.injectEndpoints({

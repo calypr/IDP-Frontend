@@ -24,6 +24,8 @@ import type { SyfonIndexRecord } from '@gen3/core';
 import {
   buildRepoListingEntries,
   extractAccessibleProjects,
+  findMatchingOffsetsFile,
+  getFileExtensionCandidates,
   getSyfonRepoDownloadUrl,
   normalizeSyfonIndexRecordToRepoFile,
   parsePathQueryValue,
@@ -143,5 +145,29 @@ describe('OrganizationExplorer utils', () => {
     expect(parsePathQueryValue('nested/a/b')).toEqual(['nested', 'a', 'b']);
     expect(parsePathQueryValue(['nested', 'a/b'])).toEqual(['nested', 'a', 'b']);
     expect(getSyfonRepoDownloadUrl('did-123')).toContain('/download/did-123?redirect=true');
+  });
+
+  it('supports compound file extensions and detects matching offsets files', () => {
+    expect(getFileExtensionCandidates('sample.ome.tiff')).toEqual([
+      'ome.tiff',
+      'tiff',
+    ]);
+
+    const imageFile = normalizeSyfonIndexRecordToRepoFile(
+      createRecord({
+        did: 'did-image',
+        file_name: 'nested/sample.ome.tiff',
+      }),
+    );
+    const offsetsFile = normalizeSyfonIndexRecordToRepoFile(
+      createRecord({
+        did: 'did-offsets',
+        file_name: 'nested/sample.offsets.json',
+      }),
+    );
+
+    expect(findMatchingOffsetsFile(imageFile, [imageFile, offsetsFile])?.did).toBe(
+      'did-offsets',
+    );
   });
 });

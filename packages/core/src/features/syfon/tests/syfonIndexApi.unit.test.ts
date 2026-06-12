@@ -86,7 +86,7 @@ describe('syfonIndexApi', () => {
     });
   });
 
-  it('walks large project listings with start cursors instead of page offsets', async () => {
+  it('returns only the requested page for default browse mode', async () => {
     const store = setupCoreStore();
     const urls: Array<string> = [];
 
@@ -116,22 +116,6 @@ describe('syfonIndexApi', () => {
         });
       }
 
-      if (
-        url ===
-        `${GEN3_API}/index?organization=org-a&project=proj-a&limit=2&start=did-2`
-      ) {
-        return jsonResponse({
-          records: [
-            {
-              controlled_access: ['/programs/org-a/projects/proj-a'],
-              did: 'did-3',
-              file_name: 'nested/c.txt',
-              size: 33,
-            },
-          ],
-        });
-      }
-
       throw new Error(`unexpected URL ${url}`);
     }) as typeof global.fetch;
 
@@ -145,7 +129,6 @@ describe('syfonIndexApi', () => {
 
     expect(urls).toEqual([
       `${GEN3_API}/index?organization=org-a&project=proj-a&limit=2`,
-      `${GEN3_API}/index?organization=org-a&project=proj-a&limit=2&start=did-2`,
     ]);
     expect(result.data).toEqual({
       directories: [],
@@ -161,12 +144,6 @@ describe('syfonIndexApi', () => {
           did: 'did-2',
           file_name: 'nested/b.txt',
           size: 22,
-        },
-        {
-          controlled_access: ['/programs/org-a/projects/proj-a'],
-          did: 'did-3',
-          file_name: 'nested/c.txt',
-          size: 33,
         },
       ],
     });
