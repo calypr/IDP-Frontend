@@ -336,14 +336,6 @@ describe('OrganizationProjectPage', () => {
         directories: [],
         records: [
           {
-            access_methods: [
-              {
-                access_url: {
-                  url: 'https://fortera-object.ohsu.edu/bforepc/bforepc-prod/JHU/file.ome.tiff',
-                },
-                type: 's3',
-              },
-            ],
             controlled_access: ['/organization/org-a/project/proj-a'],
             did: 'did-image',
             file_name: 'sample.ome.tiff',
@@ -374,7 +366,7 @@ describe('OrganizationProjectPage', () => {
     );
 
     expect(openMock).toHaveBeenCalledWith(
-      'http://localhost/aviator/?image_url=https%3A%2F%2Ffortera-object.ohsu.edu%2Fbforepc%2Fbforepc-prod%2FJHU%2Ffile.ome.tiff',
+      '/image-viewer/view/did-image',
       '_blank',
       'noopener,noreferrer',
     );

@@ -129,21 +129,13 @@ const openDownload = (did: string) => {
   window.open(getSyfonRepoDownloadUrl(did), '_blank', 'noopener,noreferrer');
 };
 
-const getPrimaryAccessUrl = (file: SyfonRepoFile): string | null =>
-  file.accessMethods.find((accessMethod) => accessMethod.access_url?.url)
-    ?.access_url?.url ?? null;
-
 const openImageViewer = (
-  file: SyfonRepoFile,
+  did: string,
   fileActions?: FileActionsConfig,
 ) => {
-  const imageUrl = getPrimaryAccessUrl(file);
-  if (!imageUrl) return;
-
-  const baseUrl = fileActions?.actions?.file_image || '/aviator/';
-  const targetUrl = new URL(baseUrl, window.location.origin);
-  targetUrl.searchParams.set('image_url', imageUrl);
-  window.open(targetUrl.toString(), '_blank', 'noopener,noreferrer');
+  const baseUrl = fileActions?.actions?.file_image || '/image-viewer/view';
+  const target = baseUrl.endsWith('/') ? `${baseUrl}${did}` : `${baseUrl}/${did}`;
+  window.open(target, '_blank', 'noopener,noreferrer');
 };
 
 const canOpenImageViewer = (
@@ -151,9 +143,8 @@ const canOpenImageViewer = (
   allFiles: Array<SyfonRepoFile>,
   fileActions?: FileActionsConfig,
 ): boolean =>
-  Boolean(getPrimaryAccessUrl(file)) &&
-  (getConfiguredActions(file, fileActions).includes('file_image') ||
-    Boolean(findMatchingOffsetsFile(file, allFiles)));
+  getConfiguredActions(file, fileActions).includes('file_image') ||
+  Boolean(findMatchingOffsetsFile(file, allFiles));
 
 const FileDetailsPanel = ({
   file,
@@ -169,9 +160,8 @@ const FileDetailsPanel = ({
   const configuredActions = getConfiguredActions(file, fileActions);
   const offsetsFile = findMatchingOffsetsFile(file, repoFiles);
   const showImageViewerAction =
-    Boolean(getPrimaryAccessUrl(file)) &&
-    (configuredActions.includes('file_image') || Boolean(offsetsFile));
-  const primaryUrl = getPrimaryAccessUrl(file);
+    configuredActions.includes('file_image') || Boolean(offsetsFile);
+  const primaryUrl = file.accessMethods[0]?.access_url?.url;
   const shouldShowRepoPath =
     file.canonicalFilename.trim() !== file.displayName.trim();
 
@@ -214,7 +204,7 @@ const FileDetailsPanel = ({
             <ActionIcon
               aria-label={`Open image viewer for ${file.displayName}`}
               color="teal"
-              onClick={() => openImageViewer(file, fileActions)}
+              onClick={() => openImageViewer(file.did, fileActions)}
               size="lg"
               variant="light"
             >
@@ -847,7 +837,7 @@ const OrganizationProjectPage = ({
                                         color="teal"
                                         onClick={(event) => {
                                           event.stopPropagation();
-                                          openImageViewer(entry.file, fileActions);
+                                          openImageViewer(entry.file.did, fileActions);
                                         }}
                                         size="md"
                                         variant="subtle"
