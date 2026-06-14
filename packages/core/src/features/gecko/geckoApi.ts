@@ -1143,6 +1143,39 @@ export const geckoApi = geckoTaggedApi.injectEndpoints({
           };
         }),
     }),
+    getGeckoGitProjectPresentationConfig: builder.query<
+        { presentationConfig: string; success?: boolean },
+        { organization: string; project: string }
+      >({
+        providesTags: (_result, _error, { organization, project }) => [
+          {
+            type: 'GeckoGitProjects',
+            id: `presentation:${organization}/${project}`,
+          },
+        ],
+        query: ({ organization, project }) => ({
+          url: buildGitProjectApiPath(organization, project, '/presentationConfig'),
+          method: 'GET',
+          credentials: 'include',
+        }),
+      }),
+      updateGeckoGitProjectPresentationConfig: builder.mutation<
+        { presentationConfig: string; success?: boolean },
+        { organization: string; project: string; presentationConfig: string }
+      >({
+        invalidatesTags: (_result, _error, { organization, project }) => [
+          {
+            type: 'GeckoGitProjects',
+            id: `presentation:${organization}/${project}`,
+          },
+        ],
+        query: ({ organization, project, presentationConfig }) => ({
+          url: buildGitProjectApiPath(organization, project, '/presentationConfig'),
+          method: 'PUT',
+          body: { presentationConfig },
+          credentials: 'include',
+        }),
+    }),
   }),
 });
 
@@ -1177,6 +1210,8 @@ export const {
   useRefreshGeckoGitProjectMutation,
   useGetGeckoGitOrganizationRepositoriesQuery,
   useLazyGetGeckoGitOrganizationRepositoriesQuery,
+  useGetGeckoGitProjectPresentationConfigQuery,
+  useUpdateGeckoGitProjectPresentationConfigMutation,
 } = geckoApi;
 
 export const geckoReducerPath = geckoApi.reducerPath;

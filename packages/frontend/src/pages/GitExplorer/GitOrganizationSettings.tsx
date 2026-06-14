@@ -1828,7 +1828,7 @@ const GitOrganizationSettingsPage = ({
                             onEditBucket={handleEditBucket}
                             onEditHomePage={(projectToEdit) => {
                               void router.push(
-                                `/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(projectToEdit.project)}/edit`,
+                                `/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(projectToEdit.project)}/presentation/edit`,
                               );
                             }}
                             onEditProject={(projectToEdit, projectStatus) =>

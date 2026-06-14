@@ -66,6 +66,10 @@ import {
   OrganizationLandingPage,
   OrganizationProjectPage,
 } from './pages/OrganizationExplorer';
+import {
+  ProjectPresentationPage,
+  ProjectPresentationEditPage,
+} from './pages/ProjectPresentation';
 
 import { SmmartPageGetServerSideProps } from './pages/Smmart';
 import { CalyprPageGetServerSideProps } from './pages/CALYPR';
@@ -218,6 +222,8 @@ export {
   OrganizationLandingPage,
   OrganizationProjectPage,
   OrganizationExplorerPageGetServerSideProps,
+  ProjectPresentationPage,
+  ProjectPresentationEditPage,
   FileSummaryPage,
   FileSummaryPageGetServerSideProps,
   AppsPage,

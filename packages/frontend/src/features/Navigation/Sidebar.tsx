@@ -35,7 +35,7 @@ export function useResponsiveSidebar(
   return { finalState, toggleButton: toggleSidebar };
 }
 const projectRepoHref = (organization: string, project: string) =>
-  `/git/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}`;
+  `/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}`;
 
 const fallbackProjectThumbnailURL = '/icons/calypr-mark-mono.svg';
 const genericNavIcon = '/icons/apps/gen3_app.svg';

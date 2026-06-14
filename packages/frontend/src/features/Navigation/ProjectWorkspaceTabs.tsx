@@ -116,7 +116,7 @@ const ProjectWorkspaceTabs = ({
 
   const gitBaseHref =
     gitHref ||
-    `/git/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}`;
+    `/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}`;
   const presentationBaseHref =
     presentationHref ||
     `/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}/presentation`;

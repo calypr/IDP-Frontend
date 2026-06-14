@@ -383,7 +383,7 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
       query.set('path', currentPath);
     }
     const serialized = query.toString();
-    return `/git/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}${serialized ? `?${serialized}` : ''}`;
+    return `/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}${serialized ? `?${serialized}` : ''}`;
   }, [currentPath, effectiveRef, organization, project]);
 
   const handleRefresh = async () => {
@@ -461,7 +461,7 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
       .join('/');
     const query = selectedRef ? `?ref=${encodeURIComponent(selectedRef)}` : '';
     void router.push(
-      `/git/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}/blob/${encodedPath}${query}`,
+      `/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}/blob/${encodedPath}${query}`,
     );
   };
 
@@ -495,7 +495,7 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
 
     void router.push(
       {
-        pathname: '/git/[org]/project/[project]',
+        pathname: '/org/[org]/project/[project]',
         query: {
           org: organization,
           project,
@@ -793,7 +793,7 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
                     <ActionIcon
                       aria-label="Open Syfon project view"
                       component="a"
-                      href={`/organization/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}`}
+                      href={`/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}/lake`}
                       size="lg"
                       variant="subtle"
                     >
@@ -818,7 +818,7 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
                           leftSection={<IconGitBranch size={15} />}
                           onChange={(value) => {
                             void router.push({
-                              pathname: `/git/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}`,
+                              pathname: `/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}`,
                               query: {
                                 ...(value ? { ref: value } : {}),
                                 ...(currentPath
@@ -845,7 +845,7 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
                         />
                       </div>
                       <Link
-                        href={`/git/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}${effectiveRef ? `?ref=${encodeURIComponent(effectiveRef)}` : ''}`}
+                        href={`/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}${effectiveRef ? `?ref=${encodeURIComponent(effectiveRef)}` : ''}`}
                         legacyBehavior
                       >
                         <a className="min-w-0 no-underline text-primary hover:underline">
@@ -1040,7 +1040,7 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
                               leftSection={<IconGitBranch size={15} />}
                               onChange={(value) => {
                                 void router.push({
-                                  pathname: `/git/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}`,
+                                  pathname: `/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}`,
                                   query: {
                                     ...(value ? { ref: value } : {}),
                                   },

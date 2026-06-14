@@ -1810,7 +1810,7 @@ const CompactProjectRow = ({
   isRefreshingConnections?: boolean;
 }) => {
   const router = useRouter();
-  const localProjectHref = `/git/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}`;
+  const localProjectHref = `/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}`;
   const badges = projectConnectionBadge(status, isRefreshingConnections);
 
   return (
@@ -2300,7 +2300,7 @@ const GitLandingPage = ({
         project.project.toLowerCase().includes(normalizedSearchQuery),
       )
       .map((project) => ({
-        href: `/git/${encodeURIComponent(project.organization)}/project/${encodeURIComponent(project.project)}`,
+        href: `/org/${encodeURIComponent(project.organization)}/project/${encodeURIComponent(project.project)}`,
         key: `project-${project.resourcePath}`,
         kind: 'project' as const,
         label: project.project,

@@ -1,20 +1,22 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MantineProvider } from '@mantine/core';
-import ProjectEditPage from '../../pages/org/[org]/project/[project]/edit';
+import { ProjectPresentationEditPage } from '../../pages/ProjectPresentation/ProjectPresentationEdit';
 
 const useGetGeckoProjectsQueryMock = jest.fn();
 const useGetGeckoProjectSummaryQueryMock = jest.fn();
-const useSWREditMock = jest.fn();
+const useGetGeckoGitProjectPresentationConfigQueryMock = jest.fn();
+const useUpdateGeckoGitProjectPresentationConfigMutationMock = jest.fn();
 
 jest.mock('@gen3/core', () => ({
   useGetGeckoProjectsQuery: () => useGetGeckoProjectsQueryMock(),
   useGetGeckoProjectSummaryQuery: () => useGetGeckoProjectSummaryQueryMock(),
-}));
-
-jest.mock('swr', () => ({
-  __esModule: true,
-  default: (...args: unknown[]) => useSWREditMock(...args),
+  useGetGeckoGitProjectPresentationConfigQuery: () =>
+    useGetGeckoGitProjectPresentationConfigQueryMock(),
+  useUpdateGeckoGitProjectPresentationConfigMutation: () => [
+    useUpdateGeckoGitProjectPresentationConfigMutationMock,
+    { isLoading: false },
+  ],
 }));
 
 jest.mock('@gen3/frontend', () => ({
@@ -63,18 +65,12 @@ const layoutProps = {
   },
 };
 
-describe('ProjectEditPage', () => {
+describe('ProjectPresentationEditPage', () => {
   beforeEach(() => {
     useGetGeckoProjectsQueryMock.mockReset();
     useGetGeckoProjectSummaryQueryMock.mockReset();
-    useSWREditMock.mockReset();
-    global.fetch = jest.fn().mockResolvedValue({
-      json: async () => ({
-        presentationConfig: '<section><p>saved</p></section>',
-      }),
-      ok: true,
-      status: 200,
-    }) as jest.Mock;
+    useGetGeckoGitProjectPresentationConfigQueryMock.mockReset();
+    useUpdateGeckoGitProjectPresentationConfigMutationMock.mockReset();
 
     useGetGeckoProjectsQueryMock.mockReturnValue({
       data: [
@@ -106,16 +102,21 @@ describe('ProjectEditPage', () => {
       ],
       isLoading: false,
     });
-    useSWREditMock.mockReturnValue({
-      data: '',
+    useGetGeckoGitProjectPresentationConfigQueryMock.mockReturnValue({
+      data: { presentationConfig: '' },
       isLoading: false,
+    });
+    useUpdateGeckoGitProjectPresentationConfigMutationMock.mockReturnValue({
+      unwrap: async () => ({
+        presentationConfig: '<section><p>saved</p></section>',
+      }),
     });
   });
 
   it('renders simplified top-section fields and updates preview content', () => {
     render(
       <MantineProvider>
-        <ProjectEditPage {...layoutProps} />
+        <ProjectPresentationEditPage {...layoutProps} />
       </MantineProvider>,
     );
 
@@ -134,7 +135,7 @@ describe('ProjectEditPage', () => {
   it('supports editing freeform html and shows the route-backed preview link', () => {
     render(
       <MantineProvider>
-        <ProjectEditPage {...layoutProps} />
+        <ProjectPresentationEditPage {...layoutProps} />
       </MantineProvider>,
     );
 
@@ -153,7 +154,7 @@ describe('ProjectEditPage', () => {
   it('saves the freeform html via the presentation config route', async () => {
     render(
       <MantineProvider>
-        <ProjectEditPage {...layoutProps} />
+        <ProjectPresentationEditPage {...layoutProps} />
       </MantineProvider>,
     );
 
@@ -164,15 +165,11 @@ describe('ProjectEditPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(
-        '/api/gecko/projects/HTAN_INT/BForePC/presentationConfig',
-        expect.objectContaining({
-          body: JSON.stringify({
-            presentationConfig: '<section><p>saved</p></section>',
-          }),
-          method: 'PUT',
-        }),
-      );
+      expect(useUpdateGeckoGitProjectPresentationConfigMutationMock).toHaveBeenCalledWith({
+        organization: 'HTAN_INT',
+        project: 'BForePC',
+        presentationConfig: '<section><p>saved</p></section>',
+      });
     });
   });
 });

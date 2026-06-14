@@ -448,7 +448,7 @@ const OrganizationProjectPage = ({
 
     void router.push(
       {
-        pathname: '/organization/[org]/project/[project]',
+        pathname: '/org/[org]/project/[project]/lake',
         query: nextQuery,
       },
       undefined,
@@ -479,7 +479,7 @@ const OrganizationProjectPage = ({
 
       void router.push(
         {
-          pathname: '/organization/[org]/project/[project]',
+          pathname: '/org/[org]/project/[project]/lake',
           query: nextQuery,
         },
         undefined,
@@ -540,7 +540,7 @@ const OrganizationProjectPage = ({
     setSearchQuery('');
     void router.push(
       {
-        pathname: '/organization/[org]/project/[project]',
+        pathname: '/org/[org]/project/[project]/lake',
         query: nextQuery,
       },
       undefined,
@@ -604,7 +604,7 @@ const OrganizationProjectPage = ({
                 <Stack gap={4}>
                   <Group align="center" className="min-h-[2.25rem]" justify="space-between" wrap="nowrap">
                     <Group className="min-w-0 flex-1" gap={6} wrap="nowrap">
-                      <Link href={`/organization/${encodeURIComponent(organization)}`} legacyBehavior>
+                      <Link href={`/git/${encodeURIComponent(organization)}`} legacyBehavior>
                         <a className="min-w-0 no-underline text-primary hover:underline">
                           <Title className="truncate text-[1.1rem] leading-tight" order={3}>
                             {organization}
@@ -707,7 +707,7 @@ const OrganizationProjectPage = ({
                       <ActionIcon
                         aria-label="Open Git project view"
                         component="a"
-                        href={`/git/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}`}
+                        href={`/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}`}
                         size="lg"
                         variant="default"
                       >

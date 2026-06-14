@@ -1,22 +1,19 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { MantineProvider } from '@mantine/core';
-import ProjectPresentationPage from '../../pages/org/[org]/project/[project]/presentation';
+import { ProjectPresentationPage } from '../../pages/ProjectPresentation/ProjectPresentation';
 
 const useGetGeckoProjectsQueryMock = jest.fn();
 const useGetGeckoProjectSummaryQueryMock = jest.fn();
 const useGetConfigContentQueryMock = jest.fn();
-const useSWRPresentationMock = jest.fn();
+const useGetGeckoGitProjectPresentationConfigQueryMock = jest.fn();
 
 jest.mock('@gen3/core', () => ({
   useGetGeckoProjectsQuery: () => useGetGeckoProjectsQueryMock(),
   useGetGeckoProjectSummaryQuery: () => useGetGeckoProjectSummaryQueryMock(),
   useGetConfigContentQuery: () => useGetConfigContentQueryMock(),
-}));
-
-jest.mock('swr', () => ({
-  __esModule: true,
-  default: (...args: unknown[]) => useSWRPresentationMock(...args),
+  useGetGeckoGitProjectPresentationConfigQuery: () =>
+    useGetGeckoGitProjectPresentationConfigQueryMock(),
 }));
 
 jest.mock('@gen3/frontend', () => ({
@@ -70,14 +67,15 @@ describe('ProjectPresentationPage', () => {
     useGetGeckoProjectsQueryMock.mockReset();
     useGetGeckoProjectSummaryQueryMock.mockReset();
     useGetConfigContentQueryMock.mockReset();
-    useSWRPresentationMock.mockReset();
+    useGetGeckoGitProjectPresentationConfigQueryMock.mockReset();
+
     useGetConfigContentQueryMock.mockReturnValue({
       data: undefined,
       isLoading: false,
       isError: true,
     });
-    useSWRPresentationMock.mockReturnValue({
-      data: '',
+    useGetGeckoGitProjectPresentationConfigQueryMock.mockReturnValue({
+      data: { presentationConfig: '' },
       isLoading: false,
     });
   });
@@ -125,7 +123,6 @@ describe('ProjectPresentationPage', () => {
     expect(screen.getByText('Summary title')).toBeInTheDocument();
     expect(screen.getByText('Summary description')).toBeInTheDocument();
     expect(screen.getByText('Home')).toBeInTheDocument();
-    expect(screen.getByText('Project overview')).toBeInTheDocument();
   });
 
   it('renders fallback copy when project metadata is missing', () => {
@@ -148,6 +145,5 @@ describe('ProjectPresentationPage', () => {
     expect(
       screen.getByText(/project presentation workspace/i),
     ).toBeInTheDocument();
-    expect(screen.getByText('Project overview')).toBeInTheDocument();
   });
 });

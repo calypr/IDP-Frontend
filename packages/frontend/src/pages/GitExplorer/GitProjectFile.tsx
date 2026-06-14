@@ -287,7 +287,7 @@ const GitProjectFilePage = ({
                           .map((segment) => encodeURIComponent(segment))
                           .join('/');
                         void router.push({
-                          pathname: `/git/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}/blob/${encodedPath}`,
+                          pathname: `/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}/blob/${encodedPath}`,
                           query: {
                             ...(value ? { ref: value } : {}),
                           },
@@ -303,7 +303,7 @@ const GitProjectFilePage = ({
 
                   <Breadcrumbs>
                     <Link
-                      href={`/git/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}`}
+                      href={`/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}`}
                       legacyBehavior
                     >
                       <a>root</a>
