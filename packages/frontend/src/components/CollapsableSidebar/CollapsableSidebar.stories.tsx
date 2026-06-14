@@ -1,4 +1,4 @@
-import { Meta, StoryObj } from '@storybook/nextjs';
+import { Meta, StoryObj } from '@storybook/nextjs-vite';
 import React from 'react';
 import { CollapsableSidebar } from './CollapsableSidebar';
 import { Group, Text } from '@mantine/core';

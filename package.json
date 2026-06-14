@@ -102,7 +102,7 @@
     "jest-environment-jsdom": "^30.2.0",
     "lerna": "^9.0.4",
     "msw": "^2.12.10",
-    "nx": "22.5.2",
+    "nx": "22.7.5",
     "oxlint": "^1.49.0",
     "postcss-import": "^16.1.1",
     "postcss-modules": "^6.0.1",
@@ -125,11 +125,24 @@
     "typescript-eslint": "^8.56.0"
   },
   "optionalDependencies": {
-    "@nx/nx-darwin-arm64": "^22.5.2",
-    "@nx/nx-linux-arm64-gnu": "^22.5.2",
-    "@nx/nx-linux-x64-gnu": "^22.5.2",
+    "@nx/nx-darwin-arm64": "^22.7.5",
+    "@nx/nx-linux-arm64-gnu": "^22.7.5",
+    "@nx/nx-linux-x64-gnu": "^22.7.5",
     "@swc/core-linux-x64-gnu": "^1.15.11",
     "@swc/nx-darwin-arm64": "^1.11.10",
     "@swc/nx-linux-arm64-gnu": "^1.11.10"
+  },
+  "overrides": {
+    "dompurify": "^3.4.10",
+    "postcss": "^8.5.10",
+    "serialize-javascript": "^7.0.5",
+    "esbuild": "^0.28.1",
+    "vite": "^8.0.16",
+    "storybook": {
+      "esbuild": "^0.28.1"
+    },
+    "vite@^8.0.16": {
+      "esbuild": "^0.28.1"
+    }
   }
 }
