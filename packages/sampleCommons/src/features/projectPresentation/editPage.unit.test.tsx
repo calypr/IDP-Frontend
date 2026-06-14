@@ -1,14 +1,20 @@
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MantineProvider } from '@mantine/core';
 import ProjectEditPage from '../../pages/org/[org]/project/[project]/edit';
 
 const useGetGeckoProjectsQueryMock = jest.fn();
 const useGetGeckoProjectSummaryQueryMock = jest.fn();
+const useSWREditMock = jest.fn();
 
 jest.mock('@gen3/core', () => ({
   useGetGeckoProjectsQuery: () => useGetGeckoProjectsQueryMock(),
   useGetGeckoProjectSummaryQuery: () => useGetGeckoProjectSummaryQueryMock(),
+}));
+
+jest.mock('swr', () => ({
+  __esModule: true,
+  default: (...args: unknown[]) => useSWREditMock(...args),
 }));
 
 jest.mock('@gen3/frontend', () => ({
@@ -33,15 +39,15 @@ jest.mock('next/router', () => ({
 
 const layoutProps = {
   footerProps: {
-    basePage: false,
+    basePage: false as const,
     rightSection: {
       columns: [],
-      basePage: false,
+      basePage: false as const,
     },
   },
   headerProps: {
     banners: [],
-    basePage: false,
+    basePage: false as const,
     leftnav: [],
     navigation: { items: [] },
     topBar: {
@@ -50,12 +56,25 @@ const layoutProps = {
       onToggle: jest.fn(),
     },
   },
+  headerMetadata: {
+    title: 'Test Editor',
+    content: 'Test Editor',
+    key: 'test-editor',
+  },
 };
 
 describe('ProjectEditPage', () => {
   beforeEach(() => {
     useGetGeckoProjectsQueryMock.mockReset();
     useGetGeckoProjectSummaryQueryMock.mockReset();
+    useSWREditMock.mockReset();
+    global.fetch = jest.fn().mockResolvedValue({
+      json: async () => ({
+        presentationConfig: '<section><p>saved</p></section>',
+      }),
+      ok: true,
+      status: 200,
+    }) as jest.Mock;
 
     useGetGeckoProjectsQueryMock.mockReturnValue({
       data: [
@@ -87,9 +106,13 @@ describe('ProjectEditPage', () => {
       ],
       isLoading: false,
     });
+    useSWREditMock.mockReturnValue({
+      data: '',
+      isLoading: false,
+    });
   });
 
-  it('renders fixed editor fields and updates preview content', () => {
+  it('renders simplified top-section fields and updates preview content', () => {
     render(
       <MantineProvider>
         <ProjectEditPage {...layoutProps} />
@@ -97,48 +120,59 @@ describe('ProjectEditPage', () => {
     );
 
     expect(screen.getByLabelText('Hero title')).toBeInTheDocument();
-    expect(screen.getByLabelText('Overview body')).toBeInTheDocument();
-    expect(screen.getByLabelText('CTA title')).toBeInTheDocument();
+    expect(screen.getByLabelText('Hero summary')).toBeInTheDocument();
+    expect(screen.getByLabelText('Thumbnail URL')).toBeInTheDocument();
+    expect(screen.getByLabelText('HTML content')).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('Hero title'), {
       target: { value: 'Analyst Authored Title' },
     });
 
-    expect(screen.getAllByText('Analyst Authored Title').length).toBeGreaterThan(0);
-
-    fireEvent.click(screen.getByRole('button', { name: /add highlight/i }));
-    const newHighlight = screen.getByLabelText('Highlight 4');
-    fireEvent.change(newHighlight, {
-      target: { value: 'Fresh funding narrative' },
-    });
-    expect(screen.getByDisplayValue('Fresh funding narrative')).toBeInTheDocument();
-
-    fireEvent.click(screen.getByLabelText('Remove highlight 4'));
-    expect(
-      screen.queryByDisplayValue('Fresh funding narrative'),
-    ).not.toBeInTheDocument();
+    expect(screen.getByDisplayValue('Analyst Authored Title')).toBeInTheDocument();
   });
 
-  it('supports editing visualization placeholders and shows route-backed preview link', () => {
+  it('supports editing freeform html and shows the route-backed preview link', () => {
     render(
       <MantineProvider>
         <ProjectEditPage {...layoutProps} />
       </MantineProvider>,
     );
 
-    fireEvent.change(screen.getAllByLabelText('Title')[0], {
-      target: { value: 'Cohort Overview Figure' },
-    });
-    fireEvent.change(screen.getAllByLabelText('Supporting link')[0], {
-      target: { value: 'https://example.org/figure' },
+    fireEvent.change(screen.getByLabelText('HTML content'), {
+      target: { value: '<section><h2>Methods</h2><p>Study details</p></section>' },
     });
 
-    expect(screen.getAllByText('Cohort Overview Figure').length).toBeGreaterThan(0);
     expect(
       screen.getByRole('link', { name: /open route-backed presentation page/i }),
     ).toHaveAttribute(
       'href',
       '/org/HTAN_INT/project/BForePC/presentation',
     );
+  });
+
+  it('saves the freeform html via the presentation config route', async () => {
+    render(
+      <MantineProvider>
+        <ProjectEditPage {...layoutProps} />
+      </MantineProvider>,
+    );
+
+    fireEvent.change(screen.getByLabelText('HTML content'), {
+      target: { value: '<section><p>saved</p></section>' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/gecko/projects/HTAN_INT/BForePC/presentationConfig',
+        expect.objectContaining({
+          body: JSON.stringify({
+            presentationConfig: '<section><p>saved</p></section>',
+          }),
+          method: 'PUT',
+        }),
+      );
+    });
   });
 });

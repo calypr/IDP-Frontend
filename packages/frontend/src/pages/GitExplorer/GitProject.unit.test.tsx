@@ -216,13 +216,11 @@ describe('GitProjectPage', () => {
         /github is not connected for this project yet\. update repository access from/i,
       ),
     ).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Git' })).toBeInTheDocument();
-    expect(
-      screen.getByRole('tab', { name: 'Presentation' }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Home' })).toBeInTheDocument();
     expect(
       screen.queryByRole('tab', { name: 'Explorer' }),
     ).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Source' })).toBeInTheDocument();
     expect(screen.getByText('About')).toBeInTheDocument();
   });
 

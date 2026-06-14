@@ -32,6 +32,7 @@ import {
 import {
   type AuthzOwnershipResourceBinding,
   createSyfonResourcePath,
+  type GeckoGitOrganizationProjectStatus,
   normalizeSyfonBuckets,
   type SyfonBucket,
   useAddAuthzOwnerMutation,
@@ -41,6 +42,7 @@ import {
   useDeleteSyfonBucketScopeMutation,
   useGetAuthzOwnershipResourceQuery,
   useGetGeckoGitOrganizationsStatusQuery,
+  useGetGeckoProjectsQuery,
   useDeleteGeckoProjectMutation,
   useEditConnectGeckoGitProjectMutation,
   useListSyfonBucketsQuery,
@@ -54,7 +56,6 @@ import {
 import { LoginView } from '../../components/Modals/LoginModal';
 import { NavPageLayout } from '../../features/Navigation';
 import { useSession } from '../../lib/session/session';
-import { extractProjectsFromResourcePaths } from '../OrganizationExplorer/utils';
 import type { AccessibleOrganizationProject } from '../OrganizationExplorer/types';
 import {
   clearPendingProjectConnect,
@@ -64,6 +65,7 @@ import {
   repositoryFullNamesEqual,
   savePendingProjectConnect,
 } from './githubConnectState';
+import { ProjectManagementModal } from './GitLanding';
 import type { GitExplorerPageProps } from './types';
 
 const isValidEmail = (value: string): boolean =>
@@ -181,8 +183,11 @@ const ProjectAccessSection = ({
   canManageSettings,
   organization,
   project,
+  status,
   buckets,
   onEditBucket,
+  onEditHomePage,
+  onEditProject,
   onRequestDeleteProject,
   onRemoveBucket,
   onRemoveOwner,
@@ -191,8 +196,14 @@ const ProjectAccessSection = ({
   canManageSettings: boolean;
   organization: string;
   project: AccessibleOrganizationProject;
+  status?: GeckoGitOrganizationProjectStatus;
   buckets: Array<SyfonBucket>;
   onEditBucket: (project: string, bucket: SyfonBucket) => void;
+  onEditHomePage: (project: AccessibleOrganizationProject) => void;
+  onEditProject: (
+    project: AccessibleOrganizationProject,
+    status?: GeckoGitOrganizationProjectStatus,
+  ) => void;
   onRequestDeleteProject: (project: AccessibleOrganizationProject) => void;
   onRemoveBucket: (
     organization: string,
@@ -286,6 +297,18 @@ const ProjectAccessSection = ({
               </ActionIcon>
             </Menu.Target>
             <Menu.Dropdown>
+              <Menu.Item
+                leftSection={<IconPencil size={14} />}
+                onClick={() => onEditProject(project, status)}
+              >
+                Edit project
+              </Menu.Item>
+              <Menu.Item
+                leftSection={<IconPencil size={14} />}
+                onClick={() => onEditHomePage(project)}
+              >
+                Edit home page
+              </Menu.Item>
               <Menu.Item
                 color="red"
                 leftSection={<IconTrash size={14} />}
@@ -560,6 +583,11 @@ const GitOrganizationSettingsPage = ({
     bucket: SyfonBucket;
     project: string;
   } | null>(null);
+  const [manageProject, setManageProject] = useState<{
+    organization: string;
+    project: string;
+    status?: GeckoGitOrganizationProjectStatus;
+  } | null>(null);
   const [projectDeleteTarget, setProjectDeleteTarget] =
     useState<AccessibleOrganizationProject | null>(null);
   const [projectDeleteConfirm, setProjectDeleteConfirm] = useState('');
@@ -571,12 +599,19 @@ const GitOrganizationSettingsPage = ({
   const [formError, setFormError] = useState<string | null>(null);
   const [bucketError, setBucketError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [thumbnailPreviewByURL, setThumbnailPreviewByURL] = useState<
+    Record<string, string>
+  >({});
 
   const {
     data: bucketResponse,
     isLoading: bucketsLoading,
     refetch: refetchBuckets,
   } = useListSyfonBucketsQuery(undefined, { skip: !isAuthenticated });
+  const {
+    data: geckoProjects = [],
+    refetch: refetchGeckoProjects,
+  } = useGetGeckoProjectsQuery();
   const {
     data: gitOrganizationsStatus,
     isLoading: gitOrganizationsStatusLoading,
@@ -617,6 +652,15 @@ const GitOrganizationSettingsPage = ({
         (projectStatus) => projectStatus.can_manage_settings,
       ),
     [organizationGitStatus?.projects],
+  );
+  const geckoProjectRecordByResourcePath = useMemo(
+    () =>
+      new Map(
+        geckoProjects.map(
+          (project) => [project.resourcePath, project] as const,
+        ),
+      ),
+    [geckoProjects],
   );
   const projects = useMemo(
     () =>
@@ -672,6 +716,26 @@ const GitOrganizationSettingsPage = ({
       (p) => p.project === selectedProjectID
     );
   }, [organizationGitStatus, selectedProjectID]);
+  const rememberThumbnailPreview = (
+    thumbnailURL: string,
+    previewData: string,
+  ) => {
+    setThumbnailPreviewByURL((current) =>
+      current[thumbnailURL] === previewData
+        ? current
+        : { ...current, [thumbnailURL]: previewData },
+    );
+  };
+  const forgetThumbnailPreview = (thumbnailURL: string) => {
+    setThumbnailPreviewByURL((current) => {
+      if (!current[thumbnailURL]) {
+        return current;
+      }
+      const next = { ...current };
+      delete next[thumbnailURL];
+      return next;
+    });
+  };
 
   const currentBoundRepositoryFullName = useMemo(() => {
     const owner = selectedProjectStatus?.repository?.owner?.trim();
@@ -1762,6 +1826,18 @@ const GitOrganizationSettingsPage = ({
                             canManageSettings
                             key={project.resourcePath}
                             onEditBucket={handleEditBucket}
+                            onEditHomePage={(projectToEdit) => {
+                              void router.push(
+                                `/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(projectToEdit.project)}/edit`,
+                              );
+                            }}
+                            onEditProject={(projectToEdit, projectStatus) =>
+                              setManageProject({
+                                organization,
+                                project: projectToEdit.project,
+                                status: projectStatus,
+                              })
+                            }
                             onRemoveBucket={(
                               org,
                               projectID,
@@ -1788,6 +1864,10 @@ const GitOrganizationSettingsPage = ({
                             onRevokeAccess={handleRevokeUser}
                             organization={organization}
                             project={project}
+                            status={manageableProjectStatuses.find(
+                              (projectStatus) =>
+                                projectStatus.project === project.project,
+                            )}
                           />
                         );
                       })}
@@ -2134,6 +2214,48 @@ const GitOrganizationSettingsPage = ({
           </Group>
         </Stack>
       </Modal>
+      {manageProject ? (
+        <ProjectManagementModal
+          config={
+            geckoProjectRecordByResourcePath.get(
+              `/programs/${manageProject.organization}/projects/${manageProject.project}`,
+            )?.configData
+          }
+          onClose={() => setManageProject(null)}
+          onProjectSaved={() => {
+            void refetchGeckoProjects();
+            void refetchGitOrganizationsStatus();
+          }}
+          onStorageSaved={() => {
+            void refetchBuckets();
+            void refetchGitOrganizationsStatus();
+          }}
+          opened
+          organization={manageProject.organization}
+          project={manageProject.project}
+          repositoryLabel={
+            manageProject.status?.repository
+              ? `${manageProject.status.repository.owner}/${manageProject.status.repository.repo}`
+              : undefined
+          }
+          repositoryURL={manageProject.status?.repository?.url}
+          status={manageProject.status}
+          thumbnailPreviewData={
+            thumbnailPreviewByURL[
+              geckoProjectRecordByResourcePath.get(
+                `/programs/${manageProject.organization}/projects/${manageProject.project}`,
+              )?.thumbnail_url || ''
+            ]
+          }
+          thumbnailURL={
+            geckoProjectRecordByResourcePath.get(
+              `/programs/${manageProject.organization}/projects/${manageProject.project}`,
+            )?.thumbnail_url
+          }
+          onThumbnailPreviewChange={rememberThumbnailPreview}
+          onThumbnailRemoved={forgetThumbnailPreview}
+        />
+      ) : null}
     </NavPageLayout>
   );
 };

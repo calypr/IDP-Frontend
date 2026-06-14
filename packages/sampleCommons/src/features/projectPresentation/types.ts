@@ -12,32 +12,9 @@ export interface ProjectPresentationHero {
   thumbnailURL?: string;
 }
 
-export interface ProjectPresentationVisualization {
-  id: string;
-  title: string;
-  caption: string;
-  imageURL: string;
-  linkURL: string;
-  note: string;
-  queryRef?: string;
-  widgetType?: string;
-  dataSource?: string;
-}
-
-export interface ProjectPresentationCTA {
-  title: string;
-  body: string;
-  buttonLabel: string;
-  buttonURL: string;
-  contactEmail: string;
-}
-
 export interface ProjectPresentationDraft {
   hero: ProjectPresentationHero;
-  overview: string;
-  highlights: Array<string>;
-  visualizations: Array<ProjectPresentationVisualization>;
-  cta: ProjectPresentationCTA;
+  bodyHTML: string;
 }
 
 export interface BuildProjectPresentationDraftArgs {
@@ -46,4 +23,5 @@ export interface BuildProjectPresentationDraftArgs {
   projectConfig?: GeckoProjectConfig;
   projectRecord?: GeckoProjectRecord;
   projectSummary?: GeckoProjectSummaryRecord;
+  bodyHTML?: string;
 }

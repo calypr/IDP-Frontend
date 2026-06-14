@@ -79,7 +79,7 @@ export interface TopBarProps {
   readonly classNames?: StylingOverrideWithMergeControl;
   readonly itemClassnames?: StylingOverrideWithMergeControl;
   readonly logo?: NavigationBarLogo;
-  onToggle: () => void;
+  onToggle?: () => void;
 }
 
 const TopBar = ({
@@ -90,7 +90,7 @@ const TopBar = ({
   classNames = {},
   itemClassnames = {},
   logo,
-  onToggle,
+  onToggle = () => undefined,
 }: TopBarProps) => {
   if (logo) {
     logo.basepage = title === 'CALYPR Landing Page';

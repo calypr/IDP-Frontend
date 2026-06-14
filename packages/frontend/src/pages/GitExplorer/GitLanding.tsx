@@ -1318,7 +1318,7 @@ export const CreateProjectModal = ({
   );
 };
 
-const ProjectManagementModal = ({
+export const ProjectManagementModal = ({
   config,
   onClose,
   onProjectSaved,
@@ -1794,7 +1794,6 @@ const CompactProjectRow = ({
   onThumbnailPreviewAvailable,
   status,
   organization,
-  onManageProject,
   project,
   repositoryURL,
   repositoryLabel,
@@ -1806,11 +1805,6 @@ const CompactProjectRow = ({
     previewData: string,
   ) => void;
   status?: GeckoGitOrganizationProjectStatus;
-  onManageProject: (
-    organization: string,
-    project: string,
-    status?: GeckoGitOrganizationProjectStatus,
-  ) => void;
   repositoryLabel?: string;
   repositoryURL?: string;
   isRefreshingConnections?: boolean;
@@ -1890,18 +1884,6 @@ const CompactProjectRow = ({
       </div>
       <Group gap="xs" wrap="nowrap">
         <Button
-          color="gray"
-          onClick={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            onManageProject(organization, project, status);
-          }}
-          size="compact-sm"
-          variant="subtle"
-        >
-          Edit
-        </Button>
-        <Button
           component="a"
           href={localProjectHref}
           onClick={(event) => event.stopPropagation()}
@@ -1922,7 +1904,6 @@ const OrganizationRow = ({
   canCreateProjects = false,
   initiallyOpen = false,
   hideCollapse = false,
-  onManageProject,
   onThumbnailPreviewAvailable,
   isRefreshingConnections = false,
 }: {
@@ -1932,11 +1913,6 @@ const OrganizationRow = ({
   canCreateProjects?: boolean;
   initiallyOpen?: boolean;
   hideCollapse?: boolean;
-  onManageProject: (
-    organization: string,
-    project: string,
-    status?: GeckoGitOrganizationProjectStatus,
-  ) => void;
   onThumbnailPreviewAvailable?: (
     thumbnailURL: string,
     previewData: string,
@@ -2053,7 +2029,6 @@ const OrganizationRow = ({
                 key={project.resourcePath}
                 {...project}
                 isRefreshingConnections={isRefreshingConnections}
-                onManageProject={onManageProject}
                 onThumbnailPreviewAvailable={onThumbnailPreviewAvailable}
                 repositoryLabel={
                   repositoryDetailsByProject.get(project.project)?.label
@@ -2099,11 +2074,6 @@ const GitLandingPage = ({
   const [thumbnailPreviewByURL, setThumbnailPreviewByURL] = useState<
     Record<string, string>
   >({});
-  const [manageProject, setManageProject] = useState<{
-    organization: string;
-    project: string;
-    status?: GeckoGitOrganizationProjectStatus;
-  } | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
   const [connectOrganization] = useConnectGeckoGitOrganizationMutation();
   const [editConnectProject] = useEditConnectGeckoGitProjectMutation();
@@ -2773,9 +2743,6 @@ const GitLandingPage = ({
                             group.organization === selectedOrganization
                           }
                           key={group.organization}
-                          onManageProject={(organization, project, status) =>
-                            setManageProject({ organization, project, status })
-                          }
                           onThumbnailPreviewAvailable={rememberThumbnailPreview}
                         />
                       ))}
@@ -2785,44 +2752,6 @@ const GitLandingPage = ({
               ) : null}
             </Stack>
           </Container>
-          {manageProject ? (
-            <ProjectManagementModal
-              config={
-                geckoProjectRecordByResourcePath.get(
-                  `/programs/${manageProject.organization}/projects/${manageProject.project}`,
-                )?.configData
-              }
-              onClose={() => setManageProject(null)}
-              onProjectSaved={() => undefined}
-              onStorageSaved={() => {
-                void handleRefreshConnections();
-              }}
-              opened
-              organization={manageProject.organization}
-              project={manageProject.project}
-              repositoryLabel={
-                manageProject.status?.repository
-                  ? `${manageProject.status.repository.owner}/${manageProject.status.repository.repo}`
-                  : undefined
-              }
-              repositoryURL={manageProject.status?.repository?.url}
-              status={manageProject.status}
-              thumbnailPreviewData={
-                thumbnailPreviewByURL[
-                  geckoProjectRecordByResourcePath.get(
-                    `/programs/${manageProject.organization}/projects/${manageProject.project}`,
-                  )?.thumbnail_url || ''
-                ]
-              }
-              thumbnailURL={
-                geckoProjectRecordByResourcePath.get(
-                  `/programs/${manageProject.organization}/projects/${manageProject.project}`,
-                )?.thumbnail_url
-              }
-              onThumbnailPreviewChange={rememberThumbnailPreview}
-              onThumbnailRemoved={forgetThumbnailPreview}
-            />
-          ) : null}
         </div>
       </ProtectedContent>
     </NavPageLayout>

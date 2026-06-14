@@ -6,11 +6,17 @@ import ProjectPresentationPage from '../../pages/org/[org]/project/[project]/pre
 const useGetGeckoProjectsQueryMock = jest.fn();
 const useGetGeckoProjectSummaryQueryMock = jest.fn();
 const useGetConfigContentQueryMock = jest.fn();
+const useSWRPresentationMock = jest.fn();
 
 jest.mock('@gen3/core', () => ({
   useGetGeckoProjectsQuery: () => useGetGeckoProjectsQueryMock(),
   useGetGeckoProjectSummaryQuery: () => useGetGeckoProjectSummaryQueryMock(),
   useGetConfigContentQuery: () => useGetConfigContentQueryMock(),
+}));
+
+jest.mock('swr', () => ({
+  __esModule: true,
+  default: (...args: unknown[]) => useSWRPresentationMock(...args),
 }));
 
 jest.mock('@gen3/frontend', () => ({
@@ -35,15 +41,15 @@ jest.mock('next/router', () => ({
 
 const layoutProps = {
   footerProps: {
-    basePage: false,
+    basePage: false as const,
     rightSection: {
       columns: [],
-      basePage: false,
+      basePage: false as const,
     },
   },
   headerProps: {
     banners: [],
-    basePage: false,
+    basePage: false as const,
     leftnav: [],
     navigation: { items: [] },
     topBar: {
@@ -52,6 +58,11 @@ const layoutProps = {
       onToggle: jest.fn(),
     },
   },
+  headerMetadata: {
+    title: 'Test Presentation',
+    content: 'Test Presentation',
+    key: 'test-presentation',
+  },
 };
 
 describe('ProjectPresentationPage', () => {
@@ -59,14 +70,19 @@ describe('ProjectPresentationPage', () => {
     useGetGeckoProjectsQueryMock.mockReset();
     useGetGeckoProjectSummaryQueryMock.mockReset();
     useGetConfigContentQueryMock.mockReset();
+    useSWRPresentationMock.mockReset();
     useGetConfigContentQueryMock.mockReturnValue({
       data: undefined,
       isLoading: false,
       isError: true,
     });
+    useSWRPresentationMock.mockReturnValue({
+      data: '',
+      isLoading: false,
+    });
   });
 
-  it('renders seeded metadata and visualization placeholders', () => {
+  it('renders seeded metadata and the simplified home page shell', () => {
     useGetGeckoProjectsQueryMock.mockReturnValue({
       data: [
         {
@@ -108,11 +124,8 @@ describe('ProjectPresentationPage', () => {
 
     expect(screen.getByText('Summary title')).toBeInTheDocument();
     expect(screen.getByText('Summary description')).toBeInTheDocument();
-    expect(
-      screen.getByText('Visualizations and Data Storytelling'),
-    ).toBeInTheDocument();
-    expect(screen.getByText('Request Access or Learn More')).toBeInTheDocument();
-    expect(screen.getAllByText('summary@example.org').length).toBeGreaterThan(0);
+    expect(screen.getByText('Home')).toBeInTheDocument();
+    expect(screen.getByText('Project overview')).toBeInTheDocument();
   });
 
   it('renders fallback copy when project metadata is missing', () => {
@@ -135,8 +148,6 @@ describe('ProjectPresentationPage', () => {
     expect(
       screen.getByText(/project presentation workspace/i),
     ).toBeInTheDocument();
-    expect(
-      screen.getByText(/add a contact email in the editor/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText('Project overview')).toBeInTheDocument();
   });
 });

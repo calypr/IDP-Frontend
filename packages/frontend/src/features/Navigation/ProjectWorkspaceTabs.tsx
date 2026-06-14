@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Container, Tabs } from '@mantine/core';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Tabs } from '@mantine/core';
 
 type ProjectWorkspaceTabKey = 'git' | 'presentation' | 'explorer';
 
@@ -28,81 +28,70 @@ const EmbeddedRoutePanel = ({
   src,
   title,
 }: EmbeddedRoutePanelProps) => {
-  const iframeRef = useRef<HTMLIFrameElement | null>(null);
-  const resizeObserverRef = useRef<ResizeObserver | null>(null);
-  const syncIntervalRef = useRef<number | null>(null);
-  const [frameHeight, setFrameHeight] = useState(960);
+  const iframeRef = React.useRef<HTMLIFrameElement | null>(null);
+  const resizeObserverRef = React.useRef<ResizeObserver | null>(null);
+  const [iframeHeight, setIframeHeight] = useState(0);
 
-  const clearSizingObservers = () => {
-    resizeObserverRef.current?.disconnect();
-    resizeObserverRef.current = null;
-    if (syncIntervalRef.current !== null) {
-      window.clearInterval(syncIntervalRef.current);
-      syncIntervalRef.current = null;
-    }
-  };
-
-  const syncFrameHeight = () => {
-    const iframe = iframeRef.current;
-    if (!iframe?.contentDocument) {
-      return;
-    }
-
-    const { body, documentElement } = iframe.contentDocument;
-    const nextHeight = Math.max(
-      body?.scrollHeight ?? 0,
-      documentElement?.scrollHeight ?? 0,
-      body?.offsetHeight ?? 0,
-      documentElement?.offsetHeight ?? 0,
-      720,
-    );
-
-    setFrameHeight((current) =>
-      Math.abs(current - nextHeight) > 4 ? nextHeight : current,
-    );
-  };
-
-  const attachSizingObservers = () => {
+  const measureIframe = React.useCallback(() => {
     const iframe = iframeRef.current;
     const doc = iframe?.contentDocument;
-    if (!iframe || !doc) {
+    if (!doc) {
       return;
     }
 
-    clearSizingObservers();
-    syncFrameHeight();
+    const bodyHeight = doc.body?.scrollHeight ?? 0;
+    const documentHeight = doc.documentElement?.scrollHeight ?? 0;
+    const nextHeight = Math.ceil(Math.max(bodyHeight, documentHeight));
+
+    setIframeHeight((currentHeight) =>
+      currentHeight !== nextHeight ? nextHeight : currentHeight,
+    );
+  }, []);
+
+  const attachIframeMeasurement = React.useCallback(() => {
+    const iframe = iframeRef.current;
+    const doc = iframe?.contentDocument;
+    if (!doc) {
+      return;
+    }
+
+    doc.defaultView?.removeEventListener('resize', measureIframe);
+    resizeObserverRef.current?.disconnect();
+    measureIframe();
 
     if (typeof ResizeObserver !== 'undefined') {
-      const observer = new ResizeObserver(() => {
-        syncFrameHeight();
-      });
+      const observer = new ResizeObserver(measureIframe);
       if (doc.body) {
         observer.observe(doc.body);
       }
-      observer.observe(doc.documentElement);
+      if (doc.documentElement) {
+        observer.observe(doc.documentElement);
+      }
       resizeObserverRef.current = observer;
     }
 
-    syncIntervalRef.current = window.setInterval(() => {
-      syncFrameHeight();
-    }, 1000);
-  };
+    doc.defaultView?.addEventListener('resize', measureIframe);
+    void doc.fonts?.ready.then(measureIframe);
+  }, [measureIframe]);
 
   useEffect(
     () => () => {
-      clearSizingObservers();
+      const iframe = iframeRef.current;
+      const doc = iframe?.contentDocument;
+      doc?.defaultView?.removeEventListener('resize', measureIframe);
+      resizeObserverRef.current?.disconnect();
     },
-    [],
+    [measureIframe],
   );
 
   return (
     <iframe
       className={active ? 'block w-full border-0 bg-transparent' : 'hidden'}
-      onLoad={attachSizingObservers}
+      onLoad={attachIframeMeasurement}
       ref={iframeRef}
       scrolling="no"
       src={src}
-      style={{ height: `${frameHeight}px` }}
+      style={{ height: `${iframeHeight}px` }}
       title={title}
     />
   );
@@ -139,13 +128,8 @@ const ProjectWorkspaceTabs = ({
     () =>
       [
         {
-          key: 'git' as const,
-          label: 'Git',
-          src: buildEmbeddedHref(gitBaseHref),
-        },
-        {
           key: 'presentation' as const,
-          label: 'Presentation',
+          label: 'Home',
           src: buildEmbeddedHref(presentationBaseHref),
         },
         ...(hasExplorerConfig
@@ -157,6 +141,11 @@ const ProjectWorkspaceTabs = ({
               },
             ]
           : []),
+        {
+          key: 'git' as const,
+          label: 'Source',
+          src: buildEmbeddedHref(gitBaseHref),
+        },
       ],
     [
       explorerBaseHref,
@@ -181,60 +170,64 @@ const ProjectWorkspaceTabs = ({
   return (
     <div>
       <div className="border-b border-slate-200 bg-white">
-        <Container size="xl">
-          <Tabs
-            onChange={(value) => {
-              if (
-                value !== 'git' &&
-                value !== 'presentation' &&
-                value !== 'explorer'
-              ) {
-                return;
-              }
-              setSelectedTab(value);
-              setLoadedTabs((current) => ({
-                ...current,
-                [value]: true,
-              }));
-            }}
-            value={selectedTab}
-          >
-            <Tabs.List className="min-h-[3rem] gap-5 border-0">
-              {visibleTabs.map((tab) => (
-                <Tabs.Tab
-                  className="rounded-none border-0 border-b-2 border-transparent bg-transparent px-0 pb-3 pt-3 text-sm font-semibold text-slate-500 transition-colors hover:text-slate-800 data-[active=true]:border-[#2f5aac] data-[active=true]:bg-transparent data-[active=true]:text-[#2f5aac]"
-                  key={tab.key}
-                  value={tab.key}
-                >
-                  {tab.label}
-                </Tabs.Tab>
-              ))}
-            </Tabs.List>
-          </Tabs>
-        </Container>
+        <Tabs
+          onChange={(value) => {
+            if (
+              value !== 'git' &&
+              value !== 'presentation' &&
+              value !== 'explorer'
+            ) {
+              return;
+            }
+            setSelectedTab(value);
+            setLoadedTabs((current) => ({
+              ...current,
+              [value]: true,
+            }));
+          }}
+          value={selectedTab}
+        >
+          <Tabs.List className="min-h-[3rem] gap-5 border-0 px-4">
+            {visibleTabs.map((tab) => (
+              <Tabs.Tab
+                className="rounded-none border-0 border-b-2 border-transparent bg-transparent px-0 pb-3 pt-3 text-sm font-semibold text-slate-500 transition-colors hover:text-slate-800 data-[active=true]:border-[#2f5aac] data-[active=true]:bg-transparent data-[active=true]:text-[#2f5aac]"
+                key={tab.key}
+                value={tab.key}
+              >
+                {tab.label}
+              </Tabs.Tab>
+            ))}
+          </Tabs.List>
+        </Tabs>
       </div>
 
-      {visibleTabs.map((tab) => {
-        const isActivePanel = selectedTab === tab.key;
-        const isCurrentRoutePanel = activeTab === tab.key;
+      <div>
+        {visibleTabs.map((tab) => {
+          const isActivePanel = selectedTab === tab.key;
+          const isCurrentRoutePanel = activeTab === tab.key;
 
-        return (
-          <div
-            className={isActivePanel ? 'block' : 'hidden'}
-            key={`panel-${tab.key}`}
-          >
-            {isCurrentRoutePanel ? (
-              children
-            ) : loadedTabs[tab.key] ? (
-              <EmbeddedRoutePanel
-                active={isActivePanel}
-                src={tab.src}
-                title={`${tab.label} for ${organization}/${project}`}
-              />
-            ) : null}
-          </div>
-        );
-      })}
+          return (
+            <div
+              className={
+                isActivePanel
+                  ? 'block'
+                  : 'hidden'
+              }
+              key={`panel-${tab.key}`}
+            >
+              {isCurrentRoutePanel ? (
+                children
+              ) : loadedTabs[tab.key] ? (
+                <EmbeddedRoutePanel
+                  active={isActivePanel}
+                  src={tab.src}
+                  title={`${tab.label} for ${organization}/${project}`}
+                />
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 };

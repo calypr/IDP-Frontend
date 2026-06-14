@@ -13,8 +13,11 @@ import {
 import { Center, Loader } from '@mantine/core';
 import { GetServerSideProps } from 'next';
 import { useRouter } from 'next/router';
+import useSWR from 'swr';
 import {
   buildProjectPresentationDraft,
+  fetchProjectPresentationConfig,
+  projectPresentationConfigPath,
   ProjectPresentationView,
 } from '../../../../../features/projectPresentation';
 
@@ -31,6 +34,10 @@ const ProjectPresentationPage = ({
     router.query.embed === '1' || router.query.embed === 'true';
   const explorerConfigId =
     organization && project ? `${organization}-${project}` : '';
+  const presentationConfigPath =
+    organization && project
+      ? projectPresentationConfigPath(organization, project)
+      : null;
   const { data: geckoProjects = [], isLoading: isProjectsLoading } =
     useGetGeckoProjectsQuery();
   const { data: explorerConfigResponse } = useGetConfigContentQuery(
@@ -41,6 +48,10 @@ const ProjectPresentationPage = ({
   );
   const { data: geckoProjectSummary = [], isLoading: isSummaryLoading } =
     useGetGeckoProjectSummaryQuery();
+  const { data: presentationHTML = '' } = useSWR(
+    presentationConfigPath,
+    fetchProjectPresentationConfig,
+  );
 
   const projectRecord = geckoProjects.find((candidate) => {
     const parts = candidate.resourcePath.split('/').filter(Boolean);
@@ -56,6 +67,7 @@ const ProjectPresentationPage = ({
     projectConfig: projectRecord?.configData,
     projectRecord,
     projectSummary,
+    bodyHTML: presentationHTML,
   });
 
   const presentationContent =

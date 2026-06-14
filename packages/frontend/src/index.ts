@@ -172,6 +172,7 @@ import sessionLogout from './api/auth/sessionLogout';
 import credentialsLogin from './api/auth/credentialsLogin';
 import credentialsLogout from './api/auth/credentialsLogout';
 import projectThumbnail from './api/gecko/projectThumbnail';
+import presentationConfig from './api/gecko/presentationConfig';
 import analysisApiCohortDiscovery from './features/CohortDiscovery/api/analysisApiCohortDiscovery';
 import staticNotebookAPI from './features/StaticNotebook/api/staticNotebookAPI';
 
@@ -261,6 +262,7 @@ export {
   credentialsLogin,
   credentialsLogout,
   projectThumbnail,
+  presentationConfig,
   createMantineTheme,
   AiSearchPage,
   AISearchPageGetServerSideProps,
