@@ -11,7 +11,6 @@ import type {
   SyfonIndexListResponse,
   SyfonIndexRecord,
 } from './types';
-import { normalizeSyfonResourcePath } from './utils';
 
 export interface GetSyfonIndexRecordsArgs {
   readonly organization: string;
@@ -26,37 +25,6 @@ export interface SyfonIndexBrowseResponse {
   readonly directories: Array<SyfonIndexDirectory>;
   readonly records: Array<SyfonIndexRecord>;
 }
-
-const buildExactProjectScope = (
-  organization: string,
-  project: string,
-): string =>
-  normalizeSyfonResourcePath(
-    `/programs/${organization.trim()}/projects/${project.trim()}`,
-  );
-
-const recordMatchesExactProjectScope = (
-  record: SyfonIndexRecord,
-  organization: string,
-  project: string,
-): boolean => {
-  const normalizedOrganization = organization.trim();
-  const normalizedProject = project.trim();
-  const exactScope = buildExactProjectScope(normalizedOrganization, normalizedProject);
-
-  const controlledAccess = (record.controlled_access ?? [])
-    .map((resource) => normalizeSyfonResourcePath(resource))
-    .filter(Boolean);
-
-  if (controlledAccess.includes(exactScope)) {
-    return true;
-  }
-
-  return (
-    record.organization?.trim() === normalizedOrganization &&
-    record.project?.trim() === normalizedProject
-  );
-};
 
 const DEFAULT_INDEX_PAGE_LIMIT = 1000;
 
@@ -80,8 +48,8 @@ const buildIndexRequestUrl = ({
     project: project.trim(),
     limit: String(limit),
   });
-  if (typeof path !== 'undefined') {
-    query.set('path', path);
+  if (typeof path === 'string' && path.trim()) {
+    query.set('path', path.trim());
   }
 
   if (typeof start === 'string' && start.trim()) {
@@ -134,9 +102,7 @@ const fetchSyfonIndexRecords = async ({
   return {
     data: {
       directories: rawData.directories ?? [],
-      records: (rawData.records ?? []).filter((record) =>
-        recordMatchesExactProjectScope(record, args.organization, args.project),
-      ),
+      records: rawData.records ?? [],
     },
     meta: response.meta,
   };

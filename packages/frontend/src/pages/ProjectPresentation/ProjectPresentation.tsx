@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   useGetAuthzMappingsQuery,
   useGetConfigContentQuery,
@@ -11,6 +11,7 @@ import { useRouter } from 'next/router';
 import { NavPageLayout } from '../../features/Navigation';
 import { ProjectWorkspaceTabs } from '../../features/Navigation';
 import { ProtectedContent } from '../../components/Protected';
+import { useIsEmbedded } from '../../utils';
 import { getNavPageLayoutPropsFromConfig } from '../../lib/common/staticProps';
 import {
   hasOrganizationMembership,
@@ -33,8 +34,7 @@ export const ProjectPresentationPage = ({
     typeof router.query.org === 'string' ? router.query.org : '';
   const project =
     typeof router.query.project === 'string' ? router.query.project : '';
-  const isEmbedded =
-    router.query.embed === '1' || router.query.embed === 'true';
+  const isEmbedded = useIsEmbedded();
   const explorerConfigId =
     organization && project ? `${organization}-${project}` : '';
   const { data: authzMapping = {}, isLoading: isAuthzLoading } =

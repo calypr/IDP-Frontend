@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   NavPageLayout,
   ProjectWorkspaceTabs,
+  useIsEmbedded,
 } from '@gen3/frontend';
 import { useGetGeckoProjectsQuery } from '@gen3/core';
 import {
@@ -25,8 +26,7 @@ const CohortBuilderPage = ({
   const { data: geckoProjects = [] } = useGetGeckoProjectsQuery();
   const configId =
     typeof router.query.configId === 'string' ? router.query.configId : '';
-  const isEmbedded =
-    router.query.embed === '1' || router.query.embed === 'true';
+  const isEmbedded = useIsEmbedded();
   const matchingProject = geckoProjects.find((candidate) => {
     const parts = candidate.resourcePath.split('/').filter(Boolean);
     return `${parts[1]}-${parts[3]}` === configId;

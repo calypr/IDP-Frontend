@@ -27,8 +27,8 @@ import {
   useGetGeckoGitProjectsQuery,
   useGetGeckoGitProjectRefsQuery,
   useGetGeckoGitProjectTreeQuery,
-  useLazyGetSyfonObjectsByChecksumQuery,
   useRefreshGeckoGitProjectMutation,
+  mintSyfonObjectIdFromChecksum,
   type GeckoGitRefreshResponse,
   type GeckoGitProjectStatus,
   type GeckoGitTreeEntry,
@@ -44,6 +44,7 @@ import {
   IconGitBranch,
   IconLink,
   IconMail,
+  IconPhoto,
   IconSearch,
   IconTerminal2,
   IconClock,
@@ -54,6 +55,9 @@ import {
   NavPageLayout,
   ProjectWorkspaceTabs,
 } from '../../features/Navigation';
+import type { FileActionsConfig } from '../../features/CohortBuilder/types';
+import { getFileExtensionCandidates } from '../OrganizationExplorer/utils';
+import { useIsEmbedded } from '../../utils';
 import type { GitExplorerPageProps } from './types';
 import GitUploadPRModal from './GitUploadPRModal';
 
@@ -118,6 +122,50 @@ const buildGitDrsRemoteAddCommand = (
 ): string =>
   `git drs remote add gen3 origin ${organization}/${project} --cred ~/.gen3/credentials.json`;
 
+const OME_TIFF_SUFFIX = '.ome.tiff';
+const OFFSETS_JSON_SUFFIX = '.offsets.json';
+
+const getConfiguredGitEntryActions = (
+  path: string,
+  fileActions?: FileActionsConfig,
+): Array<string> => {
+  const configuredFromExtensions = getFileExtensionCandidates(path).flatMap(
+    (extension) => fileActions?.extensions?.[extension] ?? [],
+  );
+  const configured = Array.from(
+    new Set([
+      ...configuredFromExtensions,
+      ...(configuredFromExtensions.length === 0
+        ? (fileActions?.extensions?.default ?? ['file_download'])
+        : []),
+    ]),
+  );
+
+  return configured.includes('file_download')
+    ? configured
+    : ['file_download', ...configured];
+};
+
+const hasMatchingOffsetsEntry = (
+  path: string,
+  entries: Array<GeckoGitTreeEntry>,
+): boolean => {
+  const normalizedPath = path.trim().toLowerCase();
+  if (!normalizedPath.endsWith(OME_TIFF_SUFFIX)) {
+    return false;
+  }
+
+  const expectedOffsetsPath = `${normalizedPath.slice(
+    0,
+    -OME_TIFF_SUFFIX.length,
+  )}${OFFSETS_JSON_SUFFIX}`;
+  return entries.some(
+    (candidate) =>
+      candidate.type === 'blob' &&
+      candidate.path.trim().toLowerCase() === expectedOffsetsPath,
+  );
+};
+
 const TRANSIENT_ALERT_TIMEOUT_MS = 5000;
 const MIRROR_STATUS_POLL_INTERVAL_MS = 1000;
 const isPersistentGitProjectError = (message: string | null | undefined) =>
@@ -128,7 +176,11 @@ interface GitProjectSuccessBanner {
   readonly pullRequestURL: string;
 }
 
-const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
+const GitProjectPage = ({
+  headerProps,
+  footerProps,
+  fileActions,
+}: GitExplorerPageProps) => {
   const router = useRouter();
   const organization =
     typeof router.query.org === 'string' ? router.query.org : '';
@@ -138,8 +190,7 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
     typeof router.query.ref === 'string' ? router.query.ref : null;
   const requestedPath =
     typeof router.query.path === 'string' ? router.query.path : '';
-  const isEmbedded =
-    router.query.embed === '1' || router.query.embed === 'true';
+  const isEmbedded = useIsEmbedded();
 
   const [selectedRef, setSelectedRef] = useState<string | null>(null);
   const [currentPath, setCurrentPath] = useState<string>(requestedPath);
@@ -214,8 +265,6 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
         !projectStatus?.mirror_ready,
       },
     );
-  const [lookupSyfonObjectsByChecksum] =
-    useLazyGetSyfonObjectsByChecksumQuery();
   const [getGitProjectFile, { isLoading: isResolvingFileDownload }] =
     useLazyGetGeckoGitProjectFileQuery();
 
@@ -374,6 +423,12 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
     () => Boolean(explorerConfigResponse?.data),
     [explorerConfigResponse?.data],
   );
+  const effectiveFileActions = useMemo(() => {
+    const explorerConfigData = explorerConfigResponse?.data as
+      | { fileActions?: FileActionsConfig }
+      | undefined;
+    return explorerConfigData?.fileActions ?? fileActions;
+  }, [explorerConfigResponse?.data, fileActions]);
   const gitProjectHref = useMemo(() => {
     const query = new URLSearchParams();
     if (effectiveRef) {
@@ -427,30 +482,64 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
     }
   };
 
-  const handleLFSDownload = async (checksum: string) => {
+  const handleLFSDownload = async (checksum: string, path?: string) => {
     setActionError(null);
     setDownloadingChecksum(checksum);
     try {
-      const response = await lookupSyfonObjectsByChecksum(checksum).unwrap();
-      const objectId = response.resolved_drs_object?.[0]?.id;
-      if (!objectId) {
-        setActionError(
-          `No Syfon object was found for LFS checksum ${checksum}.`,
-        );
-        return;
-      }
+      const objectId = await mintSyfonObjectIdFromChecksum(
+        checksum,
+        [`/programs/${organization}/projects/${project}`],
+      );
       window.open(
-        buildSyfonDownloadUrl(objectId),
+        `${SYFON_API}/download/${encodeURIComponent(objectId)}?redirect=true`,
         '_blank',
         'noopener,noreferrer',
       );
     } catch {
+      if (path) {
+        await handleFileDownload(path);
+        return;
+      }
       setActionError(
         `Failed to resolve a Syfon download for LFS checksum ${checksum}.`,
       );
     } finally {
       setDownloadingChecksum(null);
     }
+  };
+
+  const handleLFSImageViewerOpen = async (checksum: string) => {
+    setActionError(null);
+    setDownloadingChecksum(checksum);
+    try {
+      const objectId = await mintSyfonObjectIdFromChecksum(
+        checksum,
+        [`/programs/${organization}/projects/${project}`],
+      );
+      window.open(
+        `/image-viewer/view/${encodeURIComponent(objectId)}`,
+        '_blank',
+        'noopener,noreferrer',
+      );
+    } catch {
+      setActionError(
+        `Failed to resolve an image viewer object for LFS checksum ${checksum}.`,
+      );
+    } finally {
+      setDownloadingChecksum(null);
+    }
+  };
+
+  const canOpenGitImageViewer = (entry: GeckoGitTreeEntry): boolean => {
+    if (!entry.lfs_pointer) {
+      return false;
+    }
+
+    return (
+      getConfiguredGitEntryActions(entry.path, effectiveFileActions).includes(
+        'file_image',
+      ) || hasMatchingOffsetsEntry(entry.path, treeData?.entries ?? [])
+    );
   };
 
   const handleOpenFile = (path: string) => {
@@ -670,27 +759,52 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
                   <Table.Td className="pl-4 pr-3 py-1">
                     <Group justify="flex-end">
                       {entry.lfs_pointer ? (
-                        <Tooltip label="Download LFS object from Syfon">
-                          <ActionIcon
-                            aria-label={`Download LFS object for ${entry.path}`}
-                            color="violet"
-                            loading={
-                              downloadingChecksum ===
-                              entry.lfs_pointer.oid
-                            }
-                            onClick={(event) => {
-                              event.preventDefault();
-                              event.stopPropagation();
-                              void handleLFSDownload(
-                                entry.lfs_pointer!.oid,
-                              );
-                            }}
-                            size="md"
-                            variant="subtle"
-                          >
-                            <IconDownload size={16} />
-                          </ActionIcon>
-                        </Tooltip>
+                        <Group gap={4} justify="flex-end" wrap="nowrap">
+                          {canOpenGitImageViewer(entry) ? (
+                            <Tooltip label="Open image viewer">
+                              <ActionIcon
+                                aria-label={`Open image viewer for ${entry.path}`}
+                                color="teal"
+                                loading={
+                                  downloadingChecksum === entry.lfs_pointer.oid
+                                }
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  void handleLFSImageViewerOpen(
+                                    entry.lfs_pointer!.oid,
+                                  );
+                                }}
+                                size="md"
+                                variant="subtle"
+                              >
+                                <IconPhoto size={16} />
+                              </ActionIcon>
+                            </Tooltip>
+                          ) : null}
+                          <Tooltip label="Download LFS object from Syfon">
+                            <ActionIcon
+                              aria-label={`Download LFS object for ${entry.path}`}
+                              color="violet"
+                              loading={
+                                downloadingChecksum ===
+                                entry.lfs_pointer.oid
+                              }
+                              onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                void handleLFSDownload(
+                                  entry.lfs_pointer!.oid,
+                                  entry.path,
+                                );
+                              }}
+                              size="md"
+                              variant="subtle"
+                            >
+                              <IconDownload size={16} />
+                            </ActionIcon>
+                          </Tooltip>
+                        </Group>
                       ) : entry.type === 'blob' ? (
                         <Tooltip label="Download file">
                           <ActionIcon
@@ -794,7 +908,9 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
                       aria-label="Open Syfon project view"
                       component="a"
                       href={`/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}/lake`}
+                      rel={isEmbedded ? undefined : 'noreferrer'}
                       size="lg"
+                      target={isEmbedded ? '_parent' : '_blank'}
                       variant="subtle"
                     >
                       <IconDatabaseExport size={18} />

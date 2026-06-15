@@ -162,7 +162,7 @@ const CalyprPage = ({
                       target="_blank"
                       rel="noopener noreferrer"
                       href="https://www.ohsu.edu/knight-cancer-institute/smmart-clinical-trials-research"
-                      className="mt-4 inline-block px-4 py-2 rounded tracking-wider bg-orange-500 hover:bg-orange-600 text-white text-[13px]"
+                      className="mt-4 inline-block px-4 py-2 rounded tracking-wider bg-orange-700 hover:bg-orange-800 text-white text-[13px]"
                     >
                       Read More
                     </Button>
@@ -185,7 +185,7 @@ const CalyprPage = ({
                       target="_blank"
                       rel="noopener noreferrer"
                       href="https://www.ohsu.edu/knight-cancer-institute/cedar"
-                      className="mt-4 inline-block px-4 py-2 rounded tracking-wider bg-orange-500 hover:bg-orange-600 text-white text-[13px]"
+                      className="mt-4 inline-block px-4 py-2 rounded tracking-wider bg-orange-700 hover:bg-orange-800 text-white text-[13px]"
                     >
                       Read More
                     </Button>
@@ -208,7 +208,7 @@ const CalyprPage = ({
                       target="_blank"
                       rel="noopener noreferrer"
                       href="https://www.ohsu.edu/knight-cancer-institute/center-biomedical-data-science"
-                      className="mt-4 inline-block px-4 py-2 rounded tracking-wider bg-orange-500 hover:bg-orange-600 text-white text-[13px]"
+                      className="mt-4 inline-block px-4 py-2 rounded tracking-wider bg-orange-700 hover:bg-orange-800 text-white text-[13px]"
                     >
                       Read More
                     </Button>

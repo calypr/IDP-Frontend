@@ -91,6 +91,9 @@ export const createAppApiForRTKQ = (
         serializableCheck: {
           ignoredActions: [FLUSH, REHYDRATE, PAUSE, PERSIST, PURGE, REGISTER],
         },
+        immutableCheck: {
+          warnAfter: 128,
+        },
       }).concat(appMiddleware),
   });
 

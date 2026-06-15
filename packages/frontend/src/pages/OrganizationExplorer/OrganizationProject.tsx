@@ -317,7 +317,7 @@ const OrganizationProjectPage = ({
     {
       limit: 1000,
       organization,
-      path: currentPath.join('/'),
+      ...(currentPath.length > 0 ? { path: currentPath.join('/') } : {}),
       project,
     },
     {

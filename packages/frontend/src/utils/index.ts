@@ -11,6 +11,7 @@ export * from './values';
 export * from './time';
 export * from './access';
 export * from './dataAuthorization';
+export * from './useIsEmbedded';
 
 export {
   type TenStringArray,

@@ -117,7 +117,6 @@ describe('OrganizationProjectPage', () => {
       {
         limit: 1000,
         organization: 'org-a',
-        path: '',
         project: 'proj-a',
       },
       { skip: false },
