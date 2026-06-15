@@ -351,7 +351,7 @@ const GitProjectFilePage = ({
                         if (drsDownloadUrl) {
                           window.open(drsDownloadUrl, '_blank', 'noopener,noreferrer');
                         }
-                      } else if (fileData.download_url) {
+                      } else if (fileData?.download_url) {
                         window.open(fileData.download_url, '_blank', 'noopener,noreferrer');
                       }
                     }}

@@ -572,14 +572,6 @@ describe('GitProjectPage', () => {
       isLoading: false,
       refetch: jest.fn(),
     });
-    coreMocks.useGetSyfonObjectsByChecksumQuery.mockReturnValue({
-      data: {
-        resolved_drs_object: [{ id: 'did-123' }],
-      },
-      isFetching: false,
-      isLoading: false,
-    });
-
     render(
       <MantineProvider>
         <GitProjectPage {...layoutProps} />

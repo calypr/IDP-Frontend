@@ -64,6 +64,11 @@ const layoutProps = {
       onToggle: jest.fn(),
     },
   },
+  headerMetadata: {
+    content: 'test',
+    key: 'test',
+    title: 'test',
+  },
 };
 
 describe('GitProjectFilePage', () => {
