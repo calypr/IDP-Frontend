@@ -1,38 +1,67 @@
 import React from 'react';
 import {
+  useGetAuthzMappingsQuery,
+  useGetGeckoGitOrganizationsStatusQuery,
   useGetGeckoProjectSummaryQuery,
   useGetGeckoProjectsQuery,
   useGetGeckoGitProjectPresentationConfigQuery,
   useUpdateGeckoGitProjectPresentationConfigMutation,
 } from '@gen3/core';
-import { Center, Loader } from '@mantine/core';
+import { Alert, Center, Loader } from '@mantine/core';
 import { useRouter } from 'next/router';
 import { NavPageLayout } from '../../features/Navigation';
 import { ProtectedContent } from '../../components/Protected';
 import { getNavPageLayoutPropsFromConfig } from '../../lib/common/staticProps';
+import {
+  hasOrganizationMembership,
+  hasProjectMembershipOrAccess,
+} from '../../features/projectPresentation/access';
 import { buildProjectPresentationDraft } from '../../features/projectPresentation/draft';
 import { ProjectPresentationEditor } from '../../features/projectPresentation/ProjectPresentationEditor';
 import { ProjectPresentationDraft } from '../../features/projectPresentation/types';
+import { useSession } from '../../lib/session/session';
 
 export const ProjectPresentationEditPage = ({
   headerProps,
   footerProps,
 }: Awaited<ReturnType<typeof getNavPageLayoutPropsFromConfig>>) => {
   const router = useRouter();
+  const session = useSession(false);
+  const sessionReady = !session.pending;
+  const isAuthenticated = session.status === 'issued';
+  const isAdmin = session.user?.is_admin === true;
   const organization =
     typeof router.query.org === 'string' ? router.query.org : '';
   const project =
     typeof router.query.project === 'string' ? router.query.project : '';
 
+  const { data: authzMapping = {}, isLoading: isAuthzLoading } =
+    useGetAuthzMappingsQuery(undefined, { skip: !isAuthenticated });
+  const { data: gitOrganizationsStatus, isLoading: isGitStatusLoading } =
+    useGetGeckoGitOrganizationsStatusQuery(undefined, {
+      skip: !isAuthenticated,
+    });
   const { data: geckoProjects = [], isLoading: isProjectsLoading } =
     useGetGeckoProjectsQuery();
   const { data: geckoProjectSummary = [], isLoading: isSummaryLoading } =
     useGetGeckoProjectSummaryQuery();
+  const gitOrganizationStatus = gitOrganizationsStatus?.organizations.find(
+    (entry) => entry.organization === organization,
+  );
+  const gitProjectStatus = gitOrganizationStatus?.projects.find(
+    (entry) => entry.project === project,
+  );
+  const canEditPresentation =
+    isAdmin ||
+    gitProjectStatus?.can_manage_settings === true ||
+    hasOrganizationMembership(authzMapping, organization) ||
+    hasProjectMembershipOrAccess(authzMapping, organization, project);
+  const unauthorized = sessionReady && isAuthenticated && !canEditPresentation;
   const { data: presentationConfig, isLoading: isPresentationLoading } =
     useGetGeckoGitProjectPresentationConfigQuery(
       { organization, project },
       {
-        skip: !organization || !project,
+        skip: !organization || !project || !canEditPresentation,
       },
     );
   const [updatePresentationConfig, { isLoading: isSaving }] =
@@ -118,7 +147,18 @@ export const ProjectPresentationEditPage = ({
           key: 'project-page-editor',
         }}
       >
-        {isProjectsLoading || isSummaryLoading || isPresentationLoading || !draft ? (
+        {!sessionReady || (isAuthenticated && (isAuthzLoading || isGitStatusLoading)) ? (
+          <Center className="min-h-[55vh]">
+            <Loader />
+          </Center>
+        ) : unauthorized ? (
+          <div className="space-y-4 px-6 py-8 lg:px-8">
+            <Alert color="yellow" variant="light">
+              You must be a member of this organization or project, or have
+              write access to this project, to edit its presentation page.
+            </Alert>
+          </div>
+        ) : isProjectsLoading || isSummaryLoading || isPresentationLoading || !draft ? (
           <Center className="min-h-[55vh]">
             <Loader />
           </Center>

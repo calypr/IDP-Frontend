@@ -91,21 +91,19 @@ export class RenderFactoryTypedInstance<T>
     func: RendererFunction<T>,
   ): boolean {
     if (type && functionName && func) {
-      try {
-        if (!this.catalog[type]) {
-          this.catalog[type] = {};
-        }
-        if (!this.catalog[type][functionName]) {
-          this.catalog[type][functionName] = func;
-        } else {
-          throw new Error(
-            `Renderer function ${functionName} already exists for type ${type}`,
-          );
-        }
+      if (!this.catalog[type]) {
+        this.catalog[type] = {};
+      }
+      if (this.catalog[type][functionName] === func) {
+        // Safe to ignore if it is exactly the same function (e.g. from Hot Module Replacement or double render)
         return true;
-      } catch (error) {
-        console.error(
-          `Error registering renderer ${functionName} for type ${type}: ${error}`,
+      }
+      if (!this.catalog[type][functionName]) {
+        this.catalog[type][functionName] = func;
+        return true;
+      } else {
+        console.warn(
+          `Renderer function ${functionName} already exists for type ${type} with a different implementation. Skipping registration.`,
         );
         return false;
       }

@@ -6,9 +6,14 @@ import { ProjectPresentationEditPage } from '../../pages/ProjectPresentation/Pro
 const useGetGeckoProjectsQueryMock = jest.fn();
 const useGetGeckoProjectSummaryQueryMock = jest.fn();
 const useGetGeckoGitProjectPresentationConfigQueryMock = jest.fn();
+const useGetAuthzMappingsQueryMock = jest.fn();
+const useGetGeckoGitOrganizationsStatusQueryMock = jest.fn();
 const useUpdateGeckoGitProjectPresentationConfigMutationMock = jest.fn();
 
 jest.mock('@gen3/core', () => ({
+  useGetAuthzMappingsQuery: () => useGetAuthzMappingsQueryMock(),
+  useGetGeckoGitOrganizationsStatusQuery: () =>
+    useGetGeckoGitOrganizationsStatusQueryMock(),
   useGetGeckoProjectsQuery: () => useGetGeckoProjectsQueryMock(),
   useGetGeckoProjectSummaryQuery: () => useGetGeckoProjectSummaryQueryMock(),
   useGetGeckoGitProjectPresentationConfigQuery: () =>
@@ -26,6 +31,12 @@ jest.mock('@gen3/frontend', () => ({
   ),
   ProtectedContent: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   getNavPageLayoutPropsFromConfig: jest.fn(),
+}));
+
+const useSessionMock = jest.fn();
+
+jest.mock('../../lib/session/session', () => ({
+  useSession: () => useSessionMock(),
 }));
 
 const routerQuery = {
@@ -67,10 +78,31 @@ const layoutProps = {
 
 describe('ProjectPresentationEditPage', () => {
   beforeEach(() => {
+    useGetAuthzMappingsQueryMock.mockReset();
+    useGetGeckoGitOrganizationsStatusQueryMock.mockReset();
     useGetGeckoProjectsQueryMock.mockReset();
     useGetGeckoProjectSummaryQueryMock.mockReset();
     useGetGeckoGitProjectPresentationConfigQueryMock.mockReset();
     useUpdateGeckoGitProjectPresentationConfigMutationMock.mockReset();
+    useSessionMock.mockReset();
+
+    useSessionMock.mockReturnValue({
+      pending: false,
+      status: 'issued',
+      user: undefined,
+    });
+    useGetAuthzMappingsQueryMock.mockReturnValue({
+      data: {
+        '/programs/HTAN_INT/projects/BForePC': [
+          { method: 'read', service: 'arborist' },
+        ],
+      },
+      isLoading: false,
+    });
+    useGetGeckoGitOrganizationsStatusQueryMock.mockReturnValue({
+      data: { organizations: [] },
+      isLoading: false,
+    });
 
     useGetGeckoProjectsQueryMock.mockReturnValue({
       data: [
@@ -171,5 +203,41 @@ describe('ProjectPresentationEditPage', () => {
         presentationConfig: '<section><p>saved</p></section>',
       });
     });
+  });
+
+  it('blocks users without org membership, project membership, or write access', () => {
+    useGetAuthzMappingsQueryMock.mockReturnValue({
+      data: {},
+      isLoading: false,
+    });
+    useGetGeckoGitOrganizationsStatusQueryMock.mockReturnValue({
+      data: {
+        organizations: [
+          {
+            organization: 'HTAN_INT',
+            projects: [
+              {
+                can_manage_settings: false,
+                project: 'BForePC',
+              },
+            ],
+          },
+        ],
+      },
+      isLoading: false,
+    });
+
+    render(
+      <MantineProvider>
+        <ProjectPresentationEditPage {...layoutProps} />
+      </MantineProvider>,
+    );
+
+    expect(
+      screen.getByText(
+        /you must be a member of this organization or project, or have write access/i,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText('Hero title')).not.toBeInTheDocument();
   });
 });

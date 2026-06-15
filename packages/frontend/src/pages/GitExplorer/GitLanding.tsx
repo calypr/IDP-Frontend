@@ -2521,16 +2521,6 @@ const GitLandingPage = ({
     router.replace,
   ]);
 
-  const hasReconciled = useRef(false);
-  useEffect(() => {
-    if (hasReconciled.current || blockingGitHubCallback) {
-      return;
-    }
-    hasReconciled.current = true;
-    void refreshConnections();
-    // eslint-disable-next-line reactHooks/exhaustive-deps
-  }, [blockingGitHubCallback]);
-
   const handleRefreshConnections = async () => {
     try {
       await refreshConnections();

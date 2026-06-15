@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  useGetAuthzMappingsQuery,
   useGetConfigContentQuery,
   useGetGeckoProjectSummaryQuery,
   useGetGeckoProjectsQuery,
@@ -11,14 +12,23 @@ import { NavPageLayout } from '../../features/Navigation';
 import { ProjectWorkspaceTabs } from '../../features/Navigation';
 import { ProtectedContent } from '../../components/Protected';
 import { getNavPageLayoutPropsFromConfig } from '../../lib/common/staticProps';
+import {
+  hasOrganizationMembership,
+  hasProjectMembershipOrAccess,
+} from '../../features/projectPresentation/access';
 import { buildProjectPresentationDraft } from '../../features/projectPresentation/draft';
 import { ProjectPresentationView } from '../../features/projectPresentation/ProjectPresentationView';
+import { useSession } from '../../lib/session/session';
 
 export const ProjectPresentationPage = ({
   headerProps,
   footerProps,
 }: Awaited<ReturnType<typeof getNavPageLayoutPropsFromConfig>>) => {
   const router = useRouter();
+  const session = useSession(false);
+  const sessionReady = !session.pending;
+  const isAuthenticated = session.status === 'issued';
+  const isAdmin = session.user?.is_admin === true;
   const organization =
     typeof router.query.org === 'string' ? router.query.org : '';
   const project =
@@ -27,13 +37,24 @@ export const ProjectPresentationPage = ({
     router.query.embed === '1' || router.query.embed === 'true';
   const explorerConfigId =
     organization && project ? `${organization}-${project}` : '';
+  const { data: authzMapping = {}, isLoading: isAuthzLoading } =
+    useGetAuthzMappingsQuery(undefined, { skip: !isAuthenticated });
+  const canLikelyReadProjectScopedData =
+    isAdmin ||
+    hasOrganizationMembership(authzMapping, organization) ||
+    hasProjectMembershipOrAccess(authzMapping, organization, project);
 
   const { data: geckoProjects = [], isLoading: isProjectsLoading } =
     useGetGeckoProjectsQuery();
   const { data: explorerConfigResponse } = useGetConfigContentQuery(
     explorerConfigId,
     {
-      skip: !explorerConfigId,
+      skip:
+        !explorerConfigId ||
+        !sessionReady ||
+        !isAuthenticated ||
+        isAuthzLoading ||
+        !canLikelyReadProjectScopedData,
     },
   );
   const { data: geckoProjectSummary = [], isLoading: isSummaryLoading } =
@@ -42,7 +63,13 @@ export const ProjectPresentationPage = ({
     useGetGeckoGitProjectPresentationConfigQuery(
       { organization, project },
       {
-        skip: !organization || !project,
+        skip:
+          !organization ||
+          !project ||
+          !sessionReady ||
+          !isAuthenticated ||
+          isAuthzLoading ||
+          !canLikelyReadProjectScopedData,
       },
     );
 
@@ -66,7 +93,11 @@ export const ProjectPresentationPage = ({
   });
 
   const presentationContent =
-    isProjectsLoading || isSummaryLoading || isPresentationLoading ? (
+    !sessionReady || (isAuthenticated && isAuthzLoading) ? (
+      <Center className="min-h-[55vh]">
+        <Loader />
+      </Center>
+    ) : isProjectsLoading || isSummaryLoading || isPresentationLoading ? (
       <Center className="min-h-[55vh]">
         <Loader />
       </Center>

@@ -6,9 +6,11 @@ import { ProjectPresentationPage } from '../../pages/ProjectPresentation/Project
 const useGetGeckoProjectsQueryMock = jest.fn();
 const useGetGeckoProjectSummaryQueryMock = jest.fn();
 const useGetConfigContentQueryMock = jest.fn();
+const useGetAuthzMappingsQueryMock = jest.fn();
 const useGetGeckoGitProjectPresentationConfigQueryMock = jest.fn();
 
 jest.mock('@gen3/core', () => ({
+  useGetAuthzMappingsQuery: () => useGetAuthzMappingsQueryMock(),
   useGetGeckoProjectsQuery: () => useGetGeckoProjectsQueryMock(),
   useGetGeckoProjectSummaryQuery: () => useGetGeckoProjectSummaryQueryMock(),
   useGetConfigContentQuery: () => useGetConfigContentQueryMock(),
@@ -23,6 +25,12 @@ jest.mock('@gen3/frontend', () => ({
   ),
   ProtectedContent: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   getNavPageLayoutPropsFromConfig: jest.fn(),
+}));
+
+const useSessionMock = jest.fn();
+
+jest.mock('../../lib/session/session', () => ({
+  useSession: () => useSessionMock(),
 }));
 
 const routerQuery = {
@@ -64,10 +72,26 @@ const layoutProps = {
 
 describe('ProjectPresentationPage', () => {
   beforeEach(() => {
+    useGetAuthzMappingsQueryMock.mockReset();
     useGetGeckoProjectsQueryMock.mockReset();
     useGetGeckoProjectSummaryQueryMock.mockReset();
     useGetConfigContentQueryMock.mockReset();
     useGetGeckoGitProjectPresentationConfigQueryMock.mockReset();
+    useSessionMock.mockReset();
+
+    useSessionMock.mockReturnValue({
+      pending: false,
+      status: 'issued',
+      user: undefined,
+    });
+    useGetAuthzMappingsQueryMock.mockReturnValue({
+      data: {
+        '/programs/HTAN_INT/projects/BForePC': [
+          { method: 'read', service: 'arborist' },
+        ],
+      },
+      isLoading: false,
+    });
 
     useGetConfigContentQueryMock.mockReturnValue({
       data: undefined,
@@ -146,4 +170,37 @@ describe('ProjectPresentationPage', () => {
       screen.getByText(/project presentation workspace/i),
     ).toBeInTheDocument();
   });
+
+  it('skips project-scoped explorer and presentation fetches when authz suggests they will 403', () => {
+    useGetAuthzMappingsQueryMock.mockReturnValue({
+      data: {},
+      isLoading: false,
+    });
+    useGetGeckoProjectsQueryMock.mockReturnValue({
+      data: [],
+      isLoading: false,
+    });
+    useGetGeckoProjectSummaryQueryMock.mockReturnValue({
+      data: [],
+      isLoading: false,
+    });
+
+    render(
+      <MantineProvider>
+        <ProjectPresentationPage {...layoutProps} />
+      </MantineProvider>,
+    );
+
+    expect(useGetConfigContentQueryMock).toHaveBeenCalledWith(
+      'HTAN_INT-BForePC',
+      expect.objectContaining({ skip: true }),
+    );
+    expect(
+      useGetGeckoGitProjectPresentationConfigQueryMock,
+    ).toHaveBeenCalledWith(
+      { organization: 'HTAN_INT', project: 'BForePC' },
+      expect.objectContaining({ skip: true }),
+    );
+  });
+
 });

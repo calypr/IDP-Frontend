@@ -77,6 +77,7 @@ const NavigationLogo = ({
             !basepage ? `${basePath}/icons/ohsu_white.svg` : `${basePath}${src}`
           }
           alt={description ?? title ?? 'link back to homepage'}
+          style={(!width && !height) ? undefined : { height: 'auto' }}
         />
       </HoverLink>
       {divider && (

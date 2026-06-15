@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Tabs } from '@mantine/core';
+import { useGetAuthzMappingsQuery, userHasMethodForServiceOnResource } from '@gen3/core';
 
 type ProjectWorkspaceTabKey = 'git' | 'presentation' | 'explorer';
 
@@ -114,6 +115,38 @@ const ProjectWorkspaceTabs = ({
     explorer: activeTab === 'explorer',
   });
 
+  const { data: authzMapping = {} } = useGetAuthzMappingsQuery();
+
+  const hasGitAccess = useMemo(() => {
+    if (!organization || !project) return false;
+    const candidatePaths = [
+      `/programs/${organization}/projects/${project}`,
+      `/programs/${organization}/projects`,
+      `/programs/${organization}`,
+      '/programs',
+      '/',
+      '*',
+    ];
+    return candidatePaths.some((path) =>
+      userHasMethodForServiceOnResource('update', '*', path, authzMapping)
+    );
+  }, [organization, project, authzMapping]);
+
+  const hasReadAccess = useMemo(() => {
+    if (!organization || !project) return false;
+    const candidatePaths = [
+      `/programs/${organization}/projects/${project}`,
+      `/programs/${organization}/projects`,
+      `/programs/${organization}`,
+      '/programs',
+      '/',
+      '*',
+    ];
+    return candidatePaths.some((path) =>
+      userHasMethodForServiceOnResource('read', '*', path, authzMapping)
+    );
+  }, [organization, project, authzMapping]);
+
   const gitBaseHref =
     gitHref ||
     `/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}`;
@@ -132,7 +165,7 @@ const ProjectWorkspaceTabs = ({
           label: 'Home',
           src: buildEmbeddedHref(presentationBaseHref),
         },
-        ...(hasExplorerConfig
+        ...(hasExplorerConfig && (hasReadAccess || activeTab === 'explorer')
           ? [
               {
                 key: 'explorer' as const,
@@ -141,17 +174,24 @@ const ProjectWorkspaceTabs = ({
               },
             ]
           : []),
-        {
-          key: 'git' as const,
-          label: 'Source',
-          src: buildEmbeddedHref(gitBaseHref),
-        },
+        ...(hasGitAccess || activeTab === 'git'
+          ? [
+              {
+                key: 'git' as const,
+                label: 'Source',
+                src: buildEmbeddedHref(gitBaseHref),
+              },
+            ]
+          : []),
       ],
     [
       explorerBaseHref,
       gitBaseHref,
       hasExplorerConfig,
       presentationBaseHref,
+      hasReadAccess,
+      hasGitAccess,
+      activeTab,
     ],
   );
 

@@ -2,6 +2,7 @@ import React from 'react';
 import { Badge, Group, Text, ThemeIcon, Title } from '@mantine/core';
 import { IconSparkles } from '@tabler/icons-react';
 import { DEFAULT_PROJECT_PRESENTATION_HTML } from './defaults';
+import { sanitizeProjectPresentationHtml } from './sanitize';
 import type { ProjectPresentationDraft } from './types';
 
 export const ProjectPresentationView = ({
@@ -16,6 +17,10 @@ export const ProjectPresentationView = ({
     draft.bodyHTML.trim().length > 0
       ? draft.bodyHTML
       : DEFAULT_PROJECT_PRESENTATION_HTML;
+  const sanitizedBodyHTML = React.useMemo(
+    () => sanitizeProjectPresentationHtml(bodyHTML),
+    [bodyHTML],
+  );
   const iframeSrcDoc = `
 <!doctype html>
 <html>
@@ -33,7 +38,7 @@ export const ProjectPresentationView = ({
       }
     </style>
   </head>
-  <body>${bodyHTML}</body>
+  <body>${sanitizedBodyHTML}</body>
 </html>
 `;
 
@@ -143,7 +148,7 @@ export const ProjectPresentationView = ({
           onLoad={attachIframeMeasurement}
           ref={iframeRef}
           scrolling="no"
-          sandbox="allow-same-origin allow-forms allow-popups"
+          sandbox="allow-same-origin allow-popups"
           srcDoc={iframeSrcDoc}
           style={{
             border: 'none',

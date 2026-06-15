@@ -47,9 +47,12 @@ const isProjectThumbnailIcon = (icon?: string): boolean =>
         icon.includes('/gecko/git/projects/')),
   );
 
-export const Sidebar = ({ items, state }: SidebarProps) => {
+const SidebarContent = ({
+  items,
+  state,
+  geckoProjects,
+}: SidebarProps & { geckoProjects: Array<any> }) => {
   const router = useRouter();
-  const { data: geckoProjects = [] } = useGetGeckoProjectsQuery();
   const { expandedItems, setExpandedItems, toggleSidebar } =
     useSidebarContext();
   const [searchQuery, setSearchQuery] = useState('');
@@ -408,4 +411,24 @@ export const Sidebar = ({ items, state }: SidebarProps) => {
       </aside>
     </>
   );
+};
+
+const SidebarWithProjectsData = (props: SidebarProps) => {
+  const { data: geckoProjects = [] } = useGetGeckoProjectsQuery();
+  return <SidebarContent {...props} geckoProjects={geckoProjects} />;
+};
+
+export const Sidebar = (props: SidebarProps) => {
+  const router = useRouter();
+  const isGitPage =
+    router.pathname === '/git' ||
+    router.pathname.startsWith('/git/') ||
+    router.asPath === '/git' ||
+    router.asPath.startsWith('/git/');
+
+  if (isGitPage) {
+    return <SidebarContent {...props} geckoProjects={[]} />;
+  }
+
+  return <SidebarWithProjectsData {...props} />;
 };

@@ -14,4 +14,11 @@
   }
 }
 
+:root {
+  --mantine-color-dimmed: var(--mantine-color-gray-7);
+}
+[data-mantine-color-scheme="dark"] {
+  --mantine-color-dimmed: var(--mantine-color-dark-2);
+}
+
 @tailwind variants;
