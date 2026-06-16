@@ -21,7 +21,6 @@ import {
   useGetGeckoGitProjectFileQuery,
   useGetGeckoGitProjectsQuery,
   useGetGeckoGitProjectRefsQuery,
-  mintSyfonObjectIdFromChecksum,
 } from '@gen3/core';
 import ProtectedContent from '../../components/Protected/ProtectedContent';
 import { NavPageLayout } from '../../features/Navigation';
@@ -138,38 +137,9 @@ const GitProjectFilePage = ({
   );
   const effectiveLFSPointer = fileData?.lfs_pointer ?? detectedLFSPointer;
   const selectedFileLFSChecksum = effectiveLFSPointer?.oid;
-  const [drsDownloadUrl, setDrsDownloadUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!selectedFileLFSChecksum || !organization || !project) {
-      setDrsDownloadUrl(null);
-      return;
-    }
-    let cancelled = false;
-    const resolveDrsUrl = async () => {
-      try {
-        const objectId = await mintSyfonObjectIdFromChecksum(
-          selectedFileLFSChecksum,
-          [`/programs/${organization}/projects/${project}`],
-        );
-        if (!cancelled) {
-          setDrsDownloadUrl(
-            `${SYFON_API}/download/${encodeURIComponent(objectId)}?redirect=true`,
-          );
-        }
-      } catch (err) {
-        console.error('Failed to mint DRS object ID', err);
-        if (!cancelled) {
-          setDrsDownloadUrl(null);
-        }
-      }
-    };
-    void resolveDrsUrl();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedFileLFSChecksum, organization, project]);
+  const drsDownloadUrl = selectedFileLFSChecksum
+    ? `${SYFON_API}/download/${encodeURIComponent(selectedFileLFSChecksum)}?redirect=true`
+    : null;
 
   useEffect(() => {
     if (requestedRef) {

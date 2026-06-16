@@ -15,7 +15,6 @@ jest.mock('next/router', () => ({
 
 jest.mock('@gen3/core', () => ({
   SYFON_API: '/syfon',
-  mintSyfonObjectIdFromChecksum: jest.fn(),
   useGetGeckoGitProjectFileQuery: jest.fn(),
   useGetGeckoGitProjectsQuery: jest.fn(),
   useGetGeckoGitProjectRefsQuery: jest.fn(),
@@ -39,7 +38,6 @@ const { useRouter } = jest.requireMock('next/router') as {
 };
 
 const coreMocks = jest.requireMock('@gen3/core') as {
-  mintSyfonObjectIdFromChecksum: jest.Mock;
   useGetGeckoGitProjectFileQuery: jest.Mock;
   useGetGeckoGitProjectsQuery: jest.Mock;
   useGetGeckoGitProjectRefsQuery: jest.Mock;
@@ -102,7 +100,6 @@ describe('GitProjectFilePage', () => {
       },
       isLoading: false,
     });
-    coreMocks.mintSyfonObjectIdFromChecksum.mockResolvedValue('did-123');
     window.open = jest.fn();
   });
 
@@ -159,7 +156,7 @@ describe('GitProjectFilePage', () => {
 
     await waitFor(() =>
       expect(window.open).toHaveBeenCalledWith(
-        '/syfon/download/did-123?redirect=true',
+        '/syfon/download/670ed063c6a4d6df5530c50ee2e23399046df20bf48b5b5aebfbbe1c865c0642?redirect=true',
         '_blank',
         'noopener,noreferrer',
       ),

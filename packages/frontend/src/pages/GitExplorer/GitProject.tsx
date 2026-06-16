@@ -22,13 +22,13 @@ import {
 } from '@mantine/core';
 import {
   SYFON_API,
+  mintSyfonObjectIdFromChecksum,
   useGetConfigContentQuery,
   useLazyGetGeckoGitProjectFileQuery,
   useGetGeckoGitProjectsQuery,
   useGetGeckoGitProjectRefsQuery,
   useGetGeckoGitProjectTreeQuery,
   useRefreshGeckoGitProjectMutation,
-  mintSyfonObjectIdFromChecksum,
   type GeckoGitRefreshResponse,
   type GeckoGitProjectStatus,
   type GeckoGitTreeEntry,
@@ -486,12 +486,8 @@ const GitProjectPage = ({
     setActionError(null);
     setDownloadingChecksum(checksum);
     try {
-      const objectId = await mintSyfonObjectIdFromChecksum(
-        checksum,
-        [`/programs/${organization}/projects/${project}`],
-      );
       window.open(
-        `${SYFON_API}/download/${encodeURIComponent(objectId)}?redirect=true`,
+        buildSyfonDownloadUrl(checksum),
         '_blank',
         'noopener,noreferrer',
       );
