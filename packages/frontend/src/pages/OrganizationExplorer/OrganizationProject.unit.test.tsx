@@ -117,7 +117,6 @@ describe('OrganizationProjectPage', () => {
       {
         limit: 1000,
         organization: 'org-a',
-        path: '',
         project: 'proj-a',
       },
       { skip: false },
@@ -328,6 +327,92 @@ describe('OrganizationProjectPage', () => {
     );
     expect(screen.queryByText('File Details')).not.toBeInTheDocument();
     expect(screen.getByText('Name')).toBeInTheDocument();
+  });
+
+  it('shows an image viewer action for ome.tiff files with matching offsets files', () => {
+    useGetSyfonIndexRecordsQueryMock.mockReturnValue({
+      data: {
+        directories: [],
+        records: [
+          {
+            controlled_access: ['/organization/org-a/project/proj-a'],
+            did: 'did-image',
+            file_name: 'sample.ome.tiff',
+            name: 'sample.ome.tiff',
+            size: 10,
+          },
+          {
+            controlled_access: ['/organization/org-a/project/proj-a'],
+            did: 'did-offsets',
+            file_name: 'sample.offsets.json',
+            name: 'sample.offsets.json',
+            size: 5,
+          },
+        ],
+      },
+      isFetching: false,
+      isLoading: false,
+    });
+
+    render(
+      <MantineProvider>
+        <OrganizationProjectPage {...layoutProps} />
+      </MantineProvider>,
+    );
+
+    fireEvent.click(
+      screen.getByLabelText('Open image viewer for sample.ome.tiff'),
+    );
+
+    expect(openMock).toHaveBeenCalledWith(
+      '/image-viewer/view/did-image',
+      '_blank',
+      'noopener,noreferrer',
+    );
+  });
+
+  it('sorts files by updated timestamp when the Updated header is clicked', () => {
+    useGetSyfonIndexRecordsQueryMock.mockReturnValue({
+      data: {
+        directories: [],
+        records: [
+          {
+            controlled_access: ['/organization/org-a/project/proj-a'],
+            did: 'did-old',
+            file_name: 'old.txt',
+            name: 'old.txt',
+            updated_time: '2024-01-01T00:00:00Z',
+          },
+          {
+            controlled_access: ['/organization/org-a/project/proj-a'],
+            did: 'did-new',
+            file_name: 'new.txt',
+            name: 'new.txt',
+            updated_time: '2025-01-01T00:00:00Z',
+          },
+        ],
+      },
+      isFetching: false,
+      isLoading: false,
+    });
+
+    render(
+      <MantineProvider>
+        <OrganizationProjectPage {...layoutProps} />
+      </MantineProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Updated' }));
+
+    const rows = screen.getAllByRole('row');
+    expect(rows[1]).toHaveTextContent('new.txt');
+    expect(rows[2]).toHaveTextContent('old.txt');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Updated' }));
+
+    const descendingRows = screen.getAllByRole('row');
+    expect(descendingRows[1]).toHaveTextContent('old.txt');
+    expect(descendingRows[2]).toHaveTextContent('new.txt');
   });
 
   it('renders breadcrumb navigation for the current path and opens the scoped upload modal', async () => {

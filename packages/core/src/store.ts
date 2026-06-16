@@ -52,6 +52,9 @@ export const setupCoreStore = (preloadedState?: Partial<CoreState>) =>
         serializableCheck: {
           ignoredActions: [FLUSH, REHYDRATE, PAUSE, PERSIST, PURGE, REGISTER],
         },
+        immutableCheck: {
+          warnAfter: 128,
+        },
       })
         .concat(
           gen3ServicesReducerMiddleware,

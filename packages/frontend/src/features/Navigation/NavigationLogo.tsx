@@ -17,7 +17,7 @@ const NavigationLogo = ({
   classNames = {},
   href,
   basepage,
-  onToggle,
+  onToggle = () => undefined,
 }: NavigationBarLogo) => {
   const classNamesDefaults = {
     root: 'relative flex py-2 justify-start items-center align-middle font-heading font-bold tracking-wide text-xl',
@@ -77,6 +77,7 @@ const NavigationLogo = ({
             !basepage ? `${basePath}/icons/ohsu_white.svg` : `${basePath}${src}`
           }
           alt={description ?? title ?? 'link back to homepage'}
+          style={(!width && !height) ? undefined : { width: 'auto', height: 'auto' }}
         />
       </HoverLink>
       {divider && (

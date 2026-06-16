@@ -104,7 +104,7 @@ const OrganizationRow = ({
           </button>
           <div className="min-w-0">
             <Tooltip label={`Visit ${group.organization} page`}>
-              <Link href={`/organization/${encodeURIComponent(group.organization)}`} legacyBehavior>
+              <Link href={`/git/${encodeURIComponent(group.organization)}`} legacyBehavior>
                 <a className="inline-flex max-w-full text-left decoration-slate-400 underline-offset-4 transition hover:text-slate-700 hover:underline focus-visible:underline">
                   <Text fw={700} size="lg" truncate>
                     {group.organization}
@@ -121,7 +121,7 @@ const OrganizationRow = ({
           {group.projects.map((project) => {
             return (
               <CompactProjectRow
-                href={`/organization/${encodeURIComponent(project.organization)}/project/${encodeURIComponent(project.project)}`}
+                href={`/org/${encodeURIComponent(project.organization)}/project/${encodeURIComponent(project.project)}/lake`}
                 key={project.resourcePath}
                 project={project.project}
                 resourcePath={project.resourcePath}
@@ -163,7 +163,7 @@ const OrganizationLandingPage = ({
         group.organization.toLowerCase().includes(normalizedSearchQuery),
       )
       .map((group) => ({
-        href: `/organization/${encodeURIComponent(group.organization)}`,
+        href: `/git/${encodeURIComponent(group.organization)}`,
         key: `organization-${group.organization}`,
         kind: 'organization' as const,
         label: group.organization,
@@ -175,7 +175,7 @@ const OrganizationLandingPage = ({
         project.project.toLowerCase().includes(normalizedSearchQuery),
       )
       .map((project) => ({
-        href: `/organization/${encodeURIComponent(project.organization)}/project/${encodeURIComponent(project.project)}`,
+        href: `/org/${encodeURIComponent(project.organization)}/project/${encodeURIComponent(project.project)}/lake`,
         key: `project-${project.resourcePath}`,
         kind: 'project' as const,
         label: project.project,

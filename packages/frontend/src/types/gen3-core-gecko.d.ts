@@ -111,6 +111,7 @@ declare module '@gen3/core' {
       readonly icon_name: string;
     };
     readonly repository: GeckoGitRepositoryIdentity;
+    readonly workflow_stage?: string;
     readonly installation_state: string;
     readonly installation_id?: number;
     readonly installation_target?: string;
@@ -126,10 +127,17 @@ declare module '@gen3/core' {
   }
 
   export interface GeckoGitOrganizationConnectResponse {
-    readonly mode?: 'redirect' | 'connected';
+    readonly mode?: 'redirect' | 'connected' | 'disconnected' | 'select_repository';
     readonly redirect_url?: string;
     readonly installation_id?: number;
     readonly state?: string;
+    readonly repositories?: Array<{
+      readonly id: number;
+      readonly name: string;
+      readonly full_name: string;
+      readonly html_url: string;
+      readonly clone_url: string;
+    }>;
   }
 
   export interface GeckoGitRepositoryInstallationStatus {
@@ -146,6 +154,7 @@ declare module '@gen3/core' {
     readonly project: string;
     readonly resource_path?: string;
     readonly repository: GeckoGitRepositoryIdentity;
+    readonly workflow_stage?: string;
     readonly configured: boolean;
     readonly accessible?: boolean;
     readonly can_manage_settings?: boolean;
@@ -410,8 +419,17 @@ declare module '@gen3/core' {
 
   export function useConnectGeckoGitOrganizationMutation(): [
     (args: {
+      organization: string;
+      githubOwner: string;
       installationId: number;
-      state: string;
+    }) => { unwrap: () => Promise<GeckoGitOrganizationConnectResponse> },
+    { isLoading: boolean },
+  ];
+  export function useEditConnectGeckoGitProjectMutation(): [
+    (args: {
+      organization: string;
+      project: string;
+      repositoryFullName: string;
     }) => { unwrap: () => Promise<GeckoGitOrganizationConnectResponse> },
     { isLoading: boolean },
   ];

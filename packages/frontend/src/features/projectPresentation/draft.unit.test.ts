@@ -35,8 +35,17 @@ describe('projectPresentation draft builder', () => {
     expect(draft.hero.title).toBe('Summary title');
     expect(draft.hero.summary).toBe('Summary description');
     expect(draft.hero.thumbnailURL).toBe('https://example.org/summary.png');
-    expect(draft.cta.contactEmail).toBe('summary@example.org');
-    expect(draft.visualizations).toHaveLength(3);
+    expect(draft.bodyHTML).toBe('');
+  });
+
+  it('preserves caller supplied body html', () => {
+    const draft = buildProjectPresentationDraft({
+      bodyHTML: '<section><p>Custom html</p></section>',
+      organization: 'HTAN_INT',
+      project: 'BForePC',
+    });
+
+    expect(draft.bodyHTML).toBe('<section><p>Custom html</p></section>');
   });
 
   it('falls back to route-derived defaults when metadata is missing', () => {
@@ -48,7 +57,6 @@ describe('projectPresentation draft builder', () => {
     expect(draft.hero.title).toBe('BForePC');
     expect(draft.hero.organization).toBe('HTAN_INT');
     expect(draft.hero.summary).toMatch(/presentation workspace/i);
-    expect(draft.highlights.join(' ')).toMatch(/add a project contact/i);
-    expect(draft.cta.buttonURL).toBe('/organization/HTAN_INT/project/BForePC');
+    expect(draft.bodyHTML).toBe('');
   });
 });

@@ -1,8 +1,11 @@
 import * as path from 'path';
-import * as webpack from 'webpack';
-import type { StorybookConfig } from '@storybook/nextjs';
+import type { StorybookConfig } from '@storybook/nextjs-vite';
+import { mergeConfig } from 'vite';
 
-const nextJsPresetPath = require.resolve('@storybook/nextjs');
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const config: StorybookConfig = {
   stories: [
@@ -12,7 +15,6 @@ const config: StorybookConfig = {
   ],
   addons: [
     '@storybook/addon-onboarding',
-    '@chromatic-com/storybook',
     '@storybook/addon-a11y',
     'storybook-addon-deep-controls',
   ],
@@ -22,11 +24,8 @@ const config: StorybookConfig = {
     skipCompiler: false,
   },
   framework: {
-    name: '@storybook/nextjs',
+    name: '@storybook/nextjs-vite',
     options: {
-      builder: {
-        useSWC: true, // Enables SWC support
-      },
       image: {
         loading: 'eager',
       },
@@ -34,36 +33,24 @@ const config: StorybookConfig = {
     },
   },
   staticDirs: ['../../sampleCommons/public'],
-  webpackFinal: async (config) => {
-    const imageRule = config.module?.rules?.find((rule) => {
-      const test = (rule as { test: RegExp }).test;
-
-      if (!test) {
-        return false;
+  viteFinal: async (config) => {
+    const publicEnv = Object.entries(process.env).reduce<
+      Record<string, string>
+    >((acc, [key, value]) => {
+      if (key.startsWith('NEXT_PUBLIC_') && value !== undefined) {
+        acc[key] = value;
       }
+      return acc;
+    }, {});
 
-      return test.test('.svg');
-    }) as { [key: string]: any };
-
-    imageRule.exclude = /\.svg$/;
-
-    config.module?.rules?.push({
-      test: /\.svg$/,
-      use: ['@svgr/webpack'],
+    return mergeConfig(config, {
+      define: {
+        'process.env': JSON.stringify({
+          NODE_ENV: process.env.NODE_ENV ?? 'development',
+          ...publicEnv,
+        }),
+      },
     });
-
-    config.plugins.push(
-      new webpack.DefinePlugin(
-        Object.keys(process.env)
-          .filter((key) => key.startsWith('NEXT_PUBLIC_'))
-          .reduce(
-            (state, nextKey) => ({ ...state, [nextKey]: process.env[nextKey] }),
-            {},
-          ),
-      ),
-    );
-
-    return config;
   },
 };
 export default config;

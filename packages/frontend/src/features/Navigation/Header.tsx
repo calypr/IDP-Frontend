@@ -10,7 +10,7 @@ const Header = ({
   banners,
   type = 'original',
   title,
-  onToggle,
+  onToggle = () => undefined,
   basePage,
 }: HeaderToggleProps & Pick<HeaderMetadata, 'title'>) => {
   return (

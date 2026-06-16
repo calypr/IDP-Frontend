@@ -55,7 +55,6 @@ import CalyprPage from './pages/CALYPR/CALYPR';
 
 import {
   GitExplorerPageGetServerSideProps,
-  GitHubReturnPage,
   GitLandingPage,
   GitNewProjectPage,
   GitOrganizationSettingsPage,
@@ -67,6 +66,10 @@ import {
   OrganizationLandingPage,
   OrganizationProjectPage,
 } from './pages/OrganizationExplorer';
+import {
+  ProjectPresentationPage,
+  ProjectPresentationEditPage,
+} from './pages/ProjectPresentation';
 
 import { SmmartPageGetServerSideProps } from './pages/Smmart';
 import { CalyprPageGetServerSideProps } from './pages/CALYPR';
@@ -173,6 +176,7 @@ import sessionLogout from './api/auth/sessionLogout';
 import credentialsLogin from './api/auth/credentialsLogin';
 import credentialsLogout from './api/auth/credentialsLogout';
 import projectThumbnail from './api/gecko/projectThumbnail';
+import presentationConfig from './api/gecko/presentationConfig';
 import analysisApiCohortDiscovery from './features/CohortDiscovery/api/analysisApiCohortDiscovery';
 import staticNotebookAPI from './features/StaticNotebook/api/staticNotebookAPI';
 
@@ -211,7 +215,6 @@ export {
   CalyprPageGetServerSideProps,
   GitLandingPage,
   GitNewProjectPage,
-  GitHubReturnPage,
   GitOrganizationSettingsPage,
   GitProjectFilePage,
   GitProjectPage,
@@ -219,6 +222,8 @@ export {
   OrganizationLandingPage,
   OrganizationProjectPage,
   OrganizationExplorerPageGetServerSideProps,
+  ProjectPresentationPage,
+  ProjectPresentationEditPage,
   FileSummaryPage,
   FileSummaryPageGetServerSideProps,
   AppsPage,
@@ -263,6 +268,7 @@ export {
   credentialsLogin,
   credentialsLogout,
   projectThumbnail,
+  presentationConfig,
   createMantineTheme,
   AiSearchPage,
   AISearchPageGetServerSideProps,

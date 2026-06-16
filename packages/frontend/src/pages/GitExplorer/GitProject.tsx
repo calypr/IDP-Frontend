@@ -9,7 +9,6 @@ import {
   Code,
   Container,
   Group,
-  Loader,
   Menu,
   Popover,
   ScrollArea,
@@ -23,11 +22,12 @@ import {
 } from '@mantine/core';
 import {
   SYFON_API,
+  mintSyfonObjectIdFromChecksum,
+  useGetConfigContentQuery,
   useLazyGetGeckoGitProjectFileQuery,
   useGetGeckoGitProjectsQuery,
   useGetGeckoGitProjectRefsQuery,
   useGetGeckoGitProjectTreeQuery,
-  useLazyGetSyfonObjectsByChecksumQuery,
   useRefreshGeckoGitProjectMutation,
   type GeckoGitRefreshResponse,
   type GeckoGitProjectStatus,
@@ -44,13 +44,20 @@ import {
   IconGitBranch,
   IconLink,
   IconMail,
+  IconPhoto,
   IconSearch,
   IconTerminal2,
   IconClock,
   IconX,
 } from '@tabler/icons-react';
 import ProtectedContent from '../../components/Protected/ProtectedContent';
-import { NavPageLayout } from '../../features/Navigation';
+import {
+  NavPageLayout,
+  ProjectWorkspaceTabs,
+} from '../../features/Navigation';
+import type { FileActionsConfig } from '../../features/CohortBuilder/types';
+import { getFileExtensionCandidates } from '../OrganizationExplorer/utils';
+import { useIsEmbedded } from '../../utils';
 import type { GitExplorerPageProps } from './types';
 import GitUploadPRModal from './GitUploadPRModal';
 
@@ -115,6 +122,50 @@ const buildGitDrsRemoteAddCommand = (
 ): string =>
   `git drs remote add gen3 origin ${organization}/${project} --cred ~/.gen3/credentials.json`;
 
+const OME_TIFF_SUFFIX = '.ome.tiff';
+const OFFSETS_JSON_SUFFIX = '.offsets.json';
+
+const getConfiguredGitEntryActions = (
+  path: string,
+  fileActions?: FileActionsConfig,
+): Array<string> => {
+  const configuredFromExtensions = getFileExtensionCandidates(path).flatMap(
+    (extension) => fileActions?.extensions?.[extension] ?? [],
+  );
+  const configured = Array.from(
+    new Set([
+      ...configuredFromExtensions,
+      ...(configuredFromExtensions.length === 0
+        ? (fileActions?.extensions?.default ?? ['file_download'])
+        : []),
+    ]),
+  );
+
+  return configured.includes('file_download')
+    ? configured
+    : ['file_download', ...configured];
+};
+
+const hasMatchingOffsetsEntry = (
+  path: string,
+  entries: Array<GeckoGitTreeEntry>,
+): boolean => {
+  const normalizedPath = path.trim().toLowerCase();
+  if (!normalizedPath.endsWith(OME_TIFF_SUFFIX)) {
+    return false;
+  }
+
+  const expectedOffsetsPath = `${normalizedPath.slice(
+    0,
+    -OME_TIFF_SUFFIX.length,
+  )}${OFFSETS_JSON_SUFFIX}`;
+  return entries.some(
+    (candidate) =>
+      candidate.type === 'blob' &&
+      candidate.path.trim().toLowerCase() === expectedOffsetsPath,
+  );
+};
+
 const TRANSIENT_ALERT_TIMEOUT_MS = 5000;
 const MIRROR_STATUS_POLL_INTERVAL_MS = 1000;
 const isPersistentGitProjectError = (message: string | null | undefined) =>
@@ -125,7 +176,11 @@ interface GitProjectSuccessBanner {
   readonly pullRequestURL: string;
 }
 
-const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
+const GitProjectPage = ({
+  headerProps,
+  footerProps,
+  fileActions,
+}: GitExplorerPageProps) => {
   const router = useRouter();
   const organization =
     typeof router.query.org === 'string' ? router.query.org : '';
@@ -135,6 +190,7 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
     typeof router.query.ref === 'string' ? router.query.ref : null;
   const requestedPath =
     typeof router.query.path === 'string' ? router.query.path : '';
+  const isEmbedded = useIsEmbedded();
 
   const [selectedRef, setSelectedRef] = useState<string | null>(null);
   const [currentPath, setCurrentPath] = useState<string>(requestedPath);
@@ -160,6 +216,14 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
     isLoading: isStatusLoading,
     refetch: refetchGitProjects,
   } = useGetGeckoGitProjectsQuery();
+  const explorerConfigId =
+    organization && project ? `${organization}-${project}` : '';
+  const { data: explorerConfigResponse } = useGetConfigContentQuery(
+    explorerConfigId,
+    {
+      skip: !explorerConfigId,
+    },
+  );
   const projectStatus = useMemo(
     () =>
       gitProjects.find(
@@ -201,8 +265,6 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
         !projectStatus?.mirror_ready,
       },
     );
-  const [lookupSyfonObjectsByChecksum] =
-    useLazyGetSyfonObjectsByChecksumQuery();
   const [getGitProjectFile, { isLoading: isResolvingFileDownload }] =
     useLazyGetGeckoGitProjectFileQuery();
 
@@ -357,6 +419,27 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
     organization,
     project,
   );
+  const hasExplorerConfig = useMemo(
+    () => Boolean(explorerConfigResponse?.data),
+    [explorerConfigResponse?.data],
+  );
+  const effectiveFileActions = useMemo(() => {
+    const explorerConfigData = explorerConfigResponse?.data as
+      | { fileActions?: FileActionsConfig }
+      | undefined;
+    return explorerConfigData?.fileActions ?? fileActions;
+  }, [explorerConfigResponse?.data, fileActions]);
+  const gitProjectHref = useMemo(() => {
+    const query = new URLSearchParams();
+    if (effectiveRef) {
+      query.set('ref', effectiveRef);
+    }
+    if (currentPath) {
+      query.set('path', currentPath);
+    }
+    const serialized = query.toString();
+    return `/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}${serialized ? `?${serialized}` : ''}`;
+  }, [currentPath, effectiveRef, organization, project]);
 
   const handleRefresh = async () => {
     setActionError(null);
@@ -365,7 +448,7 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
         organization,
         project,
       }).unwrap()) as GeckoGitRefreshResponse;
-      const defaultBranch = refreshResponse.default_branch?.trim();
+      refreshResponse.default_branch?.trim();
     } catch (error) {
       const message =
         error && typeof error === 'object' && 'data' in error
@@ -399,30 +482,60 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
     }
   };
 
-  const handleLFSDownload = async (checksum: string) => {
+  const handleLFSDownload = async (checksum: string, path?: string) => {
     setActionError(null);
     setDownloadingChecksum(checksum);
     try {
-      const response = await lookupSyfonObjectsByChecksum(checksum).unwrap();
-      const objectId = response.resolved_drs_object?.[0]?.id;
-      if (!objectId) {
-        setActionError(
-          `No Syfon object was found for LFS checksum ${checksum}.`,
-        );
-        return;
-      }
       window.open(
-        buildSyfonDownloadUrl(objectId),
+        buildSyfonDownloadUrl(checksum),
         '_blank',
         'noopener,noreferrer',
       );
     } catch {
+      if (path) {
+        await handleFileDownload(path);
+        return;
+      }
       setActionError(
         `Failed to resolve a Syfon download for LFS checksum ${checksum}.`,
       );
     } finally {
       setDownloadingChecksum(null);
     }
+  };
+
+  const handleLFSImageViewerOpen = async (checksum: string) => {
+    setActionError(null);
+    setDownloadingChecksum(checksum);
+    try {
+      const objectId = await mintSyfonObjectIdFromChecksum(
+        checksum,
+        [`/programs/${organization}/projects/${project}`],
+      );
+      window.open(
+        `/image-viewer/view/${encodeURIComponent(objectId)}`,
+        '_blank',
+        'noopener,noreferrer',
+      );
+    } catch {
+      setActionError(
+        `Failed to resolve an image viewer object for LFS checksum ${checksum}.`,
+      );
+    } finally {
+      setDownloadingChecksum(null);
+    }
+  };
+
+  const canOpenGitImageViewer = (entry: GeckoGitTreeEntry): boolean => {
+    if (!entry.lfs_pointer) {
+      return false;
+    }
+
+    return (
+      getConfiguredGitEntryActions(entry.path, effectiveFileActions).includes(
+        'file_image',
+      ) || hasMatchingOffsetsEntry(entry.path, treeData?.entries ?? [])
+    );
   };
 
   const handleOpenFile = (path: string) => {
@@ -433,7 +546,7 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
       .join('/');
     const query = selectedRef ? `?ref=${encodeURIComponent(selectedRef)}` : '';
     void router.push(
-      `/git/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}/blob/${encodedPath}${query}`,
+      `/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}/blob/${encodedPath}${query}`,
     );
   };
 
@@ -467,7 +580,7 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
 
     void router.push(
       {
-        pathname: '/git/[org]/project/[project]',
+        pathname: '/org/[org]/project/[project]',
         query: {
           org: organization,
           project,
@@ -642,27 +755,52 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
                   <Table.Td className="pl-4 pr-3 py-1">
                     <Group justify="flex-end">
                       {entry.lfs_pointer ? (
-                        <Tooltip label="Download LFS object from Syfon">
-                          <ActionIcon
-                            aria-label={`Download LFS object for ${entry.path}`}
-                            color="violet"
-                            loading={
-                              downloadingChecksum ===
-                              entry.lfs_pointer.oid
-                            }
-                            onClick={(event) => {
-                              event.preventDefault();
-                              event.stopPropagation();
-                              void handleLFSDownload(
-                                entry.lfs_pointer!.oid,
-                              );
-                            }}
-                            size="md"
-                            variant="subtle"
-                          >
-                            <IconDownload size={16} />
-                          </ActionIcon>
-                        </Tooltip>
+                        <Group gap={4} justify="flex-end" wrap="nowrap">
+                          {canOpenGitImageViewer(entry) ? (
+                            <Tooltip label="Open image viewer">
+                              <ActionIcon
+                                aria-label={`Open image viewer for ${entry.path}`}
+                                color="teal"
+                                loading={
+                                  downloadingChecksum === entry.lfs_pointer.oid
+                                }
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  void handleLFSImageViewerOpen(
+                                    entry.lfs_pointer!.oid,
+                                  );
+                                }}
+                                size="md"
+                                variant="subtle"
+                              >
+                                <IconPhoto size={16} />
+                              </ActionIcon>
+                            </Tooltip>
+                          ) : null}
+                          <Tooltip label="Download LFS object from Syfon">
+                            <ActionIcon
+                              aria-label={`Download LFS object for ${entry.path}`}
+                              color="violet"
+                              loading={
+                                downloadingChecksum ===
+                                entry.lfs_pointer.oid
+                              }
+                              onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                void handleLFSDownload(
+                                  entry.lfs_pointer!.oid,
+                                  entry.path,
+                                );
+                              }}
+                              size="md"
+                              variant="subtle"
+                            >
+                              <IconDownload size={16} />
+                            </ActionIcon>
+                          </Tooltip>
+                        </Group>
                       ) : entry.type === 'blob' ? (
                         <Tooltip label="Download file">
                           <ActionIcon
@@ -710,20 +848,10 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
     </Card>
   );
 
-  return (
-    <NavPageLayout
-      {...{ headerProps, footerProps }}
-      headerMetadata={{
-        content: `${organization}/${project}`,
-        key: 'gecko-git-project',
-        title: `${organization}/${project}`,
-      }}
-      mainProps={{ className: 'bg-[#f6f8fa]' }}
-    >
-      <ProtectedContent>
-        <div className="min-h-screen bg-[#f6f8fa]">
-          <Container py="md" size="xl">
-            <Stack gap="sm">
+  const gitProjectContent = (
+    <div className="min-h-screen bg-[#f6f8fa]">
+      <Container py="md" size="xl">
+        <Stack gap="sm">
               <Group justify="space-between" gap="xs" wrap="nowrap">
                 {isRootView ? (
                   <Group className="min-w-0 flex-1" gap={6} wrap="nowrap">
@@ -775,8 +903,10 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
                     <ActionIcon
                       aria-label="Open Syfon project view"
                       component="a"
-                      href={`/organization/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}`}
+                      href={`/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}/lake`}
+                      rel={isEmbedded ? undefined : 'noreferrer'}
                       size="lg"
+                      target={isEmbedded ? '_parent' : '_blank'}
                       variant="subtle"
                     >
                       <IconDatabaseExport size={18} />
@@ -800,7 +930,7 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
                           leftSection={<IconGitBranch size={15} />}
                           onChange={(value) => {
                             void router.push({
-                              pathname: `/git/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}`,
+                              pathname: `/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}`,
                               query: {
                                 ...(value ? { ref: value } : {}),
                                 ...(currentPath
@@ -827,7 +957,7 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
                         />
                       </div>
                       <Link
-                        href={`/git/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}${effectiveRef ? `?ref=${encodeURIComponent(effectiveRef)}` : ''}`}
+                        href={`/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}${effectiveRef ? `?ref=${encodeURIComponent(effectiveRef)}` : ''}`}
                         legacyBehavior
                       >
                         <a className="min-w-0 no-underline text-primary hover:underline">
@@ -972,7 +1102,7 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
               {projectStatus?.installation_state !== 'connected' ? (
                 <Alert color="blue" variant="light">
                   {projectStatus?.organization_app_installed
-                    ? 'This organization has the GitHub App installed, but this tracked repository is not configured yet. Update repository access from '
+                    ? 'GitHub is not connected for this project yet. Update repository access from '
                     : 'This organization does not have the GitHub App installed yet. Connect it from '}
                   <Link
                     href="/git"
@@ -1022,7 +1152,7 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
                               leftSection={<IconGitBranch size={15} />}
                               onChange={(value) => {
                                 void router.push({
-                                  pathname: `/git/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}`,
+                                  pathname: `/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}`,
                                   query: {
                                     ...(value ? { ref: value } : {}),
                                   },
@@ -1260,9 +1390,35 @@ const GitProjectPage = ({ headerProps, footerProps }: GitExplorerPageProps) => {
               ) : (
                 repositoryTable
               )}
-            </Stack>
-          </Container>
-        </div>
+        </Stack>
+      </Container>
+    </div>
+  );
+
+  if (isEmbedded) {
+    return <ProtectedContent>{gitProjectContent}</ProtectedContent>;
+  }
+
+  return (
+    <NavPageLayout
+      {...{ headerProps, footerProps }}
+      headerMetadata={{
+        content: `${organization}/${project}`,
+        key: 'gecko-git-project',
+        title: `${organization}/${project}`,
+      }}
+      mainProps={{ className: 'bg-[#f6f8fa]' }}
+    >
+      <ProtectedContent>
+        <ProjectWorkspaceTabs
+          activeTab="git"
+          gitHref={gitProjectHref}
+          hasExplorerConfig={hasExplorerConfig}
+          organization={organization}
+          project={project}
+        >
+          {gitProjectContent}
+        </ProjectWorkspaceTabs>
       </ProtectedContent>
     </NavPageLayout>
   );

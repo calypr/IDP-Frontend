@@ -233,6 +233,48 @@ export const parsePathQueryValue = (
 export const getSyfonRepoDownloadUrl = (did: string): string =>
   `${SYFON_API}/download/${did}?redirect=true`;
 
+const OME_TIFF_SUFFIX = '.ome.tiff';
+const OFFSETS_JSON_SUFFIX = '.offsets.json';
+
+export const getFileExtensionCandidates = (fileName: string): Array<string> => {
+  const normalized = fileName.trim().toLowerCase();
+  const candidates: Array<string> = [];
+
+  if (normalized.endsWith(OFFSETS_JSON_SUFFIX)) {
+    candidates.push('offsets.json');
+  }
+
+  if (normalized.endsWith(OME_TIFF_SUFFIX)) {
+    candidates.push('ome.tiff');
+  }
+
+  const lastDotIndex = normalized.lastIndexOf('.');
+  if (lastDotIndex >= 0 && lastDotIndex < normalized.length - 1) {
+    candidates.push(normalized.slice(lastDotIndex + 1));
+  }
+
+  return Array.from(new Set(candidates));
+};
+
+export const findMatchingOffsetsFile = (
+  imageFile: SyfonRepoFile,
+  files: Array<SyfonRepoFile>,
+): SyfonRepoFile | null => {
+  const normalizedCanonicalName = imageFile.canonicalFilename.trim().toLowerCase();
+  if (!normalizedCanonicalName.endsWith(OME_TIFF_SUFFIX)) {
+    return null;
+  }
+
+  const expectedOffsetsName = `${normalizedCanonicalName.slice(0, -OME_TIFF_SUFFIX.length)}${OFFSETS_JSON_SUFFIX}`;
+  return (
+    files.find(
+      (candidate) =>
+        candidate.did !== imageFile.did &&
+        candidate.canonicalFilename.trim().toLowerCase() === expectedOffsetsName,
+    ) ?? null
+  );
+};
+
 export const truncateDescription = (
   description: string | undefined,
   maxLength = 80,

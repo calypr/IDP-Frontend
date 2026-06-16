@@ -23,7 +23,7 @@ describe('syfonIndexApi', () => {
     global.fetch = originalFetch;
   });
 
-  it('lists exact project records from the Syfon index endpoint', async () => {
+  it('passes through scoped Syfon records from the index endpoint', async () => {
     const store = setupCoreStore();
 
     global.fetch = jest.fn(async (input: RequestInfo | URL) => {
@@ -76,6 +76,12 @@ describe('syfonIndexApi', () => {
           size: 11,
         },
         {
+          controlled_access: ['/programs/org-a'],
+          did: 'did-2',
+          file_name: 'nested/b.txt',
+          size: 22,
+        },
+        {
           did: 'did-3',
           file_name: 'nested/c.txt',
           organization: 'org-a',
@@ -86,7 +92,7 @@ describe('syfonIndexApi', () => {
     });
   });
 
-  it('walks large project listings with start cursors instead of page offsets', async () => {
+  it('returns only the requested page for default browse mode', async () => {
     const store = setupCoreStore();
     const urls: Array<string> = [];
 
@@ -116,22 +122,6 @@ describe('syfonIndexApi', () => {
         });
       }
 
-      if (
-        url ===
-        `${GEN3_API}/index?organization=org-a&project=proj-a&limit=2&start=did-2`
-      ) {
-        return jsonResponse({
-          records: [
-            {
-              controlled_access: ['/programs/org-a/projects/proj-a'],
-              did: 'did-3',
-              file_name: 'nested/c.txt',
-              size: 33,
-            },
-          ],
-        });
-      }
-
       throw new Error(`unexpected URL ${url}`);
     }) as typeof global.fetch;
 
@@ -145,7 +135,6 @@ describe('syfonIndexApi', () => {
 
     expect(urls).toEqual([
       `${GEN3_API}/index?organization=org-a&project=proj-a&limit=2`,
-      `${GEN3_API}/index?organization=org-a&project=proj-a&limit=2&start=did-2`,
     ]);
     expect(result.data).toEqual({
       directories: [],
@@ -161,12 +150,6 @@ describe('syfonIndexApi', () => {
           did: 'did-2',
           file_name: 'nested/b.txt',
           size: 22,
-        },
-        {
-          controlled_access: ['/programs/org-a/projects/proj-a'],
-          did: 'did-3',
-          file_name: 'nested/c.txt',
-          size: 33,
         },
       ],
     });
@@ -256,6 +239,49 @@ describe('syfonIndexApi', () => {
           controlled_access: ['/programs/org-a/projects/proj-a'],
           did: 'did-1',
           file_name: 'nested/a.txt',
+          size: 11,
+        },
+      ],
+    });
+  });
+
+  it('omits path when the caller passes an empty root path', async () => {
+    const store = setupCoreStore();
+
+    global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+      const url = requestUrl(input);
+      expect(url).toBe(
+        `${GEN3_API}/index?organization=org-a&project=proj-a&limit=250`,
+      );
+
+      return jsonResponse({
+        records: [
+          {
+            controlled_access: ['/programs/org-a/projects/proj-a'],
+            did: 'did-1',
+            file_name: 'root.txt',
+            size: 11,
+          },
+        ],
+      });
+    }) as typeof global.fetch;
+
+    const result = await store.dispatch(
+      syfonIndexApi.endpoints.getSyfonIndexRecords.initiate({
+        limit: 250,
+        organization: 'org-a',
+        path: '',
+        project: 'proj-a',
+      }),
+    );
+
+    expect(result.data).toEqual({
+      directories: [],
+      records: [
+        {
+          controlled_access: ['/programs/org-a/projects/proj-a'],
+          did: 'did-1',
+          file_name: 'root.txt',
           size: 11,
         },
       ],

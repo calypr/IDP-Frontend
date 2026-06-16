@@ -5,6 +5,7 @@ import HoverLink from './HoverLink';
 import NavigationBar from './NavigationBar';
 import NavigationButton from './NavigationButton';
 import NavPageLayout from './NavPageLayout';
+import ProjectWorkspaceTabs from './ProjectWorkspaceTabs';
 import type { NavPageLayoutProps } from './types';
 import { type TopBarProps } from './TopBar/TopBar';
 import {
@@ -31,5 +32,6 @@ export {
   NavigationBar,
   NavigationButton,
   NavPageLayout,
+  ProjectWorkspaceTabs,
   Banner,
 };

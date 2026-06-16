@@ -98,8 +98,8 @@ const D3Page = ({ headerProps, footerProps }: NavPageLayoutProps) => {
   const { data, isLoading, isError } = useGeneralGQLQuery(
     countsQuery('product_notes_project_id'),
   );
-  const svgRef = useRef(); // directly reference the SVG and tooltip elements
-  const tooltipRef = useRef(); // directly reference the SVG and tooltip elements
+  const svgRef = useRef<SVGSVGElement | null>(null); // directly reference the SVG and tooltip elements
+  const tooltipRef = useRef<HTMLDivElement | null>(null); // directly reference the SVG and tooltip elements
 
   const queryData = isQueryResponse(data)
     ? extractData(data, 'product_notes_project_id', 'histogram')
@@ -143,7 +143,7 @@ const D3Page = ({ headerProps, footerProps }: NavPageLayoutProps) => {
     // Create scales
     const x = d3
       .scaleLinear()
-      .domain([0, d3.max(histogramData, (d) => d.count)])
+      .domain([0, d3.max(histogramData, (d) => d.count) ?? 0])
       .range([0, width]);
 
     const y = d3
@@ -168,7 +168,7 @@ const D3Page = ({ headerProps, footerProps }: NavPageLayoutProps) => {
       .append('rect')
       .attr('class', 'bar fill-current text-blue-800') // Add Tailwind CSS classes
       .attr('x', 0)
-      .attr('y', (d) => y(d.key))
+      .attr('y', (d) => y(d.key) ?? 0)
       .attr('width', (d) => x(d.count))
       .attr('height', y.bandwidth())
       .on('mouseover', function (event, d) {
@@ -203,7 +203,15 @@ const D3Page = ({ headerProps, footerProps }: NavPageLayoutProps) => {
   }
 
   return (
-    <NavPageLayout headerProps={headerProps} footerProps={footerProps}>
+    <NavPageLayout
+      headerMetadata={{
+        content: 'D3 page',
+        key: 'd3-page',
+        title: 'D3 Page',
+      }}
+      headerProps={headerProps}
+      footerProps={footerProps}
+    >
       <svg ref={svgRef}></svg>
       <div ref={tooltipRef} className="tooltip"></div>{' '}
     </NavPageLayout>

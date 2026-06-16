@@ -25,7 +25,7 @@ export interface NavigationBarLogo {
   readonly basePath?: string;
   readonly classNames?: StylingOverrideWithMergeControl;
   readonly href: string;
-  onToggle: () => void;
+  onToggle?: () => void;
   basepage?: boolean;
 }
 
@@ -49,7 +49,7 @@ export interface LeftNavBarProps {
 }
 
 export interface HeaderToggleProps extends HeaderProps {
-  onToggle: () => void;
+  onToggle?: () => void;
 }
 export interface HeaderMetadata {
   title: string;

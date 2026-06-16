@@ -1,6 +1,5 @@
 import React, { useMemo } from 'react';
-import { ActionIcon, Loader, MantineProvider, Menu, Text } from '@mantine/core';
-import { IconDotsVertical, IconPencil } from '@tabler/icons-react';
+import { Loader, MantineProvider, Text } from '@mantine/core';
 import { useRouter } from 'next/router';
 import type { AppsPageProps } from './types';
 import { NavPageLayout } from '../../features/Navigation';
@@ -12,9 +11,6 @@ import { ProtectedContent } from '../../components/Protected';
 
 const projectPresentationHref = (organization: string, project: string) =>
   `/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}/presentation`;
-
-const projectEditHref = (organization: string, project: string) =>
-  `/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}/edit`;
 
 const fallbackProjectThumbnailURL = '/icons/calypr-mark-mono.svg';
 
@@ -100,11 +96,6 @@ const AppsPage = ({ headerProps, footerProps }: AppsPageProps) => {
                 project.organization,
                 project.project,
               );
-              const editHref = projectEditHref(
-                project.organization,
-                project.project,
-              );
-
               return (
                 <div
                   className="grid cursor-pointer items-center gap-6 px-3 py-3 transition hover:bg-slate-50 focus-within:bg-slate-50 md:grid-cols-[4rem_minmax(0,1fr)_minmax(0,1.35fr)_minmax(0,0.8fr)_auto]"
@@ -159,38 +150,7 @@ const AppsPage = ({ headerProps, footerProps }: AppsPageProps) => {
                       {contactEmail}
                     </Text>
                   </div>
-
-                  <div className="flex items-center justify-start md:justify-end">
-                    <Menu position="bottom-end" shadow="sm" withinPortal>
-                      <Menu.Target>
-                        <ActionIcon
-                          aria-label={`Open actions for ${title}`}
-                          color="gray"
-                          onClick={(event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                          }}
-                          variant="subtle"
-                        >
-                          <IconDotsVertical size={16} />
-                        </ActionIcon>
-                      </Menu.Target>
-                      <Menu.Dropdown
-                        onClick={(event) => {
-                          event.stopPropagation();
-                        }}
-                      >
-                        <Menu.Item
-                          leftSection={<IconPencil size={14} />}
-                          onClick={() => {
-                            void router.push(editHref);
-                          }}
-                        >
-                          Edit
-                        </Menu.Item>
-                      </Menu.Dropdown>
-                    </Menu>
-                  </div>
+                  <div />
                 </div>
               );
             })}

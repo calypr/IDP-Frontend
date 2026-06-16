@@ -5,6 +5,7 @@ if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
 }
 import App, { AppProps, AppContext, AppInitialProps } from 'next/app';
 import React, { useState, useEffect, useRef, Suspense } from 'react';
+import Head from 'next/head';
 import { MantineProvider } from '@mantine/core';
 import mantinetheme from '../mantineTheme';
 
@@ -95,6 +96,9 @@ const Gen3App = ({
   }, []);
   return (
     <React.Fragment>
+      <Head>
+        <title>Calypr</title>
+      </Head>
       <MantineProvider theme={mantinetheme}>
         {isClient ? (
           <Suspense fallback={<Loading />}>

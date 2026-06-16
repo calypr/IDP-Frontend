@@ -136,6 +136,7 @@ export interface GeckoGitProjectStatus {
   readonly resource_path: string;
   readonly config: GeckoProjectConfig;
   readonly repository: GeckoGitRepositoryIdentity;
+  readonly workflow_stage?: string;
   readonly installation_state: string;
   readonly installation_id?: number;
   readonly installation_target?: string;
@@ -151,10 +152,17 @@ export interface GeckoGitProjectStatus {
 }
 
 export interface GeckoGitOrganizationConnectResponse {
-  readonly mode?: 'redirect' | 'connected';
+  readonly mode?: 'redirect' | 'connected' | 'disconnected' | 'select_repository';
   readonly redirect_url?: string;
   readonly installation_id?: number;
   readonly state?: string;
+  readonly repositories?: Array<{
+    readonly id: number;
+    readonly name: string;
+    readonly full_name: string;
+    readonly html_url: string;
+    readonly clone_url: string;
+  }>;
 }
 
 
@@ -173,6 +181,7 @@ export interface GeckoGitOrganizationProjectStatus {
   readonly project: string;
   readonly resource_path?: string;
   readonly repository: GeckoGitRepositoryIdentity;
+  readonly workflow_stage?: string;
   readonly configured: boolean;
   readonly accessible?: boolean;
   readonly can_manage_settings?: boolean;
@@ -545,7 +554,7 @@ export const normalizeGeckoProjectRecord = (
 };
 
 const geckoTaggedApi = gen3Api.enhanceEndpoints({
-  addTagTypes: ['GeckoProjects', 'GeckoGitProjects'],
+  addTagTypes: ['GeckoProjects', 'GeckoGitProjects', 'GeckoGitOrganizations'],
 });
 
 export const geckoApi = geckoTaggedApi.injectEndpoints({
@@ -731,6 +740,7 @@ export const geckoApi = geckoTaggedApi.injectEndpoints({
         return { data: { success: true } };
       },
       invalidatesTags: (_result, _error, { organization, project }) => [
+        'GeckoProjects',
         'GeckoGitProjects',
         {
           type: 'GeckoGitProjects',
@@ -762,6 +772,7 @@ export const geckoApi = geckoTaggedApi.injectEndpoints({
         return { data: { success: true } };
       },
       invalidatesTags: (_result, _error, { organization, project }) => [
+        'GeckoProjects',
         'GeckoGitProjects',
         {
           type: 'GeckoGitProjects',
@@ -825,6 +836,10 @@ export const geckoApi = geckoTaggedApi.injectEndpoints({
       GeckoGitOrganizationStatus,
       { organization: string }
     >({
+      providesTags: (_result, _error, { organization }) => [
+        'GeckoGitOrganizations',
+        { type: 'GeckoGitOrganizations', id: organization },
+      ],
       query: ({ organization }) => ({
         url: `/gecko/git/organizations/${encodeURIComponent(organization)}/status`,
         method: 'GET',
@@ -835,6 +850,7 @@ export const geckoApi = geckoTaggedApi.injectEndpoints({
       GeckoGitOrganizationsStatus,
       void
     >({
+      providesTags: ['GeckoGitOrganizations'],
       query: () => ({
         url: '/gecko/git/organizations/status',
         method: 'GET',
@@ -845,6 +861,11 @@ export const geckoApi = geckoTaggedApi.injectEndpoints({
       GeckoGitOrganizationsReconcileResponse,
       void
     >({
+      invalidatesTags: [
+        'GeckoProjects',
+        'GeckoGitProjects',
+        'GeckoGitOrganizations',
+      ],
       query: () => ({
         url: '/gecko/git/organizations/reconcile',
         method: 'POST',
@@ -855,6 +876,12 @@ export const geckoApi = geckoTaggedApi.injectEndpoints({
       GeckoGitOrganizationReconcileResponse,
       { organization: string }
     >({
+      invalidatesTags: (_result, _error, { organization }) => [
+        'GeckoProjects',
+        'GeckoGitProjects',
+        'GeckoGitOrganizations',
+        { type: 'GeckoGitOrganizations', id: organization },
+      ],
       query: ({ organization }) => ({
         url: `/gecko/git/organizations/${encodeURIComponent(organization)}/reconcile`,
         method: 'POST',
@@ -895,16 +922,46 @@ export const geckoApi = geckoTaggedApi.injectEndpoints({
     connectGeckoGitOrganization: builder.mutation<
       GeckoGitOrganizationConnectResponse,
       {
+        organization: string;
+        githubOwner: string;
         installationId: number;
-        state: string;
       }
     >({
-      query: ({ installationId, state }) => ({
-        url: '/gecko/git/connect',
+      invalidatesTags: (_result, _error, { organization }) => [
+        'GeckoProjects',
+        'GeckoGitProjects',
+        'GeckoGitOrganizations',
+        { type: 'GeckoGitOrganizations', id: organization },
+      ],
+      query: ({ organization, githubOwner, installationId }) => ({
+        url: `/gecko/git/organizations/${encodeURIComponent(organization)}/connect`,
         method: 'POST',
         body: {
+          github_owner: githubOwner,
           installation_id: installationId,
-          state,
+        },
+        credentials: 'include',
+      }),
+    }),
+    editConnectGeckoGitProject: builder.mutation<
+      GeckoGitOrganizationConnectResponse,
+      {
+        organization: string;
+        project: string;
+        repositoryFullName: string;
+      }
+    >({
+      invalidatesTags: (_result, _error, { organization }) => [
+        'GeckoProjects',
+        'GeckoGitProjects',
+        'GeckoGitOrganizations',
+        { type: 'GeckoGitOrganizations', id: organization },
+      ],
+      query: ({ organization, project, repositoryFullName }) => ({
+        url: buildGitProjectApiPath(organization, project, '/edit-connect'),
+        method: 'POST',
+        body: {
+          repository_full_name: repositoryFullName,
         },
         credentials: 'include',
       }),
@@ -1056,12 +1113,13 @@ export const geckoApi = geckoTaggedApi.injectEndpoints({
     }),
     getGeckoGitOrganizationRepositories: builder.query<
       Array<GeckoGitRepositoryIdentity>,
-      { organization: string; installationId: number }
+      { organization: string; githubOwner: string; installationId: number }
     >({
-      query: ({ organization, installationId }) => ({
+      query: ({ organization, githubOwner, installationId }) => ({
         url: `/gecko/git/organizations/${encodeURIComponent(organization)}/connect`,
         method: 'POST',
         body: {
+          github_owner: githubOwner,
           installation_id: installationId,
         },
         credentials: 'include',
@@ -1085,11 +1143,45 @@ export const geckoApi = geckoTaggedApi.injectEndpoints({
           };
         }),
     }),
+    getGeckoGitProjectPresentationConfig: builder.query<
+        { presentationConfig: string; success?: boolean },
+        { organization: string; project: string }
+      >({
+        providesTags: (_result, _error, { organization, project }) => [
+          {
+            type: 'GeckoGitProjects',
+            id: `presentation:${organization}/${project}`,
+          },
+        ],
+        query: ({ organization, project }) => ({
+          url: buildGitProjectApiPath(organization, project, '/presentationConfig'),
+          method: 'GET',
+          credentials: 'include',
+        }),
+      }),
+      updateGeckoGitProjectPresentationConfig: builder.mutation<
+        { presentationConfig: string; success?: boolean },
+        { organization: string; project: string; presentationConfig: string }
+      >({
+        invalidatesTags: (_result, _error, { organization, project }) => [
+          {
+            type: 'GeckoGitProjects',
+            id: `presentation:${organization}/${project}`,
+          },
+        ],
+        query: ({ organization, project, presentationConfig }) => ({
+          url: buildGitProjectApiPath(organization, project, '/presentationConfig'),
+          method: 'PUT',
+          body: { presentationConfig },
+          credentials: 'include',
+        }),
+    }),
   }),
 });
 
 export const {
   useConnectGeckoGitOrganizationMutation,
+  useEditConnectGeckoGitProjectMutation,
   useInitConnectGeckoGitOrganizationMutation,
   useCreateGeckoGitUploadSessionMutation,
   useCreateGeckoProjectMutation,
@@ -1118,6 +1210,8 @@ export const {
   useRefreshGeckoGitProjectMutation,
   useGetGeckoGitOrganizationRepositoriesQuery,
   useLazyGetGeckoGitOrganizationRepositoriesQuery,
+  useGetGeckoGitProjectPresentationConfigQuery,
+  useUpdateGeckoGitProjectPresentationConfigMutation,
 } = geckoApi;
 
 export const geckoReducerPath = geckoApi.reducerPath;

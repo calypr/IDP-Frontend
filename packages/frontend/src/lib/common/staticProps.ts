@@ -71,7 +71,6 @@ export const getNavPageLayoutPropsFromConfig = async (
       'Failed to fetch navigation configuration from microservice:',
       err,
     );
-    // Return minimal skeleton properties to keep page rendering possible so logic can show login modal
     return {
       headerProps: {
         topBar: {

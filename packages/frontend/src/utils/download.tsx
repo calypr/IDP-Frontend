@@ -3,7 +3,7 @@ import Cookies from 'universal-cookie';
 import { CoreDispatch, Modals, showModal } from '@gen3/core';
 import { Button } from '@mantine/core';
 import { cleanNotifications, showNotification } from '@mantine/notifications';
-import { includes, isPlainObject, reduce, uniqueId } from 'lodash';
+import { includes, reduce, uniqueId } from 'lodash';
 import { RiCloseCircleLine as CloseIcon } from 'react-icons/ri';
 
 const hashString = (s: string) =>
@@ -14,16 +14,8 @@ const getBody = (iframe: HTMLIFrameElement) => {
   return (document as Window)?.document?.body || (document as Document)?.body;
 };
 
-const toHtml = (key: string, value: unknown) =>
-  `<input
-    type="hidden"
-    name="${key}"
-    value="${
-      isPlainObject(value)
-        ? JSON.stringify(value).replace(/"/g, '&quot;')
-        : value
-    }"
-  />`;
+const toInputValue = (value: unknown) =>
+  typeof value === 'object' && value !== null ? JSON.stringify(value) : String(value);
 
 const customKeys = ['expand', 'fields', 'facets'];
 
@@ -175,23 +167,13 @@ const download = async <T extends Record<string, unknown> = Record<string, unkno
     100,
   ); // set to 100 as that is perceived as instant
 
-  const fields = reduce(
-    {
-      ...params,
-      downloadCookieKey: cookieKey,
-      downloadCookiePath: '/',
-      attachment: true,
-      ...(params.filename !== undefined ? { download: params.filename } : {}),
-    },
-    (result, value, key) => {
-      const paramValue = processParamObj(key, value);
-      return (
-        result +
-        (Array.isArray(paramValue) ? paramValue : [paramValue]).reduce((acc, v) => acc + toHtml(key, v), '')
-      );
-    },
-    '',
-  );
+  const fields = {
+    ...params,
+    downloadCookieKey: cookieKey,
+    downloadCookiePath: '/',
+    attachment: true,
+    ...(params.filename !== undefined ? { download: params.filename } : {}),
+  };
 
   const iFrame = document.createElement('iframe');
   iFrame.style.display = 'none';
@@ -268,7 +250,19 @@ const download = async <T extends Record<string, unknown> = Record<string, unkno
     const form = document.createElement('form');
     form.method = method.toUpperCase();
     form.action = endpoint;
-    form.innerHTML = fields;
+
+    Object.entries(fields).forEach(([key, value]) => {
+      const paramValue = processParamObj(key, value);
+      const values = Array.isArray(paramValue) ? paramValue : [paramValue];
+
+      values.forEach((entryValue) => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = key;
+        input.value = toInputValue(entryValue);
+        form.appendChild(input);
+      });
+    });
 
     getBody(iFrame).appendChild(form);
 

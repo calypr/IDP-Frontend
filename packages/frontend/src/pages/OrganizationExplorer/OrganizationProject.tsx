@@ -18,13 +18,14 @@ import {
 } from '@mantine/core';
 import {
   IconArrowUpRight,
-  IconChevronRight,
   IconDownload,
   IconBrandGit,
   IconFile,
   IconFolder,
   IconArrowLeft,
   IconCheck,
+  IconChevronDown,
+  IconChevronUp,
   IconCopy,
   IconSearch,
   IconPhoto,
@@ -42,6 +43,8 @@ import type {
   SyfonRepoFile,
 } from './types';
 import {
+  findMatchingOffsetsFile,
+  getFileExtensionCandidates,
   getSyfonRepoDownloadUrl,
   normalizeSyfonIndexRecordToRepoFile,
   parsePathQueryValue,
@@ -71,18 +74,51 @@ const formatTimestamp = (value?: string): string => {
   }
 };
 
-const getFileExtension = (fileName: string): string =>
-  fileName.includes('.') ? fileName.split('.').pop()?.toLowerCase() ?? '' : '';
+type SortColumn = 'name' | 'description' | 'size' | 'updated';
+type SortDirection = 'asc' | 'desc';
+
+const getDefaultSortDirection = (column: SortColumn): SortDirection =>
+  column === 'updated' || column === 'size' ? 'desc' : 'asc';
+
+const compareText = (left: string, right: string): number =>
+  left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' });
+
+const compareOptionalNumber = (
+  left?: number,
+  right?: number,
+): number => {
+  const normalizedLeft = typeof left === 'number' ? left : Number.NEGATIVE_INFINITY;
+  const normalizedRight =
+    typeof right === 'number' ? right : Number.NEGATIVE_INFINITY;
+  return normalizedLeft - normalizedRight;
+};
+
+const compareOptionalTimestamp = (
+  left?: string,
+  right?: string,
+): number => {
+  const normalizedLeft = left ? new Date(left).getTime() : Number.NEGATIVE_INFINITY;
+  const normalizedRight = right
+    ? new Date(right).getTime()
+    : Number.NEGATIVE_INFINITY;
+  return normalizedLeft - normalizedRight;
+};
 
 const getConfiguredActions = (
   file: SyfonRepoFile,
   fileActions?: FileActionsConfig,
 ): Array<string> => {
-  const extension = getFileExtension(file.displayName);
-  const configured =
-    fileActions?.extensions?.[extension] ??
-    fileActions?.extensions?.default ??
-    ['file_download'];
+  const configuredFromExtensions = getFileExtensionCandidates(
+    file.canonicalFilename,
+  ).flatMap((extension) => fileActions?.extensions?.[extension] ?? []);
+  const configured = Array.from(
+    new Set([
+      ...configuredFromExtensions,
+      ...(configuredFromExtensions.length === 0
+        ? (fileActions?.extensions?.default ?? ['file_download'])
+        : []),
+    ]),
+  );
 
   return configured.includes('file_download')
     ? configured
@@ -93,22 +129,38 @@ const openDownload = (did: string) => {
   window.open(getSyfonRepoDownloadUrl(did), '_blank', 'noopener,noreferrer');
 };
 
-const openImageViewer = (did: string, fileActions?: FileActionsConfig) => {
+const openImageViewer = (
+  did: string,
+  fileActions?: FileActionsConfig,
+) => {
   const baseUrl = fileActions?.actions?.file_image || '/image-viewer/view';
   const target = baseUrl.endsWith('/') ? `${baseUrl}${did}` : `${baseUrl}/${did}`;
   window.open(target, '_blank', 'noopener,noreferrer');
 };
 
+const canOpenImageViewer = (
+  file: SyfonRepoFile,
+  allFiles: Array<SyfonRepoFile>,
+  fileActions?: FileActionsConfig,
+): boolean =>
+  getConfiguredActions(file, fileActions).includes('file_image') ||
+  Boolean(findMatchingOffsetsFile(file, allFiles));
+
 const FileDetailsPanel = ({
   file,
+  repoFiles,
   fileActions,
   onBack,
 }: {
   file: SyfonRepoFile;
+  repoFiles: Array<SyfonRepoFile>;
   fileActions?: FileActionsConfig;
   onBack: () => void;
 }) => {
   const configuredActions = getConfiguredActions(file, fileActions);
+  const offsetsFile = findMatchingOffsetsFile(file, repoFiles);
+  const showImageViewerAction =
+    configuredActions.includes('file_image') || Boolean(offsetsFile);
   const primaryUrl = file.accessMethods[0]?.access_url?.url;
   const shouldShowRepoPath =
     file.canonicalFilename.trim() !== file.displayName.trim();
@@ -148,7 +200,7 @@ const FileDetailsPanel = ({
           >
             Download
           </Button>
-          {configuredActions.includes('file_image') && (
+          {showImageViewerAction && (
             <ActionIcon
               aria-label={`Open image viewer for ${file.displayName}`}
               color="teal"
@@ -257,21 +309,29 @@ const OrganizationProjectPage = ({
   const [selectedDid, setSelectedDid] = useState<string | null>(null);
   const [hasCopiedRepoPath, setHasCopiedRepoPath] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [sortColumn, setSortColumn] = useState<SortColumn>('name');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const pageScrollTopRef = useRef(0);
 
   const { data: browseResponse, isFetching, isLoading } = useGetSyfonIndexRecordsQuery(
     {
       limit: 1000,
       organization,
-      path: currentPath.join('/'),
+      ...(currentPath.length > 0 ? { path: currentPath.join('/') } : {}),
       project,
     },
     {
       skip: !organization || !project,
     },
   );
-  const directories = browseResponse?.directories ?? [];
-  const records = browseResponse?.records ?? [];
+  const directories = useMemo(
+    () => browseResponse?.directories ?? [],
+    [browseResponse?.directories],
+  );
+  const records = useMemo(
+    () => browseResponse?.records ?? [],
+    [browseResponse?.records],
+  );
 
   const repoFiles = useMemo(
     () =>
@@ -293,6 +353,49 @@ const OrganizationProjectPage = ({
     ],
     [directories, repoFiles],
   );
+  const sortedListingEntries = useMemo(() => {
+    const sorted = [...listingEntries];
+    sorted.sort((left, right) => {
+      if (left.type === 'directory' && right.type === 'file') return -1;
+      if (left.type === 'file' && right.type === 'directory') return 1;
+
+      let result = 0;
+
+      if (sortColumn === 'name') {
+        result = compareText(left.name, right.name);
+      } else if (sortColumn === 'description') {
+        result = compareText(
+          left.type === 'directory'
+            ? 'Derived folder'
+            : left.file.description ?? '',
+          right.type === 'directory'
+            ? 'Derived folder'
+            : right.file.description ?? '',
+        );
+      } else if (sortColumn === 'size') {
+        result = compareOptionalNumber(
+          left.type === 'file' ? left.file.size : undefined,
+          right.type === 'file' ? right.file.size : undefined,
+        );
+      } else if (sortColumn === 'updated') {
+        result = compareOptionalTimestamp(
+          left.type === 'file'
+            ? left.file.updatedTime ?? left.file.createdTime
+            : undefined,
+          right.type === 'file'
+            ? right.file.updatedTime ?? right.file.createdTime
+            : undefined,
+        );
+      }
+
+      if (result === 0) {
+        result = compareText(left.name, right.name);
+      }
+
+      return sortDirection === 'asc' ? result : -result;
+    });
+    return sorted;
+  }, [listingEntries, sortColumn, sortDirection]);
   const selectedFile = useMemo(
     () =>
       repoFiles.find((file: SyfonRepoFile) => file.did === selectedDid) ?? null,
@@ -345,7 +448,7 @@ const OrganizationProjectPage = ({
 
     void router.push(
       {
-        pathname: '/organization/[org]/project/[project]',
+        pathname: '/org/[org]/project/[project]/lake',
         query: nextQuery,
       },
       undefined,
@@ -376,7 +479,7 @@ const OrganizationProjectPage = ({
 
       void router.push(
         {
-          pathname: '/organization/[org]/project/[project]',
+          pathname: '/org/[org]/project/[project]/lake',
           query: nextQuery,
         },
         undefined,
@@ -437,11 +540,49 @@ const OrganizationProjectPage = ({
     setSearchQuery('');
     void router.push(
       {
-        pathname: '/organization/[org]/project/[project]',
+        pathname: '/org/[org]/project/[project]/lake',
         query: nextQuery,
       },
       undefined,
       { shallow: true },
+    );
+  };
+
+  const handleSort = (column: SortColumn) => {
+    if (column === sortColumn) {
+      setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'));
+      return;
+    }
+
+    setSortColumn(column);
+    setSortDirection(getDefaultSortDirection(column));
+  };
+
+  const renderSortableHeader = (
+    column: SortColumn,
+    label: string,
+    align: 'left' | 'right' = 'left',
+  ) => {
+    const isActive = sortColumn === column;
+    return (
+      <button
+        className={`flex w-full items-center gap-1 text-xs font-semibold ${
+          align === 'right' ? 'justify-end text-right' : 'justify-start text-left'
+        }`}
+        onClick={() => handleSort(column)}
+        type="button"
+      >
+        <span>{label}</span>
+        {isActive ? (
+          sortDirection === 'asc' ? (
+            <IconChevronUp size={14} />
+          ) : (
+            <IconChevronDown size={14} />
+          )
+        ) : (
+          <IconChevronDown className="opacity-35" size={14} />
+        )}
+      </button>
     );
   };
 
@@ -463,7 +604,7 @@ const OrganizationProjectPage = ({
                 <Stack gap={4}>
                   <Group align="center" className="min-h-[2.25rem]" justify="space-between" wrap="nowrap">
                     <Group className="min-w-0 flex-1" gap={6} wrap="nowrap">
-                      <Link href={`/organization/${encodeURIComponent(organization)}`} legacyBehavior>
+                      <Link href={`/git/${encodeURIComponent(organization)}`} legacyBehavior>
                         <a className="min-w-0 no-underline text-primary hover:underline">
                           <Title className="truncate text-[1.1rem] leading-tight" order={3}>
                             {organization}
@@ -566,7 +707,7 @@ const OrganizationProjectPage = ({
                       <ActionIcon
                         aria-label="Open Git project view"
                         component="a"
-                        href={`/git/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}`}
+                        href={`/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}`}
                         size="lg"
                         variant="default"
                       >
@@ -587,6 +728,7 @@ const OrganizationProjectPage = ({
               {selectedFile ? (
                 <FileDetailsPanel
                   file={selectedFile}
+                  repoFiles={repoFiles}
                   fileActions={fileActions}
                   onBack={handleBackToFiles}
                 />
@@ -594,23 +736,27 @@ const OrganizationProjectPage = ({
                 <Card padding={0} radius="md" withBorder>
                   <ScrollArea>
                     <Table highlightOnHover stickyHeader>
-                      <Table.Thead>
-                        <Table.Tr>
-                          <Table.Th className="pl-3 pr-4 py-2 text-xs">Name</Table.Th>
-                          <Table.Th className="px-4 py-2 text-xs">Description</Table.Th>
-                          <Table.Th className="px-4 py-2 text-xs" w={120}>
-                            Size
-                          </Table.Th>
-                          <Table.Th className="px-4 py-2 text-xs" w={180}>
-                            Updated
-                          </Table.Th>
-                          <Table.Th className="pl-4 pr-3 py-2 text-xs" ta="right" w={72}>
-                            Actions
-                          </Table.Th>
-                        </Table.Tr>
+                        <Table.Thead>
+                          <Table.Tr>
+                            <Table.Th className="pl-3 pr-4 py-2">
+                              {renderSortableHeader('name', 'Name')}
+                            </Table.Th>
+                            <Table.Th className="px-4 py-2">
+                              {renderSortableHeader('description', 'Description')}
+                            </Table.Th>
+                            <Table.Th className="px-4 py-2" w={120}>
+                              {renderSortableHeader('size', 'Size')}
+                            </Table.Th>
+                            <Table.Th className="px-4 py-2" w={180}>
+                              {renderSortableHeader('updated', 'Updated')}
+                            </Table.Th>
+                            <Table.Th className="pl-4 pr-3 py-2 text-xs" ta="right" w={72}>
+                              Actions
+                            </Table.Th>
+                          </Table.Tr>
                       </Table.Thead>
                       <Table.Tbody>
-                        {listingEntries.length === 0 && (
+                        {sortedListingEntries.length === 0 && (
                           <Table.Tr>
                             <Table.Td colSpan={5}>
                               <Text c="dimmed" py="xl" ta="center">
@@ -621,7 +767,7 @@ const OrganizationProjectPage = ({
                             </Table.Td>
                           </Table.Tr>
                         )}
-                        {listingEntries.map((entry) => (
+                        {sortedListingEntries.map((entry) => (
                           <Table.Tr
                             key={
                               entry.type === 'directory'
@@ -680,17 +826,37 @@ const OrganizationProjectPage = ({
                             <Table.Td className="pl-4 pr-3 py-1">
                               <Group justify="flex-end">
                                 {entry.type === 'file' ? (
-                                  <ActionIcon
-                                    aria-label={`Download ${entry.file.displayName}`}
-                                    onClick={(event) => {
-                                      event.stopPropagation();
-                                      openDownload(entry.file.did);
-                                    }}
-                                    size="md"
-                                    variant="subtle"
-                                  >
-                                    <IconDownload size={16} />
-                                  </ActionIcon>
+                                  <Group gap={4} justify="flex-end" wrap="nowrap">
+                                    {canOpenImageViewer(
+                                      entry.file,
+                                      repoFiles,
+                                      fileActions,
+                                    ) ? (
+                                      <ActionIcon
+                                        aria-label={`Open image viewer for ${entry.file.displayName}`}
+                                        color="teal"
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          openImageViewer(entry.file.did, fileActions);
+                                        }}
+                                        size="md"
+                                        variant="subtle"
+                                      >
+                                        <IconPhoto size={16} />
+                                      </ActionIcon>
+                                    ) : null}
+                                    <ActionIcon
+                                      aria-label={`Download ${entry.file.displayName}`}
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        openDownload(entry.file.did);
+                                      }}
+                                      size="md"
+                                      variant="subtle"
+                                    >
+                                      <IconDownload size={16} />
+                                    </ActionIcon>
+                                  </Group>
                                 ) : (
                                   <Text c="dimmed" size="sm">
                                     —

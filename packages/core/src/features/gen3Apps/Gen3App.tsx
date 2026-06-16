@@ -150,6 +150,9 @@ export const createAppStore = (
                 REGISTER,
               ],
             },
+            immutableCheck: {
+              warnAfter: 128,
+            },
           }).concat(middleware)
         : getDefaultMiddleware({
             serializableCheck: {
@@ -161,6 +164,9 @@ export const createAppStore = (
                 PURGE,
                 REGISTER,
               ],
+            },
+            immutableCheck: {
+              warnAfter: 128,
             },
           }),
   });

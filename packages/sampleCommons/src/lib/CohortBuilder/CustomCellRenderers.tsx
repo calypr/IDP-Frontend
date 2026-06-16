@@ -159,11 +159,6 @@ export const registerCohortTableCustomCellRenderers = () => {
     'HumanReadableString',
     RenderHumanReadableString,
   );
-  ExplorerTableCellRendererFactory().registerRenderer(
-    'string',
-    'JoinFields',
-    JoinFields,
-  );
 
   ExplorerTableCellRendererFactory().registerRenderer(
     'link',

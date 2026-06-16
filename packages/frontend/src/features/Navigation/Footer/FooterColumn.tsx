@@ -103,6 +103,7 @@ const FooterRowComponent: React.FC<FooterRowComponentProps> = ({
               width={logo.width || 100}
               height={logo.height || 100}
               alt={logo.description || 'footer logo'}
+              style={{ height: 'auto' }}
             />
           </a>
         );
@@ -115,6 +116,7 @@ const FooterRowComponent: React.FC<FooterRowComponentProps> = ({
           height={logo.height || 100}
           alt={logo.description || 'footer logo'}
           className={className}
+          style={{ height: 'auto' }}
         />
       );
     }
