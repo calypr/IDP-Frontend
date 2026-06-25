@@ -10,21 +10,47 @@ const useGetAuthzMappingsQueryMock = jest.fn();
 const useGetGeckoGitProjectPresentationConfigQueryMock = jest.fn();
 
 jest.mock('@gen3/core', () => ({
-  useGetAuthzMappingsQuery: () => useGetAuthzMappingsQueryMock(),
-  useGetGeckoProjectsQuery: () => useGetGeckoProjectsQueryMock(),
-  useGetGeckoProjectSummaryQuery: () => useGetGeckoProjectSummaryQueryMock(),
-  useGetConfigContentQuery: () => useGetConfigContentQueryMock(),
-  useGetGeckoGitProjectPresentationConfigQuery: () =>
-    useGetGeckoGitProjectPresentationConfigQueryMock(),
+  useGetAuthzMappingsQuery: (...args: unknown[]) =>
+    useGetAuthzMappingsQueryMock(...args),
+  useGetGeckoProjectsQuery: (...args: unknown[]) =>
+    useGetGeckoProjectsQueryMock(...args),
+  useGetGeckoProjectSummaryQuery: (...args: unknown[]) =>
+    useGetGeckoProjectSummaryQueryMock(...args),
+  useGetConfigContentQuery: (...args: unknown[]) =>
+    useGetConfigContentQueryMock(...args),
+  useGetGeckoGitProjectPresentationConfigQuery: (...args: unknown[]) =>
+    useGetGeckoGitProjectPresentationConfigQueryMock(...args),
 }));
 
-jest.mock('@gen3/frontend', () => ({
+jest.mock('../../features/Navigation', () => ({
   NavPageLayout: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  ProjectWorkspaceTabs: ({ children }: { children: React.ReactNode }) => (
-    <>{children}</>
+  ProjectWorkspaceTabs: ({
+    children,
+    organization,
+    project,
+  }: {
+    children: React.ReactNode;
+    organization: string;
+    project: string;
+  }) => (
+    <>
+      <a href={`/org/${organization}/project/${project}/presentation`} role="tab">
+        Home
+      </a>
+      <a href={`/org/${organization}/project/${project}`} role="tab">
+        Source
+      </a>
+      {children}
+    </>
   ),
+}));
+
+jest.mock('../../components/Protected', () => ({
   ProtectedContent: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  getNavPageLayoutPropsFromConfig: jest.fn(),
+}));
+
+jest.mock('../../utils', () => ({
+  useIsEmbedded: jest.fn(() => false),
 }));
 
 const useSessionMock = jest.fn();
@@ -146,7 +172,10 @@ describe('ProjectPresentationPage', () => {
 
     expect(screen.getByText('Summary title')).toBeInTheDocument();
     expect(screen.getByText('Summary description')).toBeInTheDocument();
-    expect(screen.getByText('Home')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Home' })).toHaveAttribute(
+      'href',
+      '/org/HTAN_INT/project/BForePC/presentation',
+    );
   });
 
   it('renders fallback copy when project metadata is missing', () => {

@@ -3,6 +3,7 @@ import { SYFON_API, SYFON_DRS_API } from '../../constants';
 import {
   SyfonCompleteMultipartUploadArgs,
   SyfonBucketsResponse,
+  SyfonBulkDeleteDrsObjectsArgs,
   SyfonCreateUploadUrlArgs,
   SyfonDeleteBucketScopeArgs,
   SyfonDeleteProjectArgs,
@@ -207,6 +208,29 @@ export const syfonApi = syfonTags.injectEndpoints({
       query: (objectId) => ({
         method: 'DELETE',
         url: `${SYFON_DRS_API}/objects/${objectId}`,
+      }),
+    }),
+    bulkDeleteSyfonDrsObjects: builder.mutation<
+      void,
+      SyfonBulkDeleteDrsObjectsArgs
+    >({
+      invalidatesTags: ['SyfonDrsObject'],
+      query: ({
+        bulk_object_ids,
+        delete_object_metadata,
+        delete_storage_data,
+      }) => ({
+        body: {
+          bulk_object_ids,
+          delete_object_metadata,
+          delete_storage_data,
+        },
+        method: 'PUT',
+        responseHandler: async (response: Response) => {
+          await response.text();
+          return null;
+        },
+        url: `${SYFON_DRS_API}/objects/delete`,
       }),
     }),
     getSyfonDownloadUrl: builder.query<SyfonSignedUrlResponse, string>({
@@ -531,6 +555,7 @@ export const {
   useLazyGetSyfonObjectsByChecksumQuery,
   useRegisterSyfonDrsObjectsMutation,
   useDeleteSyfonDrsObjectMutation,
+  useBulkDeleteSyfonDrsObjectsMutation,
   useGetSyfonDownloadUrlQuery,
   useLazyGetSyfonDownloadUrlQuery,
   useCreateSyfonUploadUrlMutation,

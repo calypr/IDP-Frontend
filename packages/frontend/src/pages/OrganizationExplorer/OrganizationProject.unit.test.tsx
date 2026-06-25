@@ -27,6 +27,28 @@ jest.mock('@gen3/core', () => ({
 
 jest.mock('../../features/Navigation', () => ({
   NavPageLayout: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  ProjectWorkspaceTabs: ({
+    children,
+    organization,
+    project,
+  }: {
+    children: React.ReactNode;
+    organization: string;
+    project: string;
+  }) => (
+    <>
+      <a href={`/org/${organization}/project/${project}/presentation`} role="tab">
+        Home
+      </a>
+      <a href={`/org/${organization}/project/${project}/lake`} role="tab">
+        Explorer
+      </a>
+      <a href={`/org/${organization}/project/${project}`} role="tab">
+        Source
+      </a>
+      {children}
+    </>
+  ),
 }));
 
 jest.mock('next/router', () => ({
@@ -39,6 +61,10 @@ jest.mock('next/router', () => ({
 jest.mock('../../components/Protected/ProtectedContent', () => ({
   __esModule: true,
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
+jest.mock('../../utils', () => ({
+  useIsEmbedded: jest.fn(() => false),
 }));
 
 const layoutProps = {
@@ -148,6 +174,33 @@ describe('OrganizationProjectPage', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('renders route-backed project workspace tabs', () => {
+    useGetSyfonIndexRecordsQueryMock.mockReturnValue({
+      data: { directories: [], records: [] },
+      isFetching: false,
+      isLoading: false,
+    });
+
+    render(
+      <MantineProvider>
+        <OrganizationProjectPage {...layoutProps} />
+      </MantineProvider>,
+    );
+
+    expect(screen.getByRole('tab', { name: 'Home' })).toHaveAttribute(
+      'href',
+      '/org/org-a/project/proj-a/presentation',
+    );
+    expect(screen.getByRole('tab', { name: 'Explorer' })).toHaveAttribute(
+      'href',
+      '/org/org-a/project/proj-a/lake',
+    );
+    expect(screen.getByRole('tab', { name: 'Source' })).toHaveAttribute(
+      'href',
+      '/org/org-a/project/proj-a',
+    );
+  });
+
   it('copies the current repository path and searches files in memory', async () => {
     useGetSyfonIndexRecordsQueryMock.mockReturnValue({
       data: {
@@ -197,7 +250,7 @@ describe('OrganizationProjectPage', () => {
 
     expect(pushMock).toHaveBeenCalledWith(
       {
-        pathname: '/organization/[org]/project/[project]',
+        pathname: '/org/[org]/project/[project]/lake',
         query: {
           file: 'did-go-mod',
           org: 'org-a',
@@ -436,7 +489,7 @@ describe('OrganizationProjectPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'nested' }));
     expect(pushMock).toHaveBeenCalledWith(
       {
-        pathname: '/organization/[org]/project/[project]',
+        pathname: '/org/[org]/project/[project]/lake',
         query: {
           org: 'org-a',
           project: 'proj-a',

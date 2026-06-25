@@ -35,8 +35,9 @@ import {
   useGetSyfonIndexRecordsQuery,
 } from '@gen3/core';
 import ProtectedContent from '../../components/Protected/ProtectedContent';
-import { NavPageLayout } from '../../features/Navigation';
+import { NavPageLayout, ProjectWorkspaceTabs } from '../../features/Navigation';
 import type { FileActionsConfig } from '../../features/CohortBuilder/types';
+import { useIsEmbedded } from '../../utils';
 import type {
   OrganizationExplorerPageProps,
   RepoListingEntry,
@@ -300,6 +301,7 @@ const OrganizationProjectPage = ({
   fileActions,
 }: OrganizationExplorerPageProps) => {
   const router = useRouter();
+  const isEmbedded = useIsEmbedded();
   const organization = typeof router.query.org === 'string' ? router.query.org : '';
   const project = typeof router.query.project === 'string' ? router.query.project : '';
   const currentPath = useMemo(
@@ -421,6 +423,17 @@ const OrganizationProjectPage = ({
   }, [normalizedSearchQuery, repoFiles]);
   const currentRepoPath = [organization, project, ...currentPath].join('/');
   const isSearchOpen = normalizedSearchQuery.length > 0;
+  const explorerProjectHref = useMemo(() => {
+    const query = new URLSearchParams();
+    if (currentPath.length > 0) {
+      query.set('path', currentPath.join('/'));
+    }
+    if (selectedDid) {
+      query.set('file', selectedDid);
+    }
+    const serialized = query.toString();
+    return `/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}/lake${serialized ? `?${serialized}` : ''}`;
+  }, [currentPath, organization, project, selectedDid]);
 
   useEffect(() => {
     const fileFromQuery =
@@ -586,156 +599,145 @@ const OrganizationProjectPage = ({
     );
   };
 
-  return (
-    <NavPageLayout
-      {...{ headerProps, footerProps }}
-      headerMetadata={{
-        content: `${organization}/${project}`,
-        key: 'syfon-organization-project',
-        title: `${organization}/${project}`,
-      }}
-      mainProps={{ className: 'bg-[#f6f8fa]' }}
-    >
-      <ProtectedContent>
-        <div className="min-h-screen bg-[#f6f8fa]">
-          <Container py="md" size="xl">
-            <Stack gap="sm">
-              <Card padding="md" radius="md" withBorder>
-                <Stack gap={4}>
-                  <Group align="center" className="min-h-[2.25rem]" justify="space-between" wrap="nowrap">
-                    <Group className="min-w-0 flex-1" gap={6} wrap="nowrap">
-                      <Link href={`/git/${encodeURIComponent(organization)}`} legacyBehavior>
-                        <a className="min-w-0 no-underline text-primary hover:underline">
-                          <Title className="truncate text-[1.1rem] leading-tight" order={3}>
-                            {organization}
-                          </Title>
-                        </a>
-                      </Link>
+  const organizationProjectContent = (
+    <div className="min-h-screen bg-[#f6f8fa]">
+      <Container py="md" size="xl">
+        <Stack gap="sm">
+          <Card padding="md" radius="md" withBorder>
+            <Stack gap={4}>
+              <Group align="center" className="min-h-[2.25rem]" justify="space-between" wrap="nowrap">
+                <Group className="min-w-0 flex-1" gap={6} wrap="nowrap">
+                  <Link href={`/git/${encodeURIComponent(organization)}`} legacyBehavior>
+                    <a className="min-w-0 no-underline text-primary hover:underline">
+                      <Title className="truncate text-[1.1rem] leading-tight" order={3}>
+                        {organization}
+                      </Title>
+                    </a>
+                  </Link>
+                  <Text c="dimmed" fw={700} size="sm">
+                    /
+                  </Text>
+                  {renderBreadcrumbButton(
+                    repoRootLabel.label,
+                    repoRootLabel.pathSegments,
+                  )}
+                  {breadcrumbSegments.map((segment) => (
+                    <React.Fragment key={segment.pathSegments.join('/')}>
                       <Text c="dimmed" fw={700} size="sm">
                         /
                       </Text>
                       {renderBreadcrumbButton(
-                        repoRootLabel.label,
-                        repoRootLabel.pathSegments,
+                        segment.label,
+                        segment.pathSegments,
                       )}
-                      {breadcrumbSegments.map((segment) => (
-                        <React.Fragment key={segment.pathSegments.join('/')}>
-                          <Text c="dimmed" fw={700} size="sm">
-                            /
-                          </Text>
-                          {renderBreadcrumbButton(
-                            segment.label,
-                            segment.pathSegments,
-                          )}
-                        </React.Fragment>
-                      ))}
-                      <ActionIcon
-                        aria-label="Copy repository path"
-                        color={hasCopiedRepoPath ? 'primary.0' : 'gray'}
-                        onClick={() => {
-                          void copyCurrentRepoPath();
-                        }}
+                    </React.Fragment>
+                  ))}
+                  <ActionIcon
+                    aria-label="Copy repository path"
+                    color={hasCopiedRepoPath ? 'primary.0' : 'gray'}
+                    onClick={() => {
+                      void copyCurrentRepoPath();
+                    }}
+                    size="sm"
+                    variant="subtle"
+                  >
+                    {hasCopiedRepoPath ? (
+                      <IconCheck size={16} />
+                    ) : (
+                      <IconCopy size={16} />
+                    )}
+                  </ActionIcon>
+                </Group>
+                <Group gap={8} wrap="nowrap">
+                  <Popover
+                    opened={isSearchOpen}
+                    position="bottom-end"
+                    shadow="md"
+                    width={360}
+                    withinPortal
+                  >
+                    <Popover.Target>
+                      <TextInput
+                        className="w-[18rem]"
+                        leftSection={<IconSearch size={16} />}
+                        onChange={(event) => setSearchQuery(event.currentTarget.value)}
+                        placeholder="Go to file"
+                        rightSection={
+                          searchQuery ? (
+                            <ActionIcon
+                              aria-label="Clear file search"
+                              onClick={() => setSearchQuery('')}
+                              size="sm"
+                              variant="subtle"
+                            >
+                              <IconX size={14} />
+                            </ActionIcon>
+                          ) : null
+                        }
                         size="sm"
-                        variant="subtle"
-                      >
-                        {hasCopiedRepoPath ? (
-                          <IconCheck size={16} />
+                        value={searchQuery}
+                      />
+                    </Popover.Target>
+                    <Popover.Dropdown p={0}>
+                      <div className="max-h-[26rem] overflow-y-auto py-2">
+                        {searchResults.length > 0 ? (
+                          searchResults.map((file) => (
+                            <button
+                              className="flex w-full items-start gap-3 px-3 py-2 text-left hover:bg-slate-50"
+                              key={file.did}
+                              onClick={() => openSearchResult(file)}
+                              type="button"
+                            >
+                              <IconFile className="mt-0.5 text-slate-500" size={16} />
+                              <div className="min-w-0">
+                                <Text fw={600} size="sm">
+                                  {file.displayName}
+                                </Text>
+                                <Text c="dimmed" className="truncate" size="xs">
+                                  {file.canonicalFilename}
+                                </Text>
+                              </div>
+                            </button>
+                          ))
                         ) : (
-                          <IconCopy size={16} />
+                          <Text c="dimmed" className="px-3 py-3" size="sm">
+                            No files match “{searchQuery}”.
+                          </Text>
                         )}
-                      </ActionIcon>
-                    </Group>
-                    <Group gap={8} wrap="nowrap">
-                      <Popover
-                        opened={isSearchOpen}
-                        position="bottom-end"
-                        shadow="md"
-                        width={360}
-                        withinPortal
-                      >
-                        <Popover.Target>
-                          <TextInput
-                            className="w-[18rem]"
-                            leftSection={<IconSearch size={16} />}
-                            onChange={(event) => setSearchQuery(event.currentTarget.value)}
-                            placeholder="Go to file"
-                            rightSection={
-                              searchQuery ? (
-                                <ActionIcon
-                                  aria-label="Clear file search"
-                                  onClick={() => setSearchQuery('')}
-                                  size="sm"
-                                  variant="subtle"
-                                >
-                                  <IconX size={14} />
-                                </ActionIcon>
-                              ) : null
-                            }
-                            size="sm"
-                            value={searchQuery}
-                          />
-                        </Popover.Target>
-                        <Popover.Dropdown p={0}>
-                          <div className="max-h-[26rem] overflow-y-auto py-2">
-                            {searchResults.length > 0 ? (
-                              searchResults.map((file) => (
-                                <button
-                                  className="flex w-full items-start gap-3 px-3 py-2 text-left hover:bg-slate-50"
-                                  key={file.did}
-                                  onClick={() => openSearchResult(file)}
-                                  type="button"
-                                >
-                                  <IconFile className="mt-0.5 text-slate-500" size={16} />
-                                  <div className="min-w-0">
-                                    <Text fw={600} size="sm">
-                                      {file.displayName}
-                                    </Text>
-                                    <Text c="dimmed" className="truncate" size="xs">
-                                      {file.canonicalFilename}
-                                    </Text>
-                                  </div>
-                                </button>
-                              ))
-                            ) : (
-                              <Text c="dimmed" className="px-3 py-3" size="sm">
-                                No files match “{searchQuery}”.
-                              </Text>
-                            )}
-                          </div>
-                        </Popover.Dropdown>
-                      </Popover>
-                      <ActionIcon
-                        aria-label="Open Git project view"
-                        component="a"
-                        href={`/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}`}
-                        size="lg"
-                        variant="default"
-                      >
-                        <span className="relative flex items-center justify-center">
-                          <IconBrandGit size={16} />
-                          <IconArrowUpRight
-                            className="absolute -right-1.5 -top-1.5"
-                            size={10}
-                          />
-                        </span>
-                      </ActionIcon>
-                    </Group>
-                  </Group>
+                      </div>
+                    </Popover.Dropdown>
+                  </Popover>
+                  <ActionIcon
+                    aria-label="Open Git project view"
+                    component="a"
+                    href={`/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}`}
+                    size="lg"
+                    variant="default"
+                  >
+                    <span className="relative flex items-center justify-center">
+                      <IconBrandGit size={16} />
+                      <IconArrowUpRight
+                        className="absolute -right-1.5 -top-1.5"
+                        size={10}
+                      />
+                    </span>
+                  </ActionIcon>
+                </Group>
+              </Group>
+            </Stack>
+          </Card>
 
-                </Stack>
-              </Card>
-
-              {selectedFile ? (
-                <FileDetailsPanel
-                  file={selectedFile}
-                  repoFiles={repoFiles}
-                  fileActions={fileActions}
-                  onBack={handleBackToFiles}
-                />
-              ) : (
-                <Card padding={0} radius="md" withBorder>
-                  <ScrollArea>
-                    <Table highlightOnHover stickyHeader>
+          {selectedFile ? (
+            <FileDetailsPanel
+              file={selectedFile}
+              repoFiles={repoFiles}
+              fileActions={fileActions}
+              onBack={handleBackToFiles}
+            />
+          ) : (
+            <Card padding={0} radius="md" withBorder>
+              <ScrollArea>
+                <Table highlightOnHover stickyHeader>
                         <Table.Thead>
                           <Table.Tr>
                             <Table.Th className="pl-3 pr-4 py-2">
@@ -867,13 +869,41 @@ const OrganizationProjectPage = ({
                           </Table.Tr>
                         ))}
                       </Table.Tbody>
-                    </Table>
-                  </ScrollArea>
-                </Card>
-              )}
-            </Stack>
-          </Container>
-        </div>
+                </Table>
+              </ScrollArea>
+            </Card>
+          )}
+        </Stack>
+      </Container>
+    </div>
+  );
+
+  if (isEmbedded) {
+    return (
+      <ProtectedContent>{organizationProjectContent}</ProtectedContent>
+    );
+  }
+
+  return (
+    <NavPageLayout
+      {...{ headerProps, footerProps }}
+      headerMetadata={{
+        content: `${organization}/${project}`,
+        key: 'syfon-organization-project',
+        title: `${organization}/${project}`,
+      }}
+      mainProps={{ className: 'bg-[#f6f8fa]' }}
+    >
+      <ProtectedContent>
+        <ProjectWorkspaceTabs
+          activeTab="explorer"
+          explorerHref={explorerProjectHref}
+          hasExplorerConfig
+          organization={organization}
+          project={project}
+        >
+          {organizationProjectContent}
+        </ProjectWorkspaceTabs>
       </ProtectedContent>
     </NavPageLayout>
   );

@@ -272,6 +272,18 @@ export interface GeckoGitTreeResponse {
   readonly project_id: string;
   readonly ref: string;
   readonly path: string;
+  readonly entry_count: number;
+  readonly truncated?: boolean;
+  readonly entries: Array<GeckoGitTreeEntry>;
+}
+
+export interface GeckoGitManifestResponse {
+  readonly project_id: string;
+  readonly ref: string;
+  readonly path: string;
+  readonly entry_count: number;
+  readonly has_more: boolean;
+  readonly next_cursor?: string;
   readonly entries: Array<GeckoGitTreeEntry>;
 }
 
@@ -993,11 +1005,47 @@ export const geckoApi = geckoTaggedApi.injectEndpoints({
         project: string;
         path?: string;
         ref?: string;
+        include_size?: boolean;
+        include_last_modified?: boolean;
+        include_lfs_pointer?: boolean;
+        view?: 'manifest';
+        limit?: number;
       }
     >({
-      query: ({ organization, project, path, ref }) => {
+      query: ({
+        organization,
+        project,
+        path,
+        ref,
+        include_size,
+        include_last_modified,
+        include_lfs_pointer,
+        view,
+        limit,
+      }) => {
         const normalizedPath = path?.trim().replace(/^\/+|\/+$/g, '');
-        const query = ref ? `?ref=${encodeURIComponent(ref)}` : '';
+        const queryParams = new URLSearchParams();
+        if (ref) {
+          queryParams.set('ref', ref);
+        }
+        if (typeof include_size === 'boolean') {
+          queryParams.set('include_size', String(include_size));
+        }
+        if (typeof include_last_modified === 'boolean') {
+          queryParams.set('include_last_modified', String(include_last_modified));
+        }
+        if (typeof include_lfs_pointer === 'boolean') {
+          queryParams.set('include_lfs_pointer', String(include_lfs_pointer));
+        }
+        if (view) {
+          queryParams.set('view', view);
+        }
+        if (typeof limit === 'number') {
+          queryParams.set('limit', String(limit));
+        }
+        const query = queryParams.toString()
+          ? `?${queryParams.toString()}`
+          : '';
         const suffix = normalizedPath
           ? `/tree/${normalizedPath
               .split('/')
@@ -1052,6 +1100,58 @@ export const geckoApi = geckoTaggedApi.injectEndpoints({
         body,
         credentials: 'include',
       }),
+    }),
+    getGeckoGitProjectManifest: builder.query<
+      GeckoGitManifestResponse,
+      {
+        organization: string;
+        project: string;
+        path?: string;
+        ref?: string;
+        cursor?: string;
+        files_only?: boolean;
+        limit?: number;
+      }
+    >({
+      query: ({
+        organization,
+        project,
+        path,
+        ref,
+        cursor,
+        files_only,
+        limit,
+      }) => {
+        const normalizedPath = path?.trim().replace(/^\/+|\/+$/g, '');
+        const queryParams = new URLSearchParams();
+        if (ref) {
+          queryParams.set('ref', ref);
+        }
+        if (cursor) {
+          queryParams.set('cursor', cursor);
+        }
+        if (typeof files_only === 'boolean') {
+          queryParams.set('files_only', String(files_only));
+        }
+        if (typeof limit === 'number') {
+          queryParams.set('limit', String(limit));
+        }
+        const query = queryParams.toString()
+          ? `?${queryParams.toString()}`
+          : '';
+        const suffix = normalizedPath
+          ? `/manifest/${normalizedPath
+              .split('/')
+              .map((segment) => encodeURIComponent(segment))
+              .join('/')}${query}`
+          : `/manifest${query}`;
+
+        return {
+          url: buildGitProjectApiPath(organization, project, suffix),
+          method: 'GET',
+          credentials: 'include',
+        };
+      },
     }),
     getGeckoGitUploadSession: builder.query<
       GeckoGitUploadSessionResponse,

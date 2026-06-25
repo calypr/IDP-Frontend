@@ -23,8 +23,31 @@ jest.mock('@gen3/core', () => ({
 
 jest.mock('../../features/Navigation', () => ({
   NavPageLayout: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  ProjectWorkspaceTabs: ({ children }: { children: React.ReactNode }) => (
-    <>{children}</>
+  ProjectWorkspaceTabs: ({
+    children,
+    hasExplorerConfig,
+    organization,
+    project,
+  }: {
+    children: React.ReactNode;
+    hasExplorerConfig: boolean;
+    organization: string;
+    project: string;
+  }) => (
+    <>
+      <a href={`/org/${organization}/project/${project}/presentation`} role="tab">
+        Home
+      </a>
+      {hasExplorerConfig ? (
+        <a href={`/Explorer/${organization}-${project}`} role="tab">
+          Explorer
+        </a>
+      ) : null}
+      <a href={`/org/${organization}/project/${project}`} role="tab">
+        Source
+      </a>
+      {children}
+    </>
   ),
 }));
 

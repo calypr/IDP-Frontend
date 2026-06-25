@@ -75,6 +75,12 @@ export interface SyfonDrsRegisterResponse {
   objects: Array<SyfonDrsObject>;
 }
 
+export interface SyfonBulkDeleteDrsObjectsArgs {
+  bulk_object_ids: Array<string>;
+  delete_object_metadata?: boolean;
+  delete_storage_data?: boolean;
+}
+
 export interface SyfonSignedUrlResponse {
   url?: string;
 }

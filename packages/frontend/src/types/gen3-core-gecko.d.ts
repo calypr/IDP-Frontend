@@ -233,6 +233,18 @@ declare module '@gen3/core' {
     readonly project_id: string;
     readonly ref: string;
     readonly path: string;
+    readonly entry_count: number;
+    readonly truncated?: boolean;
+    readonly entries: Array<GeckoGitTreeEntry>;
+  }
+
+  export interface GeckoGitManifestResponse {
+    readonly project_id: string;
+    readonly ref: string;
+    readonly path: string;
+    readonly entry_count: number;
+    readonly has_more: boolean;
+    readonly next_cursor?: string;
     readonly entries: Array<GeckoGitTreeEntry>;
   }
 
@@ -459,10 +471,32 @@ declare module '@gen3/core' {
       project: string;
       path?: string;
       ref?: string;
+      include_size?: boolean;
+      include_last_modified?: boolean;
+      include_lfs_pointer?: boolean;
+      view?: 'manifest';
+      limit?: number;
     },
     options?: { skip?: boolean },
   ): {
     data?: GeckoGitTreeResponse;
+    isLoading: boolean;
+    refetch: () => Promise<unknown>;
+  };
+
+  export function useGetGeckoGitProjectManifestQuery(
+    args: {
+      organization: string;
+      project: string;
+      path?: string;
+      ref?: string;
+      cursor?: string;
+      files_only?: boolean;
+      limit?: number;
+    },
+    options?: { skip?: boolean },
+  ): {
+    data?: GeckoGitManifestResponse;
     isLoading: boolean;
     refetch: () => Promise<unknown>;
   };

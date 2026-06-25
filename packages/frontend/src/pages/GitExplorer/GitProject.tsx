@@ -253,6 +253,9 @@ const GitProjectPage = ({
     refetch: refetchTree,
   } = useGetGeckoGitProjectTreeQuery(
     {
+      include_last_modified: true,
+      include_lfs_pointer: true,
+      include_size: true,
       organization,
       project,
       path: currentPath,

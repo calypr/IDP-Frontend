@@ -33,8 +33,27 @@ import { VerifyingAccessLoader } from '../../components/Protected/VerifyingAcces
 import { WORKSPACES_ENABLED } from '../../features/Workspace/config';
 
 const ACTIVITY_CHANNEL = 'gen3-user-activity';
+const FORCE_LOGOUT_EVENT = 'gen3-force-logout';
 const isAppHomePath = (path?: string): boolean =>
   path === '/' || Boolean(path?.startsWith('/Apps'));
+
+export const requestSessionLogout = ({
+  showLoginModal = false,
+}: {
+  showLoginModal?: boolean;
+} = {}) => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.dispatchEvent(
+    new CustomEvent(FORCE_LOGOUT_EVENT, {
+      detail: {
+        showLoginModal,
+      },
+    }),
+  );
+};
 
 export const logoutSession = async () => {
   // logged in using credentials then execute credentials logout first
@@ -197,6 +216,7 @@ export const SessionProvider = ({
 
   const [mostRecentActivityTimestamp, setMostRecentActivityTimestamp] =
     useState(Date.now());
+  const forcedLogoutInFlightRef = useRef(false);
 
   const broadcastChannelRef = useRef<BroadcastChannel | null>(null);
 
@@ -267,6 +287,36 @@ export const SessionProvider = ({
     },
     [getUserDetails, router],
   );
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return undefined;
+    }
+
+    const handleForcedLogout = (event: Event) => {
+      if (forcedLogoutInFlightRef.current) {
+        return;
+      }
+
+      forcedLogoutInFlightRef.current = true;
+      const customEvent = event as CustomEvent<{ showLoginModal?: boolean }>;
+
+      if (customEvent.detail?.showLoginModal) {
+        const LoginModal = (Modals as Record<string, any>).LoginModal;
+        coreDispatch(showModal({ modal: LoginModal }));
+      }
+
+      void endSession(false).finally(() => {
+        forcedLogoutInFlightRef.current = false;
+      });
+    };
+
+    window.addEventListener(FORCE_LOGOUT_EVENT, handleForcedLogout);
+
+    return () => {
+      window.removeEventListener(FORCE_LOGOUT_EVENT, handleForcedLogout);
+    };
+  }, [coreDispatch, endSession]);
 
   const updateSession = useCallback(() => {
     const updateSessionWithUserStatus = async () => {
