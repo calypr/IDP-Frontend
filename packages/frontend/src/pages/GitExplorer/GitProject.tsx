@@ -253,6 +253,7 @@ const GitProjectPage = ({
     refetch: refetchTree,
   } = useGetGeckoGitProjectTreeQuery(
     {
+      includeLFSPointer: true,
       organization,
       project,
       path: currentPath,

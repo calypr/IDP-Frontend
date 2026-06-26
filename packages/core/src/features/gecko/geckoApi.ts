@@ -989,15 +989,29 @@ export const geckoApi = geckoTaggedApi.injectEndpoints({
     getGeckoGitProjectTree: builder.query<
       GeckoGitTreeResponse,
       {
+        includeLFSPointer?: boolean;
         organization: string;
         project: string;
         path?: string;
         ref?: string;
       }
     >({
-      query: ({ organization, project, path, ref }) => {
+      query: ({
+        includeLFSPointer,
+        organization,
+        project,
+        path,
+        ref,
+      }) => {
         const normalizedPath = path?.trim().replace(/^\/+|\/+$/g, '');
-        const query = ref ? `?ref=${encodeURIComponent(ref)}` : '';
+        const params = new URLSearchParams();
+        if (ref) {
+          params.set('ref', ref);
+        }
+        if (includeLFSPointer) {
+          params.set('include_lfs_pointer', 'true');
+        }
+        const query = params.toString() ? `?${params.toString()}` : '';
         const suffix = normalizedPath
           ? `/tree/${normalizedPath
               .split('/')

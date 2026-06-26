@@ -455,6 +455,7 @@ declare module '@gen3/core' {
 
   export function useGetGeckoGitProjectTreeQuery(
     args: {
+      includeLFSPointer?: boolean;
       organization: string;
       project: string;
       path?: string;
