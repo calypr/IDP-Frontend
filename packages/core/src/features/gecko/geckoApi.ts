@@ -989,6 +989,7 @@ export const geckoApi = geckoTaggedApi.injectEndpoints({
     getGeckoGitProjectTree: builder.query<
       GeckoGitTreeResponse,
       {
+        includeLastModified?: boolean;
         includeLFSPointer?: boolean;
         organization: string;
         project: string;
@@ -997,6 +998,7 @@ export const geckoApi = geckoTaggedApi.injectEndpoints({
       }
     >({
       query: ({
+        includeLastModified,
         includeLFSPointer,
         organization,
         project,
@@ -1010,6 +1012,9 @@ export const geckoApi = geckoTaggedApi.injectEndpoints({
         }
         if (includeLFSPointer) {
           params.set('include_lfs_pointer', 'true');
+        }
+        if (includeLastModified) {
+          params.set('include_last_modified', 'true');
         }
         const query = params.toString() ? `?${params.toString()}` : '';
         const suffix = normalizedPath
