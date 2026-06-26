@@ -787,6 +787,24 @@ const StorageFields = ({
       />
     </div>
     <div className="grid gap-3 md:grid-cols-2">
+      <TextInput
+        label="Org path"
+        onChange={(event) =>
+          onUpdateField('bucket_org_path', event.currentTarget.value)
+        }
+        placeholder="optional"
+        value={formState.bucket_org_path}
+      />
+      <TextInput
+        label="Project path"
+        onChange={(event) =>
+          onUpdateField('bucket_project_path', event.currentTarget.value)
+        }
+        placeholder="optional"
+        value={formState.bucket_project_path}
+      />
+    </div>
+    <div className="grid gap-3 md:grid-cols-2">
       <Select
         data={bucketProviderOptions}
         label="Provider"
