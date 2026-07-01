@@ -35,6 +35,7 @@ import { FileSummaryPageProps } from './types';
 import {
   type ProjectDiffFinding,
   type ProjectDiffFindingKind,
+  type StorageChainFinding,
   type StorageChainFindingKind,
   type StorageChainIssueGroup,
   type StorageCleanupFinding,
