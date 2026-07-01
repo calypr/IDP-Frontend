@@ -2,10 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   CoreState,
   GEN3_API,
-  SYFON_API,
   selectCSRFToken,
   useCoreSelector,
   useBulkDeleteSyfonDrsObjectsMutation,
+  useDeleteSyfonDrsObjectMutation,
   useGetCSRFQuery,
   useGetGeckoProjectSummaryQuery,
 } from '@gen3/core';
@@ -22,7 +22,6 @@ import {
 import { requestSessionLogout } from '../../lib/session/session';
 
 const DEFAULT_CHILD_LIMIT = 1000;
-const DEFAULT_GIT_TREE_REQUEST_LIMIT = 0;
 
 export type ProjectDiffFindingKind =
   | 'duplicate_syfon_paths'
@@ -33,6 +32,7 @@ export type ProjectDiffFindingKind =
 export interface ProjectDiffFinding {
   readonly kind: ProjectDiffFindingKind;
   readonly normalizedPath: string;
+  readonly sourcePaths: Array<string>;
   readonly objectIds: Array<string>;
   readonly recordCount: number;
   readonly sizeBytes?: number;
@@ -57,23 +57,115 @@ export interface ProjectDiffAuditResult {
   readonly pathPrefix: string;
 }
 
+export interface AuditEvidence {
+  readonly checksum?: string;
+  readonly sourcePaths: Array<string>;
+  readonly objectIds: Array<string>;
+  readonly accessUrls: Array<string>;
+  readonly bucketObjectUrls: Array<string>;
+  readonly buckets: Array<string>;
+  readonly keys: Array<string>;
+  readonly probeStatuses: Array<string>;
+  readonly validationStates: Array<string>;
+  readonly errorKinds: Array<string>;
+  readonly errors: Array<string>;
+  readonly bucketEvaluation?: string;
+}
+
+export type StorageChainFindingKind =
+  | 'bucket_only_object'
+  | 'bucket_syfon_no_git'
+  | 'syfon_broken_bucket_mapping'
+  | 'syfon_missing_bucket_object'
+  | 'syfon_git_no_bucket'
+  | 'git_only_no_syfon'
+  | 'git_syfon_metadata_mismatch'
+  | 'probe_error'
+  | 'unknown';
+
+export interface StorageChainFinding {
+  readonly kind: StorageChainFindingKind;
+  readonly normalizedPath: string;
+  readonly checksum?: string;
+  readonly sourcePaths: Array<string>;
+  readonly objectIds: Array<string>;
+  readonly accessUrls: Array<string>;
+  readonly bucketObjectUrl?: string;
+  readonly resolvedBucket?: string;
+  readonly resolvedKey?: string;
+  readonly probeStatus?: string;
+  readonly errorKind?: string;
+  readonly error?: string;
+  readonly recordCount: number;
+  readonly sizeBytes?: number;
+  readonly recommendedAction: string;
+  readonly evidence?: AuditEvidence;
+}
+
+export interface StorageChainAuditSummary {
+  readonly countsByKind: Record<string, number>;
+  readonly totalFindings: number;
+  readonly bucketObjectCount: number;
+  readonly syfonRecordCount: number;
+  readonly gitTrackedFileCount: number;
+  readonly bucketInventoryAvailable: boolean;
+  readonly bucketInventoryError?: string;
+}
+
+export interface StorageChainIssueGroup {
+  readonly kind: string;
+  readonly findingCount: number;
+  readonly pathCount: number;
+  readonly recordCount: number;
+  readonly objectCount: number;
+  readonly totalBytes: number;
+}
+
+export interface StorageChainAuditResult {
+  readonly auditId?: string;
+  readonly findings: Array<StorageChainFinding>;
+  readonly groups: Array<StorageChainIssueGroup>;
+  readonly summary: StorageChainAuditSummary;
+  readonly pathPrefix: string;
+}
+
 export type StorageCleanupFindingKind =
   | 'stale_duplicate_record'
   | 'live_duplicate_conflict'
   | 'broken_access_url_error'
+  | 'broken_bucket_mapping'
+  | 'bucket_only_object'
   | 'repo_orphan_live_object'
   | 'repo_orphan_stale_record'
+  | 'storage_object_missing'
+  | 'storage_validation_mismatch'
   | 'storage_probe_error'
   | 'unknown';
 
-export type StorageCleanupScope = 'record' | 'access_url' | 'unknown';
+export type StorageCleanupScope =
+  | 'record'
+  | 'access_url'
+  | 'bucket_object'
+  | 'unknown';
 
 export interface StorageCleanupAccessProbe {
   readonly url: string;
+  readonly provider?: string;
   readonly bucket?: string;
+  readonly key?: string;
+  readonly path?: string;
+  readonly exists?: boolean;
   readonly status?: string;
   readonly error?: string;
   readonly errorKind?: string;
+  readonly sizeBytes?: number;
+  readonly metaSha256?: string;
+  readonly etag?: string;
+  readonly lastModified?: string;
+  readonly validationStatus?: string;
+  readonly sizeMatch?: boolean;
+  readonly sha256Match?: boolean;
+  readonly validationMismatches: Array<string>;
 }
 
 export interface StorageCleanupRecordAudit {
@@ -129,21 +221,13 @@ export interface StorageCleanupPurgeResult {
 
 export interface StorageCleanupApplyResult {
   readonly deletedRecordIds: Array<string>;
+  readonly deletedBucketObjectUrls: Array<string>;
+  readonly updatedRecordIds: Array<string>;
   readonly purgeResults: Array<StorageCleanupPurgeResult>;
   readonly repoDeletePaths: Array<string>;
   readonly manualPaths: Array<string>;
   readonly skippedPaths: Array<string>;
   readonly dryRun: boolean;
-}
-
-interface GeckoGitManifestResponse {
-  entry_count?: number;
-  entries?: Array<{
-    path?: string;
-    type?: string;
-  }>;
-  has_more?: boolean;
-  next_cursor?: string;
 }
 
 interface StorageSummaryResponse {
@@ -174,6 +258,17 @@ interface StorageChildrenResponse {
   items?: Array<StorageChildResponseItem>;
 }
 
+const buildGeckoGitProjectBaseUrl = ({
+  organization,
+  project,
+}: {
+  organization: string;
+  project: string;
+}): string =>
+  `${GEN3_API}/gecko/git/projects/${encodeURIComponent(
+    organization.trim(),
+  )}/${encodeURIComponent(project.trim())}`;
+
 const buildStorageSummaryUrl = ({
   organization,
   path,
@@ -183,16 +278,18 @@ const buildStorageSummaryUrl = ({
   path?: string;
   project: string;
 }): string => {
-  const query = new URLSearchParams({
-    organization: organization.trim(),
-    project: project.trim(),
-  });
+  const query = new URLSearchParams();
+  const normalizedPath = normalizeStoragePath(path);
 
-  if (path?.trim()) {
-    query.set('path', path.trim());
+  if (normalizedPath) {
+    query.set('git_subpath', normalizedPath);
   }
 
-  return `${GEN3_API}/index/v1/metrics/storage/summary?${query.toString()}`;
+  const querySuffix = query.toString() ? `?${query.toString()}` : '';
+  return `${buildGeckoGitProjectBaseUrl({
+    organization,
+    project,
+  })}/storage/summary${querySuffix}`;
 };
 
 const buildStorageChildrenUrl = ({
@@ -208,72 +305,70 @@ const buildStorageChildrenUrl = ({
 }): string => {
   const query = new URLSearchParams({
     limit: String(limit),
-    organization: organization.trim(),
-    project: project.trim(),
     sort_by: 'bytes',
     sort_order: 'desc',
   });
+  const normalizedPath = normalizeStoragePath(path);
 
-  if (path?.trim()) {
-    query.set('path', path.trim());
+  if (normalizedPath) {
+    query.set('git_subpath', normalizedPath);
   }
 
-  return `${GEN3_API}/index/v1/metrics/storage/children?${query.toString()}`;
+  return `${buildGeckoGitProjectBaseUrl({
+    organization,
+    project,
+  })}/storage/children?${query.toString()}`;
 };
 
-const buildStorageCleanupUrl = (
-  action: 'apply' | 'audit',
-): string => `${SYFON_API}/repair/storage-cleanup/${action}`;
-
-const buildProjectDiffUrl = (): string =>
-  `${SYFON_API}/repair/project-diff/audit`;
-
-const buildGitManifestUrl = ({
-  cursor,
-  filesOnly,
-  limit,
+const buildStorageCleanupUrl = ({
+  action,
   organization,
-  path,
   project,
 }: {
-  cursor?: string;
-  filesOnly?: boolean;
-  limit?: number;
+  action: 'apply' | 'audit';
   organization: string;
-  path?: string;
   project: string;
-}): string => {
-  const normalizedPath = normalizeStoragePath(path);
-  const query = new URLSearchParams();
-  if (cursor?.trim()) {
-    query.set('cursor', cursor.trim());
-  }
-  if (typeof filesOnly === 'boolean') {
-    query.set('files_only', String(filesOnly));
-  }
-  if (typeof limit === 'number') {
-    query.set('limit', String(limit));
-  }
-  const suffix = normalizedPath
-    ? `/manifest/${normalizedPath
-        .split('/')
-        .map((segment) => encodeURIComponent(segment))
-        .join('/')}`
-    : '/manifest';
-  const querySuffix = query.toString() ? `?${query.toString()}` : '';
-
-  return `${GEN3_API}/gecko/git/projects/${encodeURIComponent(
+}): string =>
+  `${buildGeckoGitProjectBaseUrl({
     organization,
-  )}/${encodeURIComponent(project)}${suffix}${querySuffix}`;
-};
+    project,
+  })}/repair/storage-cleanup/${action}`;
+
+const buildProjectDiffUrl = ({
+  organization,
+  project,
+}: {
+  organization: string;
+  project: string;
+}): string =>
+  `${buildGeckoGitProjectBaseUrl({
+    organization,
+    project,
+  })}/repair/project-diff/audit`;
+
+const buildStorageChainUrl = ({
+  organization,
+  project,
+}: {
+  organization: string;
+  project: string;
+}): string =>
+  `${buildGeckoGitProjectBaseUrl({
+    organization,
+    project,
+  })}/repair/storage-chain/audit`;
 
 const emptyCleanupCounts = (): Record<StorageCleanupFindingKind, number> => ({
   broken_access_url_error: 0,
+  broken_bucket_mapping: 0,
+  bucket_only_object: 0,
   live_duplicate_conflict: 0,
   repo_orphan_live_object: 0,
   repo_orphan_stale_record: 0,
   stale_duplicate_record: 0,
+  storage_object_missing: 0,
   storage_probe_error: 0,
+  storage_validation_mismatch: 0,
   unknown: 0,
 });
 
@@ -283,6 +378,46 @@ const emptyProjectDiffCounts = (): Record<ProjectDiffFindingKind, number> => ({
   syfon_missing_in_repo: 0,
   unknown: 0,
 });
+
+const emptyStorageChainCounts = (): Record<string, number> => ({
+  bucket_only_object: 0,
+  bucket_syfon_git_complete: 0,
+  bucket_syfon_no_git: 0,
+  git_only_no_syfon: 0,
+  git_syfon_metadata_mismatch: 0,
+  probe_error: 0,
+  syfon_broken_bucket_mapping: 0,
+  syfon_git_no_bucket: 0,
+  syfon_missing_bucket_object: 0,
+  unknown: 0,
+});
+
+const normalizeAuditEvidence = (
+  item: Record<string, unknown> | null | undefined,
+): AuditEvidence | undefined => {
+  if (!item) {
+    return undefined;
+  }
+
+  return {
+    accessUrls: toStringArray(item.access_urls),
+    bucketEvaluation:
+      typeof item.bucket_evaluation === 'string'
+        ? item.bucket_evaluation
+        : undefined,
+    bucketObjectUrls: toStringArray(item.bucket_object_urls),
+    buckets: toStringArray(item.buckets),
+    checksum:
+      typeof item.checksum === 'string' ? item.checksum : undefined,
+    errorKinds: toStringArray(item.error_kinds),
+    errors: toStringArray(item.errors),
+    keys: toStringArray(item.keys),
+    objectIds: toStringArray(item.object_ids),
+    probeStatuses: toStringArray(item.probe_statuses),
+    sourcePaths: toStringArray(item.source_paths),
+    validationStates: toStringArray(item.validation_states),
+  };
+};
 
 const readJsonResponse = async <T,>(response: Response): Promise<T | null> => {
   const text = await response.text();
@@ -346,9 +481,13 @@ const parseCleanupFindingKind = (
     case 'stale_duplicate_record':
     case 'live_duplicate_conflict':
     case 'broken_access_url_error':
+    case 'broken_bucket_mapping':
+    case 'bucket_only_object':
     case 'repo_orphan_live_object':
     case 'repo_orphan_stale_record':
+    case 'storage_object_missing':
     case 'storage_probe_error':
+    case 'storage_validation_mismatch':
       return value;
     default:
       return 'unknown';
@@ -362,6 +501,24 @@ const parseProjectDiffFindingKind = (
     case 'duplicate_syfon_paths':
     case 'syfon_missing_in_repo':
     case 'repo_missing_in_syfon':
+      return value;
+    default:
+      return 'unknown';
+  }
+};
+
+const parseStorageChainFindingKind = (
+  value: unknown,
+): StorageChainFindingKind => {
+  switch (value) {
+    case 'bucket_only_object':
+    case 'bucket_syfon_no_git':
+    case 'syfon_broken_bucket_mapping':
+    case 'syfon_missing_bucket_object':
+    case 'syfon_git_no_bucket':
+    case 'git_only_no_syfon':
+    case 'git_syfon_metadata_mismatch':
+    case 'probe_error':
       return value;
     default:
       return 'unknown';
@@ -395,6 +552,7 @@ const parseCleanupScope = (value: unknown): StorageCleanupScope => {
   switch (value) {
     case 'record':
     case 'access_url':
+    case 'bucket_object':
       return value;
     default:
       return 'unknown';
@@ -418,6 +576,8 @@ const normalizeCleanupAccessProbe = (
   return {
     bucket:
       typeof record.bucket === 'string' ? record.bucket : undefined,
+    etag:
+      typeof record.etag === 'string' ? record.etag : undefined,
     error:
       typeof record.storage_message === 'string'
         ? record.storage_message
@@ -426,12 +586,43 @@ const normalizeCleanupAccessProbe = (
           : undefined,
     errorKind:
       typeof record.error_kind === 'string' ? record.error_kind : undefined,
+    exists:
+      typeof record.exists === 'boolean' ? record.exists : undefined,
+    key:
+      typeof record.key === 'string' ? record.key : undefined,
+    lastModified:
+      typeof record.last_modified === 'string'
+        ? record.last_modified
+        : undefined,
+    metaSha256:
+      typeof record.meta_sha256 === 'string'
+        ? record.meta_sha256
+        : undefined,
+    path:
+      typeof record.path === 'string' ? record.path : undefined,
+    provider:
+      typeof record.provider === 'string' ? record.provider : undefined,
+    sha256Match:
+      typeof record.sha256_match === 'boolean'
+        ? record.sha256_match
+        : undefined,
+    sizeBytes:
+      typeof record.size_bytes === 'number' ? record.size_bytes : undefined,
+    sizeMatch:
+      typeof record.size_match === 'boolean'
+        ? record.size_match
+        : undefined,
     status:
       typeof record.storage_status === 'string'
         ? record.storage_status
         : typeof record.status === 'string'
           ? record.status
           : undefined,
+    validationMismatches: toStringArray(record.validation_mismatches),
+    validationStatus:
+      typeof record.validation_status === 'string'
+        ? record.validation_status
+        : undefined,
     url,
   };
 };
@@ -547,10 +738,18 @@ const normalizeCleanupFinding = (
       ? 'Delete stale duplicate records'
       : kind === 'broken_access_url_error'
         ? 'Manual review required for broken access URLs'
-      : kind === 'repo_orphan_live_object'
-        ? 'Delete Syfon record and purge storage object'
+        : kind === 'broken_bucket_mapping'
+          ? 'Fix or remove the Syfon access URL because no bucket mapping is configured for it.'
+          : kind === 'bucket_only_object'
+            ? 'Review and delete bucket object that has no Syfon record.'
+        : kind === 'repo_orphan_live_object'
+          ? 'Delete Syfon record and purge storage object'
         : kind === 'repo_orphan_stale_record'
           ? 'Delete stale Syfon record'
+          : kind === 'storage_object_missing'
+            ? 'Bucket object is missing from storage.'
+            : kind === 'storage_validation_mismatch'
+              ? 'Bucket object metadata does not match the Syfon record.'
           : kind === 'storage_probe_error'
             ? 'Retry once storage probing is healthy'
             : 'Manual review required';
@@ -601,6 +800,113 @@ const normalizeCleanupFinding = (
   };
 };
 
+const normalizeStorageChainFinding = (
+  item: Record<string, unknown>,
+): StorageChainFinding | null => {
+  const normalizedPath = normalizeStoragePath(
+    typeof item.normalized_path === 'string'
+      ? item.normalized_path
+      : typeof item.path === 'string'
+        ? item.path
+        : '',
+  );
+  if (!normalizedPath) {
+    return null;
+  }
+
+  const kind = parseStorageChainFindingKind(item.kind ?? item.finding_kind);
+  const defaultAction =
+    kind === 'bucket_only_object'
+      ? 'Bucket object exists, but no Syfon record matched it.'
+      : kind === 'bucket_syfon_no_git'
+        ? 'Bucket object and Syfon record matched, but no Git-tracked file matched this checksum.'
+        : kind === 'syfon_broken_bucket_mapping'
+          ? 'Syfon record exists, but its access URL does not resolve to a configured bucket mapping.'
+          : kind === 'syfon_missing_bucket_object'
+            ? 'Syfon record points to a mapped bucket location, but the object does not exist.'
+            : kind === 'syfon_git_no_bucket'
+              ? 'Git and Syfon matched, but the mapped bucket object does not exist.'
+              : kind === 'git_only_no_syfon'
+                ? 'Git checksum has no matching Syfon record.'
+                : kind === 'git_syfon_metadata_mismatch'
+                  ? 'Bucket object exists, but its metadata does not match what Syfon expects.'
+                  : 'Bucket verification failed before Gecko could classify this record cleanly.';
+
+  return {
+    accessUrls: Array.from(
+      new Set([
+        ...toStringArray(item.access_urls),
+        ...toStringArray(
+          item.evidence && typeof item.evidence === 'object'
+            ? (item.evidence as Record<string, unknown>).access_urls
+            : [],
+        ),
+      ]),
+    ),
+    bucketObjectUrl:
+      typeof item.bucket_object_url === 'string'
+        ? item.bucket_object_url
+        : undefined,
+    checksum:
+      typeof item.checksum === 'string' ? item.checksum : undefined,
+    error:
+      typeof item.error === 'string' ? item.error : undefined,
+    errorKind:
+      typeof item.error_kind === 'string' ? item.error_kind : undefined,
+    evidence:
+      item.evidence && typeof item.evidence === 'object'
+        ? normalizeAuditEvidence(item.evidence as Record<string, unknown>)
+        : undefined,
+    kind,
+    normalizedPath,
+    objectIds: Array.from(
+      new Set([
+        ...toStringArray(item.object_ids),
+        ...toStringArray(
+          item.evidence && typeof item.evidence === 'object'
+            ? (item.evidence as Record<string, unknown>).object_ids
+            : [],
+        ),
+      ]),
+    ),
+    probeStatus:
+      typeof item.probe_status === 'string' ? item.probe_status : undefined,
+    recommendedAction:
+      typeof item.recommended_action === 'string' &&
+      item.recommended_action.trim().length > 0
+        ? item.recommended_action
+        : defaultAction,
+    recordCount:
+      typeof item.record_count === 'number'
+        ? item.record_count
+        : typeof item.recordCount === 'number'
+          ? item.recordCount
+          : 0,
+    resolvedBucket:
+      typeof item.resolved_bucket === 'string'
+        ? item.resolved_bucket
+        : undefined,
+    resolvedKey:
+      typeof item.resolved_key === 'string' ? item.resolved_key : undefined,
+    sizeBytes:
+      typeof item.size_bytes === 'number'
+        ? item.size_bytes
+        : typeof item.total_bytes === 'number'
+          ? item.total_bytes
+          : undefined,
+    sourcePaths: Array.from(
+      new Set([
+        ...toStringArray(item.source_paths),
+        ...toStringArray(
+          item.evidence && typeof item.evidence === 'object'
+            ? (item.evidence as Record<string, unknown>).source_paths
+            : [],
+        ),
+      ]),
+    ),
+  };
+};
+
 const normalizeProjectDiffFinding = (
   item: Record<string, unknown>,
 ): ProjectDiffFinding | null => {
@@ -637,6 +943,12 @@ const normalizeProjectDiffFinding = (
         ? item.last_download_time
         : undefined,
     normalizedPath,
+    sourcePaths: Array.from(
+      new Set([
+        ...toStringArray(item.source_paths),
+        ...toStringArray(item.sourcePaths),
+      ]),
+    ),
     objectIds: Array.from(
       new Set([
         ...toStringArray(item.object_ids),
@@ -743,6 +1055,110 @@ const normalizeProjectDiffAuditResult = ({
   };
 };
 
+const normalizeStorageChainIssueGroup = (
+  item: Record<string, unknown>,
+): StorageChainIssueGroup | null => {
+  const kind = typeof item.kind === 'string' ? item.kind.trim() : '';
+  if (!kind) {
+    return null;
+  }
+
+  return {
+    kind,
+    findingCount:
+      typeof item.finding_count === 'number' ? item.finding_count : 0,
+    objectCount:
+      typeof item.object_count === 'number' ? item.object_count : 0,
+    pathCount:
+      typeof item.path_count === 'number' ? item.path_count : 0,
+    recordCount:
+      typeof item.record_count === 'number' ? item.record_count : 0,
+    totalBytes:
+      typeof item.total_bytes === 'number' ? item.total_bytes : 0,
+  };
+};
+
+const normalizeStorageChainAuditResult = ({
+  pathPrefix,
+  response,
+}: {
+  pathPrefix: string;
+  response: Record<string, unknown> | null;
+}): StorageChainAuditResult => {
+  const findingItems = Array.isArray(response?.findings) ? response.findings : [];
+  const findings = findingItems
+    .map((item) =>
+      item && typeof item === 'object'
+        ? normalizeStorageChainFinding(item as Record<string, unknown>)
+        : null,
+    )
+    .filter((finding): finding is StorageChainFinding => finding !== null);
+  const summary =
+    response?.summary && typeof response.summary === 'object'
+      ? (response.summary as Record<string, unknown>)
+      : null;
+  const groupItems = Array.isArray(response?.groups) ? response.groups : [];
+  const groups = groupItems
+    .map((item) =>
+      item && typeof item === 'object'
+        ? normalizeStorageChainIssueGroup(item as Record<string, unknown>)
+        : null,
+    )
+    .filter((group): group is StorageChainIssueGroup => group !== null);
+  const countsByKind: Record<string, number> = emptyStorageChainCounts();
+  if (summary?.counts_by_kind && typeof summary.counts_by_kind === 'object') {
+    Object.entries(summary.counts_by_kind as Record<string, unknown>).forEach(
+      ([key, value]) => {
+        if (typeof value === 'number') {
+          countsByKind[key] = value;
+        }
+      },
+    );
+  }
+
+  findings.forEach((finding) => {
+    countsByKind[finding.kind] = (countsByKind[finding.kind] ?? 0) + 1;
+  });
+
+  return {
+    auditId:
+      typeof response?.audit_id === 'string' ? response.audit_id : undefined,
+    findings,
+    groups,
+    pathPrefix:
+      typeof response?.path_prefix === 'string'
+        ? response.path_prefix
+        : pathPrefix,
+    summary: {
+      bucketInventoryAvailable:
+        typeof summary?.bucket_inventory_available === 'boolean'
+          ? summary.bucket_inventory_available
+          : true,
+      bucketInventoryError:
+        typeof summary?.bucket_inventory_error === 'string'
+          ? summary.bucket_inventory_error
+          : undefined,
+      bucketObjectCount:
+        typeof summary?.bucket_object_count === 'number'
+          ? summary.bucket_object_count
+          : 0,
+      countsByKind,
+      gitTrackedFileCount:
+        typeof summary?.git_tracked_file_count === 'number'
+          ? summary.git_tracked_file_count
+          : 0,
+      syfonRecordCount:
+        typeof summary?.syfon_record_count === 'number'
+          ? summary.syfon_record_count
+          : 0,
+      totalFindings:
+        typeof summary?.total_findings === 'number'
+          ? summary.total_findings
+          : findings.length,
+    },
+  };
+};
+
 const normalizeCleanupAuditResult = ({
   expectedPathCount,
   includesRepoManifest,
@@ -785,7 +1201,9 @@ const normalizeCleanupAuditResult = ({
       manualFindingCount:
         countsByKind.broken_access_url_error +
         countsByKind.live_duplicate_conflict +
+        countsByKind.storage_object_missing +
         countsByKind.storage_probe_error +
+        countsByKind.storage_validation_mismatch +
         countsByKind.unknown,
       repoDeleteCandidateCount: findings.filter(
         (finding) => finding.repoDeleteCandidate,
@@ -813,6 +1231,18 @@ const normalizeCleanupApplyResult = (
       new Set([
         ...toStringArray(response?.deleted_record_ids),
         ...toStringArray(response?.deletedRecordIds),
+      ]),
+    ),
+    deletedBucketObjectUrls: Array.from(
+      new Set([
+        ...toStringArray(response?.deleted_bucket_object_urls),
+        ...toStringArray(response?.deletedBucketObjectUrls),
+      ]),
+    ),
+    updatedRecordIds: Array.from(
+      new Set([
+        ...toStringArray(response?.updated_record_ids),
+        ...toStringArray(response?.updatedRecordIds),
       ]),
     ),
     dryRun:
@@ -893,91 +1323,6 @@ const resolveInitialProjectSelection = ({
   }
 
   return options[0].value;
-};
-
-const collectExpectedPathsFromGecko = async ({
-  maxRequests,
-  organization,
-  pathPrefix,
-  project,
-}: {
-  maxRequests: number;
-  organization: string;
-  pathPrefix: string;
-  project: string;
-}): Promise<Array<string>> => {
-  const normalizedRoot = normalizeStoragePath(pathPrefix);
-  const expectedPaths = new Set<string>();
-  let cursor: string | undefined;
-  let requests = 0;
-
-  while (true) {
-    requests += 1;
-    if (maxRequests > 0 && requests > maxRequests) {
-      throw new Error(
-        `Exceeded ${maxRequests} Gecko manifest requests while building the expected path manifest.`,
-      );
-    }
-
-    const response = await fetch(
-      buildGitManifestUrl({
-        cursor,
-        filesOnly: true,
-        limit: 5000,
-        organization,
-        path: normalizedRoot,
-        project,
-      }),
-      {
-        credentials: 'include',
-        method: 'GET',
-      },
-    );
-
-    if (response.status === 404) {
-      if (!cursor) {
-        return [];
-      }
-      throw new Error(
-        `Gecko manifest pagination lost subtree ${normalizedRoot || '/'}.`,
-      );
-    }
-
-    if (handleUnauthorizedResponse(response)) {
-      throw new Error('Your session expired. Please log in again.');
-    }
-
-    if (!response.ok) {
-      throw new Error(
-        await getErrorMessage(
-          response,
-          `Failed to fetch Gecko git manifest for ${organization}/${project}`,
-        ),
-      );
-    }
-
-    const manifest = await readJsonResponse<GeckoGitManifestResponse>(response);
-    (manifest?.entries ?? []).forEach((entry: { path?: string; type?: string }) => {
-      const entryPath = normalizeStoragePath(entry.path);
-      if (!entryPath) return;
-      if (entry.type !== 'tree') {
-        expectedPaths.add(entryPath);
-      }
-    });
-    if (!manifest?.has_more) {
-      break;
-    }
-    cursor = manifest.next_cursor?.trim();
-    if (!cursor) {
-      throw new Error(
-        `Gecko manifest pagination for ${organization}/${project} did not return a next cursor.`,
-      );
-    }
-  }
-
-  return Array.from(expectedPaths).sort((left, right) =>
-    left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' }),
-  );
 };
 
 export const useFileSummaryProjectOptions = (
@@ -1116,7 +1461,7 @@ export const useSyfonPathStorageSummary = ({
           setError(
             loadError instanceof Error
               ? loadError.message
-              : 'Failed to load storage summary from Syfon metrics.',
+              : 'Failed to load storage summary from Gecko analytics.',
           );
           setData(null);
         }
@@ -1161,27 +1506,12 @@ export const useSyfonProjectDiff = ({
     selectCSRFToken(state),
   );
 
-  const loadExpectedPaths = useCallback(async (): Promise<Array<string>> => {
-    const selection = splitProjectSelectionValue(projectSelection);
-    if (!selection) {
-      throw new Error('Select a project before auditing project records.');
-    }
-
-    return collectExpectedPathsFromGecko({
-      maxRequests:
-        config?.maxTraversalPages && config.maxTraversalPages > 0
-          ? config.maxTraversalPages
-          : DEFAULT_GIT_TREE_REQUEST_LIMIT,
-      organization: selection.organization,
-      pathPrefix: currentPath,
-      project: selection.project,
-    });
-  }, [config?.maxTraversalPages, currentPath, projectSelection]);
+  void config;
 
   const runAudit = useCallback(async (): Promise<ProjectDiffAuditResult | null> => {
     const selection = splitProjectSelectionValue(projectSelection);
     if (!selection) {
-      setAuditError('Select a project before auditing project records.');
+      setAuditError('Select a project before running the chain audit.');
       setAuditResult(null);
       return null;
     }
@@ -1190,14 +1520,15 @@ export const useSyfonProjectDiff = ({
     setIsAuditing(true);
 
     try {
-      const expectedPaths = await loadExpectedPaths();
-      const response = await fetch(buildProjectDiffUrl(), {
-        body: JSON.stringify({
-          expected_paths: expectedPaths,
+      const response = await fetch(
+        buildProjectDiffUrl({
           organization: selection.organization,
-          path_prefix: normalizeStoragePath(currentPath) || undefined,
           project: selection.project,
         }),
+        {
+          body: JSON.stringify({
+            git_subpath: normalizeStoragePath(currentPath) || undefined,
+          }),
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
@@ -1220,7 +1551,7 @@ export const useSyfonProjectDiff = ({
       }
 
       const normalized = normalizeProjectDiffAuditResult({
-        expectedPathCount: expectedPaths.length,
+        expectedPathCount: 0,
         pathPrefix: normalizeStoragePath(currentPath),
         response: await readJsonResponse<Record<string, unknown>>(response),
       });
@@ -1237,7 +1568,7 @@ export const useSyfonProjectDiff = ({
     } finally {
       setIsAuditing(false);
     }
-  }, [csrfToken, currentPath, loadExpectedPaths, projectSelection]);
+  }, [csrfToken, currentPath, projectSelection]);
 
   const clearAudit = useCallback(() => {
     setAuditError(null);
@@ -1250,6 +1581,105 @@ export const useSyfonProjectDiff = ({
     clearAudit,
     isAuditing,
     runAudit,
+    setAuditResult,
+  };
+};
+
+export const useSyfonStorageChain = ({
+  config,
+  currentPath,
+  projectSelection,
+}: {
+  config?: FilesummaryConfig;
+  currentPath: string;
+  projectSelection: string;
+}) => {
+  const [auditError, setAuditError] = useState<string | null>(null);
+  const [auditResult, setAuditResult] = useState<StorageChainAuditResult | null>(
+    null,
+  );
+  const [isAuditing, setIsAuditing] = useState(false);
+  useGetCSRFQuery();
+  const csrfToken = useCoreSelector((state: CoreState) =>
+    selectCSRFToken(state),
+  );
+
+  void config;
+
+  const runAudit = useCallback(async (): Promise<StorageChainAuditResult | null> => {
+    const selection = splitProjectSelectionValue(projectSelection);
+    if (!selection) {
+      setAuditError('Select a project before running the storage chain audit.');
+      setAuditResult(null);
+      return null;
+    }
+
+    setAuditError(null);
+    setIsAuditing(true);
+
+    try {
+      const response = await fetch(
+        buildStorageChainUrl({
+          organization: selection.organization,
+          project: selection.project,
+        }),
+        {
+          body: JSON.stringify({
+            git_subpath: normalizeStoragePath(currentPath) || undefined,
+          }),
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
+          },
+          method: 'POST',
+        },
+      );
+
+      if (handleUnauthorizedResponse(response)) {
+        throw new Error('Your session expired. Please log in again.');
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          await getErrorMessage(
+            response,
+            `Failed to audit storage chain for ${selection.organization}/${selection.project}`,
+          ),
+        );
+      }
+
+      const normalized = normalizeStorageChainAuditResult({
+        pathPrefix: normalizeStoragePath(currentPath),
+        response: await readJsonResponse<Record<string, unknown>>(response),
+      });
+      setAuditResult(normalized);
+      return normalized;
+    } catch (auditFailure) {
+      const message =
+        auditFailure instanceof Error
+          ? auditFailure.message
+          : 'Failed to audit the storage chain.';
+      setAuditError(message);
+      setAuditResult(null);
+      return null;
+    } finally {
+      setIsAuditing(false);
+    }
+  }, [csrfToken, currentPath, projectSelection]);
+
+  const clearAudit = useCallback(() => {
+    setAuditError(null);
+    setAuditResult(null);
+  }, []);
+
+  return {
+    auditError,
+    auditResult,
+    clearAudit,
+    isAuditing,
+    runAudit,
+    setAuditResult,
   };
 };
 
@@ -1275,27 +1705,13 @@ export const useSyfonStorageCleanup = ({
   const [lastAuditIncludedRepoManifest, setLastAuditIncludedRepoManifest] =
     useState(false);
   const [bulkDeleteDrsObjects] = useBulkDeleteSyfonDrsObjectsMutation();
+  const [deleteDrsObject] = useDeleteSyfonDrsObjectMutation();
   useGetCSRFQuery();
   const csrfToken = useCoreSelector((state: CoreState) =>
     selectCSRFToken(state),
   );
 
-  const loadExpectedPaths = useCallback(async (): Promise<Array<string>> => {
-    const selection = splitProjectSelectionValue(projectSelection);
-    if (!selection) {
-      throw new Error('Select a project before auditing repo-orphaned paths.');
-    }
-
-    return collectExpectedPathsFromGecko({
-      maxRequests:
-        config?.maxTraversalPages && config.maxTraversalPages > 0
-          ? config.maxTraversalPages
-          : DEFAULT_GIT_TREE_REQUEST_LIMIT,
-      organization: selection.organization,
-      pathPrefix: currentPath,
-      project: selection.project,
-    });
-  }, [config?.maxTraversalPages, currentPath, projectSelection]);
+  void config;
 
   const runAudit = useCallback(
     async ({
@@ -1306,8 +1722,9 @@ export const useSyfonStorageCleanup = ({
       selectedPaths?: Array<string>;
     } = {}): Promise<StorageCleanupAuditResult | null> => {
       const selection = splitProjectSelectionValue(projectSelection);
+      const startedAt = performance.now();
       if (!selection) {
-        setAuditError('Select a project before running cleanup audit.');
+        setAuditError('Select a project before running storage verification.');
         setAuditResult(null);
         return null;
       }
@@ -1317,24 +1734,41 @@ export const useSyfonStorageCleanup = ({
       setIsAuditing(true);
 
       try {
-        const expectedPaths = includeRepoManifest
-          ? await loadExpectedPaths()
-          : [];
-        const response = await fetch(buildStorageCleanupUrl('audit'), {
-          body: JSON.stringify({
-            check_storage: true,
-            expected_paths: includeRepoManifest ? expectedPaths : undefined,
-            organization: selection.organization,
-            path_prefix: normalizeStoragePath(currentPath) || undefined,
-            project: selection.project,
-            selected_paths: selectedPaths,
-          }),
+        void includeRepoManifest;
+        const requestURL = buildStorageCleanupUrl({
+          action: 'audit',
+          organization: selection.organization,
+          project: selection.project,
+        });
+        const requestBody = {
+          check_storage: true,
+          git_subpath: normalizeStoragePath(currentPath) || undefined,
+          selected_repo_paths: selectedPaths,
+        };
+
+        console.debug('storage cleanup audit request:start', {
+          currentPath,
+          projectSelection,
+          requestBody,
+          requestURL,
+        });
+
+        const response = await fetch(requestURL, {
+          body: JSON.stringify(requestBody),
           credentials: 'include',
           headers: {
             'Content-Type': 'application/json',
             ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
           },
           method: 'POST',
+        });
+
+        console.debug('storage cleanup audit request:response', {
+          durationMs: performance.now() - startedAt,
+          ok: response.ok,
+          requestURL,
+          status: response.status,
+          statusText: response.statusText,
         });
 
         if (handleUnauthorizedResponse(response)) {
@@ -1345,26 +1779,38 @@ export const useSyfonStorageCleanup = ({
           throw new Error(
             await getErrorMessage(
               response,
-              `Failed to audit Syfon cleanup for ${selection.organization}/${selection.project}`,
+              `Failed to audit storage verification for ${selection.organization}/${selection.project}`,
             ),
           );
         }
 
         const normalized = normalizeCleanupAuditResult({
-          expectedPathCount: expectedPaths.length,
-          includesRepoManifest: includeRepoManifest,
+          expectedPathCount: 0,
+          includesRepoManifest: true,
           pathPrefix: normalizeStoragePath(currentPath),
           response: await readJsonResponse<Record<string, unknown>>(response),
         });
 
         setAuditResult(normalized);
-        setLastAuditIncludedRepoManifest(includeRepoManifest);
+        setLastAuditIncludedRepoManifest(true);
         return normalized;
       } catch (auditFailure) {
+        console.error('storage cleanup audit request:failure', {
+          currentPath,
+          durationMs: performance.now() - startedAt,
+          message:
+            auditFailure instanceof Error
+              ? auditFailure.message
+              : String(auditFailure),
+          name: auditFailure instanceof Error ? auditFailure.name : undefined,
+          projectSelection,
+          selectedPaths,
+          value: auditFailure,
+        });
         const message =
           auditFailure instanceof Error
             ? auditFailure.message
-            : 'Failed to audit Syfon storage cleanup.';
+            : 'Failed to audit Gecko storage verification.';
         setAuditError(message);
         setAuditResult(null);
         return null;
@@ -1372,7 +1818,7 @@ export const useSyfonStorageCleanup = ({
         setIsAuditing(false);
       }
     },
-    [csrfToken, currentPath, loadExpectedPaths, projectSelection],
+    [csrfToken, currentPath, projectSelection],
   );
 
   const rerunAudit = useCallback(
@@ -1387,11 +1833,13 @@ export const useSyfonStorageCleanup = ({
     async ({
       deleteRepoOrphans,
       deleteStaleDuplicates,
+      deleteBucketOnlyObjects = false,
       dryRun = false,
       selectedPaths,
     }: {
       deleteRepoOrphans: boolean;
       deleteStaleDuplicates: boolean;
+      deleteBucketOnlyObjects?: boolean;
       dryRun?: boolean;
       selectedPaths?: Array<string>;
     }): Promise<StorageCleanupApplyResult | null> => {
@@ -1406,20 +1854,21 @@ export const useSyfonStorageCleanup = ({
       setIsApplying(true);
 
       try {
-        const includeRepoManifest =
-          deleteRepoOrphans || lastAuditIncludedRepoManifest;
-        const expectedPaths = includeRepoManifest ? await loadExpectedPaths() : [];
-        const response = await fetch(buildStorageCleanupUrl('apply'), {
-          body: JSON.stringify({
-            delete_repo_orphans: deleteRepoOrphans,
-            delete_stale_duplicates: deleteStaleDuplicates,
-            dry_run: dryRun,
-            expected_paths: includeRepoManifest ? expectedPaths : undefined,
+        const response = await fetch(
+          buildStorageCleanupUrl({
+            action: 'apply',
             organization: selection.organization,
-            path_prefix: normalizeStoragePath(currentPath) || undefined,
             project: selection.project,
-            selected_paths: selectedPaths,
           }),
+          {
+            body: JSON.stringify({
+              delete_repo_orphans: deleteRepoOrphans,
+              delete_stale_duplicates: deleteStaleDuplicates,
+              delete_bucket_only_objects: deleteBucketOnlyObjects,
+              dry_run: dryRun,
+              git_subpath: normalizeStoragePath(currentPath) || undefined,
+              selected_repo_paths: selectedPaths,
+            }),
           credentials: 'include',
           headers: {
             'Content-Type': 'application/json',
@@ -1436,7 +1885,7 @@ export const useSyfonStorageCleanup = ({
           throw new Error(
             await getErrorMessage(
               response,
-              `Failed to apply Syfon cleanup for ${selection.organization}/${selection.project}`,
+            `Failed to apply storage cleanup for ${selection.organization}/${selection.project}`,
             ),
           );
         }
@@ -1453,7 +1902,7 @@ export const useSyfonStorageCleanup = ({
         const message =
           applyFailure instanceof Error
             ? applyFailure.message
-            : 'Failed to apply Syfon storage cleanup.';
+            : 'Failed to apply storage cleanup.';
         setApplyError(message);
         setApplyResult(null);
         return null;
@@ -1464,8 +1913,6 @@ export const useSyfonStorageCleanup = ({
     [
       csrfToken,
       currentPath,
-      lastAuditIncludedRepoManifest,
-      loadExpectedPaths,
       projectSelection,
     ],
   );
@@ -1490,12 +1937,28 @@ export const useSyfonStorageCleanup = ({
       setIsApplying(true);
 
       try {
-        await bulkDeleteDrsObjects({
-          bulk_object_ids: uniqueObjectIds,
-        }).unwrap();
+        try {
+          await bulkDeleteDrsObjects({
+            bulk_object_ids: uniqueObjectIds,
+          }).unwrap();
+        } catch (bulkError: any) {
+          console.warn('Bulk delete failed, falling back to one-by-one deletion:', bulkError);
+          const chunks = [];
+          const chunkSize = 20;
+          for (let i = 0; i < uniqueObjectIds.length; i += chunkSize) {
+            chunks.push(uniqueObjectIds.slice(i, i + chunkSize));
+          }
+          for (const chunk of chunks) {
+            await Promise.all(
+              chunk.map((objectId) => deleteDrsObject(objectId).unwrap())
+            );
+          }
+        }
 
         const normalized: StorageCleanupApplyResult = {
           deletedRecordIds: uniqueObjectIds,
+          deletedBucketObjectUrls: [],
+          updatedRecordIds: [],
           dryRun: false,
           manualPaths: [],
           purgeResults: [],
@@ -1517,7 +1980,7 @@ export const useSyfonStorageCleanup = ({
         setIsApplying(false);
       }
     },
-    [bulkDeleteDrsObjects],
+    [bulkDeleteDrsObjects, deleteDrsObject],
   );
 
   const clearCleanupResults = useCallback(() => {
@@ -1539,5 +2002,6 @@ export const useSyfonStorageCleanup = ({
     isAuditing,
     rerunAudit,
     runAudit,
+    setAuditResult,
   };
 };

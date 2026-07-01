@@ -15,14 +15,7 @@ import {
   fetchBaseQuery,
 } from '@reduxjs/toolkit/query/react';
 import { configureStore } from '@reduxjs/toolkit';
-import {
-  FLUSH,
-  PAUSE,
-  PERSIST,
-  PURGE,
-  REGISTER,
-  REHYDRATE,
-} from 'redux-persist';
+
 import { GEN3_API } from '../../constants';
 import { getCookie } from 'cookies-next';
 import { v5 as uuidv5 } from 'uuid';
@@ -88,12 +81,8 @@ export const createAppApiForRTKQ = (
     },
     middleware: (getDefaultMiddleware) =>
       getDefaultMiddleware({
-        serializableCheck: {
-          ignoredActions: [FLUSH, REHYDRATE, PAUSE, PERSIST, PURGE, REGISTER],
-        },
-        immutableCheck: {
-          warnAfter: 128,
-        },
+        serializableCheck: false,
+        immutableCheck: false,
       }).concat(appMiddleware),
   });
 

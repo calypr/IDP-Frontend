@@ -7,13 +7,21 @@ import type { NavPageLayoutProps } from '../../features/Navigation';
 
 export const FileSummaryPageGetServerSideProps: GetServerSideProps<
   NavPageLayoutProps
-> = async () => {
+> = async (context) => {
+  const requestHeaders: Record<string, string> = {};
+  if (context.req.headers.cookie) {
+    requestHeaders['Cookie'] = context.req.headers.cookie;
+  }
+  if (context.req.headers.host) {
+    requestHeaders['Host'] = context.req.headers.host;
+  }
+
   const summaryPageProps: FileSummaryProps =
-    await microserviceDb.get<FileSummaryProps>('file_summary/1');
+    await microserviceDb.get<FileSummaryProps>('file_summary/1', requestHeaders);
 
   return {
     props: {
-      ...(await getNavPageLayoutPropsFromConfig()),
+      ...(await getNavPageLayoutPropsFromConfig(requestHeaders)),
       filesummaryConfig: summaryPageProps,
     },
   };

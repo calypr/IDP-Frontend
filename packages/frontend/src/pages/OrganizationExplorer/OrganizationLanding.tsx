@@ -121,7 +121,7 @@ const OrganizationRow = ({
           {group.projects.map((project) => {
             return (
               <CompactProjectRow
-                href={`/org/${encodeURIComponent(project.organization)}/project/${encodeURIComponent(project.project)}/lake`}
+                href={`/org/${encodeURIComponent(project.organization)}/project/${encodeURIComponent(project.project)}/storage`}
                 key={project.resourcePath}
                 project={project.project}
                 resourcePath={project.resourcePath}
@@ -175,7 +175,7 @@ const OrganizationLandingPage = ({
         project.project.toLowerCase().includes(normalizedSearchQuery),
       )
       .map((project) => ({
-        href: `/org/${encodeURIComponent(project.organization)}/project/${encodeURIComponent(project.project)}/lake`,
+        href: `/org/${encodeURIComponent(project.organization)}/project/${encodeURIComponent(project.project)}/storage`,
         key: `project-${project.resourcePath}`,
         kind: 'project' as const,
         label: project.project,

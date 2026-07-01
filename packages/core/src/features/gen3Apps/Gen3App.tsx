@@ -17,14 +17,7 @@ import {
   ReactReduxContextValue,
   TypedUseSelectorHook,
 } from 'react-redux';
-import {
-  FLUSH,
-  PAUSE,
-  PERSIST,
-  PURGE,
-  REGISTER,
-  REHYDRATE,
-} from 'redux-persist';
+
 import { registerGen3App } from './gen3AppRegistry';
 import { DataStatus } from '../../dataAccess';
 import { CookiesProvider } from 'react-cookie';
@@ -140,34 +133,12 @@ export const createAppStore = (
     middleware: (getDefaultMiddleware) =>
       middleware
         ? getDefaultMiddleware({
-            serializableCheck: {
-              ignoredActions: [
-                FLUSH,
-                REHYDRATE,
-                PAUSE,
-                PERSIST,
-                PURGE,
-                REGISTER,
-              ],
-            },
-            immutableCheck: {
-              warnAfter: 128,
-            },
+            serializableCheck: false,
+            immutableCheck: false,
           }).concat(middleware)
         : getDefaultMiddleware({
-            serializableCheck: {
-              ignoredActions: [
-                FLUSH,
-                REHYDRATE,
-                PAUSE,
-                PERSIST,
-                PURGE,
-                REGISTER,
-              ],
-            },
-            immutableCheck: {
-              warnAfter: 128,
-            },
+            serializableCheck: false,
+            immutableCheck: false,
           }),
   });
   type AppState = ReturnType<typeof reducers>;

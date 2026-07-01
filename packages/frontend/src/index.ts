@@ -64,7 +64,6 @@ import {
 import {
   OrganizationExplorerPageGetServerSideProps,
   OrganizationLandingPage,
-  OrganizationProjectPage,
 } from './pages/OrganizationExplorer';
 import {
   ProjectPresentationPage,
@@ -220,7 +219,6 @@ export {
   GitProjectPage,
   GitExplorerPageGetServerSideProps,
   OrganizationLandingPage,
-  OrganizationProjectPage,
   OrganizationExplorerPageGetServerSideProps,
   ProjectPresentationPage,
   ProjectPresentationEditPage,

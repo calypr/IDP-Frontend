@@ -34,7 +34,6 @@ import {
   type GeckoGitTreeEntry,
 } from '@gen3/core';
 import {
-  IconDatabaseExport,
   IconCheck,
   IconChevronDown,
   IconCopy,
@@ -904,19 +903,6 @@ const GitProjectPage = ({
                       Upload files
                     </Button>
                   ) : null}
-                  <Tooltip label="Open raw Syfon project view">
-                    <ActionIcon
-                      aria-label="Open Syfon project view"
-                      component="a"
-                      href={`/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}/lake`}
-                      rel={isEmbedded ? undefined : 'noreferrer'}
-                      size="lg"
-                      target={isEmbedded ? '_parent' : '_blank'}
-                      variant="subtle"
-                    >
-                      <IconDatabaseExport size={18} />
-                    </ActionIcon>
-                  </Tooltip>
                 </Group>
               </Group>
 

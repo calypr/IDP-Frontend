@@ -55,7 +55,7 @@ const SidebarContent = ({
     useSidebarContext();
   const [searchQuery, setSearchQuery] = useState('');
   const [showAllProjects, setShowAllProjects] = useState(false);
-  const showNewProjectButton = router.pathname === '/';
+  const showNewProjectButton = true;
 
   const combinedItems = useMemo<Array<LeftNavBarProps>>(() => {
     const projectItems: Array<LeftNavBarProps> = geckoProjects
