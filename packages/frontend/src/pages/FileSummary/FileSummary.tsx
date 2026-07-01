@@ -910,13 +910,31 @@ export const FileSummaryPage = ({
       const deletedRecords = current.records.filter(
         (r) => deletedSet.has(r.path),
       );
-      const deletedBytes = deletedRecords.reduce((sum, r) => sum + (r.sizeBytes || 0), 0);
 
-      const newSummary = {
+      const countsByKind = { ...current.summary.countsByKind };
+      deletedRecords.forEach((r) => {
+        if (countsByKind[r.kind]) {
+          countsByKind[r.kind] = Math.max(0, countsByKind[r.kind] - 1);
+        }
+      });
+
+      const repoOrphanDeleted = deletedRecords.filter(
+        (r) => r.kind === 'repo_orphan_live_object' || r.kind === 'repo_orphan_stale_record',
+      ).length;
+      const staleDuplicateDeleted = deletedRecords.filter(
+        (r) => r.kind === 'stale_duplicate_record',
+      ).length;
+      const deleteCandidateDeleted = deletedRecords.filter(
+        (r) => r.repoDeleteCandidate,
+      ).length;
+
+      const newSummary: StorageCleanupAuditSummary = {
         ...current.summary,
         totalFindings: newRecords.length,
-        totalRecords: newRecords.length,
-        totalBytes: Math.max(0, current.summary.totalBytes - deletedBytes),
+        countsByKind,
+        repoOrphanCount: Math.max(0, current.summary.repoOrphanCount - repoOrphanDeleted),
+        staleDuplicateCount: Math.max(0, current.summary.staleDuplicateCount - staleDuplicateDeleted),
+        repoDeleteCandidateCount: Math.max(0, current.summary.repoDeleteCandidateCount - deleteCandidateDeleted),
       };
 
       return {
@@ -990,13 +1008,31 @@ export const FileSummaryPage = ({
       const deletedRecords = current.records.filter(
         (r) => deletedSet.has(r.objectId),
       );
-      const deletedBytes = deletedRecords.reduce((sum, r) => sum + (r.sizeBytes || 0), 0);
 
-      const newSummary = {
+      const countsByKind = { ...current.summary.countsByKind };
+      deletedRecords.forEach((r) => {
+        if (countsByKind[r.kind]) {
+          countsByKind[r.kind] = Math.max(0, countsByKind[r.kind] - 1);
+        }
+      });
+
+      const repoOrphanDeleted = deletedRecords.filter(
+        (r) => r.kind === 'repo_orphan_live_object' || r.kind === 'repo_orphan_stale_record',
+      ).length;
+      const staleDuplicateDeleted = deletedRecords.filter(
+        (r) => r.kind === 'stale_duplicate_record',
+      ).length;
+      const deleteCandidateDeleted = deletedRecords.filter(
+        (r) => r.repoDeleteCandidate,
+      ).length;
+
+      const newSummary: StorageCleanupAuditSummary = {
         ...current.summary,
         totalFindings: newRecords.length,
-        totalRecords: newRecords.length,
-        totalBytes: Math.max(0, current.summary.totalBytes - deletedBytes),
+        countsByKind,
+        repoOrphanCount: Math.max(0, current.summary.repoOrphanCount - repoOrphanDeleted),
+        staleDuplicateCount: Math.max(0, current.summary.staleDuplicateCount - staleDuplicateDeleted),
+        repoDeleteCandidateCount: Math.max(0, current.summary.repoDeleteCandidateCount - deleteCandidateDeleted),
       };
 
       return {
