@@ -855,193 +855,7 @@ export const FileSummaryPage = ({
     projectSelection: selectedProject,
   });
 
-  const removePathsFromLocalStates = useCallback((deletedPaths: Array<string>) => {
-    const deletedSet = new Set(deletedPaths);
 
-    // Update Storage Chain Audit local state
-    setChainAuditResult((current) => {
-      if (!current) return null;
-      const newFindings = current.findings.filter(
-        (f) => !deletedSet.has(f.normalizedPath),
-      );
-      const newGroups = computeGroupsFromFindings(newFindings);
-
-      const deletedFindings = current.findings.filter(
-        (f) => deletedSet.has(f.normalizedPath),
-      );
-      const deletedObjectCount = deletedFindings.reduce((sum, f) => sum + (f.objectIds?.length || 0), 0);
-      const deletedRecordCount = deletedFindings.reduce((sum, f) => sum + (f.recordCount || 0), 0);
-
-      const countsByKind: Record<string, number> = {};
-      newFindings.forEach((f) => {
-        countsByKind[f.kind] = (countsByKind[f.kind] || 0) + 1;
-      });
-      current.groups.forEach((group) => {
-        if (!countsByKind[group.kind]) {
-          countsByKind[group.kind] = 0;
-        }
-      });
-
-      const newSummary = {
-        ...current.summary,
-        totalFindings: newFindings.length,
-        countsByKind: {
-          ...current.summary.countsByKind,
-          ...countsByKind,
-        },
-        bucketObjectCount: Math.max(0, current.summary.bucketObjectCount - deletedObjectCount),
-        syfonRecordCount: Math.max(0, current.summary.syfonRecordCount - deletedRecordCount),
-      };
-
-      return {
-        ...current,
-        findings: newFindings,
-        groups: newGroups,
-        summary: newSummary,
-      };
-    });
-
-    // Update Storage Cleanup Audit (auditResult) local state
-    setCleanupAuditResult((current) => {
-      if (!current) return null;
-      const newRecords = current.records.filter(
-        (r) => !deletedSet.has(r.path),
-      );
-      const deletedRecords = current.records.filter(
-        (r) => deletedSet.has(r.path),
-      );
-
-      const countsByKind = { ...current.summary.countsByKind };
-      deletedRecords.forEach((r) => {
-        if (countsByKind[r.kind]) {
-          countsByKind[r.kind] = Math.max(0, countsByKind[r.kind] - 1);
-        }
-      });
-
-      const repoOrphanDeleted = deletedRecords.filter(
-        (r) => r.kind === 'repo_orphan_live_object' || r.kind === 'repo_orphan_stale_record',
-      ).length;
-      const staleDuplicateDeleted = deletedRecords.filter(
-        (r) => r.kind === 'stale_duplicate_record',
-      ).length;
-      const deleteCandidateDeleted = deletedRecords.filter(
-        (r) => r.repoDeleteCandidate,
-      ).length;
-
-      const newSummary: StorageCleanupAuditSummary = {
-        ...current.summary,
-        totalFindings: newRecords.length,
-        countsByKind,
-        repoOrphanCount: Math.max(0, current.summary.repoOrphanCount - repoOrphanDeleted),
-        staleDuplicateCount: Math.max(0, current.summary.staleDuplicateCount - staleDuplicateDeleted),
-        repoDeleteCandidateCount: Math.max(0, current.summary.repoDeleteCandidateCount - deleteCandidateDeleted),
-      };
-
-      return {
-        ...current,
-        records: newRecords,
-        summary: newSummary,
-      };
-    });
-
-    // Reset selection for this issue
-    if (selectedChainIssue) {
-      setSelectedChainPathsByIssue((current) => ({
-        ...current,
-        [selectedChainIssue.id]: [],
-      }));
-    }
-  }, [selectedChainIssue, setChainAuditResult, setCleanupAuditResult]);
-
-  const removeObjectIdsFromLocalStates = useCallback((deletedIds: Array<string>) => {
-    const deletedSet = new Set(deletedIds);
-
-    // Update Storage Chain Audit local state
-    setChainAuditResult((current) => {
-      if (!current) return null;
-      const newFindings = current.findings.filter(
-        (f) => !f.objectIds.some((id) => deletedSet.has(id)),
-      );
-      const newGroups = computeGroupsFromFindings(newFindings);
-      
-      const deletedFindings = current.findings.filter(
-        (f) => f.objectIds.some((id) => deletedSet.has(id)),
-      );
-      const deletedObjectCount = deletedFindings.reduce((sum, f) => sum + (f.objectIds?.length || 0), 0);
-      const deletedRecordCount = deletedFindings.reduce((sum, f) => sum + (f.recordCount || 0), 0);
-
-      const countsByKind: Record<string, number> = {};
-      newFindings.forEach((f) => {
-        countsByKind[f.kind] = (countsByKind[f.kind] || 0) + 1;
-      });
-      current.groups.forEach((group) => {
-        if (!countsByKind[group.kind]) {
-          countsByKind[group.kind] = 0;
-        }
-      });
-
-      const newSummary = {
-        ...current.summary,
-        totalFindings: newFindings.length,
-        countsByKind: {
-          ...current.summary.countsByKind,
-          ...countsByKind,
-        },
-        bucketObjectCount: Math.max(0, current.summary.bucketObjectCount - deletedObjectCount),
-        syfonRecordCount: Math.max(0, current.summary.syfonRecordCount - deletedRecordCount),
-      };
-
-      return {
-        ...current,
-        findings: newFindings,
-        groups: newGroups,
-        summary: newSummary,
-      };
-    });
-
-    // Update Storage Cleanup Audit (auditResult) local state
-    setCleanupAuditResult((current) => {
-      if (!current) return null;
-      const newRecords = current.records.filter(
-        (r) => !deletedSet.has(r.objectId),
-      );
-      const deletedRecords = current.records.filter(
-        (r) => deletedSet.has(r.objectId),
-      );
-
-      const countsByKind = { ...current.summary.countsByKind };
-      deletedRecords.forEach((r) => {
-        if (countsByKind[r.kind]) {
-          countsByKind[r.kind] = Math.max(0, countsByKind[r.kind] - 1);
-        }
-      });
-
-      const repoOrphanDeleted = deletedRecords.filter(
-        (r) => r.kind === 'repo_orphan_live_object' || r.kind === 'repo_orphan_stale_record',
-      ).length;
-      const staleDuplicateDeleted = deletedRecords.filter(
-        (r) => r.kind === 'stale_duplicate_record',
-      ).length;
-      const deleteCandidateDeleted = deletedRecords.filter(
-        (r) => r.repoDeleteCandidate,
-      ).length;
-
-      const newSummary: StorageCleanupAuditSummary = {
-        ...current.summary,
-        totalFindings: newRecords.length,
-        countsByKind,
-        repoOrphanCount: Math.max(0, current.summary.repoOrphanCount - repoOrphanDeleted),
-        staleDuplicateCount: Math.max(0, current.summary.staleDuplicateCount - staleDuplicateDeleted),
-        repoDeleteCandidateCount: Math.max(0, current.summary.repoDeleteCandidateCount - deleteCandidateDeleted),
-      };
-
-      return {
-        ...current,
-        records: newRecords,
-        summary: newSummary,
-      };
-    });
-  }, [setChainAuditResult, setCleanupAuditResult]);
 
   useEffect(() => {
     clearChainAudit();
@@ -1132,6 +946,194 @@ export const FileSummaryPage = ({
         : [],
     [chainAuditResult?.findings, selectedChainIssue],
   );
+
+  const removePathsFromLocalStates = useCallback((deletedPaths: Array<string>) => {
+    const deletedSet = new Set(deletedPaths);
+
+    // Update Storage Chain Audit local state
+    setChainAuditResult((current) => {
+      if (!current) return null;
+      const newFindings = current.findings.filter(
+        (f) => !deletedSet.has(f.normalizedPath),
+      );
+      const newGroups = computeGroupsFromFindings(newFindings);
+
+      const deletedFindings = current.findings.filter(
+        (f) => deletedSet.has(f.normalizedPath),
+      );
+      const deletedObjectCount = deletedFindings.reduce((sum, f) => sum + (f.objectIds?.length || 0), 0);
+      const deletedRecordCount = deletedFindings.reduce((sum, f) => sum + (f.recordCount || 0), 0);
+
+      const countsByKind: Record<string, number> = {};
+      newFindings.forEach((f) => {
+        countsByKind[f.kind] = (countsByKind[f.kind] || 0) + 1;
+      });
+      current.groups.forEach((group) => {
+        if (!countsByKind[group.kind]) {
+          countsByKind[group.kind] = 0;
+        }
+      });
+
+      const newSummary = {
+        ...current.summary,
+        totalFindings: newFindings.length,
+        countsByKind: {
+          ...current.summary.countsByKind,
+          ...countsByKind,
+        },
+        bucketObjectCount: Math.max(0, current.summary.bucketObjectCount - deletedObjectCount),
+        syfonRecordCount: Math.max(0, current.summary.syfonRecordCount - deletedRecordCount),
+      };
+
+      return {
+        ...current,
+        findings: newFindings,
+        groups: newGroups,
+        summary: newSummary,
+      };
+    });
+
+    // Update Storage Cleanup Audit (auditResult) local state
+    setCleanupAuditResult((current) => {
+      if (!current) return null;
+      const newFindings = current.findings.filter(
+        (f) => !deletedSet.has(f.normalizedPath),
+      );
+      const deletedFindings = current.findings.filter(
+        (f) => deletedSet.has(f.normalizedPath),
+      );
+
+      const countsByKind: Record<string, number> = { ...current.summary.countsByKind };
+      deletedFindings.forEach((f) => {
+        if (countsByKind[f.kind]) {
+          countsByKind[f.kind] = Math.max(0, countsByKind[f.kind] - 1);
+        }
+      });
+
+      const repoOrphanDeleted = deletedFindings.filter(
+        (f) => f.kind === 'repo_orphan_live_object' || f.kind === 'repo_orphan_stale_record',
+      ).length;
+      const staleDuplicateDeleted = deletedFindings.filter(
+        (f) => f.kind === 'stale_duplicate_record',
+      ).length;
+      const deleteCandidateDeleted = deletedFindings.filter(
+        (f) => f.repoDeleteCandidate,
+      ).length;
+
+      const newSummary = {
+        ...current.summary,
+        totalFindings: newFindings.length,
+        countsByKind,
+        repoOrphanCount: Math.max(0, current.summary.repoOrphanCount - repoOrphanDeleted),
+        staleDuplicateCount: Math.max(0, current.summary.staleDuplicateCount - staleDuplicateDeleted),
+        repoDeleteCandidateCount: Math.max(0, current.summary.repoDeleteCandidateCount - deleteCandidateDeleted),
+      };
+
+      return {
+        ...current,
+        findings: newFindings,
+        summary: newSummary,
+      };
+    });
+
+    // Reset selection for this issue
+    if (selectedChainIssue) {
+      setSelectedChainPathsByIssue((current) => ({
+        ...current,
+        [selectedChainIssue.id]: [],
+      }));
+    }
+  }, [selectedChainIssue, setChainAuditResult, setCleanupAuditResult]);
+
+  const removeObjectIdsFromLocalStates = useCallback((deletedIds: Array<string>) => {
+    const deletedSet = new Set(deletedIds);
+
+    // Update Storage Chain Audit local state
+    setChainAuditResult((current) => {
+      if (!current) return null;
+      const newFindings = current.findings.filter(
+        (f) => !f.objectIds.some((id) => deletedSet.has(id)),
+      );
+      const newGroups = computeGroupsFromFindings(newFindings);
+      
+      const deletedFindings = current.findings.filter(
+        (f) => f.objectIds.some((id) => deletedSet.has(id)),
+      );
+      const deletedObjectCount = deletedFindings.reduce((sum, f) => sum + (f.objectIds?.length || 0), 0);
+      const deletedRecordCount = deletedFindings.reduce((sum, f) => sum + (f.recordCount || 0), 0);
+
+      const countsByKind: Record<string, number> = {};
+      newFindings.forEach((f) => {
+        countsByKind[f.kind] = (countsByKind[f.kind] || 0) + 1;
+      });
+      current.groups.forEach((group) => {
+        if (!countsByKind[group.kind]) {
+          countsByKind[group.kind] = 0;
+        }
+      });
+
+      const newSummary = {
+        ...current.summary,
+        totalFindings: newFindings.length,
+        countsByKind: {
+          ...current.summary.countsByKind,
+          ...countsByKind,
+        },
+        bucketObjectCount: Math.max(0, current.summary.bucketObjectCount - deletedObjectCount),
+        syfonRecordCount: Math.max(0, current.summary.syfonRecordCount - deletedRecordCount),
+      };
+
+      return {
+        ...current,
+        findings: newFindings,
+        groups: newGroups,
+        summary: newSummary,
+      };
+    });
+
+    // Update Storage Cleanup Audit (auditResult) local state
+    setCleanupAuditResult((current) => {
+      if (!current) return null;
+      const newFindings = current.findings.filter(
+        (f) => !f.objectIds.some((id) => deletedSet.has(id)),
+      );
+      const deletedFindings = current.findings.filter(
+        (f) => f.objectIds.some((id) => deletedSet.has(id)),
+      );
+
+      const countsByKind: Record<string, number> = { ...current.summary.countsByKind };
+      deletedFindings.forEach((f) => {
+        if (countsByKind[f.kind]) {
+          countsByKind[f.kind] = Math.max(0, countsByKind[f.kind] - 1);
+        }
+      });
+
+      const repoOrphanDeleted = deletedFindings.filter(
+        (f) => f.kind === 'repo_orphan_live_object' || f.kind === 'repo_orphan_stale_record',
+      ).length;
+      const staleDuplicateDeleted = deletedFindings.filter(
+        (f) => f.kind === 'stale_duplicate_record',
+      ).length;
+      const deleteCandidateDeleted = deletedFindings.filter(
+        (f) => f.repoDeleteCandidate,
+      ).length;
+
+      const newSummary = {
+        ...current.summary,
+        totalFindings: newFindings.length,
+        countsByKind,
+        repoOrphanCount: Math.max(0, current.summary.repoOrphanCount - repoOrphanDeleted),
+        staleDuplicateCount: Math.max(0, current.summary.staleDuplicateCount - staleDuplicateDeleted),
+        repoDeleteCandidateCount: Math.max(0, current.summary.repoDeleteCandidateCount - deleteCandidateDeleted),
+      };
+
+      return {
+        ...current,
+        findings: newFindings,
+        summary: newSummary,
+      };
+    });
+  }, [setChainAuditResult, setCleanupAuditResult]);
   const selectedChainObjectIdsCount = useMemo(
     () =>
       selectedChainFindings
