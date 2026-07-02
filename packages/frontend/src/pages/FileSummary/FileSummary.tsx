@@ -876,7 +876,7 @@ export const FileSummaryPage = ({
     setActiveChainPage(1);
     setActiveDiffPage(1);
     setActiveCleanupPage(1);
-  }, [auditResult?.pathPrefix, chainAuditResult, currentPath, selectedProject]);
+  }, [auditResult?.pathPrefix, currentPath, selectedProject]);
 
   useEffect(() => {
     setActiveChainPage(1);
@@ -1864,7 +1864,7 @@ export const FileSummaryPage = ({
                       icon={<IconAlertCircle size={16} />}
                       title="Bucket inventory unavailable"
                     >
-                      Syfon could not enumerate the mapped bucket target for this project. Gecko kept the audit running using probe-backed Syfon record evidence, but bucket-only object detection and bucket object totals are limited to what record probes could prove.
+                      Syfon could not enumerate the mapped bucket target for this project. Gecko kept the audit running using record-backed storage validation, but bucket-only object detection and bucket object totals are limited to what fallback validation could prove.
                       {chainAuditResult.summary.bucketInventoryError ? (
                         <Text mt={8} size="sm">
                           {chainAuditResult.summary.bucketInventoryError}
@@ -1907,7 +1907,7 @@ export const FileSummaryPage = ({
                     >
                       {(chainAuditResult.summary.countsByKind.bucket_syfon_git_complete ?? 0).toLocaleString()}
                       {' '}
-                      record-backed bucket objects currently probe cleanly through Syfon into Git, but the full bucket-first audit is blocked because the mapped bucket target could not be enumerated.
+                      record-backed storage objects currently validate cleanly through Syfon into Git, but the default bucket-first audit is blocked because the mapped bucket target could not be enumerated.
                       {' '}
                       Totals scanned:
                       {' '}
@@ -2234,6 +2234,15 @@ export const FileSummaryPage = ({
                             ) : null}
                           </>
                         ) : null
+                      ) : isChainAuditing ? (
+                        <Center py="lg">
+                          <Stack align="center" gap="xs">
+                            <Loader size="sm" />
+                            <Text c="dimmed" size="sm">
+                              Loading chain detail rows...
+                            </Text>
+                          </Stack>
+                        </Center>
                       ) : (
                         <Alert
                           color="blue"

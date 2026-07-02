@@ -5,6 +5,7 @@ import { CoreState } from '../../reducers';
 import { resourcePathFromProjectID } from '../submission/authMappingUtils';
 import { gen3Api } from '../gen3';
 import { selectCSRFToken } from '../user/userSliceRTK';
+import { handleUnauthorizedStatus } from '../user/unauthorized';
 import { getCookie } from 'cookies-next';
 
 export interface GeckoProjectRecord {
@@ -438,6 +439,7 @@ const blobToDataURL = async (blob: Blob): Promise<string> =>
   });
 
 const responseErrorMessage = async (response: Response): Promise<string> => {
+  handleUnauthorizedStatus(response.status);
   const text = await response.text();
   return (
     geckoErrorMessage(text) ||

@@ -20,6 +20,7 @@ import { GEN3_API } from '../../constants';
 import { getCookie } from 'cookies-next';
 import { v5 as uuidv5 } from 'uuid';
 import { GEN3_APP_NAMESPACE } from './constants';
+import { handleUnauthorizedStatus } from '../user/unauthorized';
 
 export const createAppApiForRTKQ = (
   reducerPath: string,
@@ -48,25 +49,41 @@ export const createAppApiForRTKQ = (
       }),
     );
 
+  const defaultBaseQuery = fetchBaseQuery({
+    baseUrl: `${GEN3_API}`,
+    prepareHeaders: (headers) => {
+      headers.set('Content-Type', 'application/json');
+      if (process.env.NODE_ENV === 'development') {
+        // NOTE: This cookie can only be accessed from the client side
+        // in development mode. Otherwise, the cookie is set as httpOnly
+        const accessToken = getCookie('credentials_token');
+        if (accessToken)
+          headers.set('Authorization', `Bearer ${accessToken}`);
+      }
+
+      return headers;
+    },
+  });
+
+  const delegatedBaseQuery = baseQuery ?? defaultBaseQuery;
+  const resolvedBaseQuery: BaseQueryFn = async (args, api, extraOptions) => {
+    const result = await delegatedBaseQuery(args, api, extraOptions);
+    if ('error' in result) {
+      handleUnauthorizedStatus(
+        typeof result.error === 'object' &&
+          result.error !== null &&
+          'status' in result.error &&
+          typeof result.error.status === 'number'
+          ? result.error.status
+          : undefined,
+      );
+    }
+    return result;
+  };
+
   const appRTKQApi = appCreateApi({
     reducerPath: reducerPath,
-    baseQuery:
-      baseQuery ??
-      fetchBaseQuery({
-        baseUrl: `${GEN3_API}`,
-        prepareHeaders: (headers) => {
-          headers.set('Content-Type', 'application/json');
-          if (process.env.NODE_ENV === 'development') {
-            // NOTE: This cookie can only be accessed from the client side
-            // in development mode. Otherwise, the cookie is set as httpOnly
-            const accessToken = getCookie('credentials_token');
-            if (accessToken)
-              headers.set('Authorization', `Bearer ${accessToken}`);
-          }
-
-          return headers;
-        },
-      }),
+    baseQuery: resolvedBaseQuery,
     endpoints: () => ({}),
   });
 

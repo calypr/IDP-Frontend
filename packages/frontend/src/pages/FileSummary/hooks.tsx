@@ -127,6 +127,7 @@ export interface StorageChainAuditResult {
   readonly groups: Array<StorageChainIssueGroup>;
   readonly summary: StorageChainAuditSummary;
   readonly pathPrefix: string;
+  readonly bucketPathPrefix?: string;
 }
 
 export type StorageCleanupFindingKind =
@@ -1123,6 +1124,10 @@ const normalizeStorageChainAuditResult = ({
   return {
     auditId:
       typeof response?.audit_id === 'string' ? response.audit_id : undefined,
+    bucketPathPrefix:
+      typeof response?.bucket_path_prefix === 'string'
+        ? response.bucket_path_prefix
+        : undefined,
     findings,
     groups,
     pathPrefix:
@@ -1606,7 +1611,17 @@ export const useSyfonStorageChain = ({
 
   void config;
 
-  const runAudit = useCallback(async (): Promise<StorageChainAuditResult | null> => {
+  const runAudit = useCallback(async ({
+    bucketInventoryMode,
+    bucketPathPrefix,
+    findingLimit,
+    probeMode,
+  }: {
+    bucketInventoryMode?: 'items' | 'validate';
+    bucketPathPrefix?: string;
+    findingLimit?: number;
+    probeMode?: 'full' | 'inventory_only';
+  } = {}): Promise<StorageChainAuditResult | null> => {
     const selection = splitProjectSelectionValue(projectSelection);
     if (!selection) {
       setAuditError('Select a project before running the storage chain audit.');
@@ -1625,7 +1640,13 @@ export const useSyfonStorageChain = ({
         }),
         {
           body: JSON.stringify({
+            bucket_inventory_mode: bucketInventoryMode,
+            bucket_path_prefix: bucketPathPrefix
+              ? normalizeStoragePath(bucketPathPrefix) || undefined
+              : undefined,
+            finding_limit: findingLimit,
             git_subpath: normalizeStoragePath(currentPath) || undefined,
+            probe_mode: probeMode,
           }),
           credentials: 'include',
           headers: {

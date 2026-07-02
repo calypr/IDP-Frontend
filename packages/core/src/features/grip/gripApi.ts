@@ -5,6 +5,7 @@ import { GEN3_GRIP_API } from '../../constants';
 import { getCookie } from 'cookies-next';
 import { selectCSRFToken } from '../user';
 import { CoreState } from '../../reducers';
+import { handleUnauthorizedStatus } from '../user/unauthorized';
 
 export interface gripApiResponse<H = JSONObject> {
   readonly data: H;
@@ -79,6 +80,14 @@ export const gripApi = createApi({
       const results = await gripApiFetch(request, headers);
       return { data: results };
     } catch (e) {
+      if (
+        e &&
+        typeof e === 'object' &&
+        'status' in e &&
+        typeof (e as { status?: unknown }).status === 'number'
+      ) {
+        handleUnauthorizedStatus((e as { status: number }).status);
+      }
       return { error: e };
     }
   },
