@@ -4,8 +4,6 @@ import {
   GEN3_API,
   selectCSRFToken,
   useCoreSelector,
-  useBulkDeleteSyfonDrsObjectsMutation,
-  useDeleteSyfonDrsObjectMutation,
   useGetCSRFQuery,
   useGetGeckoProjectSummaryQuery,
 } from '@gen3/core';
@@ -29,6 +27,15 @@ export type ProjectDiffFindingKind =
   | 'repo_missing_in_syfon'
   | 'unknown';
 
+export interface AuditActionOption {
+  readonly action: string;
+  readonly label: string;
+  readonly description?: string;
+  readonly destructive: boolean;
+  readonly requiresConfirmation: boolean;
+  readonly supportsDryRun: boolean;
+}
+
 export interface ProjectDiffFinding {
   readonly kind: ProjectDiffFindingKind;
   readonly normalizedPath: string;
@@ -39,6 +46,10 @@ export interface ProjectDiffFinding {
   readonly downloadCount?: number;
   readonly lastDownload?: string;
   readonly recommendedAction: string;
+  readonly actionability?: string;
+  readonly availableActions: Array<AuditActionOption>;
+  readonly defaultAction?: string;
+  readonly supportsDryRun: boolean;
 }
 
 export interface ProjectDiffSummary {
@@ -100,6 +111,10 @@ export interface StorageChainFinding {
   readonly sizeBytes?: number;
   readonly recommendedAction: string;
   readonly evidence?: AuditEvidence;
+  readonly actionability?: string;
+  readonly availableActions: Array<AuditActionOption>;
+  readonly defaultAction?: string;
+  readonly supportsDryRun: boolean;
 }
 
 export interface StorageChainAuditSummary {
@@ -194,6 +209,10 @@ export interface StorageCleanupFinding {
   readonly lastUpdated?: string;
   readonly downloadCount?: number;
   readonly lastDownload?: string;
+  readonly actionability?: string;
+  readonly availableActions: Array<AuditActionOption>;
+  readonly defaultAction?: string;
+  readonly supportsDryRun: boolean;
 }
 
 export interface StorageCleanupAuditSummary {
@@ -218,6 +237,12 @@ export interface StorageCleanupPurgeResult {
   readonly success: boolean | null;
   readonly status?: string;
   readonly error?: string;
+}
+
+export interface StorageApplyActionRequest {
+  readonly kind: string;
+  readonly normalized_path: string;
+  readonly action: string;
 }
 
 export interface StorageCleanupApplyResult {
@@ -473,6 +498,125 @@ const toStringArray = (value: unknown): Array<string> => {
   return value
     .map((item) => (typeof item === 'string' ? item.trim() : ''))
     .filter(Boolean);
+};
+
+const normalizeAuditActionOption = (
+  item: unknown,
+): AuditActionOption | null => {
+  if (typeof item === 'string') {
+    const action = item.trim();
+    if (!action) {
+      return null;
+    }
+
+    return {
+      action,
+      destructive: false,
+      label: action
+        .replace(/[_-]+/g, ' ')
+        .replace(/\b\w/g, (value) => value.toUpperCase()),
+      requiresConfirmation: false,
+      supportsDryRun: false,
+    };
+  }
+
+  if (!item || typeof item !== 'object') {
+    return null;
+  }
+
+  const record = item as Record<string, unknown>;
+  const actionValue =
+    typeof record.action === 'string'
+      ? record.action.trim()
+      : typeof record.kind === 'string'
+        ? record.kind.trim()
+        : typeof record.id === 'string'
+          ? record.id.trim()
+          : '';
+
+  if (!actionValue) {
+    return null;
+  }
+
+  const labelValue =
+    typeof record.label === 'string'
+      ? record.label.trim()
+      : typeof record.title === 'string'
+        ? record.title.trim()
+        : typeof record.display_name === 'string'
+          ? record.display_name.trim()
+          : '';
+
+  return {
+    action: actionValue,
+    description:
+      typeof record.description === 'string'
+        ? record.description
+        : typeof record.help_text === 'string'
+          ? record.help_text
+          : undefined,
+    destructive:
+      typeof record.destructive === 'boolean'
+        ? record.destructive
+        : typeof record.is_destructive === 'boolean'
+          ? record.is_destructive
+          : false,
+    label:
+      labelValue ||
+      actionValue
+        .replace(/[_-]+/g, ' ')
+        .replace(/\b\w/g, (value) => value.toUpperCase()),
+    requiresConfirmation:
+      typeof record.requires_confirmation === 'boolean'
+        ? record.requires_confirmation
+        : typeof record.requiresConfirmation === 'boolean'
+          ? record.requiresConfirmation
+          : false,
+    supportsDryRun:
+      typeof record.supports_dry_run === 'boolean'
+        ? record.supports_dry_run
+        : typeof record.supportsDryRun === 'boolean'
+          ? record.supportsDryRun
+          : false,
+  };
+};
+
+const normalizeAvailableActions = (
+  item: Record<string, unknown>,
+): Array<AuditActionOption> => {
+  const rawActions = Array.isArray(item.available_actions)
+    ? item.available_actions
+    : Array.isArray(item.availableActions)
+      ? item.availableActions
+      : [];
+
+  const normalized = rawActions
+    .map((action) => normalizeAuditActionOption(action))
+    .filter((action): action is AuditActionOption => action !== null);
+
+  return Array.from(
+    new Map(normalized.map((action) => [action.action, action])).values(),
+  );
+};
+
+const normalizeDefaultAction = (
+  item: Record<string, unknown>,
+): string | undefined => {
+  if (typeof item.default_action === 'string' && item.default_action.trim()) {
+    return item.default_action.trim();
+  }
+  if (typeof item.defaultAction === 'string' && item.defaultAction.trim()) {
+    return item.defaultAction.trim();
+  }
+
+  const defaultActionRecord =
+    item.default_action && typeof item.default_action === 'object'
+      ? normalizeAuditActionOption(item.default_action)
+      : item.defaultAction && typeof item.defaultAction === 'object'
+        ? normalizeAuditActionOption(item.defaultAction)
+        : null;
+
+  return defaultActionRecord?.action;
 };
 
 const parseCleanupFindingKind = (
@@ -734,7 +878,9 @@ const normalizeCleanupFinding = (
     ]),
   );
   const kind = parseCleanupFindingKind(item.kind ?? item.finding_kind);
-  const defaultAction =
+  const availableActions = normalizeAvailableActions(item);
+  const defaultAction = normalizeDefaultAction(item);
+  const defaultRecommendation =
     kind === 'stale_duplicate_record'
       ? 'Delete stale duplicate records'
       : kind === 'broken_access_url_error'
@@ -756,6 +902,9 @@ const normalizeCleanupFinding = (
             : 'Manual review required';
 
   return {
+    actionability:
+      typeof item.actionability === 'string' ? item.actionability : undefined,
+    availableActions,
     downloadCount:
       typeof item.download_count === 'number'
         ? item.download_count
@@ -781,11 +930,12 @@ const normalizeCleanupFinding = (
     normalizedPath,
     objectIds,
     records,
+    defaultAction,
     recommendedAction:
       typeof item.recommended_action === 'string' &&
       item.recommended_action.trim().length > 0
         ? item.recommended_action
-        : defaultAction,
+        : defaultRecommendation,
     repoDeleteCandidate:
       typeof item.repo_delete_candidate === 'boolean'
         ? item.repo_delete_candidate
@@ -796,8 +946,12 @@ const normalizeCleanupFinding = (
         : typeof item.size_bytes === 'number'
           ? item.size_bytes
           : typeof item.sizeBytes === 'number'
-            ? item.sizeBytes
-            : undefined,
+          ? item.sizeBytes
+          : undefined,
+    supportsDryRun:
+      typeof item.supports_dry_run === 'boolean'
+        ? item.supports_dry_run
+        : availableActions.some((action) => action.supportsDryRun),
   };
 };
 
@@ -816,7 +970,9 @@ const normalizeStorageChainFinding = (
   }
 
   const kind = parseStorageChainFindingKind(item.kind ?? item.finding_kind);
-  const defaultAction =
+  const availableActions = normalizeAvailableActions(item);
+  const defaultAction = normalizeDefaultAction(item);
+  const defaultRecommendation =
     kind === 'bucket_only_object'
       ? 'Bucket object exists, but no Syfon record matched it.'
       : kind === 'bucket_syfon_no_git'
@@ -858,6 +1014,9 @@ const normalizeStorageChainFinding = (
       item.evidence && typeof item.evidence === 'object'
         ? normalizeAuditEvidence(item.evidence as Record<string, unknown>)
         : undefined,
+    actionability:
+      typeof item.actionability === 'string' ? item.actionability : undefined,
+    availableActions,
     kind,
     normalizedPath,
     objectIds: Array.from(
@@ -872,11 +1031,12 @@ const normalizeStorageChainFinding = (
     ),
     probeStatus:
       typeof item.probe_status === 'string' ? item.probe_status : undefined,
+    defaultAction,
     recommendedAction:
       typeof item.recommended_action === 'string' &&
       item.recommended_action.trim().length > 0
         ? item.recommended_action
-        : defaultAction,
+        : defaultRecommendation,
     recordCount:
       typeof item.record_count === 'number'
         ? item.record_count
@@ -905,6 +1065,10 @@ const normalizeStorageChainFinding = (
         ),
       ]),
     ),
+    supportsDryRun:
+      typeof item.supports_dry_run === 'boolean'
+        ? item.supports_dry_run
+        : availableActions.some((action) => action.supportsDryRun),
   };
 };
 
@@ -924,7 +1088,9 @@ const normalizeProjectDiffFinding = (
   }
 
   const kind = parseProjectDiffFindingKind(item.kind ?? item.finding_kind);
-  const defaultAction =
+  const availableActions = normalizeAvailableActions(item);
+  const defaultAction = normalizeDefaultAction(item);
+  const defaultRecommendation =
     kind === 'duplicate_syfon_paths'
       ? 'Review duplicate Syfon records before deleting anything.'
       : kind === 'syfon_missing_in_repo'
@@ -934,6 +1100,9 @@ const normalizeProjectDiffFinding = (
           : 'Review this path.';
 
   return {
+    actionability:
+      typeof item.actionability === 'string' ? item.actionability : undefined,
+    availableActions,
     downloadCount:
       typeof item.download_count === 'number'
         ? item.download_count
@@ -962,17 +1131,22 @@ const normalizeProjectDiffFinding = (
         : typeof item.recordCount === 'number'
           ? item.recordCount
           : 0,
+    defaultAction,
     recommendedAction:
       typeof item.recommended_action === 'string' &&
       item.recommended_action.trim().length > 0
         ? item.recommended_action
-        : defaultAction,
+        : defaultRecommendation,
     sizeBytes:
       typeof item.size_bytes === 'number'
         ? item.size_bytes
         : typeof item.total_bytes === 'number'
           ? item.total_bytes
           : undefined,
+    supportsDryRun:
+      typeof item.supports_dry_run === 'boolean'
+        ? item.supports_dry_run
+        : availableActions.some((action) => action.supportsDryRun),
   };
 };
 
@@ -1614,12 +1788,16 @@ export const useSyfonStorageChain = ({
   const runAudit = useCallback(async ({
     bucketInventoryMode,
     bucketPathPrefix,
+    findingKind,
     findingLimit,
+    persistResult = true,
     probeMode,
   }: {
     bucketInventoryMode?: 'items' | 'validate';
     bucketPathPrefix?: string;
+    findingKind?: string;
     findingLimit?: number;
+    persistResult?: boolean;
     probeMode?: 'full' | 'inventory_only';
   } = {}): Promise<StorageChainAuditResult | null> => {
     const selection = splitProjectSelectionValue(projectSelection);
@@ -1644,6 +1822,7 @@ export const useSyfonStorageChain = ({
             bucket_path_prefix: bucketPathPrefix
               ? normalizeStoragePath(bucketPathPrefix) || undefined
               : undefined,
+            finding_kind: findingKind,
             finding_limit: findingLimit,
             git_subpath: normalizeStoragePath(currentPath) || undefined,
             probe_mode: probeMode,
@@ -1674,7 +1853,9 @@ export const useSyfonStorageChain = ({
         pathPrefix: normalizeStoragePath(currentPath),
         response: await readJsonResponse<Record<string, unknown>>(response),
       });
-      setAuditResult(normalized);
+      if (persistResult) {
+        setAuditResult(normalized);
+      }
       return normalized;
     } catch (auditFailure) {
       const message =
@@ -1682,7 +1863,9 @@ export const useSyfonStorageChain = ({
           ? auditFailure.message
           : 'Failed to audit the storage chain.';
       setAuditError(message);
-      setAuditResult(null);
+      if (persistResult) {
+        setAuditResult(null);
+      }
       return null;
     } finally {
       setIsAuditing(false);
@@ -1725,8 +1908,6 @@ export const useSyfonStorageCleanup = ({
   const [isAuditing, setIsAuditing] = useState(false);
   const [lastAuditIncludedRepoManifest, setLastAuditIncludedRepoManifest] =
     useState(false);
-  const [bulkDeleteDrsObjects] = useBulkDeleteSyfonDrsObjectsMutation();
-  const [deleteDrsObject] = useDeleteSyfonDrsObjectMutation();
   useGetCSRFQuery();
   const csrfToken = useCoreSelector((state: CoreState) =>
     selectCSRFToken(state),
@@ -1736,10 +1917,14 @@ export const useSyfonStorageCleanup = ({
 
   const runAudit = useCallback(
     async ({
+      findingKind,
       includeRepoManifest = false,
+      persistResult = true,
       selectedPaths,
     }: {
+      findingKind?: string;
       includeRepoManifest?: boolean;
+      persistResult?: boolean;
       selectedPaths?: Array<string>;
     } = {}): Promise<StorageCleanupAuditResult | null> => {
       const selection = splitProjectSelectionValue(projectSelection);
@@ -1763,6 +1948,7 @@ export const useSyfonStorageCleanup = ({
         });
         const requestBody = {
           check_storage: true,
+          finding_kind: findingKind,
           git_subpath: normalizeStoragePath(currentPath) || undefined,
           selected_repo_paths: selectedPaths,
         };
@@ -1812,8 +1998,10 @@ export const useSyfonStorageCleanup = ({
           response: await readJsonResponse<Record<string, unknown>>(response),
         });
 
-        setAuditResult(normalized);
-        setLastAuditIncludedRepoManifest(true);
+        if (persistResult) {
+          setAuditResult(normalized);
+          setLastAuditIncludedRepoManifest(true);
+        }
         return normalized;
       } catch (auditFailure) {
         console.error('storage cleanup audit request:failure', {
@@ -1833,7 +2021,9 @@ export const useSyfonStorageCleanup = ({
             ? auditFailure.message
             : 'Failed to audit Gecko storage verification.';
         setAuditError(message);
-        setAuditResult(null);
+        if (persistResult) {
+          setAuditResult(null);
+        }
         return null;
       } finally {
         setIsAuditing(false);
@@ -1852,12 +2042,14 @@ export const useSyfonStorageCleanup = ({
 
   const applyCleanup = useCallback(
     async ({
+      actions,
       deleteRepoOrphans,
       deleteStaleDuplicates,
       deleteBucketOnlyObjects = false,
       dryRun = false,
       selectedPaths,
     }: {
+      actions?: Array<StorageApplyActionRequest>;
       deleteRepoOrphans: boolean;
       deleteStaleDuplicates: boolean;
       deleteBucketOnlyObjects?: boolean;
@@ -1883,6 +2075,7 @@ export const useSyfonStorageCleanup = ({
           }),
           {
             body: JSON.stringify({
+              actions,
               delete_repo_orphans: deleteRepoOrphans,
               delete_stale_duplicates: deleteStaleDuplicates,
               delete_bucket_only_objects: deleteBucketOnlyObjects,
@@ -1938,72 +2131,6 @@ export const useSyfonStorageCleanup = ({
     ],
   );
 
-  const deleteBrokenRecords = useCallback(
-    async ({
-      objectIds,
-    }: {
-      objectIds: Array<string>;
-    }): Promise<StorageCleanupApplyResult | null> => {
-      const uniqueObjectIds = Array.from(
-        new Set(objectIds.map((value) => value.trim()).filter(Boolean)),
-      );
-
-      if (uniqueObjectIds.length === 0) {
-        setApplyError('No broken records were selected for deletion.');
-        setApplyResult(null);
-        return null;
-      }
-
-      setApplyError(null);
-      setIsApplying(true);
-
-      try {
-        try {
-          await bulkDeleteDrsObjects({
-            bulk_object_ids: uniqueObjectIds,
-          }).unwrap();
-        } catch (bulkError: any) {
-          console.warn('Bulk delete failed, falling back to one-by-one deletion:', bulkError);
-          const chunks = [];
-          const chunkSize = 20;
-          for (let i = 0; i < uniqueObjectIds.length; i += chunkSize) {
-            chunks.push(uniqueObjectIds.slice(i, i + chunkSize));
-          }
-          for (const chunk of chunks) {
-            await Promise.all(
-              chunk.map((objectId) => deleteDrsObject(objectId).unwrap())
-            );
-          }
-        }
-
-        const normalized: StorageCleanupApplyResult = {
-          deletedRecordIds: uniqueObjectIds,
-          deletedBucketObjectUrls: [],
-          updatedRecordIds: [],
-          dryRun: false,
-          manualPaths: [],
-          purgeResults: [],
-          repoDeletePaths: [],
-          skippedPaths: [],
-        };
-
-        setApplyResult(normalized);
-        return normalized;
-      } catch (applyFailure) {
-        const message =
-          applyFailure instanceof Error
-            ? applyFailure.message
-            : 'Failed to delete broken Syfon records.';
-        setApplyError(message);
-        setApplyResult(null);
-        return null;
-      } finally {
-        setIsApplying(false);
-      }
-    },
-    [bulkDeleteDrsObjects, deleteDrsObject],
-  );
-
   const clearCleanupResults = useCallback(() => {
     setApplyError(null);
     setApplyResult(null);
@@ -2018,7 +2145,6 @@ export const useSyfonStorageCleanup = ({
     auditError,
     auditResult,
     clearCleanupResults,
-    deleteBrokenRecords,
     isApplying,
     isAuditing,
     rerunAudit,

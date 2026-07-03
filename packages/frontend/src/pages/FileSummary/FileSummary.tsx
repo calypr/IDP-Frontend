@@ -33,11 +33,14 @@ import { NavPageLayout, ProjectWorkspaceTabs } from '../../features/Navigation';
 import { formatBytes } from '../../utils/labels';
 import { FileSummaryPageProps } from './types';
 import {
+  type AuditActionOption,
   type ProjectDiffFinding,
   type ProjectDiffFindingKind,
+  type StorageApplyActionRequest,
   type StorageChainFinding,
   type StorageChainFindingKind,
   type StorageChainIssueGroup,
+  type StorageCleanupApplyResult,
   type StorageCleanupFinding,
   type StorageCleanupFindingKind,
   useFileSummaryProjectOptions,
@@ -87,6 +90,72 @@ type StorageSortKey =
   | 'lastUpdated';
 
 type StorageSortDirection = 'asc' | 'desc';
+
+type IssueActionSummary = {
+  readonly actionability?: string;
+  readonly availableActions: Array<AuditActionOption>;
+  readonly defaultAction?: AuditActionOption;
+  readonly supportsDryRun: boolean;
+};
+
+type ActionIssueSource = 'chain' | 'cleanup' | 'diff';
+
+type ActionableFinding =
+  | ProjectDiffFinding
+  | StorageCleanupFinding
+  | StorageChainFinding;
+
+type PendingIssueAction = {
+  readonly source: ActionIssueSource;
+  readonly issueId: string;
+  readonly issueTitle: string;
+  readonly findings: Array<ActionableFinding>;
+  readonly paths: Array<string>;
+  readonly availableActions: Array<AuditActionOption>;
+  readonly defaultAction?: AuditActionOption;
+  readonly supportsDryRun: boolean;
+};
+
+const summarizeIssueActions = <
+  T extends {
+    readonly actionability?: string;
+    readonly availableActions: Array<AuditActionOption>;
+    readonly defaultAction?: string;
+    readonly supportsDryRun: boolean;
+  },
+>(
+  findings: Array<T>,
+  fallbackAction?: AuditActionOption,
+): IssueActionSummary => {
+  const availableActions = Array.from(
+    new Map(
+      findings
+        .flatMap((finding) => finding.availableActions)
+        .map((action) => [action.action, action]),
+    ).values(),
+  );
+
+  const actionability = findings.find((finding) => finding.actionability)?.actionability;
+  const defaultActionName =
+    findings.find((finding) => finding.defaultAction)?.defaultAction ??
+    fallbackAction?.action;
+  const defaultAction =
+    availableActions.find((action) => action.action === defaultActionName) ??
+    fallbackAction ??
+    availableActions[0];
+
+  return {
+    actionability,
+    availableActions:
+      fallbackAction && availableActions.length === 0
+        ? [fallbackAction]
+        : availableActions,
+    defaultAction,
+    supportsDryRun:
+      findings.some((finding) => finding.supportsDryRun) ||
+      Boolean(defaultAction?.supportsDryRun),
+  };
+};
 
 const buildPathsByParentMap = (paths: Array<string>): Map<string, Array<ChainPathTreeNode>> => {
   const map = new Map<string, Array<ChainPathTreeNode>>();
@@ -269,7 +338,7 @@ type ProjectDiffIssueSummary = {
   readonly totalBytes: number;
   readonly description: string;
   readonly recommendation: string;
-  readonly actionLabel?: string;
+  readonly actionSummary: IssueActionSummary;
 };
 
 const summarizeProjectDiffIssues = (
@@ -340,7 +409,29 @@ const summarizeProjectDiffIssues = (
       );
 
       return {
-        actionLabel: group.actionLabel,
+        actionSummary: summarizeIssueActions(
+          matched,
+          group.id === 'git-only'
+            ? {
+                action: 'copy_paths',
+                destructive: false,
+                label: 'Copy paths',
+                requiresConfirmation: false,
+                supportsDryRun: false,
+              }
+            : group.actionLabel
+              ? {
+                  action: group.actionLabel
+                    .toLowerCase()
+                    .replace(/[^a-z0-9]+/g, '_')
+                    .replace(/^_+|_+$/g, ''),
+                  destructive: false,
+                  label: group.actionLabel,
+                  requiresConfirmation: false,
+                  supportsDryRun: false,
+                }
+              : undefined,
+        ),
         color: group.color,
         description: group.description,
         findingKinds: group.findingKinds,
@@ -372,6 +463,7 @@ type CleanupIssueSummary = {
   readonly sampleBuckets: Array<string>;
   readonly description: string;
   readonly recommendation: string;
+  readonly actionSummary: IssueActionSummary;
 };
 
 const summarizeCleanupIssues = (
@@ -512,6 +604,7 @@ const summarizeCleanupIssues = (
       });
 
       return {
+        actionSummary: summarizeIssueActions(matched),
         id: group.id,
         title: group.title,
         color: group.color,
@@ -542,7 +635,7 @@ type ChainIssueSummary = {
   readonly totalBytes: number;
   readonly description: string;
   readonly recommendation: string;
-  readonly actionLabel?: string;
+  readonly actionSummary: IssueActionSummary;
 };
 
 const chainIssueDefinitions: Array<{
@@ -632,8 +725,10 @@ const chainIssueDefinitions: Array<{
 ];
 
 const summarizeStorageChainIssues = ({
+  chainFindings,
   chainGroups,
 }: {
+  chainFindings: Array<StorageChainFinding>;
   chainGroups: Array<StorageChainIssueGroup>;
 }): Array<ChainIssueSummary> => {
   const groupsByKind = new Map(chainGroups.map((group) => [group.kind, group]));
@@ -645,8 +740,42 @@ const summarizeStorageChainIssues = ({
         return summaries;
       }
 
+      const matchingFindings = chainFindings.filter(
+        (finding) => finding.kind === definition.id,
+      );
+
       summaries.push({
-        actionLabel: definition.actionLabel,
+        actionSummary: summarizeIssueActions(
+          matchingFindings,
+          definition.id === 'git_only_no_syfon'
+            ? {
+                action: 'copy_paths',
+                destructive: false,
+                label: 'Copy paths',
+                requiresConfirmation: false,
+                supportsDryRun: false,
+              }
+            : definition.id === 'probe_error'
+              ? {
+                  action: 'rerun_audit',
+                  destructive: false,
+                  label: 'Retry verification',
+                  requiresConfirmation: false,
+                  supportsDryRun: false,
+                }
+              : definition.actionLabel
+                ? {
+                    action: definition.actionLabel
+                      .toLowerCase()
+                      .replace(/[^a-z0-9]+/g, '_')
+                      .replace(/^_+|_+$/g, ''),
+                    destructive: false,
+                    label: definition.actionLabel,
+                    requiresConfirmation: false,
+                    supportsDryRun: false,
+                  }
+                : undefined,
+        ),
         color: definition.color,
         description: definition.description,
         findingCount: group.findingCount,
@@ -662,51 +791,6 @@ const summarizeStorageChainIssues = ({
     },
     [],
   );
-};
-
-const computeGroupsFromFindings = (
-  findings: Array<StorageChainFinding>,
-): Array<StorageChainIssueGroup> => {
-  const groupsByKind = new Map<
-    string,
-    {
-      findingCount: number;
-      pathCount: number;
-      recordCount: number;
-      objectCount: number;
-      totalBytes: number;
-    }
-  >();
-
-  findings.forEach((finding) => {
-    let current = groupsByKind.get(finding.kind);
-    if (!current) {
-      current = {
-        findingCount: 0,
-        pathCount: 0,
-        recordCount: 0,
-        objectCount: 0,
-        totalBytes: 0,
-      };
-      groupsByKind.set(finding.kind, current);
-    }
-    current.findingCount += 1;
-    if (finding.normalizedPath) {
-      current.pathCount += 1;
-    }
-    current.recordCount += finding.recordCount || 0;
-    current.objectCount += finding.objectIds?.length || 0;
-    current.totalBytes += finding.sizeBytes || 0;
-  });
-
-  return Array.from(groupsByKind.entries()).map(([kind, g]) => ({
-    kind,
-    findingCount: g.findingCount,
-    pathCount: g.pathCount,
-    recordCount: g.recordCount,
-    objectCount: g.objectCount,
-    totalBytes: g.totalBytes,
-  }));
 };
 
 export const FileSummaryPage = ({
@@ -736,6 +820,9 @@ export const FileSummaryPage = ({
   const [selectedChainIssueId, setSelectedChainIssueId] = useState<string | null>(
     null,
   );
+  const [chainDetailFindingsByIssue, setChainDetailFindingsByIssue] = useState<
+    Record<string, Array<StorageChainFinding>>
+  >({});
   const [selectedChainPathsByIssue, setSelectedChainPathsByIssue] = useState<
     Record<string, Array<string>>
   >({});
@@ -745,8 +832,20 @@ export const FileSummaryPage = ({
   const [selectedDiffIssueId, setSelectedDiffIssueId] = useState<string | null>(null);
   const [showCleanupDetails, setShowCleanupDetails] = useState(false);
   const [showDiffDetails, setShowDiffDetails] = useState(false);
-  const [repoOrphanDeleteModalOpen, setRepoOrphanDeleteModalOpen] =
-    useState(false);
+  const [cleanupDetailFindingsByIssue, setCleanupDetailFindingsByIssue] = useState<
+    Record<string, Array<StorageCleanupFinding>>
+  >({});
+  const [pendingIssueAction, setPendingIssueAction] =
+    useState<PendingIssueAction | null>(null);
+  const [selectedIssueAction, setSelectedIssueAction] = useState<string | null>(
+    null,
+  );
+  const [issueActionModalOpen, setIssueActionModalOpen] = useState(false);
+  const [issueActionPreview, setIssueActionPreview] =
+    useState<StorageCleanupApplyResult | null>(null);
+  const [actionFeedbackMessage, setActionFeedbackMessage] = useState<string | null>(
+    null,
+  );
   const [auditModalOpen, setAuditModalOpen] = useState(false);
   const [storageSortKey, setStorageSortKey] = useState<StorageSortKey>('sizeBytes');
   const [storageSortDirection, setStorageSortDirection] =
@@ -820,7 +919,6 @@ export const FileSummaryPage = ({
     clearAudit: clearChainAudit,
     isAuditing: isChainAuditing,
     runAudit: runChainAudit,
-    setAuditResult: setChainAuditResult,
   } = useSyfonStorageChain({
     config: filesummaryConfig,
     currentPath,
@@ -844,12 +942,10 @@ export const FileSummaryPage = ({
     auditError,
     auditResult,
     clearCleanupResults,
-    deleteBrokenRecords,
     isApplying,
     isAuditing,
     rerunAudit,
     runAudit,
-    setAuditResult: setCleanupAuditResult,
   } = useSyfonStorageCleanup({
     config: filesummaryConfig,
     currentPath,
@@ -866,10 +962,17 @@ export const FileSummaryPage = ({
 
   useEffect(() => {
     setSelectedChainIssueId(null);
+    setChainDetailFindingsByIssue({});
     setSelectedCleanupIssueId(null);
+    setCleanupDetailFindingsByIssue({});
     setSelectedDiffIssueId(null);
     setShowCleanupDetails(false);
     setShowDiffDetails(false);
+    setPendingIssueAction(null);
+    setSelectedIssueAction(null);
+    setIssueActionModalOpen(false);
+    setIssueActionPreview(null);
+    setActionFeedbackMessage(null);
     setSelectedChainPathsByIssue({});
     setExpandedChainTreeNodes({});
     setTreeNodeLimit({});
@@ -929,9 +1032,10 @@ export const FileSummaryPage = ({
   const chainIssueSummaries = useMemo(
     () =>
       summarizeStorageChainIssues({
+        chainFindings: chainAuditResult?.findings ?? [],
         chainGroups: chainAuditResult?.groups ?? [],
       }),
-    [chainAuditResult?.groups],
+    [chainAuditResult?.findings, chainAuditResult?.groups],
   );
   const selectedChainIssue = useMemo(
     () =>
@@ -941,207 +1045,14 @@ export const FileSummaryPage = ({
   const selectedChainFindings = useMemo(
     () =>
       selectedChainIssue
-        ? (chainAuditResult?.findings ?? []).filter(
+        ? chainDetailFindingsByIssue[selectedChainIssue.id] ??
+          (chainAuditResult?.findings ?? []).filter(
             (finding) => finding.kind === selectedChainIssue.id,
           )
         : [],
-    [chainAuditResult?.findings, selectedChainIssue],
+    [chainAuditResult?.findings, chainDetailFindingsByIssue, selectedChainIssue],
   );
 
-  const removePathsFromLocalStates = useCallback((deletedPaths: Array<string>) => {
-    const deletedSet = new Set(deletedPaths);
-
-    // Update Storage Chain Audit local state
-    setChainAuditResult((current) => {
-      if (!current) return null;
-      const newFindings = current.findings.filter(
-        (f) => !deletedSet.has(f.normalizedPath),
-      );
-      const newGroups = computeGroupsFromFindings(newFindings);
-
-      const deletedFindings = current.findings.filter(
-        (f) => deletedSet.has(f.normalizedPath),
-      );
-      const deletedObjectCount = deletedFindings.reduce((sum, f) => sum + (f.objectIds?.length || 0), 0);
-      const deletedRecordCount = deletedFindings.reduce((sum, f) => sum + (f.recordCount || 0), 0);
-
-      const countsByKind: Record<string, number> = {};
-      newFindings.forEach((f) => {
-        countsByKind[f.kind] = (countsByKind[f.kind] || 0) + 1;
-      });
-      current.groups.forEach((group) => {
-        if (!countsByKind[group.kind]) {
-          countsByKind[group.kind] = 0;
-        }
-      });
-
-      const newSummary = {
-        ...current.summary,
-        totalFindings: newFindings.length,
-        countsByKind: {
-          ...current.summary.countsByKind,
-          ...countsByKind,
-        },
-        bucketObjectCount: Math.max(0, current.summary.bucketObjectCount - deletedObjectCount),
-        syfonRecordCount: Math.max(0, current.summary.syfonRecordCount - deletedRecordCount),
-      };
-
-      return {
-        ...current,
-        findings: newFindings,
-        groups: newGroups,
-        summary: newSummary,
-      };
-    });
-
-    // Update Storage Cleanup Audit (auditResult) local state
-    setCleanupAuditResult((current) => {
-      if (!current) return null;
-      const newFindings = current.findings.filter(
-        (f) => !deletedSet.has(f.normalizedPath),
-      );
-      const deletedFindings = current.findings.filter(
-        (f) => deletedSet.has(f.normalizedPath),
-      );
-
-      const countsByKind: Record<string, number> = { ...current.summary.countsByKind };
-      deletedFindings.forEach((f) => {
-        if (countsByKind[f.kind]) {
-          countsByKind[f.kind] = Math.max(0, countsByKind[f.kind] - 1);
-        }
-      });
-
-      const repoOrphanDeleted = deletedFindings.filter(
-        (f) => f.kind === 'repo_orphan_live_object' || f.kind === 'repo_orphan_stale_record',
-      ).length;
-      const staleDuplicateDeleted = deletedFindings.filter(
-        (f) => f.kind === 'stale_duplicate_record',
-      ).length;
-      const deleteCandidateDeleted = deletedFindings.filter(
-        (f) => f.repoDeleteCandidate,
-      ).length;
-
-      const newSummary = {
-        ...current.summary,
-        totalFindings: newFindings.length,
-        countsByKind,
-        repoOrphanCount: Math.max(0, current.summary.repoOrphanCount - repoOrphanDeleted),
-        staleDuplicateCount: Math.max(0, current.summary.staleDuplicateCount - staleDuplicateDeleted),
-        repoDeleteCandidateCount: Math.max(0, current.summary.repoDeleteCandidateCount - deleteCandidateDeleted),
-      };
-
-      return {
-        ...current,
-        findings: newFindings,
-        summary: newSummary,
-      };
-    });
-
-    // Reset selection for this issue
-    if (selectedChainIssue) {
-      setSelectedChainPathsByIssue((current) => ({
-        ...current,
-        [selectedChainIssue.id]: [],
-      }));
-    }
-  }, [selectedChainIssue, setChainAuditResult, setCleanupAuditResult]);
-
-  const removeObjectIdsFromLocalStates = useCallback((deletedIds: Array<string>) => {
-    const deletedSet = new Set(deletedIds);
-
-    // Update Storage Chain Audit local state
-    setChainAuditResult((current) => {
-      if (!current) return null;
-      const newFindings = current.findings.filter(
-        (f) => !f.objectIds.some((id) => deletedSet.has(id)),
-      );
-      const newGroups = computeGroupsFromFindings(newFindings);
-      
-      const deletedFindings = current.findings.filter(
-        (f) => f.objectIds.some((id) => deletedSet.has(id)),
-      );
-      const deletedObjectCount = deletedFindings.reduce((sum, f) => sum + (f.objectIds?.length || 0), 0);
-      const deletedRecordCount = deletedFindings.reduce((sum, f) => sum + (f.recordCount || 0), 0);
-
-      const countsByKind: Record<string, number> = {};
-      newFindings.forEach((f) => {
-        countsByKind[f.kind] = (countsByKind[f.kind] || 0) + 1;
-      });
-      current.groups.forEach((group) => {
-        if (!countsByKind[group.kind]) {
-          countsByKind[group.kind] = 0;
-        }
-      });
-
-      const newSummary = {
-        ...current.summary,
-        totalFindings: newFindings.length,
-        countsByKind: {
-          ...current.summary.countsByKind,
-          ...countsByKind,
-        },
-        bucketObjectCount: Math.max(0, current.summary.bucketObjectCount - deletedObjectCount),
-        syfonRecordCount: Math.max(0, current.summary.syfonRecordCount - deletedRecordCount),
-      };
-
-      return {
-        ...current,
-        findings: newFindings,
-        groups: newGroups,
-        summary: newSummary,
-      };
-    });
-
-    // Update Storage Cleanup Audit (auditResult) local state
-    setCleanupAuditResult((current) => {
-      if (!current) return null;
-      const newFindings = current.findings.filter(
-        (f) => !f.objectIds.some((id) => deletedSet.has(id)),
-      );
-      const deletedFindings = current.findings.filter(
-        (f) => f.objectIds.some((id) => deletedSet.has(id)),
-      );
-
-      const countsByKind: Record<string, number> = { ...current.summary.countsByKind };
-      deletedFindings.forEach((f) => {
-        if (countsByKind[f.kind]) {
-          countsByKind[f.kind] = Math.max(0, countsByKind[f.kind] - 1);
-        }
-      });
-
-      const repoOrphanDeleted = deletedFindings.filter(
-        (f) => f.kind === 'repo_orphan_live_object' || f.kind === 'repo_orphan_stale_record',
-      ).length;
-      const staleDuplicateDeleted = deletedFindings.filter(
-        (f) => f.kind === 'stale_duplicate_record',
-      ).length;
-      const deleteCandidateDeleted = deletedFindings.filter(
-        (f) => f.repoDeleteCandidate,
-      ).length;
-
-      const newSummary = {
-        ...current.summary,
-        totalFindings: newFindings.length,
-        countsByKind,
-        repoOrphanCount: Math.max(0, current.summary.repoOrphanCount - repoOrphanDeleted),
-        staleDuplicateCount: Math.max(0, current.summary.staleDuplicateCount - staleDuplicateDeleted),
-        repoDeleteCandidateCount: Math.max(0, current.summary.repoDeleteCandidateCount - deleteCandidateDeleted),
-      };
-
-      return {
-        ...current,
-        findings: newFindings,
-        summary: newSummary,
-      };
-    });
-  }, [setChainAuditResult, setCleanupAuditResult]);
-  const selectedChainObjectIdsCount = useMemo(
-    () =>
-      selectedChainFindings
-        .flatMap((finding) => finding.objectIds)
-        .filter(Boolean).length,
-    [selectedChainFindings],
-  );
   const actionableChainSelectionIssue =
     selectedChainIssue?.id === 'bucket_only_object' ||
     selectedChainIssue?.id === 'bucket_syfon_no_git';
@@ -1210,9 +1121,6 @@ export const FileSummaryPage = ({
     selectableChainPaths,
     selectedChainIssue,
   ]);
-  const canRepairBrokenBucketMappings =
-    selectedChainIssue?.id === 'syfon_broken_bucket_mapping' &&
-    selectedChainFindings.length > 0;
   const cleanupIssueSummaries = useMemo(
     () => summarizeCleanupIssues(auditResult?.findings ?? []),
     [auditResult?.findings],
@@ -1229,10 +1137,13 @@ export const FileSummaryPage = ({
       return auditResult.findings;
     }
 
-    return auditResult.findings.filter((finding) =>
-      selectedCleanupIssue.findingKinds.includes(finding.kind),
+    return (
+      cleanupDetailFindingsByIssue[selectedCleanupIssue.id] ??
+      auditResult.findings.filter((finding) =>
+        selectedCleanupIssue.findingKinds.includes(finding.kind),
+      )
     );
-  }, [auditResult, selectedCleanupIssue]);
+  }, [auditResult, cleanupDetailFindingsByIssue, selectedCleanupIssue]);
 
   const selectedDiffFindings = useMemo(
     () =>
@@ -1266,25 +1177,6 @@ export const FileSummaryPage = ({
     const end = start + 100;
     return visibleCleanupFindings.slice(start, end);
   }, [visibleCleanupFindings, activeCleanupPage]);
-  const brokenRecordObjectIds = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          visibleCleanupFindings
-            .filter((finding) => finding.kind === 'broken_access_url_error')
-            .flatMap((finding) =>
-              finding.records
-                .filter((record) => record.cleanupScope !== 'access_url')
-                .map((record) => record.objectId),
-            ),
-        ),
-      ),
-    [visibleCleanupFindings],
-  );
-  const canDeleteBrokenRecords =
-    selectedDiffIssue?.id === 'syfon-only' &&
-    selectedCleanupIssue?.id === 'broken-access-urls' &&
-    brokenRecordObjectIds.length > 0;
   const isDuplicateVerificationContext =
     selectedDiffIssue?.id === 'duplicate-syfon-paths';
   const hasSafeDuplicateCleanup =
@@ -1300,136 +1192,314 @@ export const FileSummaryPage = ({
     return auditResult.findings.filter((finding) => !visibleKinds.has(finding.kind))
       .length;
   }, [auditResult, cleanupIssueSummaries]);
-  const repoOrphanDeletePlan = useMemo(() => {
-    if (!auditResult) {
-      return {
-        metadataOnlyObjectIds: [] as Array<string>,
-        purgeObjectIds: [] as Array<string>,
-        purgeUrls: [] as Array<string>,
-      };
-    }
+  const openIssueActionModal = useCallback(
+    ({
+      defaultAction,
+      findings,
+      issueId,
+      issueTitle,
+      paths,
+      source,
+      supportsDryRun,
+    }: {
+      defaultAction?: AuditActionOption;
+      findings: Array<ActionableFinding>;
+      issueId: string;
+      issueTitle: string;
+      paths: Array<string>;
+      source: ActionIssueSource;
+      supportsDryRun: boolean;
+    }) => {
+      const availableActions = Array.from(
+        new Map(
+          findings
+            .flatMap((finding) => finding.availableActions)
+            .map((action) => [action.action, action]),
+        ).values(),
+      );
 
-    const metadataOnlyObjectIds = new Set<string>();
-    const purgeObjectIds = new Set<string>();
-    const purgeUrls = new Set<string>();
+      const fallbackAction = defaultAction
+        ? [defaultAction]
+        : issueId === 'duplicate-syfon-paths'
+          ? [
+              {
+                action: 'verify_duplicates',
+                destructive: false,
+                label: 'Verify duplicates',
+                requiresConfirmation: false,
+                supportsDryRun: false,
+              },
+            ]
+          : issueId === 'syfon-only'
+            ? [
+                {
+                  action: 'prepare_delete',
+                  destructive: false,
+                  label: 'Prepare delete',
+                  requiresConfirmation: false,
+                  supportsDryRun: false,
+                },
+              ]
+        : issueId === 'git-only' || issueId === 'git_only_no_syfon'
+          ? [
+              {
+                action: 'copy_paths',
+                destructive: false,
+                label: 'Copy paths',
+                requiresConfirmation: false,
+                supportsDryRun: false,
+              },
+            ]
+          : issueId === 'probe_error'
+            ? [
+                {
+                  action: 'rerun_audit',
+                  destructive: false,
+                  label: 'Retry verification',
+                  requiresConfirmation: false,
+                  supportsDryRun: false,
+                },
+              ]
+            : [];
+      const resolvedActions =
+        availableActions.length > 0 ? availableActions : fallbackAction;
+      const resolvedDefault =
+        resolvedActions.find((action) => action.action === defaultAction?.action) ??
+        resolvedActions[0];
 
-    auditResult.findings.forEach((finding) => {
-      if (
-        finding.kind !== 'repo_orphan_live_object' &&
-        finding.kind !== 'repo_orphan_stale_record'
-      ) {
+      if (resolvedActions.length === 0) {
+        setActionFeedbackMessage(
+          `${issueTitle} does not currently expose any repair actions from the backend.`,
+        );
         return;
       }
 
-      finding.records.forEach((record) => {
-        if (record.cleanupScope === 'access_url') {
-          return;
-        }
-
-        if (finding.kind === 'repo_orphan_live_object') {
-          purgeObjectIds.add(record.objectId);
-          record.accessProbes.forEach((probe) => {
-            const url = probe.url?.trim();
-            if (url) {
-              purgeUrls.add(url);
-            }
-          });
-          return;
-        }
-
-        metadataOnlyObjectIds.add(record.objectId);
+      setIssueActionPreview(null);
+      setActionFeedbackMessage(null);
+      setPendingIssueAction({
+        availableActions: resolvedActions,
+        defaultAction: resolvedDefault,
+        findings,
+        issueId,
+        issueTitle,
+        paths,
+        source,
+        supportsDryRun:
+          supportsDryRun || resolvedActions.some((action) => action.supportsDryRun),
       });
-    });
+      setSelectedIssueAction(resolvedDefault?.action ?? null);
+      setIssueActionModalOpen(true);
+    },
+    [],
+  );
 
-    return {
-      metadataOnlyObjectIds: Array.from(metadataOnlyObjectIds).sort(),
-      purgeObjectIds: Array.from(purgeObjectIds).sort(),
-      purgeUrls: Array.from(purgeUrls).sort(),
-    };
-  }, [auditResult]);
+  const selectedIssueActionOption = useMemo(
+    () =>
+      pendingIssueAction?.availableActions.find(
+        (action) => action.action === selectedIssueAction,
+      ) ??
+      pendingIssueAction?.defaultAction ??
+      null,
+    [pendingIssueAction, selectedIssueAction],
+  );
 
-  const handleApplyCleanup = async ({
-    deleteRepoOrphans,
-    deleteStaleDuplicates,
-    selectedPaths,
-  }: {
-    deleteRepoOrphans: boolean;
-    deleteStaleDuplicates: boolean;
-    selectedPaths?: Array<string>;
-  }) => {
-    const result = await applyCleanup({
-      deleteRepoOrphans,
-      deleteStaleDuplicates,
+  const buildActionRequests = useCallback(
+    ({
+      action,
+      findings,
+    }: {
+      action: string;
+      findings: Array<ActionableFinding>;
+    }): Array<StorageApplyActionRequest> =>
+      Array.from(
+        new Map(
+          findings
+            .filter((finding) => finding.normalizedPath)
+            .map((finding) => [
+              `${finding.kind}:${finding.normalizedPath}:${action}`,
+              {
+                action,
+                kind: finding.kind,
+                normalized_path: finding.normalizedPath,
+              },
+            ]),
+        ).values(),
+      ),
+    [],
+  );
+
+  const refreshAuditViews = useCallback(async () => {
+    await refresh();
+
+    const tasks: Array<Promise<unknown>> = [];
+    if (chainAuditResult) {
+      tasks.push(runChainAudit());
+    }
+    if (diffAuditResult) {
+      tasks.push(runProjectDiffAudit());
+    }
+    if (auditResult) {
+      tasks.push(rerunAudit());
+    }
+    if (tasks.length > 0) {
+      await Promise.all(tasks);
+    }
+  }, [
+    auditResult,
+    chainAuditResult,
+    diffAuditResult,
+    refresh,
+    rerunAudit,
+    runChainAudit,
+    runProjectDiffAudit,
+  ]);
+
+  const loadCleanupIssueDetails = useCallback(
+    async ({
+      issue,
       selectedPaths,
-    });
+    }: {
+      issue: CleanupIssueSummary;
+      selectedPaths?: Array<string>;
+    }) => {
+      const result = await runAudit({
+        findingKind:
+          issue.findingKinds.length === 1 ? issue.findingKinds[0] : undefined,
+        includeRepoManifest: true,
+        persistResult: false,
+        selectedPaths,
+      });
 
-    if (result) {
-      refresh();
-      if (selectedPaths && selectedPaths.length > 0) {
-        removePathsFromLocalStates(selectedPaths);
-      } else {
-        const pathsToRemove: Array<string> = [];
-        if (deleteRepoOrphans) {
-          (chainAuditResult?.findings ?? [])
-            .filter((f) => f.kind === 'bucket_syfon_no_git')
-            .forEach((f) => pathsToRemove.push(f.normalizedPath));
-        }
-        if (pathsToRemove.length > 0) {
-          removePathsFromLocalStates(pathsToRemove);
+      if (result) {
+        setCleanupDetailFindingsByIssue((current) => ({
+          ...current,
+          [issue.id]: result.findings,
+        }));
+      }
+    },
+    [runAudit],
+  );
+
+  const loadChainIssueDetails = useCallback(
+    async (issue: ChainIssueSummary) => {
+      const result = await runChainAudit({
+        findingKind: issue.id,
+        findingLimit: -1,
+        persistResult: false,
+      });
+
+      if (result) {
+        setChainDetailFindingsByIssue((current) => ({
+          ...current,
+          [issue.id]: result.findings.filter((finding) => finding.kind === issue.id),
+        }));
+      }
+    },
+    [runChainAudit],
+  );
+
+  const handleRunIssueAction = useCallback(
+    async ({
+      preview = false,
+    }: {
+      preview?: boolean;
+    } = {}) => {
+      if (!pendingIssueAction || !selectedIssueActionOption) {
+        return;
+      }
+
+      const actionName = selectedIssueActionOption.action;
+      const selectedPaths = pendingIssueAction.paths;
+
+      if (actionName === 'copy_paths') {
+        await navigator.clipboard.writeText(selectedPaths.join('\n'));
+        setActionFeedbackMessage(
+          `Copied ${selectedPaths.length.toLocaleString()} path${selectedPaths.length === 1 ? '' : 's'} to the clipboard.`,
+        );
+        setIssueActionModalOpen(false);
+        setPendingIssueAction(null);
+        setSelectedIssueAction(null);
+        setIssueActionPreview(null);
+        return;
+      }
+
+      if (actionName === 'rerun_audit') {
+        if (pendingIssueAction.source === 'chain') {
+          await runChainAudit();
+        } else if (pendingIssueAction.source === 'diff') {
+          await runProjectDiffAudit();
         } else {
           await rerunAudit();
         }
+        setIssueActionModalOpen(false);
+        setPendingIssueAction(null);
+        setSelectedIssueAction(null);
+        setIssueActionPreview(null);
+        return;
       }
-    }
-  };
 
-  const handleDeleteBrokenRecords = async () => {
-    if (!canDeleteBrokenRecords) {
-      return;
-    }
-
-    const result = await deleteBrokenRecords({
-      objectIds: brokenRecordObjectIds,
-    });
-
-    if (result) {
-      refresh();
-      removeObjectIdsFromLocalStates(brokenRecordObjectIds);
-    }
-  };
-
-  const handleRepairBrokenBucketMappings = async () => {
-    if (
-      !selectedChainIssue ||
-      selectedChainIssue.id !== 'syfon_broken_bucket_mapping'
-    ) {
-      return;
-    }
-
-    const objectIds = Array.from(
-      new Set(
-        selectedChainFindings
-          .flatMap((finding) => finding.objectIds)
-          .filter(Boolean),
-      ),
-    );
-
-    if (objectIds.length === 0) {
-      return;
-    }
-
-    const result = await deleteBrokenRecords({
-      objectIds,
-    });
-
-    if (result) {
-      refresh();
-      await runChainAudit();
-      if (auditResult) {
-        await rerunAudit();
+      if (actionName === 'verify_duplicates' || actionName === 'prepare_delete') {
+        setIssueActionModalOpen(false);
+        setPendingIssueAction(null);
+        setSelectedIssueAction(null);
+        setIssueActionPreview(null);
+        if (pendingIssueAction.source === 'diff') {
+          setSelectedDiffIssueId(pendingIssueAction.issueId);
+          setShowDiffDetails(true);
+        }
+        setSelectedCleanupIssueId(null);
+        setShowCleanupDetails(true);
+        await runAudit({
+          includeRepoManifest: true,
+          selectedPaths,
+        });
+        return;
       }
-    }
-  };
+
+      const result = await applyCleanup({
+        actions: buildActionRequests({
+          action: actionName,
+          findings: pendingIssueAction.findings,
+        }),
+        deleteBucketOnlyObjects: false,
+        deleteRepoOrphans: false,
+        deleteStaleDuplicates: false,
+        dryRun: preview,
+        selectedPaths,
+      });
+
+      if (!result) {
+        return;
+      }
+
+      if (preview) {
+        setIssueActionPreview(result);
+        return;
+      }
+
+      setActionFeedbackMessage(
+        `${selectedIssueActionOption.label} completed for ${selectedPaths.length.toLocaleString()} path${selectedPaths.length === 1 ? '' : 's'}.`,
+      );
+      setIssueActionModalOpen(false);
+      setPendingIssueAction(null);
+      setSelectedIssueAction(null);
+      setIssueActionPreview(null);
+      setSelectedCleanupIssueId(null);
+      setSelectedChainIssueId(null);
+      await refreshAuditViews();
+    },
+    [
+      applyCleanup,
+      buildActionRequests,
+      pendingIssueAction,
+      refreshAuditViews,
+      rerunAudit,
+      runAudit,
+      runChainAudit,
+      runProjectDiffAudit,
+      selectedIssueActionOption,
+    ],
+  );
 
   const toggleExpandedChainTreeNode = useCallback((nodePath: string) => {
     setExpandedChainTreeNodes((current) => ({
@@ -1475,48 +1545,16 @@ export const FileSummaryPage = ({
     if (!selectedChainIssue || selectedChainPaths.length === 0) {
       return;
     }
-    const result =
-      selectedChainIssue.id === 'bucket_only_object'
-        ? await applyCleanup({
-            deleteRepoOrphans: false,
-            deleteStaleDuplicates: false,
-            deleteBucketOnlyObjects: true,
-            selectedPaths: selectedChainPaths,
-          })
-        : selectedChainIssue.id === 'bucket_syfon_no_git'
-          ? await applyCleanup({
-              deleteRepoOrphans: true,
-              deleteStaleDuplicates: false,
-              selectedPaths: selectedChainPaths,
-            })
-          : null;
-
-    if (result) {
-      refresh();
-      removePathsFromLocalStates(selectedChainPaths);
-    }
-  };
-
-  const handleConfirmRepoOrphanDelete = async () => {
-    setRepoOrphanDeleteModalOpen(false);
-    await handleApplyCleanup({
-      deleteRepoOrphans: true,
-      deleteStaleDuplicates: false,
-      selectedPaths: selectedDiffPaths,
-    });
-  };
-
-  const handlePrepareCleanup = async (issue: ProjectDiffIssueSummary) => {
-    setSelectedDiffIssueId(issue.id);
-    setSelectedCleanupIssueId(null);
-    setSelectedChainIssueId(null);
-    setShowDiffDetails(true);
-    setShowCleanupDetails(true);
-    await runAudit({
-      includeRepoManifest: true,
-      selectedPaths: (diffAuditResult?.findings ?? [])
-        .filter((finding) => issue.findingKinds.includes(finding.kind))
-        .map((finding) => finding.normalizedPath),
+    openIssueActionModal({
+      defaultAction: selectedChainIssue.actionSummary.defaultAction,
+      findings: selectedChainFindings.filter((finding) =>
+        selectedChainPaths.includes(finding.normalizedPath),
+      ),
+      issueId: selectedChainIssue.id,
+      issueTitle: selectedChainIssue.title,
+      paths: selectedChainPaths,
+      source: 'chain',
+      supportsDryRun: selectedChainIssue.actionSummary.supportsDryRun,
     });
   };
 
@@ -1540,21 +1578,23 @@ export const FileSummaryPage = ({
   };
 
   const handleToggleChainIssueDetails = useCallback(
-    (issue: ChainIssueSummary) => {
+    async (issue: ChainIssueSummary) => {
       const shouldOpen = selectedChainIssueId !== issue.id;
       setSelectedChainIssueId(shouldOpen ? issue.id : null);
       if (shouldOpen) {
         setSelectedDiffIssueId(null);
         setSelectedCleanupIssueId(null);
+        await loadChainIssueDetails(issue);
       }
     },
-    [selectedChainIssueId],
+    [loadChainIssueDetails, selectedChainIssueId],
   );
 
   const handleFocusChainIssue = async (issue: ChainIssueSummary) => {
     setSelectedChainIssueId(issue.id);
     setSelectedDiffIssueId(null);
     setSelectedCleanupIssueId(null);
+    await loadChainIssueDetails(issue);
   };
 
   const handleOpenAuditModal = async () => {
@@ -1762,77 +1802,136 @@ export const FileSummaryPage = ({
             <>
               <Modal
                 centered
-                onClose={() => setRepoOrphanDeleteModalOpen(false)}
-                opened={repoOrphanDeleteModalOpen}
-                size="lg"
-                title="Delete repo orphans and purge bucket files"
+                onClose={() => {
+                  setIssueActionModalOpen(false);
+                  setIssueActionPreview(null);
+                }}
+                opened={issueActionModalOpen}
+                size="xl"
+                title={pendingIssueAction?.issueTitle ?? 'Issue action'}
               >
-                <Stack gap="md">
-                  <Alert
-                    color="red"
-                    icon={<IconAlertCircle size={16} />}
-                    title="This action cannot be undone"
-                  >
-                    Syfon will delete the selected repo-orphan records. For live
-                    repo orphans, it will also attempt to delete the backing
-                    storage objects from the bucket.
-                  </Alert>
+                {pendingIssueAction ? (
+                  <Stack gap="md">
+                    <Text c="dimmed" size="sm">
+                      Choose the healing action for this issue set. The frontend
+                      uses the backend action contract directly instead of
+                      guessing what is safe to do.
+                    </Text>
 
-                  <Text size="sm">
-                    Metadata-only deletions:{' '}
-                    {repoOrphanDeletePlan.metadataOnlyObjectIds.length.toLocaleString()}
-                    {' · '}
-                    Bucket purge attempts:{' '}
-                    {repoOrphanDeletePlan.purgeObjectIds.length.toLocaleString()}
-                  </Text>
+                    {selectedIssueActionOption?.destructive ? (
+                      <Alert
+                        color="red"
+                        icon={<IconAlertCircle size={16} />}
+                        title="This action changes project state"
+                      >
+                        Confirm the targets below before applying this action.
+                        Bucket-backed deletions cannot be undone.
+                      </Alert>
+                    ) : null}
 
-                  {repoOrphanDeletePlan.purgeUrls.length > 0 ? (
-                    <Stack gap={6}>
-                      <Text fw={700} size="sm">
-                        Storage URLs scheduled for purge
-                      </Text>
-                      <div className="max-h-64 overflow-y-auto rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
-                        <Stack gap={6}>
-                          {repoOrphanDeletePlan.purgeUrls.map((url) => (
-                            <Text
-                              className="break-all font-mono"
-                              key={url}
-                              size="xs"
-                            >
-                              {url}
-                            </Text>
-                          ))}
-                        </Stack>
-                      </div>
-                    </Stack>
-                  ) : (
-                    <Alert
-                      color="blue"
-                      icon={<IconAlertCircle size={16} />}
-                      title="No bucket purge targets in this selection"
-                    >
-                      This delete will remove Syfon metadata only.
-                    </Alert>
-                  )}
+                    {pendingIssueAction.availableActions.length > 1 ? (
+                      <Select
+                        data={pendingIssueAction.availableActions.map((action) => ({
+                          label: action.label,
+                          value: action.action,
+                        }))}
+                        label="Action"
+                        onChange={(value) => {
+                          setSelectedIssueAction(value);
+                          setIssueActionPreview(null);
+                        }}
+                        value={selectedIssueAction}
+                      />
+                    ) : null}
 
-                  <Group justify="flex-end">
-                    <Button
-                      onClick={() => setRepoOrphanDeleteModalOpen(false)}
-                      variant="default"
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      color="red"
-                      loading={isApplying}
-                      onClick={() => {
-                        void handleConfirmRepoOrphanDelete();
-                      }}
-                    >
-                      Delete records and purge files
-                    </Button>
-                  </Group>
-                </Stack>
+                    {selectedIssueActionOption?.description ? (
+                      <Text size="sm">{selectedIssueActionOption.description}</Text>
+                    ) : null}
+
+                    <Text size="sm">
+                      {pendingIssueAction.findings.length.toLocaleString()} findings
+                      {' · '}
+                      {pendingIssueAction.paths.length.toLocaleString()} paths
+                    </Text>
+
+                    <div className="max-h-48 overflow-y-auto rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+                      <Stack gap={6}>
+                        {pendingIssueAction.paths.slice(0, 50).map((path) => (
+                          <Text className="break-all font-mono" key={path} size="xs">
+                            {path}
+                          </Text>
+                        ))}
+                        {pendingIssueAction.paths.length > 50 ? (
+                          <Text c="dimmed" size="xs">
+                            +{(pendingIssueAction.paths.length - 50).toLocaleString()} more paths
+                          </Text>
+                        ) : null}
+                      </Stack>
+                    </div>
+
+                    {issueActionPreview ? (
+                      <Stack gap="xs">
+                        <Alert
+                          color="blue"
+                          icon={<IconAlertCircle size={16} />}
+                          title="Dry-run preview"
+                        >
+                          Records to delete:{' '}
+                          {issueActionPreview.deletedRecordIds.length.toLocaleString()}
+                          {' · '}
+                          Bucket objects to purge:{' '}
+                          {issueActionPreview.deletedBucketObjectUrls.length.toLocaleString()}
+                          {' · '}
+                          Skipped paths:{' '}
+                          {issueActionPreview.skippedPaths.length.toLocaleString()}
+                        </Alert>
+                        {issueActionPreview.deletedBucketObjectUrls.length > 0 ? (
+                          <div className="max-h-48 overflow-y-auto rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+                            <Stack gap={6}>
+                              {issueActionPreview.deletedBucketObjectUrls.map((url) => (
+                                <Text className="break-all font-mono" key={url} size="xs">
+                                  {url}
+                                </Text>
+                              ))}
+                            </Stack>
+                          </div>
+                        ) : null}
+                      </Stack>
+                    ) : null}
+
+                    <Group justify="flex-end">
+                      <Button
+                        onClick={() => {
+                          setIssueActionModalOpen(false);
+                          setIssueActionPreview(null);
+                        }}
+                        variant="default"
+                      >
+                        Cancel
+                      </Button>
+                      {selectedIssueActionOption?.supportsDryRun ? (
+                        <Button
+                          loading={isApplying}
+                          onClick={() => {
+                            void handleRunIssueAction({ preview: true });
+                          }}
+                          variant="light"
+                        >
+                          Preview action
+                        </Button>
+                      ) : null}
+                      <Button
+                        color={selectedIssueActionOption?.destructive ? 'red' : 'blue'}
+                        loading={isApplying}
+                        onClick={() => {
+                          void handleRunIssueAction();
+                        }}
+                      >
+                        {selectedIssueActionOption?.label ?? 'Run action'}
+                      </Button>
+                    </Group>
+                  </Stack>
+                ) : null}
               </Modal>
 
               <Modal
@@ -1998,19 +2097,38 @@ export const FileSummaryPage = ({
                               <Table.Td miw={260}>
                                 <Group gap="xs">
                                   <Button
-                                    color={selectedChainIssueId === issue.id ? 'gray' : issue.color}
+                                    color={issue.color}
                                     loading={isAuditing || isDiffAuditing || isChainAuditing}
+                                    onClick={() => {
+                                      openIssueActionModal({
+                                        defaultAction: issue.actionSummary.defaultAction,
+                                        findings: (chainAuditResult?.findings ?? []).filter(
+                                          (finding) => finding.kind === issue.id,
+                                        ),
+                                        issueId: issue.id,
+                                        issueTitle: issue.title,
+                                        paths: (chainAuditResult?.findings ?? [])
+                                          .filter((finding) => finding.kind === issue.id)
+                                          .map((finding) => finding.normalizedPath),
+                                        source: 'chain',
+                                        supportsDryRun: issue.actionSummary.supportsDryRun,
+                                      });
+                                    }}
+                                    size="xs"
+                                    variant="light"
+                                  >
+                                    {issue.actionSummary.defaultAction?.label ?? 'Open action'}
+                                  </Button>
+                                  <Button
                                     onClick={() => {
                                       void handleToggleChainIssueDetails(issue);
                                     }}
                                     size="xs"
-                                    variant={selectedChainIssueId === issue.id ? 'outline' : 'light'}
+                                    variant="subtle"
                                   >
                                     {selectedChainIssueId === issue.id
-                                      ? 'Hide paths'
-                                      : issue.actionLabel
-                                        ? `${issue.actionLabel} (${issue.pathCount.toLocaleString()})`
-                                        : `See paths (${issue.pathCount.toLocaleString()})`}
+                                      ? 'Hide details'
+                                      : `See details (${issue.pathCount.toLocaleString()})`}
                                   </Button>
                                 </Group>
                               </Table.Td>
@@ -2051,7 +2169,6 @@ export const FileSummaryPage = ({
                             <Button
                               color={selectedChainIssue?.id === 'bucket_only_object' ? 'red' : 'orange'}
                               disabled={selectedChainPaths.length === 0}
-                              loading={isApplying}
                               onClick={() => {
                                 void handleApplySelectedChainDeletion();
                               }}
@@ -2063,25 +2180,12 @@ export const FileSummaryPage = ({
                                 : `Delete selected Syfon + bucket objects (${selectedChainPaths.length.toLocaleString()})`}
                             </Button>
                           ) : null}
-                          {canRepairBrokenBucketMappings ? (
-                            <Button
-                              color="red"
-                              loading={isApplying}
-                              onClick={() => {
-                                void handleRepairBrokenBucketMappings();
-                              }}
-                              size="xs"
-                              variant="light"
-                            >
-                              Delete broken Syfon records ({selectedChainObjectIdsCount.toLocaleString()})
-                            </Button>
-                          ) : null}
                           <Button
                             onClick={() => setSelectedChainIssueId(null)}
                             size="xs"
                             variant="subtle"
                           >
-                            Hide paths
+                            Hide details
                           </Button>
                         </Group>
                       </Group>
@@ -2333,19 +2437,32 @@ export const FileSummaryPage = ({
                                   </Text>
                                   <Text size="sm">{issue.recommendation}</Text>
                                   <Group gap="xs">
-                                    {issue.actionLabel ? (
-                                      <Button
-                                        color={issue.color}
-                                        loading={isAuditing}
-                                        onClick={() => {
-                                          void handlePrepareCleanup(issue);
-                                        }}
-                                        size="xs"
-                                        variant="light"
-                                      >
-                                        {issue.actionLabel}
-                                      </Button>
-                                    ) : null}
+                                    <Button
+                                      color={issue.color}
+                                      loading={isAuditing}
+                                      onClick={() => {
+                                        openIssueActionModal({
+                                          defaultAction: issue.actionSummary.defaultAction,
+                                          findings: (diffAuditResult?.findings ?? []).filter(
+                                            (finding) =>
+                                              issue.findingKinds.includes(finding.kind),
+                                          ),
+                                          issueId: issue.id,
+                                          issueTitle: issue.title,
+                                          paths: (diffAuditResult?.findings ?? [])
+                                            .filter((finding) =>
+                                              issue.findingKinds.includes(finding.kind),
+                                            )
+                                            .map((finding) => finding.normalizedPath),
+                                          source: 'diff',
+                                          supportsDryRun: issue.actionSummary.supportsDryRun,
+                                        });
+                                      }}
+                                      size="xs"
+                                      variant="light"
+                                    >
+                                      {issue.actionSummary.defaultAction?.label ?? 'Open action'}
+                                    </Button>
                                     <Button
                                       onClick={() => {
                                         setSelectedDiffIssueId((current) =>
@@ -2575,6 +2692,16 @@ export const FileSummaryPage = ({
                     </Alert>
                   ) : null}
 
+                  {actionFeedbackMessage ? (
+                    <Alert
+                      color="blue"
+                      icon={<IconAlertCircle size={16} />}
+                      title="Action complete"
+                    >
+                      {actionFeedbackMessage}
+                    </Alert>
+                  ) : null}
+
                   {showCleanupDetails && auditResult && isDuplicateVerificationContext && !hasSafeDuplicateCleanup ? (
                     <Alert
                       color="yellow"
@@ -2649,56 +2776,45 @@ export const FileSummaryPage = ({
                                 </Table.Td>
                                 <Table.Td miw={340}>
                                   <Group gap="xs">
-                                    {issue.id === 'stale-duplicates' ? (
-                                      <Button
-                                        color="orange"
-                                        loading={isApplying}
-                                        onClick={() => {
-                                          void handleApplyCleanup({
-                                            deleteRepoOrphans: false,
-                                            deleteStaleDuplicates: true,
-                                            selectedPaths: selectedDiffPaths,
-                                          });
-                                        }}
-                                        size="xs"
-                                      >
-                                        Delete duplicate records
-                                      </Button>
-                                    ) : null}
-
-                                    {issue.id === 'repo-orphans' ? (
-                                      <Button
-                                        color="red"
-                                        loading={isApplying}
-                                        onClick={() => {
-                                          setRepoOrphanDeleteModalOpen(true);
-                                        }}
-                                        size="xs"
-                                      >
-                                        Delete repo orphans
-                                      </Button>
-                                    ) : null}
-
-                                    {issue.id === 'broken-access-urls' &&
-                                    canDeleteBrokenRecords ? (
-                                      <Button
-                                        color="red"
-                                        loading={isApplying}
-                                        onClick={() => {
-                                          void handleDeleteBrokenRecords();
-                                        }}
-                                        size="xs"
-                                        variant="outline"
-                                      >
-                                        Delete broken records
-                                      </Button>
-                                    ) : null}
+                                    <Button
+                                      color={issue.color}
+                                      loading={isApplying}
+                                      onClick={() => {
+                                        openIssueActionModal({
+                                          defaultAction: issue.actionSummary.defaultAction,
+                                          findings: (auditResult?.findings ?? []).filter((finding) =>
+                                            issue.findingKinds.includes(finding.kind),
+                                          ),
+                                          issueId: issue.id,
+                                          issueTitle: issue.title,
+                                          paths: (auditResult?.findings ?? [])
+                                            .filter((finding) =>
+                                              issue.findingKinds.includes(finding.kind),
+                                            )
+                                            .map((finding) => finding.normalizedPath),
+                                          source: 'cleanup',
+                                          supportsDryRun: issue.actionSummary.supportsDryRun,
+                                        });
+                                      }}
+                                      size="xs"
+                                      variant="light"
+                                    >
+                                      {issue.actionSummary.defaultAction?.label ?? 'Open action'}
+                                    </Button>
 
                                     <Button
                                       onClick={() => {
-                                        setSelectedCleanupIssueId((current) =>
-                                          current === issue.id ? null : issue.id,
-                                        );
+                                        const nextIssueId =
+                                          selectedCleanupIssueId === issue.id
+                                            ? null
+                                            : issue.id;
+                                        setSelectedCleanupIssueId(nextIssueId);
+                                        if (nextIssueId) {
+                                          void loadCleanupIssueDetails({
+                                            issue,
+                                            selectedPaths: selectedDiffPaths,
+                                          });
+                                        }
                                       }}
                                       size="xs"
                                       variant="subtle"
