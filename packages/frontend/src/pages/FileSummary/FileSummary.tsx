@@ -1,6 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
-import { useBulkDeleteSyfonDrsObjectsMutation } from '@gen3/core';
+import {
+  useBulkDeleteSyfonDrsObjectsMutation,
+  CALYPR_EXPLORER_CONFIG_API,
+} from '@gen3/core';
 import {
   ActionIcon,
   Alert,
@@ -40,15 +43,19 @@ import {
   type StorageChainFinding,
   type StorageChainFindingKind,
   type StorageChainIssueGroup,
+  type StorageCleanupApplyResult,
   type StorageCleanupFinding,
   type StorageCleanupFindingKind,
-  useFileSummaryProjectOptions,
   useSyfonProjectDiff,
   useSyfonStorageChain,
   useSyfonPathStorageSummary,
   useSyfonStorageCleanup,
 } from './hooks';
-import { splitProjectSelectionValue, type StoragePathRow } from './storageUtils';
+import {
+  buildProjectOptions,
+  splitProjectSelectionValue,
+  type StoragePathRow,
+} from './storageUtils';
 
 const formatTimestamp = (value?: string): string => {
   if (!value) return '—';
@@ -61,6 +68,83 @@ const formatTimestamp = (value?: string): string => {
   } catch {
     return value;
   }
+};
+
+const formatCount = (
+  count: number,
+  singular: string,
+  plural = `${singular}s`,
+): string => `${count.toLocaleString()} ${count === 1 ? singular : plural}`;
+
+const joinPhrases = (phrases: Array<string>): string => {
+  if (phrases.length <= 2) {
+    return phrases.join(' and ');
+  }
+
+  return `${phrases.slice(0, -1).join(', ')}, and ${phrases[phrases.length - 1]}`;
+};
+
+const sentenceCase = (value: string): string =>
+  value.length > 0 ? `${value[0].toUpperCase()}${value.slice(1)}` : value;
+
+const buildCleanupApplySummary = (
+  result: StorageCleanupApplyResult,
+): string => {
+  const operations = [
+    result.updatedRecordIds.length > 0
+      ? `${result.dryRun ? 'update' : 'updated'} ${formatCount(
+          result.updatedRecordIds.length,
+          'Syfon record',
+        )}`
+      : '',
+    result.deletedRecordIds.length > 0
+      ? `${result.dryRun ? 'remove' : 'removed'} ${formatCount(
+          result.deletedRecordIds.length,
+          'Syfon record',
+        )}`
+      : '',
+    result.deletedBucketObjectUrls.length > 0
+      ? `${result.dryRun ? 'delete' : 'deleted'} ${formatCount(
+          result.deletedBucketObjectUrls.length,
+          'bucket object',
+        )}`
+      : '',
+  ].filter(Boolean);
+
+  const sentences: Array<string> = [];
+  if (operations.length > 0) {
+    const summary = joinPhrases(operations);
+    sentences.push(
+      result.dryRun ? `Would ${summary}.` : `${sentenceCase(summary)}.`,
+    );
+  } else {
+    sentences.push(
+      result.dryRun
+        ? 'No cleanup changes were found for this dry run.'
+        : 'No cleanup changes were needed.',
+    );
+  }
+
+  if (result.repoDeletePaths.length > 0) {
+    sentences.push(
+      `${formatCount(result.repoDeletePaths.length, 'repo path')} may need follow-up.`,
+    );
+  }
+  if (result.manualPaths.length > 0) {
+    sentences.push(
+      `${formatCount(
+        result.manualPaths.length,
+        'manual follow-up path',
+      )} still needs review.`,
+    );
+  }
+  if (result.skippedPaths.length > 0) {
+    sentences.push(
+      `${formatCount(result.skippedPaths.length, 'item')} skipped.`,
+    );
+  }
+
+  return sentences.join(' ');
 };
 
 const getPathSegments = (path: string): Array<string> =>
@@ -104,6 +188,41 @@ type ActionableFinding =
   | StorageCleanupFinding
   | StorageChainFinding;
 
+const resolveProjectSelection = ({
+  defaultProject,
+  options,
+}: {
+  defaultProject?: string;
+  options: Array<{
+    project: string;
+    value: string;
+  }>;
+}): string => {
+  if (options.length === 0) {
+    return '';
+  }
+  if (!defaultProject?.trim()) {
+    return options[0].value;
+  }
+
+  const normalizedDefault = defaultProject.trim();
+  const directMatch = options.find(
+    (option) => option.value === normalizedDefault,
+  );
+  if (directMatch) {
+    return directMatch.value;
+  }
+
+  const projectOnlyMatches = options.filter(
+    (option) => option.project === normalizedDefault,
+  );
+  if (projectOnlyMatches.length === 1) {
+    return projectOnlyMatches[0].value;
+  }
+
+  return options[0].value;
+};
+
 const summarizeIssueActions = <
   T extends {
     readonly actionability?: string;
@@ -123,7 +242,9 @@ const summarizeIssueActions = <
     ).values(),
   );
 
-  const actionability = findings.find((finding) => finding.actionability)?.actionability;
+  const actionability = findings.find(
+    (finding) => finding.actionability,
+  )?.actionability;
   const defaultActionName =
     findings.find((finding) => finding.defaultAction)?.defaultAction ??
     fallbackAction?.action;
@@ -145,7 +266,9 @@ const summarizeIssueActions = <
   };
 };
 
-const buildPathsByParentMap = (paths: Array<string>): Map<string, Array<ChainPathTreeNode>> => {
+const buildPathsByParentMap = (
+  paths: Array<string>,
+): Map<string, Array<ChainPathTreeNode>> => {
   const map = new Map<string, Array<ChainPathTreeNode>>();
   const seenPaths = new Set<string>();
   const nodesByPath = new Map<string, ChainPathTreeNode>();
@@ -217,16 +340,11 @@ const formatCleanupFindingLabel = (value: string): string =>
     .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
     .join(' ');
 
-const formatProbeResolution = (
-  status?: string,
-): string => {
+const formatProbeResolution = (status?: string): string => {
   return status?.trim() || 'unknown';
 };
 
-const compareOptionalDates = (
-  left?: string,
-  right?: string,
-): number => {
+const compareOptionalDates = (left?: string, right?: string): number => {
   const leftTime = left ? new Date(left).getTime() : Number.NaN;
   const rightTime = right ? new Date(right).getTime() : Number.NaN;
   const normalizedLeft = Number.isNaN(leftTime) ? -Infinity : leftTime;
@@ -272,9 +390,7 @@ const sortStorageRowsBy = (
   return direction === 'desc' ? ordered.reverse() : ordered;
 };
 
-const getCleanupFindingColor = (
-  kind: StorageCleanupFindingKind,
-): string => {
+const getCleanupFindingColor = (kind: StorageCleanupFindingKind): string => {
   switch (kind) {
     case 'stale_duplicate_record':
       return 'orange';
@@ -300,9 +416,7 @@ const getCleanupFindingColor = (
   }
 };
 
-const issueColorForDiffKind = (
-  kind: ProjectDiffFindingKind,
-): string => {
+const issueColorForDiffKind = (kind: ProjectDiffFindingKind): string => {
   switch (kind) {
     case 'duplicate_syfon_paths':
       return 'orange';
@@ -398,7 +512,8 @@ const summarizeProjectDiffIssues = (
         description: group.description,
         findingKinds: group.findingKinds,
         id: group.id,
-        objectCount: new Set(matched.flatMap((finding) => finding.objectIds)).size,
+        objectCount: new Set(matched.flatMap((finding) => finding.objectIds))
+          .size,
         pathCount: matched.length,
         recommendation: group.recommendation,
         recordCount: matched.reduce(
@@ -673,8 +788,7 @@ const chainIssueDefinitions: Array<{
     color: 'orange',
     description:
       'Bucket object exists, but its metadata does not match what Syfon expects.',
-    recommendation:
-      'Investigate metadata drift before applying deletion.',
+    recommendation: 'Investigate metadata drift before applying deletion.',
     actionLabel: 'Show mismatches',
   },
   {
@@ -729,23 +843,17 @@ const summarizeStorageChainIssues = ({
                   requiresConfirmation: true,
                   supportsDryRun: false,
                 }
-            : definition.id === 'git_syfon_metadata_mismatch'
-              ? {
-                  action: 'prepare_delete',
-                  destructive: false,
-                  label: 'Prepare cleanup',
-                  requiresConfirmation: false,
-                  supportsDryRun: true,
-                }
-            : definition.id === 'probe_error'
-              ? {
-                  action: 'rerun_audit',
-                  destructive: false,
-                  label: 'Retry verification',
-                  requiresConfirmation: false,
-                  supportsDryRun: false,
-                }
-              : undefined,
+              : definition.id === 'git_syfon_metadata_mismatch' ||
+                  definition.id === 'probe_error' ||
+                  definition.id === 'syfon_broken_bucket_mapping'
+                ? {
+                    action: 'view_paths',
+                    destructive: false,
+                    label: 'Show paths',
+                    requiresConfirmation: false,
+                    supportsDryRun: false,
+                  }
+                : undefined,
         ),
         color: definition.color,
         description: definition.description,
@@ -778,17 +886,34 @@ export const FileSummaryPage = ({
   const forcedProjectSelection = isProjectScopedRoute
     ? `${routeOrganization}/${routeProject}`
     : '';
-  const {
-    defaultSelection,
-    isLoading: isProjectsLoading,
-    options: projectOptions,
-  } = useFileSummaryProjectOptions(filesummaryConfig);
+  const [projectOptions, setProjectOptions] = useState<
+    Array<ReturnType<typeof buildProjectOptions>[number]>
+  >([]);
+  const [isProjectsLoading, setIsProjectsLoading] =
+    useState(!isProjectScopedRoute);
+  const defaultSelection = useMemo(() => {
+    if (forcedProjectSelection) {
+      return forcedProjectSelection;
+    }
+    return resolveProjectSelection({
+      defaultProject: filesummaryConfig?.defaultProject,
+      options: projectOptions,
+    });
+  }, [
+    filesummaryConfig?.defaultProject,
+    forcedProjectSelection,
+    projectOptions,
+  ]);
   const [selectedProject, setSelectedProject] = useState('');
   const [currentPath, setCurrentPath] = useState(
     filesummaryConfig?.defaultPath?.trim() ?? '',
   );
-  const [selectedChainIssueId, setSelectedChainIssueId] = useState<string | null>(null);
-  const [selectedDiffIssueId, setSelectedDiffIssueId] = useState<string | null>(null);
+  const [selectedChainIssueId, setSelectedChainIssueId] = useState<
+    string | null
+  >(null);
+  const [selectedDiffIssueId, setSelectedDiffIssueId] = useState<string | null>(
+    null,
+  );
   const [showCleanupDetails, setShowCleanupDetails] = useState(false);
   const [showDiffDetails, setShowDiffDetails] = useState(false);
   const [selectedChainPathsByIssue, setSelectedChainPathsByIssue] = useState<
@@ -797,15 +922,72 @@ export const FileSummaryPage = ({
   const [expandedChainTreeNodes, setExpandedChainTreeNodes] = useState<
     Record<string, boolean>
   >({});
-  const [treeNodeLimit, setTreeNodeLimit] = useState<Record<string, number>>({});
-  const [actionFeedbackMessage, setActionFeedbackMessage] = useState<string | null>(
-    null,
+  const [treeNodeLimit, setTreeNodeLimit] = useState<Record<string, number>>(
+    {},
   );
+  const [actionFeedbackMessage, setActionFeedbackMessage] = useState<
+    string | null
+  >(null);
   const [auditModalOpen, setAuditModalOpen] = useState(false);
   const [isBulkDeletingRecords, setIsBulkDeletingRecords] = useState(false);
-  const [storageSortKey, setStorageSortKey] = useState<StorageSortKey>('sizeBytes');
+  const [storageSortKey, setStorageSortKey] =
+    useState<StorageSortKey>('sizeBytes');
   const [storageSortDirection, setStorageSortDirection] =
     useState<StorageSortDirection>('desc');
+
+  useEffect(() => {
+    if (isProjectScopedRoute) {
+      setProjectOptions([]);
+      setIsProjectsLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadProjectOptions = async () => {
+      setIsProjectsLoading(true);
+      try {
+        const response = await fetch(
+          `${CALYPR_EXPLORER_CONFIG_API}/projects/summary`,
+          {
+            credentials: 'include',
+            method: 'GET',
+          },
+        );
+
+        if (response.status === 401 || response.status === 403) {
+          throw new Error('Your session expired. Please log in again.');
+        }
+
+        if (!response.ok) {
+          throw new Error('Failed to load project list.');
+        }
+
+        const summary = (await response.json()) as Array<{
+          organization: string;
+          project: string;
+        }>;
+
+        if (!cancelled) {
+          setProjectOptions(buildProjectOptions(summary));
+        }
+      } catch {
+        if (!cancelled) {
+          setProjectOptions([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsProjectsLoading(false);
+        }
+      }
+    };
+
+    void loadProjectOptions();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isProjectScopedRoute]);
 
   useEffect(() => {
     if (forcedProjectSelection) {
@@ -853,10 +1035,7 @@ export const FileSummaryPage = ({
     }
 
     return {
-      leadingItems: [
-        breadcrumbItems[0],
-        ...breadcrumbItems.slice(-4),
-      ],
+      leadingItems: [breadcrumbItems[0], ...breadcrumbItems.slice(-4)],
       hiddenItems: breadcrumbItems.slice(1, -4),
     };
   }, [breadcrumbItems]);
@@ -909,7 +1088,13 @@ export const FileSummaryPage = ({
     clearChainAudit();
     clearDiffAudit();
     clearCleanupResults();
-  }, [clearChainAudit, clearCleanupResults, clearDiffAudit, currentPath, selectedProject]);
+  }, [
+    clearChainAudit,
+    clearCleanupResults,
+    clearDiffAudit,
+    currentPath,
+    selectedProject,
+  ]);
 
   useEffect(() => {
     setActionFeedbackMessage(null);
@@ -927,11 +1112,7 @@ export const FileSummaryPage = ({
     : 'Storage Monitor';
   const sortedRows = useMemo(
     () =>
-      sortStorageRowsBy(
-        data?.rows ?? [],
-        storageSortKey,
-        storageSortDirection,
-      ),
+      sortStorageRowsBy(data?.rows ?? [], storageSortKey, storageSortDirection),
     [data?.rows, storageSortDirection, storageSortKey],
   );
   const largestRowSize = useMemo(
@@ -955,7 +1136,8 @@ export const FileSummaryPage = ({
   const hasChainIssues = chainIssueSummaries.length > 0;
   const selectedChainIssue = useMemo(
     () =>
-      chainIssueSummaries.find((issue) => issue.id === selectedChainIssueId) ?? null,
+      chainIssueSummaries.find((issue) => issue.id === selectedChainIssueId) ??
+      null,
     [chainIssueSummaries, selectedChainIssueId],
   );
   const selectedChainFindings = useMemo(
@@ -986,7 +1168,7 @@ export const FileSummaryPage = ({
   const selectedChainPaths = useMemo(
     () =>
       actionableChainSelectionIssue
-        ? selectedChainPathsByIssue[selectedChainIssue?.id ?? ''] ?? []
+        ? (selectedChainPathsByIssue[selectedChainIssue?.id ?? ''] ?? [])
         : [],
     [
       actionableChainSelectionIssue,
@@ -1002,13 +1184,20 @@ export const FileSummaryPage = ({
     () => new Set(selectedChainPaths),
     [selectedChainPaths],
   );
+  const selectedChainApplyFindings = useMemo(
+    () =>
+      selectedChainFindings.filter((finding) =>
+        selectedChainPathsSet.has(finding.normalizedPath),
+      ),
+    [selectedChainFindings, selectedChainPathsSet],
+  );
   const chainPathTree = useMemo(
     () => pathsByParent.get('') ?? [],
     [pathsByParent],
   );
-  const selectedDiffIssue = diffIssueSummaries.find(
-    (issue) => issue.id === selectedDiffIssueId,
-  ) ?? null;
+  const selectedDiffIssue =
+    diffIssueSummaries.find((issue) => issue.id === selectedDiffIssueId) ??
+    null;
   const selectedDiffFindings = useMemo(
     () =>
       selectedDiffIssue
@@ -1025,8 +1214,9 @@ export const FileSummaryPage = ({
   const hasCleanupFindings = (auditResult?.summary.totalFindings ?? 0) > 0;
   const isDuplicateVerificationContext =
     selectedDiffIssue?.id === 'duplicate-syfon-paths';
-  const hasSafeDuplicateCleanup =
-    cleanupIssueSummaries.some((issue) => issue.id === 'stale-duplicates');
+  const hasSafeDuplicateCleanup = cleanupIssueSummaries.some(
+    (issue) => issue.id === 'stale-duplicates',
+  );
 
   useEffect(() => {
     if (!actionableChainSelectionIssue || !selectedChainIssue) {
@@ -1048,11 +1238,7 @@ export const FileSummaryPage = ({
         [selectedChainIssue.id]: next,
       };
     });
-  }, [
-    actionableChainSelectionIssue,
-    selectableChainPaths,
-    selectedChainIssue,
-  ]);
+  }, [actionableChainSelectionIssue, selectableChainPaths, selectedChainIssue]);
   const buildActionRequests = useCallback(
     ({
       action,
@@ -1098,7 +1284,9 @@ export const FileSummaryPage = ({
 
       if (availableActions.length > 0) {
         return (
-          availableActions.find((action) => action.action === defaultAction?.action) ??
+          availableActions.find(
+            (action) => action.action === defaultAction?.action,
+          ) ??
           defaultAction ??
           availableActions[0]
         );
@@ -1148,32 +1336,6 @@ export const FileSummaryPage = ({
     [],
   );
 
-  const refreshAuditViews = useCallback(async () => {
-    await refresh();
-
-    const tasks: Array<Promise<unknown>> = [];
-    if (chainAuditResult) {
-      tasks.push(runChainAudit());
-    }
-    if (diffAuditResult) {
-      tasks.push(runProjectDiffAudit());
-    }
-    if (auditResult) {
-      tasks.push(rerunAudit());
-    }
-    if (tasks.length > 0) {
-      await Promise.all(tasks);
-    }
-  }, [
-    auditResult,
-    chainAuditResult,
-    diffAuditResult,
-    refresh,
-    rerunAudit,
-    runChainAudit,
-    runProjectDiffAudit,
-  ]);
-
   const removeHealedChainFindings = useCallback(
     (issueId: string, paths: Array<string>) => {
       const pathSet = new Set(paths);
@@ -1184,10 +1346,7 @@ export const FileSummaryPage = ({
 
         const findings = current.findings.filter(
           (finding) =>
-            !(
-              finding.kind === issueId &&
-              pathSet.has(finding.normalizedPath)
-            ),
+            !(finding.kind === issueId && pathSet.has(finding.normalizedPath)),
         );
 
         const countsByKind = Object.keys(current.summary.countsByKind).reduce<
@@ -1224,7 +1383,9 @@ export const FileSummaryPage = ({
           existing.pathCount += 1;
           existing.recordCount += finding.recordCount;
           existing.totalBytes += finding.sizeBytes ?? 0;
-          finding.objectIds.forEach((objectId) => existing.objectIds.add(objectId));
+          finding.objectIds.forEach((objectId) =>
+            existing.objectIds.add(objectId),
+          );
           groupsMap.set(finding.kind, existing);
         });
 
@@ -1244,7 +1405,9 @@ export const FileSummaryPage = ({
               totalBytes: updated.totalBytes,
             };
           })
-          .filter((group): group is NonNullable<typeof group> => group !== null);
+          .filter(
+            (group): group is NonNullable<typeof group> => group !== null,
+          );
 
         return {
           ...current,
@@ -1261,7 +1424,9 @@ export const FileSummaryPage = ({
           },
         };
       });
-      setSelectedChainIssueId((current) => (current === issueId ? null : current));
+      setSelectedChainIssueId((current) =>
+        current === issueId ? null : current,
+      );
     },
     [setChainAuditResult],
   );
@@ -1373,12 +1538,13 @@ export const FileSummaryPage = ({
         return;
       }
 
+      if (source === 'chain') {
+        setSelectedChainIssueId(issueId);
+        return;
+      }
+
       if (actionName === 'rerun_audit') {
-        if (source === 'chain') {
-          await runChainAudit();
-        } else {
-          await rerunAudit();
-        }
+        await rerunAudit();
         return;
       }
 
@@ -1391,7 +1557,10 @@ export const FileSummaryPage = ({
         return;
       }
 
-      if (actionName === 'verify_duplicates' || actionName === 'prepare_delete') {
+      if (
+        actionName === 'verify_duplicates' ||
+        actionName === 'prepare_delete'
+      ) {
         if (source === 'diff') {
           setSelectedDiffIssueId(issueId);
         }
@@ -1402,7 +1571,9 @@ export const FileSummaryPage = ({
         });
         if (result) {
           const verifiedPathCount = new Set(
-            result.findings.map((finding) => finding.normalizedPath).filter(Boolean),
+            result.findings
+              .map((finding) => finding.normalizedPath)
+              .filter(Boolean),
           ).size;
           setActionFeedbackMessage(
             result.summary.totalFindings > 0
@@ -1421,6 +1592,12 @@ export const FileSummaryPage = ({
               action: actionName,
               findings,
             }),
+            findings: findings.filter(
+              (
+                finding,
+              ): finding is StorageCleanupFinding | StorageChainFinding =>
+                'records' in finding,
+            ),
             deleteBucketOnlyObjects: false,
             deleteRepoOrphans: false,
             deleteStaleDuplicates: false,
@@ -1451,6 +1628,10 @@ export const FileSummaryPage = ({
           action: actionName,
           findings,
         }),
+        findings: findings.filter(
+          (finding): finding is StorageCleanupFinding | StorageChainFinding =>
+            'records' in finding,
+        ),
         deleteBucketOnlyObjects: false,
         deleteRepoOrphans: false,
         deleteStaleDuplicates: false,
@@ -1465,23 +1646,23 @@ export const FileSummaryPage = ({
       setActionFeedbackMessage(
         `${resolvedAction.label} completed for ${selectedPaths.length.toLocaleString()} path${selectedPaths.length === 1 ? '' : 's'}.`,
       );
-      await refreshAuditViews();
+      refresh();
     },
     [
       applyCleanup,
       buildActionRequests,
       handleBulkDeleteSyfonRecords,
-      refreshAuditViews,
+      refresh,
       resolveIssueAction,
       rerunAudit,
       runAudit,
-      runChainAudit,
-      runProjectDiffAudit,
     ],
   );
 
   const handleToggleChainIssueDetails = useCallback((issueId: string) => {
-    setSelectedChainIssueId((current) => (current === issueId ? null : issueId));
+    setSelectedChainIssueId((current) =>
+      current === issueId ? null : issueId,
+    );
   }, []);
 
   const handleOpenAuditModal = async () => {
@@ -1528,7 +1709,11 @@ export const FileSummaryPage = ({
       }
       setSelectedChainPathsForIssue(checked ? selectableChainPaths : []);
     },
-    [actionableChainSelectionIssue, selectableChainPaths, setSelectedChainPathsForIssue],
+    [
+      actionableChainSelectionIssue,
+      selectableChainPaths,
+      setSelectedChainPathsForIssue,
+    ],
   );
 
   const handleToggleChainPath = useCallback(
@@ -1541,13 +1726,17 @@ export const FileSummaryPage = ({
     [selectedChainPaths, setSelectedChainPathsForIssue],
   );
 
-  const renderChainTreeNode = (node: ChainPathTreeNode, depth = 0): React.ReactNode => {
+  const renderChainTreeNode = (
+    node: ChainPathTreeNode,
+    depth = 0,
+  ): React.ReactNode => {
     const descendantLeafPaths = node.descendantLeafPaths;
     const selectedCount = descendantLeafPaths.filter((value) =>
       selectedChainPathsSet.has(value),
     ).length;
     const fullySelected =
-      descendantLeafPaths.length > 0 && selectedCount === descendantLeafPaths.length;
+      descendantLeafPaths.length > 0 &&
+      selectedCount === descendantLeafPaths.length;
     const partiallySelected =
       selectedCount > 0 && selectedCount < descendantLeafPaths.length;
     const isLeaf = !node.isFolder;
@@ -1625,8 +1814,9 @@ export const FileSummaryPage = ({
                 variant="subtle"
               >
                 Show more (
-                {(children.length - (treeNodeLimit[node.path] ?? 100)).toLocaleString()}
-                {' '}
+                {(
+                  children.length - (treeNodeLimit[node.path] ?? 100)
+                ).toLocaleString()}{' '}
                 remaining)...
               </Button>
             )}
@@ -1642,7 +1832,8 @@ export const FileSummaryPage = ({
     }
 
     const isBucketOnlyIssue = selectedChainIssue.id === 'bucket_only_object';
-    const isBucketSyfonNoGitIssue = selectedChainIssue.id === 'bucket_syfon_no_git';
+    const isBucketSyfonNoGitIssue =
+      selectedChainIssue.id === 'bucket_syfon_no_git';
     if (!isBucketOnlyIssue && !isBucketSyfonNoGitIssue) {
       return;
     }
@@ -1660,6 +1851,7 @@ export const FileSummaryPage = ({
       deleteBucketOnlyObjects: isBucketOnlyIssue,
       deleteRepoOrphans: isBucketSyfonNoGitIssue,
       deleteStaleDuplicates: false,
+      findings: selectedChainApplyFindings,
       dryRun: false,
       selectedPaths: selectedChainPaths,
     });
@@ -1673,10 +1865,11 @@ export const FileSummaryPage = ({
         ? `Deleted ${selectedChainPaths.length.toLocaleString()} selected bucket-only path${selectedChainPaths.length === 1 ? '' : 's'} in one Syfon bulk request.`
         : `Deleted ${selectedChainPaths.length.toLocaleString()} selected Bucket + Syfon, No Git path${selectedChainPaths.length === 1 ? '' : 's'} in one Syfon bulk request.`,
     );
-    await refreshAuditViews();
+    removeHealedChainFindings(selectedChainIssue.id, selectedChainPaths);
   }, [
     applyCleanup,
-    refreshAuditViews,
+    removeHealedChainFindings,
+    selectedChainApplyFindings,
     selectedChainIssue,
     selectedChainPaths,
   ]);
@@ -1692,9 +1885,7 @@ export const FileSummaryPage = ({
     >
       <span>{label}</span>
       <IconSelector
-        className={
-          storageSortKey === key ? 'text-primary' : 'text-slate-400'
-        }
+        className={storageSortKey === key ? 'text-primary' : 'text-slate-400'}
         size={14}
       />
     </button>
@@ -1780,9 +1971,9 @@ export const FileSummaryPage = ({
               >
                 <Stack gap="md">
                   <Text c="dimmed" size="sm">
-                    Gecko audits the chain from bucket objects to Syfon
-                    records to Git-tracked files. Anything that falls out of that
-                    chain is surfaced here as a cleanup or ingest issue.
+                    Gecko audits the chain from bucket objects to Syfon records
+                    to Git-tracked files. Anything that falls out of that chain
+                    is surfaced here as a cleanup or ingest issue.
                   </Text>
 
                   {chainAuditError ? (
@@ -1805,13 +1996,18 @@ export const FileSummaryPage = ({
                     </Alert>
                   ) : null}
 
-                  {chainAuditResult && !chainAuditResult.summary.bucketInventoryAvailable ? (
+                  {chainAuditResult &&
+                  !chainAuditResult.summary.bucketInventoryAvailable ? (
                     <Alert
                       color="orange"
                       icon={<IconAlertCircle size={16} />}
                       title="Bucket inventory unavailable"
                     >
-                      Syfon could not enumerate the mapped bucket target for this project. Gecko kept the audit running using record-backed storage validation, but bucket-only object detection and bucket object totals are limited to what fallback validation could prove.
+                      Syfon could not enumerate the mapped bucket target for
+                      this project. Gecko kept the audit running using
+                      record-backed storage validation, but bucket-only object
+                      detection and bucket object totals are limited to what
+                      fallback validation could prove.
                       {chainAuditResult.summary.bucketInventoryError ? (
                         <Text mt={8} size="sm">
                           {chainAuditResult.summary.bucketInventoryError}
@@ -1829,22 +2025,14 @@ export const FileSummaryPage = ({
                       icon={<IconAlertCircle size={16} />}
                       title="Connected end-to-end"
                     >
-                      {cleanChainJoinCount.toLocaleString()}
-                      {' '}
-                      bucket objects currently join cleanly through Syfon into Git.
-                      {' '}
-                      Totals scanned:
-                      {' '}
-                      {chainAuditResult.summary.bucketObjectCount.toLocaleString()}
-                      {' '}
-                      bucket objects,
-                      {' '}
-                      {chainAuditResult.summary.syfonRecordCount.toLocaleString()}
-                      {' '}
-                      Syfon records,
-                      {' '}
-                      {chainAuditResult.summary.gitTrackedFileCount.toLocaleString()}
-                      {' '}
+                      {cleanChainJoinCount.toLocaleString()} bucket objects
+                      currently join cleanly through Syfon into Git. Totals
+                      scanned:{' '}
+                      {chainAuditResult.summary.bucketObjectCount.toLocaleString()}{' '}
+                      bucket objects,{' '}
+                      {chainAuditResult.summary.syfonRecordCount.toLocaleString()}{' '}
+                      Syfon records,{' '}
+                      {chainAuditResult.summary.gitTrackedFileCount.toLocaleString()}{' '}
                       Git-tracked files.
                     </Alert>
                   ) : null}
@@ -1857,54 +2045,39 @@ export const FileSummaryPage = ({
                       icon={<IconAlertCircle size={16} />}
                       title="Chain issues found"
                     >
-                      {cleanChainJoinCount.toLocaleString()}
-                      {' '}
-                      bucket objects currently join cleanly through Syfon into Git, but this subtree also contains
-                      {' '}
+                      {cleanChainJoinCount.toLocaleString()} bucket objects
+                      currently join cleanly through Syfon into Git, but this
+                      subtree also contains{' '}
                       {chainIssueSummaries
                         .reduce((sum, issue) => sum + issue.pathCount, 0)
-                        .toLocaleString()}
-                      {' '}
-                      issue paths that need attention.
-                      {' '}
-                      Totals scanned:
-                      {' '}
-                      {chainAuditResult.summary.bucketObjectCount.toLocaleString()}
-                      {' '}
-                      bucket objects,
-                      {' '}
-                      {chainAuditResult.summary.syfonRecordCount.toLocaleString()}
-                      {' '}
-                      Syfon records,
-                      {' '}
-                      {chainAuditResult.summary.gitTrackedFileCount.toLocaleString()}
-                      {' '}
+                        .toLocaleString()}{' '}
+                      issue paths that need attention. Totals scanned:{' '}
+                      {chainAuditResult.summary.bucketObjectCount.toLocaleString()}{' '}
+                      bucket objects,{' '}
+                      {chainAuditResult.summary.syfonRecordCount.toLocaleString()}{' '}
+                      Syfon records,{' '}
+                      {chainAuditResult.summary.gitTrackedFileCount.toLocaleString()}{' '}
                       Git-tracked files.
                     </Alert>
                   ) : null}
 
-                  {chainAuditResult && !chainAuditResult.summary.bucketInventoryAvailable ? (
+                  {chainAuditResult &&
+                  !chainAuditResult.summary.bucketInventoryAvailable ? (
                     <Alert
                       color="yellow"
                       icon={<IconAlertCircle size={16} />}
                       title="Record-backed connectivity only"
                     >
-                      {cleanChainJoinCount.toLocaleString()}
-                      {' '}
-                      record-backed storage objects currently validate cleanly through Syfon into Git, but the default bucket-first audit is blocked because the mapped bucket target could not be enumerated.
-                      {' '}
-                      Totals scanned:
-                      {' '}
-                      {chainAuditResult.summary.bucketObjectCount.toLocaleString()}
-                      {' '}
-                      probe-backed bucket objects,
-                      {' '}
-                      {chainAuditResult.summary.syfonRecordCount.toLocaleString()}
-                      {' '}
-                      Syfon records,
-                      {' '}
-                      {chainAuditResult.summary.gitTrackedFileCount.toLocaleString()}
-                      {' '}
+                      {cleanChainJoinCount.toLocaleString()} record-backed
+                      storage objects currently validate cleanly through Syfon
+                      into Git, but the default bucket-first audit is blocked
+                      because the mapped bucket target could not be enumerated.{' '}
+                      Totals scanned:{' '}
+                      {chainAuditResult.summary.bucketObjectCount.toLocaleString()}{' '}
+                      probe-backed bucket objects,{' '}
+                      {chainAuditResult.summary.syfonRecordCount.toLocaleString()}{' '}
+                      Syfon records,{' '}
+                      {chainAuditResult.summary.gitTrackedFileCount.toLocaleString()}{' '}
                       Git-tracked files.
                     </Alert>
                   ) : null}
@@ -1920,24 +2093,13 @@ export const FileSummaryPage = ({
                     </Center>
                   ) : chainIssueSummaries.length > 0 ? (
                     <Stack gap="sm">
-                      <Group justify="space-between" wrap="wrap">
-                        <div>
-                          <Title order={5}>Chain Findings</Title>
-                          <Text c="dimmed" mt={4} size="sm">
-                            Issues found in the files, records, and project contents for this path.
-                          </Text>
-                        </div>
-                        <Button
-                          loading={isChainAuditing}
-                          onClick={() => {
-                            void runChainAudit();
-                          }}
-                          size="xs"
-                          variant="light"
-                        >
-                          Refresh chain audit
-                        </Button>
-                      </Group>
+                      <div>
+                        <Title order={5}>Chain Findings</Title>
+                        <Text c="dimmed" mt={4} size="sm">
+                          Issues found in the files, records, and project
+                          contents for this path.
+                        </Text>
+                      </div>
 
                       <Table highlightOnHover>
                         <Table.Thead>
@@ -1975,10 +2137,13 @@ export const FileSummaryPage = ({
                                 </Text>
                               </Table.Td>
                               <Table.Td miw={260}>
-                                {actionableChainSelectionIssue && selectedChainIssue?.id === issue.id ? (
+                                {actionableChainSelectionIssue &&
+                                selectedChainIssue?.id === issue.id ? (
                                   <Button
                                     color="gray"
-                                    onClick={() => handleToggleChainIssueDetails(issue.id)}
+                                    onClick={() =>
+                                      handleToggleChainIssueDetails(issue.id)
+                                    }
                                     size="xs"
                                     variant="outline"
                                   >
@@ -1988,65 +2153,81 @@ export const FileSummaryPage = ({
                                   issue.id === 'bucket_syfon_no_git' ? (
                                   <Button
                                     color={issue.color}
-                                    onClick={() => handleToggleChainIssueDetails(issue.id)}
+                                    onClick={() =>
+                                      handleToggleChainIssueDetails(issue.id)
+                                    }
                                     size="xs"
                                     variant="light"
                                   >
                                     Select paths
                                   </Button>
-                                ) : (() => {
-                                  const findings = (chainAuditResult?.findings ?? []).filter(
-                                    (finding) => finding.kind === issue.id,
-                                  );
-                                  const action = resolveIssueAction({
-                                    defaultAction: issue.actionSummary.defaultAction,
-                                    findings,
-                                    issueId: issue.id,
-                                  });
-                                  const supportsInlinePathView =
-                                    issue.id === 'syfon_git_no_bucket' ||
-                                    issue.id === 'syfon_missing_bucket_object';
-                                  const isShowingPaths = selectedChainIssue?.id === issue.id;
-                                  return action ? (
-                                    <Group gap="xs">
-                                      <Button
-                                        color={issue.color}
-                                        loading={
-                                          isApplying ||
-                                          isAuditing ||
-                                          isChainAuditing ||
-                                          isBulkDeletingRecords
-                                        }
-                                        onClick={() => {
-                                          void runIssueAction({
-                                            defaultAction: action,
-                                            findings,
-                                            issueId: issue.id,
-                                            issueTitle: issue.title,
-                                            paths: findings.map((finding) => finding.normalizedPath),
-                                            source: 'chain',
-                                          });
-                                        }}
-                                        size="xs"
-                                        variant="light"
-                                      >
-                                        {action.label}
-                                      </Button>
-                                      {supportsInlinePathView ? (
+                                ) : (
+                                  (() => {
+                                    const findings = (
+                                      chainAuditResult?.findings ?? []
+                                    ).filter(
+                                      (finding) => finding.kind === issue.id,
+                                    );
+                                    const supportsDeleteRecords =
+                                      issue.id === 'syfon_git_no_bucket' ||
+                                      issue.id ===
+                                        'syfon_missing_bucket_object';
+                                    const isShowingPaths =
+                                      selectedChainIssue?.id === issue.id;
+                                    return (
+                                      <Group gap="xs">
+                                        {supportsDeleteRecords ? (
+                                          <Button
+                                            color={issue.color}
+                                            loading={
+                                              isApplying ||
+                                              isAuditing ||
+                                              isChainAuditing ||
+                                              isBulkDeletingRecords
+                                            }
+                                            onClick={() => {
+                                              void runIssueAction({
+                                                defaultAction: {
+                                                  action: 'delete_records',
+                                                  destructive: true,
+                                                  label: 'Delete Syfon records',
+                                                  requiresConfirmation: true,
+                                                  supportsDryRun: false,
+                                                },
+                                                findings,
+                                                issueId: issue.id,
+                                                issueTitle: issue.title,
+                                                paths: findings.map(
+                                                  (finding) =>
+                                                    finding.normalizedPath,
+                                                ),
+                                                source: 'chain',
+                                              });
+                                            }}
+                                            size="xs"
+                                            variant="light"
+                                          >
+                                            Delete Syfon records
+                                          </Button>
+                                        ) : null}
                                         <Button
                                           color="gray"
                                           onClick={() =>
-                                            handleToggleChainIssueDetails(issue.id)
+                                            handleToggleChainIssueDetails(
+                                              issue.id,
+                                            )
                                           }
                                           size="xs"
                                           variant="outline"
                                         >
-                                          {isShowingPaths ? 'Hide paths' : 'Show paths'}
+                                          {isShowingPaths
+                                            ? 'Hide paths'
+                                            : 'Show paths'}
                                         </Button>
-                                      ) : null}
-                                    </Group>
-                                  ) : null;
-                                })()}
+                                      </Group>
+                                    );
+                                  })()
+                                )}
                               </Table.Td>
                             </Table.Tr>
                           ))}
@@ -2064,7 +2245,8 @@ export const FileSummaryPage = ({
                                 {selectedChainIssue.title}
                               </Text>
                               <Text c="dimmed" size="sm">
-                                Choose the exact paths to act on in this issue set.
+                                Choose the exact paths to act on in this issue
+                                set.
                               </Text>
                             </div>
                             <Button
@@ -2094,26 +2276,32 @@ export const FileSummaryPage = ({
                               <Checkbox
                                 checked={
                                   selectableChainPaths.length > 0 &&
-                                  selectedChainPaths.length === selectableChainPaths.length
+                                  selectedChainPaths.length ===
+                                    selectableChainPaths.length
                                 }
                                 indeterminate={
                                   selectedChainPaths.length > 0 &&
-                                  selectedChainPaths.length < selectableChainPaths.length
+                                  selectedChainPaths.length <
+                                    selectableChainPaths.length
                                 }
                                 label={`Select all loaded paths (${selectedChainPaths.length.toLocaleString()} / ${selectableChainPaths.length.toLocaleString()})`}
                                 onChange={(event) => {
-                                  handleToggleAllChainPaths(event.currentTarget.checked);
+                                  handleToggleAllChainPaths(
+                                    event.currentTarget.checked,
+                                  );
                                 }}
                               />
                               <Text c="dimmed" size="xs">
-                                Expand folders and choose the exact paths to heal.
+                                Expand folders and choose the exact paths to
+                                heal.
                               </Text>
                             </Group>
                             <Stack gap={4}>
                               {chainPathTree
                                 .slice(0, treeNodeLimit[''] ?? 100)
                                 .map((node) => renderChainTreeNode(node))}
-                              {chainPathTree.length > (treeNodeLimit[''] ?? 100) && (
+                              {chainPathTree.length >
+                                (treeNodeLimit[''] ?? 100) && (
                                 <Button
                                   onClick={() =>
                                     setTreeNodeLimit((current) => ({
@@ -2130,9 +2318,9 @@ export const FileSummaryPage = ({
                                 >
                                   Show more (
                                   {(
-                                    chainPathTree.length - (treeNodeLimit[''] ?? 100)
-                                  ).toLocaleString()}
-                                  {' '}
+                                    chainPathTree.length -
+                                    (treeNodeLimit[''] ?? 100)
+                                  ).toLocaleString()}{' '}
                                   remaining)...
                                 </Button>
                               )}
@@ -2151,8 +2339,8 @@ export const FileSummaryPage = ({
                               {selectedChainIssue.title}
                             </Text>
                             <Text c="dimmed" size="sm">
-                              {selectedChainFindings.length.toLocaleString()} paths in this
-                              issue set.
+                              {selectedChainFindings.length.toLocaleString()}{' '}
+                              paths in this issue set.
                             </Text>
                           </div>
                           <div className="max-h-[420px] overflow-auto rounded-md border border-slate-200 bg-white">
@@ -2171,17 +2359,28 @@ export const FileSummaryPage = ({
                                     key={`${finding.kind}:${finding.normalizedPath}`}
                                   >
                                     <Table.Td maw={720}>
-                                      <Text className="break-all" fw={600} size="sm">
+                                      <Text
+                                        className="break-all"
+                                        fw={600}
+                                        size="sm"
+                                      >
                                         {finding.normalizedPath}
                                       </Text>
                                     </Table.Td>
                                     <Table.Td maw={320}>
-                                      <Text className="break-all font-mono" size="xs">
+                                      <Text
+                                        className="break-all font-mono"
+                                        size="xs"
+                                      >
                                         {finding.checksum || '—'}
                                       </Text>
                                     </Table.Td>
-                                    <Table.Td>{finding.recordCount.toLocaleString()}</Table.Td>
-                                    <Table.Td>{finding.objectIds.length.toLocaleString()}</Table.Td>
+                                    <Table.Td>
+                                      {finding.recordCount.toLocaleString()}
+                                    </Table.Td>
+                                    <Table.Td>
+                                      {finding.objectIds.length.toLocaleString()}
+                                    </Table.Td>
                                   </Table.Tr>
                                 ))}
                               </Table.Tbody>
@@ -2226,29 +2425,12 @@ export const FileSummaryPage = ({
                       color={applyResult.dryRun ? 'blue' : 'green'}
                       icon={<IconAlertCircle size={16} />}
                       title={
-                        applyResult.dryRun ? 'Cleanup dry run' : 'Cleanup applied'
+                        applyResult.dryRun
+                          ? 'Cleanup dry run'
+                          : 'Cleanup applied'
                       }
                     >
-                      Updated{' '}
-                      {applyResult.updatedRecordIds.length.toLocaleString()} Syfon
-                      records and removed{' '}
-                      {applyResult.deletedRecordIds.length.toLocaleString()} Syfon
-                      records.
-                      {applyResult.deletedBucketObjectUrls.length > 0
-                        ? ` Deleted bucket objects: ${applyResult.deletedBucketObjectUrls.length.toLocaleString()}.`
-                        : ''}
-                      {applyResult.purgeResults.length > 0
-                        ? ` Storage purge attempts: ${applyResult.purgeResults.length.toLocaleString()}.`
-                        : ''}
-                      {applyResult.repoDeletePaths.length > 0
-                        ? ` Repo follow-up paths: ${applyResult.repoDeletePaths.length.toLocaleString()}.`
-                        : ''}
-                      {applyResult.manualPaths.length > 0
-                        ? ` Manual follow-up paths: ${applyResult.manualPaths.length.toLocaleString()}.`
-                        : ''}
-                      {applyResult.skippedPaths.length > 0
-                        ? ` Skipped items: ${applyResult.skippedPaths.length.toLocaleString()}.`
-                        : ''}
+                      {buildCleanupApplySummary(applyResult)}
                     </Alert>
                   ) : null}
 
@@ -2275,7 +2457,10 @@ export const FileSummaryPage = ({
                                 <Table.Td miw={520}>
                                   <Stack gap={4}>
                                     <Group gap={8}>
-                                      <Badge color={issue.color} variant="light">
+                                      <Badge
+                                        color={issue.color}
+                                        variant="light"
+                                      >
                                         {issue.pathCount.toLocaleString()} paths
                                       </Badge>
                                       <Text fw={700} size="sm">
@@ -2285,7 +2470,9 @@ export const FileSummaryPage = ({
                                     <Text c="dimmed" size="sm">
                                       {issue.description}
                                     </Text>
-                                    <Text size="sm">{issue.recommendation}</Text>
+                                    <Text size="sm">
+                                      {issue.recommendation}
+                                    </Text>
                                   </Stack>
                                 </Table.Td>
                                 <Table.Td>
@@ -2299,11 +2486,14 @@ export const FileSummaryPage = ({
                                 </Table.Td>
                                 <Table.Td>
                                   {(() => {
-                                    const findings = (diffAuditResult?.findings ?? []).filter(
-                                      (finding) => issue.findingKinds.includes(finding.kind),
+                                    const findings = (
+                                      diffAuditResult?.findings ?? []
+                                    ).filter((finding) =>
+                                      issue.findingKinds.includes(finding.kind),
                                     );
                                     const action = resolveIssueAction({
-                                      defaultAction: issue.actionSummary.defaultAction,
+                                      defaultAction:
+                                        issue.actionSummary.defaultAction,
                                       findings,
                                       issueId: issue.id,
                                     });
@@ -2317,7 +2507,10 @@ export const FileSummaryPage = ({
                                             findings,
                                             issueId: issue.id,
                                             issueTitle: issue.title,
-                                            paths: findings.map((finding) => finding.normalizedPath),
+                                            paths: findings.map(
+                                              (finding) =>
+                                                finding.normalizedPath,
+                                            ),
                                             source: 'diff',
                                           });
                                         }}
@@ -2345,8 +2538,8 @@ export const FileSummaryPage = ({
                                   {selectedDiffIssue.title}
                                 </Text>
                                 <Text c="dimmed" size="sm">
-                                  {selectedDiffFindings.length.toLocaleString()} paths in
-                                  this issue set.
+                                  {selectedDiffFindings.length.toLocaleString()}{' '}
+                                  paths in this issue set.
                                 </Text>
                               </div>
                               <Button
@@ -2375,19 +2568,36 @@ export const FileSummaryPage = ({
                                       key={`${finding.kind}:${finding.normalizedPath}`}
                                     >
                                       <Table.Td maw={720}>
-                                        <Text className="break-all" fw={600} size="sm">
+                                        <Text
+                                          className="break-all"
+                                          fw={600}
+                                          size="sm"
+                                        >
                                           {finding.normalizedPath}
                                         </Text>
                                       </Table.Td>
                                       <Table.Td>
-                                        <Badge color={issueColorForDiffKind(finding.kind)} variant="light">
-                                          {formatCleanupFindingLabel(finding.kind)}
+                                        <Badge
+                                          color={issueColorForDiffKind(
+                                            finding.kind,
+                                          )}
+                                          variant="light"
+                                        >
+                                          {formatCleanupFindingLabel(
+                                            finding.kind,
+                                          )}
                                         </Badge>
                                       </Table.Td>
-                                      <Table.Td>{finding.recordCount.toLocaleString()}</Table.Td>
-                                      <Table.Td>{finding.objectIds.length.toLocaleString()}</Table.Td>
                                       <Table.Td>
-                                        {(finding.downloadCount ?? 0).toLocaleString()}
+                                        {finding.recordCount.toLocaleString()}
+                                      </Table.Td>
+                                      <Table.Td>
+                                        {finding.objectIds.length.toLocaleString()}
+                                      </Table.Td>
+                                      <Table.Td>
+                                        {(
+                                          finding.downloadCount ?? 0
+                                        ).toLocaleString()}
                                       </Table.Td>
                                     </Table.Tr>
                                   ))}
@@ -2403,20 +2613,23 @@ export const FileSummaryPage = ({
                         icon={<IconAlertCircle size={16} />}
                         title="No project diff issues"
                       >
-                        Git and Syfon are aligned for this subtree. No duplicate,
-                        Syfon-only, or Git-only paths were returned.
+                        Git and Syfon are aligned for this subtree. No
+                        duplicate, Syfon-only, or Git-only paths were returned.
                       </Alert>
                     )
                   ) : null}
 
-                  {showCleanupDetails && auditResult && isDuplicateVerificationContext && !hasSafeDuplicateCleanup ? (
+                  {showCleanupDetails &&
+                  auditResult &&
+                  isDuplicateVerificationContext &&
+                  !hasSafeDuplicateCleanup ? (
                     <Alert
                       color="yellow"
                       icon={<IconAlertCircle size={16} />}
                       title="No safe duplicate delete yet"
                     >
-                      Syfon confirmed duplicate paths, but this verification pass
-                      did not prove which sibling record is stale.
+                      Syfon confirmed duplicate paths, but this verification
+                      pass did not prove which sibling record is stale.
                     </Alert>
                   ) : null}
 
@@ -2425,11 +2638,13 @@ export const FileSummaryPage = ({
                       <div>
                         <Title order={5}>Storage Verification</Title>
                         <Text c="dimmed" mt={4} size="sm">
-                          Syfon verification results for the issue set you just inspected.
+                          Syfon verification results for the issue set you just
+                          inspected.
                         </Text>
                       </div>
 
-                      {hasCleanupFindings && cleanupIssueSummaries.length > 0 ? (
+                      {hasCleanupFindings &&
+                      cleanupIssueSummaries.length > 0 ? (
                         <Table highlightOnHover>
                           <Table.Thead>
                             <Table.Tr>
@@ -2444,7 +2659,10 @@ export const FileSummaryPage = ({
                                 <Table.Td miw={260}>
                                   <Stack gap={4}>
                                     <Group gap={8}>
-                                      <Badge color={issue.color} variant="light">
+                                      <Badge
+                                        color={issue.color}
+                                        variant="light"
+                                      >
                                         {issue.pathCount.toLocaleString()} paths
                                       </Badge>
                                       <Text fw={700} size="sm">
@@ -2467,11 +2685,14 @@ export const FileSummaryPage = ({
                                 </Table.Td>
                                 <Table.Td miw={340}>
                                   {(() => {
-                                    const findings = (auditResult?.findings ?? []).filter(
-                                      (finding) => issue.findingKinds.includes(finding.kind),
+                                    const findings = (
+                                      auditResult?.findings ?? []
+                                    ).filter((finding) =>
+                                      issue.findingKinds.includes(finding.kind),
                                     );
                                     const action = resolveIssueAction({
-                                      defaultAction: issue.actionSummary.defaultAction,
+                                      defaultAction:
+                                        issue.actionSummary.defaultAction,
                                       findings,
                                       issueId: issue.id,
                                     });
@@ -2485,7 +2706,10 @@ export const FileSummaryPage = ({
                                             findings,
                                             issueId: issue.id,
                                             issueTitle: issue.title,
-                                            paths: findings.map((finding) => finding.normalizedPath),
+                                            paths: findings.map(
+                                              (finding) =>
+                                                finding.normalizedPath,
+                                            ),
                                             source: 'cleanup',
                                           });
                                         }}
@@ -2511,7 +2735,6 @@ export const FileSummaryPage = ({
                           findings for the selected issue set.
                         </Alert>
                       )}
-
                     </Stack>
                   ) : null}
                 </Stack>
@@ -2521,58 +2744,68 @@ export const FileSummaryPage = ({
                 <div className="overflow-x-auto">
                   <div className="flex min-w-[1320px] items-center justify-between gap-6">
                     <div className="flex min-w-0 flex-1 items-center gap-2 whitespace-nowrap overflow-x-auto pb-1">
-                    {collapsedBreadcrumb.leadingItems.map((item, index) => (
-                      <React.Fragment key={item.path || item.label}>
-                        {index > 0 ? (
-                          <IconChevronRight
-                            className="shrink-0 text-slate-400"
-                            size={14}
-                          />
-                        ) : null}
-                        {index === 1 && collapsedBreadcrumb.hiddenItems.length > 0 ? (
-                          <>
-                            <Menu shadow="md" width={260} withinPortal>
-                              <Menu.Target>
-                                <button
-                                  className="max-w-[220px] shrink-0 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
-                                  type="button"
-                                >
-                                  ...
-                                </button>
-                              </Menu.Target>
-                              <Menu.Dropdown>
-                                {collapsedBreadcrumb.hiddenItems.map((hiddenItem) => (
-                                  <Menu.Item
-                                    key={hiddenItem.path}
-                                    onClick={() => setCurrentPath(hiddenItem.path)}
-                                  >
-                                    {hiddenItem.label}
-                                  </Menu.Item>
-                                ))}
-                              </Menu.Dropdown>
-                            </Menu>
+                      {collapsedBreadcrumb.leadingItems.map((item, index) => (
+                        <React.Fragment key={item.path || item.label}>
+                          {index > 0 ? (
                             <IconChevronRight
                               className="shrink-0 text-slate-400"
                               size={14}
                             />
-                          </>
-                        ) : null}
-                        <button
-                          className={`max-w-[240px] truncate rounded-md border px-3 py-1.5 text-sm font-semibold transition ${
-                            item.path === currentPath
-                              ? 'border-slate-200 bg-slate-100 text-slate-900'
-                              : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900'
-                          }`}
-                          onClick={() => setCurrentPath(item.path)}
-                          title={item.label}
-                          type="button"
-                        >
-                          {item.label}
-                        </button>
-                      </React.Fragment>
-                    ))}
+                          ) : null}
+                          {index === 1 &&
+                          collapsedBreadcrumb.hiddenItems.length > 0 ? (
+                            <>
+                              <Menu shadow="md" width={260} withinPortal>
+                                <Menu.Target>
+                                  <button
+                                    className="max-w-[220px] shrink-0 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+                                    type="button"
+                                  >
+                                    ...
+                                  </button>
+                                </Menu.Target>
+                                <Menu.Dropdown>
+                                  {collapsedBreadcrumb.hiddenItems.map(
+                                    (hiddenItem) => (
+                                      <Menu.Item
+                                        key={hiddenItem.path}
+                                        onClick={() =>
+                                          setCurrentPath(hiddenItem.path)
+                                        }
+                                      >
+                                        {hiddenItem.label}
+                                      </Menu.Item>
+                                    ),
+                                  )}
+                                </Menu.Dropdown>
+                              </Menu>
+                              <IconChevronRight
+                                className="shrink-0 text-slate-400"
+                                size={14}
+                              />
+                            </>
+                          ) : null}
+                          <button
+                            className={`max-w-[240px] truncate rounded-md border px-3 py-1.5 text-sm font-semibold transition ${
+                              item.path === currentPath
+                                ? 'border-slate-200 bg-slate-100 text-slate-900'
+                                : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900'
+                            }`}
+                            onClick={() => setCurrentPath(item.path)}
+                            title={item.label}
+                            type="button"
+                          >
+                            {item.label}
+                          </button>
+                        </React.Fragment>
+                      ))}
                     </div>
-                    <Group align="center" className="shrink-0 justify-self-end" gap="xs" wrap="nowrap">
+                    <Group
+                      align="center"
+                      className="shrink-0 justify-self-end"
+                      gap="xs"
+                      wrap="nowrap"
+                    >
                       <Button
                         loading={isChainAuditing}
                         onClick={() => {
@@ -2674,7 +2907,10 @@ export const FileSummaryPage = ({
                           {renderStorageSortHeader('Files', 'fileCount')}
                         </Table.Th>
                         <Table.Th>
-                          {renderStorageSortHeader('Downloads', 'downloadCount')}
+                          {renderStorageSortHeader(
+                            'Downloads',
+                            'downloadCount',
+                          )}
                         </Table.Th>
                         <Table.Th>
                           {renderStorageSortHeader(
@@ -2714,21 +2950,27 @@ export const FileSummaryPage = ({
                                   >
                                     <IconFolder className="mt-0.5" size={16} />
                                     <div className="min-w-0">
-                                      <span className="break-all">{row.name}</span>
+                                      <span className="break-all">
+                                        {row.name}
+                                      </span>
                                     </div>
                                   </button>
                                 ) : (
                                   <div className="flex items-start gap-2">
                                     <IconFile className="mt-0.5" size={16} />
                                     <div className="min-w-0">
-                                      <span className="break-all">{row.name}</span>
+                                      <span className="break-all">
+                                        {row.name}
+                                      </span>
                                     </div>
                                   </div>
                                 )}
                               </Table.Td>
                               <Table.Td>
                                 <Badge
-                                  color={row.type === 'directory' ? 'blue' : 'gray'}
+                                  color={
+                                    row.type === 'directory' ? 'blue' : 'gray'
+                                  }
                                   variant="light"
                                 >
                                   {row.type}
@@ -2749,14 +2991,18 @@ export const FileSummaryPage = ({
                                   />
                                 </Stack>
                               </Table.Td>
-                              <Table.Td>{row.fileCount.toLocaleString()}</Table.Td>
+                              <Table.Td>
+                                {row.fileCount.toLocaleString()}
+                              </Table.Td>
                               <Table.Td>
                                 {row.downloadCount.toLocaleString()}
                               </Table.Td>
                               <Table.Td>
                                 {formatTimestamp(row.lastDownload)}
                               </Table.Td>
-                              <Table.Td>{formatTimestamp(row.lastUpdated)}</Table.Td>
+                              <Table.Td>
+                                {formatTimestamp(row.lastUpdated)}
+                              </Table.Td>
                             </Table.Tr>
                           );
                         })
@@ -2764,7 +3010,8 @@ export const FileSummaryPage = ({
                         <Table.Tr>
                           <Table.Td colSpan={7}>
                             <Text c="dimmed" py="xl" ta="center">
-                              No files or directories were returned for this path.
+                              No files or directories were returned for this
+                              path.
                             </Text>
                           </Table.Td>
                         </Table.Tr>

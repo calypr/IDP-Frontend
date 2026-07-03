@@ -100,6 +100,7 @@ export interface StorageChainFinding {
   readonly checksum?: string;
   readonly sourcePaths: Array<string>;
   readonly objectIds: Array<string>;
+  readonly records: Array<StorageCleanupRecordAudit>;
   readonly accessUrls: Array<string>;
   readonly bucketObjectUrl?: string;
   readonly resolvedBucket?: string;
@@ -184,10 +185,19 @@ export interface StorageCleanupAccessProbe {
   readonly validationMismatches: Array<string>;
 }
 
+export interface StorageCleanupAccessMethod {
+  readonly accessId?: string;
+  readonly type?: string;
+  readonly url?: string;
+  readonly headers: Array<string>;
+}
+
 export interface StorageCleanupRecordAudit {
   readonly objectId: string;
   readonly normalizedPath?: string;
   readonly cleanupScope: StorageCleanupScope;
+  readonly accessUrls: Array<string>;
+  readonly accessMethods: Array<StorageCleanupAccessMethod>;
   readonly accessProbes: Array<StorageCleanupAccessProbe>;
   readonly status?: string;
   readonly error?: string;
@@ -202,6 +212,7 @@ export interface StorageCleanupFinding {
   readonly normalizedPath: string;
   readonly objectIds: Array<string>;
   readonly records: Array<StorageCleanupRecordAudit>;
+  readonly accessUrls: Array<string>;
   readonly recommendedAction: string;
   readonly repoDeleteCandidate: boolean;
   readonly cleanupScope: StorageCleanupScope;
@@ -213,6 +224,7 @@ export interface StorageCleanupFinding {
   readonly availableActions: Array<AuditActionOption>;
   readonly defaultAction?: string;
   readonly supportsDryRun: boolean;
+  readonly evidence?: AuditEvidence;
 }
 
 export interface StorageCleanupAuditSummary {
@@ -243,6 +255,41 @@ export interface StorageApplyActionRequest {
   readonly kind: string;
   readonly normalized_path: string;
   readonly action: string;
+}
+
+export interface StorageApplyFindingRequest {
+  readonly kind: string;
+  readonly normalized_path: string;
+  readonly object_ids?: Array<string>;
+  readonly records?: Array<{
+    readonly object_id: string;
+    readonly normalized_path?: string;
+    readonly cleanup_scope: string;
+    readonly access_urls?: Array<string>;
+    readonly access_methods?: Array<{
+      readonly access_id?: string;
+      readonly type?: string;
+      readonly url?: string;
+      readonly headers?: Array<string>;
+    }>;
+    readonly access_probes?: Array<{
+      readonly url: string;
+      readonly status?: string;
+      readonly error_kind?: string;
+      readonly error?: string;
+    }>;
+  }>;
+  readonly bucket_object_url?: string;
+  readonly bucket_object_urls?: Array<string>;
+  readonly access_urls?: Array<string>;
+  readonly available_actions?: Array<string>;
+  readonly default_action?: string;
+  readonly evidence?: {
+    readonly object_ids?: Array<string>;
+    readonly access_urls?: Array<string>;
+    readonly bucket_object_urls?: Array<string>;
+    readonly source_paths?: Array<string>;
+  };
 }
 
 export interface StorageCleanupApplyResult {
@@ -800,8 +847,26 @@ const normalizeCleanupRecordAudit = (
     )
     .filter((probe): probe is StorageCleanupAccessProbe => probe !== null);
 
+  const accessMethodItems = Array.isArray(item.access_methods) ? item.access_methods : [];
+  const accessMethods: Array<StorageCleanupAccessMethod> = accessMethodItems
+    .map<StorageCleanupAccessMethod | null>((method) => {
+      if (!method || typeof method !== 'object') {
+        return null;
+      }
+      const raw = method as Record<string, unknown>;
+      return {
+        accessId: typeof raw.access_id === 'string' ? raw.access_id : undefined,
+        headers: toStringArray(raw.headers),
+        type: typeof raw.type === 'string' ? raw.type : undefined,
+        url: typeof raw.url === 'string' ? raw.url : undefined,
+      };
+    })
+    .filter((method): method is StorageCleanupAccessMethod => method !== null);
+
   return {
+    accessMethods,
     accessProbes,
+    accessUrls: toStringArray(item.access_urls),
     cleanupScope: parseCleanupScope(item.cleanup_scope),
     downloadCount:
       typeof item.download_count === 'number'
@@ -930,6 +995,16 @@ const normalizeCleanupFinding = (
     normalizedPath,
     objectIds,
     records,
+    accessUrls: Array.from(
+      new Set([
+        ...records.flatMap((record) => record.accessUrls),
+        ...toStringArray(
+          item.evidence && typeof item.evidence === 'object'
+            ? (item.evidence as Record<string, unknown>).access_urls
+            : [],
+        ),
+      ]),
+    ),
     defaultAction,
     recommendedAction:
       typeof item.recommended_action === 'string' &&
@@ -989,6 +1064,15 @@ const normalizeStorageChainFinding = (
                   ? 'Bucket object exists, but its metadata does not match what Syfon expects.'
                   : 'Bucket verification failed before Gecko could classify this record cleanly.';
 
+  const recordItems = Array.isArray(item.records) ? item.records : [];
+  const records = recordItems
+    .map((record) =>
+      record && typeof record === 'object'
+        ? normalizeCleanupRecordAudit(record as Record<string, unknown>)
+        : null,
+    )
+    .filter((record): record is StorageCleanupRecordAudit => record !== null);
+
   return {
     accessUrls: Array.from(
       new Set([
@@ -1042,7 +1126,8 @@ const normalizeStorageChainFinding = (
         ? item.record_count
         : typeof item.recordCount === 'number'
           ? item.recordCount
-          : 0,
+          : records.length,
+    records,
     resolvedBucket:
       typeof item.resolved_bucket === 'string'
         ? item.resolved_bucket
@@ -1395,6 +1480,57 @@ const normalizeCleanupAuditResult = ({
     },
   };
 };
+
+
+const buildStorageApplyFindingRequest = (
+  finding: StorageCleanupFinding | StorageChainFinding,
+): StorageApplyFindingRequest => ({
+  access_urls: Array.from(new Set(finding.accessUrls ?? [])),
+  available_actions: finding.availableActions.map((action) => action.action),
+  bucket_object_url:
+    'bucketObjectUrl' in finding ? finding.bucketObjectUrl : undefined,
+  bucket_object_urls: Array.from(
+    new Set([
+      ...('bucketObjectUrl' in finding && finding.bucketObjectUrl
+        ? [finding.bucketObjectUrl]
+        : []),
+      ...(finding.evidence?.bucketObjectUrls ?? []),
+    ]),
+  ),
+  default_action: finding.defaultAction,
+  evidence: finding.evidence
+    ? {
+        access_urls: finding.evidence.accessUrls,
+        bucket_object_urls: finding.evidence.bucketObjectUrls,
+        object_ids: finding.evidence.objectIds,
+        source_paths: finding.evidence.sourcePaths,
+      }
+    : undefined,
+  kind: finding.kind,
+  normalized_path: finding.normalizedPath,
+  object_ids: finding.objectIds,
+  records:
+    'records' in finding
+      ? finding.records.map((record) => ({
+          access_methods: record.accessMethods.map((method) => ({
+            access_id: method.accessId,
+            headers: method.headers,
+            type: method.type,
+            url: method.url,
+          })),
+          access_probes: record.accessProbes.map((probe) => ({
+            error: probe.error,
+            error_kind: probe.errorKind,
+            status: probe.status,
+            url: probe.url,
+          })),
+          access_urls: record.accessUrls,
+          cleanup_scope: record.cleanupScope,
+          normalized_path: record.normalizedPath,
+          object_id: record.objectId,
+        }))
+      : [],
+});
 
 const normalizeCleanupApplyResult = (
   response: Record<string, unknown> | null,
@@ -2048,8 +2184,10 @@ export const useSyfonStorageCleanup = ({
       deleteBucketOnlyObjects = false,
       dryRun = false,
       selectedPaths,
+      findings,
     }: {
       actions?: Array<StorageApplyActionRequest>;
+      findings?: Array<StorageCleanupFinding | StorageChainFinding>;
       deleteRepoOrphans: boolean;
       deleteStaleDuplicates: boolean;
       deleteBucketOnlyObjects?: boolean;
@@ -2080,6 +2218,7 @@ export const useSyfonStorageCleanup = ({
               delete_stale_duplicates: deleteStaleDuplicates,
               delete_bucket_only_objects: deleteBucketOnlyObjects,
               dry_run: dryRun,
+              findings: findings?.map(buildStorageApplyFindingRequest),
               git_subpath: normalizeStoragePath(currentPath) || undefined,
               selected_repo_paths: selectedPaths,
             }),
