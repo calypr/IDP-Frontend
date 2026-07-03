@@ -1,18 +1,18 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
+import { useBulkDeleteSyfonDrsObjectsMutation } from '@gen3/core';
 import {
   ActionIcon,
   Alert,
   Badge,
-  Checkbox,
   Button,
   Center,
+  Checkbox,
   Container,
   Group,
   Loader,
   Menu,
   Modal,
-  Pagination,
   Progress,
   Select,
   Stack,
@@ -40,7 +40,6 @@ import {
   type StorageChainFinding,
   type StorageChainFindingKind,
   type StorageChainIssueGroup,
-  type StorageCleanupApplyResult,
   type StorageCleanupFinding,
   type StorageCleanupFindingKind,
   useFileSummaryProjectOptions,
@@ -105,17 +104,6 @@ type ActionableFinding =
   | StorageCleanupFinding
   | StorageChainFinding;
 
-type PendingIssueAction = {
-  readonly source: ActionIssueSource;
-  readonly issueId: string;
-  readonly issueTitle: string;
-  readonly findings: Array<ActionableFinding>;
-  readonly paths: Array<string>;
-  readonly availableActions: Array<AuditActionOption>;
-  readonly defaultAction?: AuditActionOption;
-  readonly supportsDryRun: boolean;
-};
-
 const summarizeIssueActions = <
   T extends {
     readonly actionability?: string;
@@ -171,7 +159,6 @@ const buildPathsByParentMap = (paths: Array<string>): Map<string, Array<ChainPat
       const segment = segments[index];
       const nodePath = parentPath ? `${parentPath}/${segment}` : segment;
       const isLast = index === segments.length - 1;
-
       const key = parentPath;
       const uniqKey = `${key}::${nodePath}`;
       let node: ChainPathTreeNode;
@@ -198,6 +185,7 @@ const buildPathsByParentMap = (paths: Array<string>): Map<string, Array<ChainPat
           node.isFolder = true;
         }
       }
+
       pathNodes.push(node);
       parentPath = nodePath;
     }
@@ -208,7 +196,7 @@ const buildPathsByParentMap = (paths: Array<string>): Map<string, Array<ChainPat
   });
 
   map.forEach((list) => {
-    list.sort((left: ChainPathTreeNode, right: ChainPathTreeNode) => {
+    list.sort((left, right) => {
       if (left.isFolder !== right.isFolder) {
         return left.isFolder ? -1 : 1;
       }
@@ -312,7 +300,7 @@ const getCleanupFindingColor = (
   }
 };
 
-const getProjectDiffFindingColor = (
+const issueColorForDiffKind = (
   kind: ProjectDiffFindingKind,
 ): string => {
   switch (kind) {
@@ -351,7 +339,6 @@ const summarizeProjectDiffIssues = (
     readonly findingKinds: Array<ProjectDiffFindingKind>;
     readonly description: string;
     readonly recommendation: string;
-    readonly actionLabel?: string;
   }> = [
     {
       id: 'duplicate-syfon-paths',
@@ -362,7 +349,6 @@ const summarizeProjectDiffIssues = (
         'Multiple Syfon records share the same normalized path in this subtree.',
       recommendation:
         'Verify these duplicates first. Syfon can only auto-delete the stale side when storage verification proves one sibling is dead.',
-      actionLabel: 'Verify duplicates',
     },
     {
       id: 'syfon-only',
@@ -373,7 +359,6 @@ const summarizeProjectDiffIssues = (
         'These indexed Syfon paths are not present in the Git tree for this project path.',
       recommendation:
         'Prepare delete to verify storage only for these Syfon-only paths before removing records or bucket objects.',
-      actionLabel: 'Prepare delete',
     },
     {
       id: 'git-only',
@@ -387,7 +372,8 @@ const summarizeProjectDiffIssues = (
     },
   ];
 
-  const summaries: Array<ProjectDiffIssueSummary | null> = groups.map((group) => {
+  return groups
+    .map((group) => {
       const matched = findings.filter((finding) =>
         group.findingKinds.includes(finding.kind),
       );
@@ -395,59 +381,38 @@ const summarizeProjectDiffIssues = (
         return null;
       }
 
-      const pathCount = matched.length;
-      const objectCount = new Set(
-        matched.flatMap((finding) => finding.objectIds),
-      ).size;
-      const recordCount = matched.reduce(
-        (sum, finding) => sum + (finding.recordCount || 0),
-        0,
-      );
-      const totalBytes = matched.reduce(
-        (sum, finding) => sum + (finding.sizeBytes ?? 0),
-        0,
-      );
-
       return {
         actionSummary: summarizeIssueActions(
           matched,
           group.id === 'git-only'
             ? {
-                action: 'copy_paths',
+                action: 'view_paths',
                 destructive: false,
-                label: 'Copy paths',
+                label: 'View paths',
                 requiresConfirmation: false,
                 supportsDryRun: false,
               }
-            : group.actionLabel
-              ? {
-                  action: group.actionLabel
-                    .toLowerCase()
-                    .replace(/[^a-z0-9]+/g, '_')
-                    .replace(/^_+|_+$/g, ''),
-                  destructive: false,
-                  label: group.actionLabel,
-                  requiresConfirmation: false,
-                  supportsDryRun: false,
-                }
-              : undefined,
+            : undefined,
         ),
         color: group.color,
         description: group.description,
         findingKinds: group.findingKinds,
         id: group.id,
-        objectCount,
-        pathCount,
+        objectCount: new Set(matched.flatMap((finding) => finding.objectIds)).size,
+        pathCount: matched.length,
         recommendation: group.recommendation,
-        recordCount,
+        recordCount: matched.reduce(
+          (sum, finding) => sum + (finding.recordCount || 0),
+          0,
+        ),
         title: group.title,
-        totalBytes,
+        totalBytes: matched.reduce(
+          (sum, finding) => sum + (finding.sizeBytes ?? 0),
+          0,
+        ),
       };
-    });
-
-  return summaries.filter(
-    (item): item is ProjectDiffIssueSummary => item !== null,
-  );
+    })
+    .filter((item): item is ProjectDiffIssueSummary => item !== null);
 };
 
 type CleanupIssueSummary = {
@@ -749,12 +714,29 @@ const summarizeStorageChainIssues = ({
           matchingFindings,
           definition.id === 'git_only_no_syfon'
             ? {
-                action: 'copy_paths',
+                action: 'view_paths',
                 destructive: false,
-                label: 'Copy paths',
+                label: 'View paths',
                 requiresConfirmation: false,
                 supportsDryRun: false,
               }
+            : definition.id === 'syfon_git_no_bucket' ||
+                definition.id === 'syfon_missing_bucket_object'
+              ? {
+                  action: 'delete_records',
+                  destructive: true,
+                  label: 'Delete Syfon records',
+                  requiresConfirmation: true,
+                  supportsDryRun: false,
+                }
+            : definition.id === 'git_syfon_metadata_mismatch'
+              ? {
+                  action: 'prepare_delete',
+                  destructive: false,
+                  label: 'Prepare cleanup',
+                  requiresConfirmation: false,
+                  supportsDryRun: true,
+                }
             : definition.id === 'probe_error'
               ? {
                   action: 'rerun_audit',
@@ -763,18 +745,7 @@ const summarizeStorageChainIssues = ({
                   requiresConfirmation: false,
                   supportsDryRun: false,
                 }
-              : definition.actionLabel
-                ? {
-                    action: definition.actionLabel
-                      .toLowerCase()
-                      .replace(/[^a-z0-9]+/g, '_')
-                      .replace(/^_+|_+$/g, ''),
-                    destructive: false,
-                    label: definition.actionLabel,
-                    requiresConfirmation: false,
-                    supportsDryRun: false,
-                  }
-                : undefined,
+              : undefined,
         ),
         color: definition.color,
         description: definition.description,
@@ -816,44 +787,25 @@ export const FileSummaryPage = ({
   const [currentPath, setCurrentPath] = useState(
     filesummaryConfig?.defaultPath?.trim() ?? '',
   );
-  const [selectedCleanupIssueId, setSelectedCleanupIssueId] = useState<string | null>(null);
-  const [selectedChainIssueId, setSelectedChainIssueId] = useState<string | null>(
-    null,
-  );
-  const [chainDetailFindingsByIssue, setChainDetailFindingsByIssue] = useState<
-    Record<string, Array<StorageChainFinding>>
-  >({});
+  const [selectedChainIssueId, setSelectedChainIssueId] = useState<string | null>(null);
+  const [selectedDiffIssueId, setSelectedDiffIssueId] = useState<string | null>(null);
+  const [showCleanupDetails, setShowCleanupDetails] = useState(false);
+  const [showDiffDetails, setShowDiffDetails] = useState(false);
   const [selectedChainPathsByIssue, setSelectedChainPathsByIssue] = useState<
     Record<string, Array<string>>
   >({});
   const [expandedChainTreeNodes, setExpandedChainTreeNodes] = useState<
     Record<string, boolean>
   >({});
-  const [selectedDiffIssueId, setSelectedDiffIssueId] = useState<string | null>(null);
-  const [showCleanupDetails, setShowCleanupDetails] = useState(false);
-  const [showDiffDetails, setShowDiffDetails] = useState(false);
-  const [cleanupDetailFindingsByIssue, setCleanupDetailFindingsByIssue] = useState<
-    Record<string, Array<StorageCleanupFinding>>
-  >({});
-  const [pendingIssueAction, setPendingIssueAction] =
-    useState<PendingIssueAction | null>(null);
-  const [selectedIssueAction, setSelectedIssueAction] = useState<string | null>(
-    null,
-  );
-  const [issueActionModalOpen, setIssueActionModalOpen] = useState(false);
-  const [issueActionPreview, setIssueActionPreview] =
-    useState<StorageCleanupApplyResult | null>(null);
+  const [treeNodeLimit, setTreeNodeLimit] = useState<Record<string, number>>({});
   const [actionFeedbackMessage, setActionFeedbackMessage] = useState<string | null>(
     null,
   );
   const [auditModalOpen, setAuditModalOpen] = useState(false);
+  const [isBulkDeletingRecords, setIsBulkDeletingRecords] = useState(false);
   const [storageSortKey, setStorageSortKey] = useState<StorageSortKey>('sizeBytes');
   const [storageSortDirection, setStorageSortDirection] =
     useState<StorageSortDirection>('desc');
-  const [activeChainPage, setActiveChainPage] = useState(1);
-  const [activeDiffPage, setActiveDiffPage] = useState(1);
-  const [activeCleanupPage, setActiveCleanupPage] = useState(1);
-  const [treeNodeLimit, setTreeNodeLimit] = useState<Record<string, number>>({});
 
   useEffect(() => {
     if (forcedProjectSelection) {
@@ -919,6 +871,7 @@ export const FileSummaryPage = ({
     clearAudit: clearChainAudit,
     isAuditing: isChainAuditing,
     runAudit: runChainAudit,
+    setAuditResult: setChainAuditResult,
   } = useSyfonStorageChain({
     config: filesummaryConfig,
     currentPath,
@@ -929,7 +882,6 @@ export const FileSummaryPage = ({
     clearAudit: clearDiffAudit,
     isAuditing: isDiffAuditing,
     runAudit: runProjectDiffAudit,
-    setAuditResult: setDiffAuditResult,
   } = useSyfonProjectDiff({
     config: filesummaryConfig,
     currentPath,
@@ -951,8 +903,7 @@ export const FileSummaryPage = ({
     currentPath,
     projectSelection: selectedProject,
   });
-
-
+  const [bulkDeleteSyfonDrsObjects] = useBulkDeleteSyfonDrsObjectsMutation();
 
   useEffect(() => {
     clearChainAudit();
@@ -961,38 +912,15 @@ export const FileSummaryPage = ({
   }, [clearChainAudit, clearCleanupResults, clearDiffAudit, currentPath, selectedProject]);
 
   useEffect(() => {
+    setActionFeedbackMessage(null);
     setSelectedChainIssueId(null);
-    setChainDetailFindingsByIssue({});
-    setSelectedCleanupIssueId(null);
-    setCleanupDetailFindingsByIssue({});
     setSelectedDiffIssueId(null);
     setShowCleanupDetails(false);
     setShowDiffDetails(false);
-    setPendingIssueAction(null);
-    setSelectedIssueAction(null);
-    setIssueActionModalOpen(false);
-    setIssueActionPreview(null);
-    setActionFeedbackMessage(null);
     setSelectedChainPathsByIssue({});
     setExpandedChainTreeNodes({});
     setTreeNodeLimit({});
-    setActiveChainPage(1);
-    setActiveDiffPage(1);
-    setActiveCleanupPage(1);
   }, [auditResult?.pathPrefix, currentPath, selectedProject]);
-
-  useEffect(() => {
-    setActiveChainPage(1);
-    setTreeNodeLimit({});
-  }, [selectedChainIssueId]);
-
-  useEffect(() => {
-    setActiveDiffPage(1);
-  }, [selectedDiffIssueId]);
-
-  useEffect(() => {
-    setActiveCleanupPage(1);
-  }, [selectedCleanupIssueId]);
 
   const pageTitle = selectedProjectParts
     ? `${selectedProjectParts.organization}/${selectedProjectParts.project}`
@@ -1014,21 +942,6 @@ export const FileSummaryPage = ({
     () => summarizeProjectDiffIssues(diffAuditResult?.findings ?? []),
     [diffAuditResult?.findings],
   );
-  const selectedDiffIssue = diffIssueSummaries.find(
-    (issue) => issue.id === selectedDiffIssueId,
-  ) ?? null;
-  const selectedDiffPaths = useMemo(
-    () =>
-      (diffAuditResult?.findings ?? [])
-        .filter((finding) =>
-          selectedDiffIssue
-            ? selectedDiffIssue.findingKinds.includes(finding.kind)
-            : false,
-        )
-        .map((finding) => finding.normalizedPath),
-    [diffAuditResult?.findings, selectedDiffIssue],
-  );
-  const hasCleanupFindings = (auditResult?.summary.totalFindings ?? 0) > 0;
   const chainIssueSummaries = useMemo(
     () =>
       summarizeStorageChainIssues({
@@ -1037,6 +950,9 @@ export const FileSummaryPage = ({
       }),
     [chainAuditResult?.findings, chainAuditResult?.groups],
   );
+  const cleanChainJoinCount =
+    chainAuditResult?.summary.countsByKind.bucket_syfon_git_complete ?? 0;
+  const hasChainIssues = chainIssueSummaries.length > 0;
   const selectedChainIssue = useMemo(
     () =>
       chainIssueSummaries.find((issue) => issue.id === selectedChainIssueId) ?? null,
@@ -1045,14 +961,12 @@ export const FileSummaryPage = ({
   const selectedChainFindings = useMemo(
     () =>
       selectedChainIssue
-        ? chainDetailFindingsByIssue[selectedChainIssue.id] ??
-          (chainAuditResult?.findings ?? []).filter(
+        ? (chainAuditResult?.findings ?? []).filter(
             (finding) => finding.kind === selectedChainIssue.id,
           )
         : [],
-    [chainAuditResult?.findings, chainDetailFindingsByIssue, selectedChainIssue],
+    [chainAuditResult?.findings, selectedChainIssue],
   );
-
   const actionableChainSelectionIssue =
     selectedChainIssue?.id === 'bucket_only_object' ||
     selectedChainIssue?.id === 'bucket_syfon_no_git';
@@ -1088,11 +1002,32 @@ export const FileSummaryPage = ({
     () => new Set(selectedChainPaths),
     [selectedChainPaths],
   );
-
   const chainPathTree = useMemo(
     () => pathsByParent.get('') ?? [],
     [pathsByParent],
   );
+  const selectedDiffIssue = diffIssueSummaries.find(
+    (issue) => issue.id === selectedDiffIssueId,
+  ) ?? null;
+  const selectedDiffFindings = useMemo(
+    () =>
+      selectedDiffIssue
+        ? (diffAuditResult?.findings ?? []).filter((finding) =>
+            selectedDiffIssue.findingKinds.includes(finding.kind),
+          )
+        : [],
+    [diffAuditResult?.findings, selectedDiffIssue],
+  );
+  const cleanupIssueSummaries = useMemo(
+    () => summarizeCleanupIssues(auditResult?.findings ?? []),
+    [auditResult?.findings],
+  );
+  const hasCleanupFindings = (auditResult?.summary.totalFindings ?? 0) > 0;
+  const isDuplicateVerificationContext =
+    selectedDiffIssue?.id === 'duplicate-syfon-paths';
+  const hasSafeDuplicateCleanup =
+    cleanupIssueSummaries.some((issue) => issue.id === 'stale-duplicates');
+
   useEffect(() => {
     if (!actionableChainSelectionIssue || !selectedChainIssue) {
       return;
@@ -1100,20 +1035,17 @@ export const FileSummaryPage = ({
     setSelectedChainPathsByIssue((current) => {
       const existing = current[selectedChainIssue.id];
       const available = new Set(selectableChainPaths);
-      const next = (existing ?? []).filter((path) =>
-        available.has(path),
-      );
-      const normalized = next;
+      const next = (existing ?? []).filter((path) => available.has(path));
       if (
         existing &&
-        existing.length === normalized.length &&
-        existing.every((value, index) => value === normalized[index])
+        existing.length === next.length &&
+        existing.every((value, index) => value === next[index])
       ) {
         return current;
       }
       return {
         ...current,
-        [selectedChainIssue.id]: normalized,
+        [selectedChainIssue.id]: next,
       };
     });
   }, [
@@ -1121,188 +1053,6 @@ export const FileSummaryPage = ({
     selectableChainPaths,
     selectedChainIssue,
   ]);
-  const cleanupIssueSummaries = useMemo(
-    () => summarizeCleanupIssues(auditResult?.findings ?? []),
-    [auditResult?.findings],
-  );
-  const selectedCleanupIssue = cleanupIssueSummaries.find(
-    (issue) => issue.id === selectedCleanupIssueId,
-  ) ?? null;
-  const visibleCleanupFindings = useMemo(() => {
-    if (!auditResult) {
-      return [];
-    }
-
-    if (!selectedCleanupIssue) {
-      return auditResult.findings;
-    }
-
-    return (
-      cleanupDetailFindingsByIssue[selectedCleanupIssue.id] ??
-      auditResult.findings.filter((finding) =>
-        selectedCleanupIssue.findingKinds.includes(finding.kind),
-      )
-    );
-  }, [auditResult, cleanupDetailFindingsByIssue, selectedCleanupIssue]);
-
-  const selectedDiffFindings = useMemo(
-    () =>
-      diffAuditResult?.findings
-        ? diffAuditResult.findings.filter((finding) =>
-            selectedDiffIssue
-              ? selectedDiffIssue.findingKinds.includes(finding.kind)
-              : false,
-          )
-        : [],
-    [diffAuditResult?.findings, selectedDiffIssue],
-  );
-
-  const totalChainPages = Math.ceil(selectedChainFindings.length / 100);
-  const paginatedChainFindings = useMemo(() => {
-    const start = (activeChainPage - 1) * 100;
-    const end = start + 100;
-    return selectedChainFindings.slice(start, end);
-  }, [selectedChainFindings, activeChainPage]);
-
-  const totalDiffPages = Math.ceil(selectedDiffFindings.length / 100);
-  const paginatedDiffFindings = useMemo(() => {
-    const start = (activeDiffPage - 1) * 100;
-    const end = start + 100;
-    return selectedDiffFindings.slice(start, end);
-  }, [selectedDiffFindings, activeDiffPage]);
-
-  const totalCleanupPages = Math.ceil(visibleCleanupFindings.length / 100);
-  const paginatedCleanupFindings = useMemo(() => {
-    const start = (activeCleanupPage - 1) * 100;
-    const end = start + 100;
-    return visibleCleanupFindings.slice(start, end);
-  }, [visibleCleanupFindings, activeCleanupPage]);
-  const isDuplicateVerificationContext =
-    selectedDiffIssue?.id === 'duplicate-syfon-paths';
-  const hasSafeDuplicateCleanup =
-    cleanupIssueSummaries.some((issue) => issue.id === 'stale-duplicates');
-  const hiddenCleanupFindingCount = useMemo(() => {
-    if (!auditResult) {
-      return 0;
-    }
-
-    const visibleKinds = new Set(
-      cleanupIssueSummaries.flatMap((issue) => issue.findingKinds),
-    );
-    return auditResult.findings.filter((finding) => !visibleKinds.has(finding.kind))
-      .length;
-  }, [auditResult, cleanupIssueSummaries]);
-  const openIssueActionModal = useCallback(
-    ({
-      defaultAction,
-      findings,
-      issueId,
-      issueTitle,
-      paths,
-      source,
-      supportsDryRun,
-    }: {
-      defaultAction?: AuditActionOption;
-      findings: Array<ActionableFinding>;
-      issueId: string;
-      issueTitle: string;
-      paths: Array<string>;
-      source: ActionIssueSource;
-      supportsDryRun: boolean;
-    }) => {
-      const availableActions = Array.from(
-        new Map(
-          findings
-            .flatMap((finding) => finding.availableActions)
-            .map((action) => [action.action, action]),
-        ).values(),
-      );
-
-      const fallbackAction = defaultAction
-        ? [defaultAction]
-        : issueId === 'duplicate-syfon-paths'
-          ? [
-              {
-                action: 'verify_duplicates',
-                destructive: false,
-                label: 'Verify duplicates',
-                requiresConfirmation: false,
-                supportsDryRun: false,
-              },
-            ]
-          : issueId === 'syfon-only'
-            ? [
-                {
-                  action: 'prepare_delete',
-                  destructive: false,
-                  label: 'Prepare delete',
-                  requiresConfirmation: false,
-                  supportsDryRun: false,
-                },
-              ]
-        : issueId === 'git-only' || issueId === 'git_only_no_syfon'
-          ? [
-              {
-                action: 'copy_paths',
-                destructive: false,
-                label: 'Copy paths',
-                requiresConfirmation: false,
-                supportsDryRun: false,
-              },
-            ]
-          : issueId === 'probe_error'
-            ? [
-                {
-                  action: 'rerun_audit',
-                  destructive: false,
-                  label: 'Retry verification',
-                  requiresConfirmation: false,
-                  supportsDryRun: false,
-                },
-              ]
-            : [];
-      const resolvedActions =
-        availableActions.length > 0 ? availableActions : fallbackAction;
-      const resolvedDefault =
-        resolvedActions.find((action) => action.action === defaultAction?.action) ??
-        resolvedActions[0];
-
-      if (resolvedActions.length === 0) {
-        setActionFeedbackMessage(
-          `${issueTitle} does not currently expose any repair actions from the backend.`,
-        );
-        return;
-      }
-
-      setIssueActionPreview(null);
-      setActionFeedbackMessage(null);
-      setPendingIssueAction({
-        availableActions: resolvedActions,
-        defaultAction: resolvedDefault,
-        findings,
-        issueId,
-        issueTitle,
-        paths,
-        source,
-        supportsDryRun:
-          supportsDryRun || resolvedActions.some((action) => action.supportsDryRun),
-      });
-      setSelectedIssueAction(resolvedDefault?.action ?? null);
-      setIssueActionModalOpen(true);
-    },
-    [],
-  );
-
-  const selectedIssueActionOption = useMemo(
-    () =>
-      pendingIssueAction?.availableActions.find(
-        (action) => action.action === selectedIssueAction,
-      ) ??
-      pendingIssueAction?.defaultAction ??
-      null,
-    [pendingIssueAction, selectedIssueAction],
-  );
-
   const buildActionRequests = useCallback(
     ({
       action,
@@ -1325,6 +1075,76 @@ export const FileSummaryPage = ({
             ]),
         ).values(),
       ),
+    [],
+  );
+
+  const resolveIssueAction = useCallback(
+    ({
+      defaultAction,
+      issueId,
+      findings,
+    }: {
+      defaultAction?: AuditActionOption;
+      issueId: string;
+      findings: Array<ActionableFinding>;
+    }): AuditActionOption | null => {
+      const availableActions = Array.from(
+        new Map(
+          findings
+            .flatMap((finding) => finding.availableActions)
+            .map((action) => [action.action, action]),
+        ).values(),
+      );
+
+      if (availableActions.length > 0) {
+        return (
+          availableActions.find((action) => action.action === defaultAction?.action) ??
+          defaultAction ??
+          availableActions[0]
+        );
+      }
+
+      if (issueId === 'git-only' || issueId === 'git_only_no_syfon') {
+        return {
+          action: 'view_paths',
+          destructive: false,
+          label: 'View paths',
+          requiresConfirmation: false,
+          supportsDryRun: false,
+        };
+      }
+
+      if (
+        issueId === 'syfon_git_no_bucket' ||
+        issueId === 'syfon_missing_bucket_object'
+      ) {
+        return {
+          action: 'delete_records',
+          destructive: true,
+          label: 'Delete Syfon records',
+          requiresConfirmation: true,
+          supportsDryRun: false,
+        };
+      }
+
+      if (issueId === 'probe_error') {
+        return {
+          action: 'rerun_audit',
+          destructive: false,
+          label: 'Retry verification',
+          requiresConfirmation: false,
+          supportsDryRun: false,
+        };
+      }
+
+      return {
+        action: 'view_paths',
+        destructive: false,
+        label: 'View paths',
+        requiresConfirmation: false,
+        supportsDryRun: false,
+      };
+    },
     [],
   );
 
@@ -1354,117 +1174,287 @@ export const FileSummaryPage = ({
     runProjectDiffAudit,
   ]);
 
-  const loadCleanupIssueDetails = useCallback(
+  const removeHealedChainFindings = useCallback(
+    (issueId: string, paths: Array<string>) => {
+      const pathSet = new Set(paths);
+      setChainAuditResult((current) => {
+        if (!current) {
+          return current;
+        }
+
+        const findings = current.findings.filter(
+          (finding) =>
+            !(
+              finding.kind === issueId &&
+              pathSet.has(finding.normalizedPath)
+            ),
+        );
+
+        const countsByKind = Object.keys(current.summary.countsByKind).reduce<
+          Record<string, number>
+        >((accumulator, key) => {
+          accumulator[key] = 0;
+          return accumulator;
+        }, {});
+
+        findings.forEach((finding) => {
+          countsByKind[finding.kind] = (countsByKind[finding.kind] ?? 0) + 1;
+        });
+
+        const groupsMap = new Map<
+          string,
+          {
+            findingCount: number;
+            objectIds: Set<string>;
+            pathCount: number;
+            recordCount: number;
+            totalBytes: number;
+          }
+        >();
+
+        findings.forEach((finding) => {
+          const existing = groupsMap.get(finding.kind) ?? {
+            findingCount: 0,
+            objectIds: new Set<string>(),
+            pathCount: 0,
+            recordCount: 0,
+            totalBytes: 0,
+          };
+          existing.findingCount += 1;
+          existing.pathCount += 1;
+          existing.recordCount += finding.recordCount;
+          existing.totalBytes += finding.sizeBytes ?? 0;
+          finding.objectIds.forEach((objectId) => existing.objectIds.add(objectId));
+          groupsMap.set(finding.kind, existing);
+        });
+
+        const groups = current.groups
+          .map((group) => {
+            const updated = groupsMap.get(group.kind);
+            if (!updated) {
+              return null;
+            }
+
+            return {
+              kind: group.kind,
+              findingCount: updated.findingCount,
+              objectCount: updated.objectIds.size,
+              pathCount: updated.pathCount,
+              recordCount: updated.recordCount,
+              totalBytes: updated.totalBytes,
+            };
+          })
+          .filter((group): group is NonNullable<typeof group> => group !== null);
+
+        return {
+          ...current,
+          findings,
+          groups,
+          summary: {
+            ...current.summary,
+            countsByKind,
+            syfonRecordCount: Math.max(
+              0,
+              current.summary.syfonRecordCount - pathSet.size,
+            ),
+            totalFindings: findings.length,
+          },
+        };
+      });
+      setSelectedChainIssueId((current) => (current === issueId ? null : current));
+    },
+    [setChainAuditResult],
+  );
+
+  const handleBulkDeleteSyfonRecords = useCallback(
     async ({
-      issue,
-      selectedPaths,
+      findings,
+      issueTitle,
+      paths,
     }: {
-      issue: CleanupIssueSummary;
-      selectedPaths?: Array<string>;
+      findings: Array<ActionableFinding>;
+      issueTitle: string;
+      paths: Array<string>;
     }) => {
-      const result = await runAudit({
-        findingKind:
-          issue.findingKinds.length === 1 ? issue.findingKinds[0] : undefined,
-        includeRepoManifest: true,
-        persistResult: false,
-        selectedPaths,
-      });
+      const objectIds = Array.from(
+        new Set(
+          findings.flatMap((finding) =>
+            'objectIds' in finding && Array.isArray(finding.objectIds)
+              ? finding.objectIds
+              : [],
+          ),
+        ),
+      ).filter(Boolean);
 
-      if (result) {
-        setCleanupDetailFindingsByIssue((current) => ({
-          ...current,
-          [issue.id]: result.findings,
-        }));
-      }
-    },
-    [runAudit],
-  );
-
-  const loadChainIssueDetails = useCallback(
-    async (issue: ChainIssueSummary) => {
-      const result = await runChainAudit({
-        findingKind: issue.id,
-        findingLimit: -1,
-        persistResult: false,
-      });
-
-      if (result) {
-        setChainDetailFindingsByIssue((current) => ({
-          ...current,
-          [issue.id]: result.findings.filter((finding) => finding.kind === issue.id),
-        }));
-      }
-    },
-    [runChainAudit],
-  );
-
-  const handleRunIssueAction = useCallback(
-    async ({
-      preview = false,
-    }: {
-      preview?: boolean;
-    } = {}) => {
-      if (!pendingIssueAction || !selectedIssueActionOption) {
+      if (objectIds.length === 0) {
+        setActionFeedbackMessage(
+          `${issueTitle} did not include any Syfon record ids to delete.`,
+        );
         return;
       }
 
-      const actionName = selectedIssueActionOption.action;
-      const selectedPaths = pendingIssueAction.paths;
+      const approved = window.confirm(
+        `Delete ${objectIds.length.toLocaleString()} Syfon record${objectIds.length === 1 ? '' : 's'} across ${paths.length.toLocaleString()} path${paths.length === 1 ? '' : 's'}?\n\nThis removes Syfon metadata only. Bucket objects will not be deleted.`,
+      );
+      if (!approved) {
+        return;
+      }
 
-      if (actionName === 'copy_paths') {
-        await navigator.clipboard.writeText(selectedPaths.join('\n'));
+      try {
+        setIsBulkDeletingRecords(true);
+        await bulkDeleteSyfonDrsObjects({
+          bulk_object_ids: objectIds,
+          delete_object_metadata: true,
+          delete_storage_data: false,
+        }).unwrap();
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : 'Syfon record deletion failed.';
+        setActionFeedbackMessage(message);
+        return;
+      } finally {
+        setIsBulkDeletingRecords(false);
+      }
+
+      setActionFeedbackMessage(
+        `Deleted ${objectIds.length.toLocaleString()} Syfon record${objectIds.length === 1 ? '' : 's'} across ${paths.length.toLocaleString()} path${paths.length === 1 ? '' : 's'}.`,
+      );
+      setSelectedChainIssueId(null);
+      removeHealedChainFindings(
+        findings[0] && 'kind' in findings[0] ? findings[0].kind : '',
+        paths,
+      );
+    },
+    [bulkDeleteSyfonDrsObjects, removeHealedChainFindings],
+  );
+
+  const runIssueAction = useCallback(
+    async ({
+      defaultAction,
+      findings,
+      issueId,
+      issueTitle,
+      paths,
+      source,
+    }: {
+      defaultAction?: AuditActionOption;
+      findings: Array<ActionableFinding>;
+      issueId: string;
+      issueTitle: string;
+      paths: Array<string>;
+      source: ActionIssueSource;
+    }) => {
+      const resolvedAction = resolveIssueAction({
+        defaultAction,
+        findings,
+        issueId,
+      });
+
+      if (!resolvedAction) {
         setActionFeedbackMessage(
-          `Copied ${selectedPaths.length.toLocaleString()} path${selectedPaths.length === 1 ? '' : 's'} to the clipboard.`,
+          `${issueTitle} does not currently expose any backend action.`,
         );
-        setIssueActionModalOpen(false);
-        setPendingIssueAction(null);
-        setSelectedIssueAction(null);
-        setIssueActionPreview(null);
+        return;
+      }
+
+      const actionName = resolvedAction.action;
+      const selectedPaths = paths;
+
+      if (actionName === 'view_paths') {
+        if (source === 'diff') {
+          setSelectedDiffIssueId(issueId);
+          setShowDiffDetails(true);
+        }
+        if (source === 'chain') {
+          setSelectedChainIssueId(issueId);
+        }
         return;
       }
 
       if (actionName === 'rerun_audit') {
-        if (pendingIssueAction.source === 'chain') {
+        if (source === 'chain') {
           await runChainAudit();
-        } else if (pendingIssueAction.source === 'diff') {
-          await runProjectDiffAudit();
         } else {
           await rerunAudit();
         }
-        setIssueActionModalOpen(false);
-        setPendingIssueAction(null);
-        setSelectedIssueAction(null);
-        setIssueActionPreview(null);
+        return;
+      }
+
+      if (actionName === 'delete_records') {
+        await handleBulkDeleteSyfonRecords({
+          findings,
+          issueTitle,
+          paths: selectedPaths,
+        });
         return;
       }
 
       if (actionName === 'verify_duplicates' || actionName === 'prepare_delete') {
-        setIssueActionModalOpen(false);
-        setPendingIssueAction(null);
-        setSelectedIssueAction(null);
-        setIssueActionPreview(null);
-        if (pendingIssueAction.source === 'diff') {
-          setSelectedDiffIssueId(pendingIssueAction.issueId);
-          setShowDiffDetails(true);
+        if (source === 'diff') {
+          setSelectedDiffIssueId(issueId);
         }
-        setSelectedCleanupIssueId(null);
         setShowCleanupDetails(true);
-        await runAudit({
+        const result = await runAudit({
           includeRepoManifest: true,
           selectedPaths,
         });
+        if (result) {
+          const verifiedPathCount = new Set(
+            result.findings.map((finding) => finding.normalizedPath).filter(Boolean),
+          ).size;
+          setActionFeedbackMessage(
+            result.summary.totalFindings > 0
+              ? `${resolvedAction.label} returned ${result.summary.totalFindings.toLocaleString()} cleanup finding${result.summary.totalFindings === 1 ? '' : 's'} across ${verifiedPathCount.toLocaleString()} path${verifiedPathCount === 1 ? '' : 's'}.`
+              : `${resolvedAction.label} completed, but Syfon did not return any cleanup findings for these paths.`,
+          );
+        }
         return;
+      }
+
+      if (resolvedAction.requiresConfirmation || resolvedAction.destructive) {
+        let approved = true;
+        if (resolvedAction.supportsDryRun) {
+          const preview = await applyCleanup({
+            actions: buildActionRequests({
+              action: actionName,
+              findings,
+            }),
+            deleteBucketOnlyObjects: false,
+            deleteRepoOrphans: false,
+            deleteStaleDuplicates: false,
+            dryRun: true,
+            selectedPaths,
+          });
+
+          if (!preview) {
+            return;
+          }
+
+          approved = window.confirm(
+            `${resolvedAction.label}\n\nDelete records: ${preview.deletedRecordIds.length.toLocaleString()}\nDelete bucket objects: ${preview.deletedBucketObjectUrls.length.toLocaleString()}\nSkipped paths: ${preview.skippedPaths.length.toLocaleString()}\n\nProceed?`,
+          );
+        } else {
+          approved = window.confirm(
+            `${resolvedAction.label}\n\nThis action will modify project state. Proceed?`,
+          );
+        }
+
+        if (!approved) {
+          return;
+        }
       }
 
       const result = await applyCleanup({
         actions: buildActionRequests({
           action: actionName,
-          findings: pendingIssueAction.findings,
+          findings,
         }),
         deleteBucketOnlyObjects: false,
         deleteRepoOrphans: false,
         deleteStaleDuplicates: false,
-        dryRun: preview,
+        dryRun: false,
         selectedPaths,
       });
 
@@ -1472,41 +1462,51 @@ export const FileSummaryPage = ({
         return;
       }
 
-      if (preview) {
-        setIssueActionPreview(result);
-        return;
-      }
-
       setActionFeedbackMessage(
-        `${selectedIssueActionOption.label} completed for ${selectedPaths.length.toLocaleString()} path${selectedPaths.length === 1 ? '' : 's'}.`,
+        `${resolvedAction.label} completed for ${selectedPaths.length.toLocaleString()} path${selectedPaths.length === 1 ? '' : 's'}.`,
       );
-      setIssueActionModalOpen(false);
-      setPendingIssueAction(null);
-      setSelectedIssueAction(null);
-      setIssueActionPreview(null);
-      setSelectedCleanupIssueId(null);
-      setSelectedChainIssueId(null);
       await refreshAuditViews();
     },
     [
       applyCleanup,
       buildActionRequests,
-      pendingIssueAction,
+      handleBulkDeleteSyfonRecords,
       refreshAuditViews,
+      resolveIssueAction,
       rerunAudit,
       runAudit,
       runChainAudit,
       runProjectDiffAudit,
-      selectedIssueActionOption,
     ],
   );
 
-  const toggleExpandedChainTreeNode = useCallback((nodePath: string) => {
-    setExpandedChainTreeNodes((current) => ({
-      ...current,
-      [nodePath]: !current[nodePath],
-    }));
+  const handleToggleChainIssueDetails = useCallback((issueId: string) => {
+    setSelectedChainIssueId((current) => (current === issueId ? null : issueId));
   }, []);
+
+  const handleOpenAuditModal = async () => {
+    setAuditModalOpen(true);
+    const tasks: Array<Promise<unknown>> = [];
+    if (!chainAuditResult && !isChainAuditing) {
+      tasks.push(runChainAudit());
+    }
+    if (tasks.length > 0) {
+      await Promise.all(tasks);
+    }
+  };
+
+  const handleStorageSort = (key: StorageSortKey) => {
+    setStorageSortDirection((currentDirection) =>
+      storageSortKey === key
+        ? currentDirection === 'asc'
+          ? 'desc'
+          : 'asc'
+        : key === 'name' || key === 'type'
+          ? 'asc'
+          : 'desc',
+    );
+    setStorageSortKey(key);
+  };
 
   const setSelectedChainPathsForIssue = useCallback(
     (paths: Array<string>) => {
@@ -1541,86 +1541,6 @@ export const FileSummaryPage = ({
     [selectedChainPaths, setSelectedChainPathsForIssue],
   );
 
-  const handleApplySelectedChainDeletion = async () => {
-    if (!selectedChainIssue || selectedChainPaths.length === 0) {
-      return;
-    }
-    openIssueActionModal({
-      defaultAction: selectedChainIssue.actionSummary.defaultAction,
-      findings: selectedChainFindings.filter((finding) =>
-        selectedChainPaths.includes(finding.normalizedPath),
-      ),
-      issueId: selectedChainIssue.id,
-      issueTitle: selectedChainIssue.title,
-      paths: selectedChainPaths,
-      source: 'chain',
-      supportsDryRun: selectedChainIssue.actionSummary.supportsDryRun,
-    });
-  };
-
-  const ensureDiffAuditLoaded = async (): Promise<void> => {
-    if (!diffAuditResult && !isDiffAuditing) {
-      await runProjectDiffAudit();
-    }
-  };
-
-  const ensureCleanupAuditLoaded = async ({
-    selectedPaths,
-  }: {
-    selectedPaths?: Array<string>;
-  } = {}): Promise<void> => {
-    if (!auditResult && !isAuditing) {
-      await runAudit({
-        includeRepoManifest: true,
-        selectedPaths,
-      });
-    }
-  };
-
-  const handleToggleChainIssueDetails = useCallback(
-    async (issue: ChainIssueSummary) => {
-      const shouldOpen = selectedChainIssueId !== issue.id;
-      setSelectedChainIssueId(shouldOpen ? issue.id : null);
-      if (shouldOpen) {
-        setSelectedDiffIssueId(null);
-        setSelectedCleanupIssueId(null);
-        await loadChainIssueDetails(issue);
-      }
-    },
-    [loadChainIssueDetails, selectedChainIssueId],
-  );
-
-  const handleFocusChainIssue = async (issue: ChainIssueSummary) => {
-    setSelectedChainIssueId(issue.id);
-    setSelectedDiffIssueId(null);
-    setSelectedCleanupIssueId(null);
-    await loadChainIssueDetails(issue);
-  };
-
-  const handleOpenAuditModal = async () => {
-    setAuditModalOpen(true);
-    const tasks: Array<Promise<unknown>> = [];
-    if (!chainAuditResult && !isChainAuditing) {
-      tasks.push(runChainAudit());
-    }
-    if (tasks.length > 0) {
-      await Promise.all(tasks);
-    }
-  };
-
-  const handleStorageSort = (key: StorageSortKey) => {
-    setStorageSortDirection((currentDirection) =>
-      storageSortKey === key
-        ? currentDirection === 'asc'
-          ? 'desc'
-          : 'asc'
-        : key === 'name' || key === 'type'
-          ? 'asc'
-          : 'desc',
-    );
-    setStorageSortKey(key);
-  };
-
   const renderChainTreeNode = (node: ChainPathTreeNode, depth = 0): React.ReactNode => {
     const descendantLeafPaths = node.descendantLeafPaths;
     const selectedCount = descendantLeafPaths.filter((value) =>
@@ -1641,7 +1561,12 @@ export const FileSummaryPage = ({
             <div style={{ width: 28 }} />
           ) : (
             <ActionIcon
-              onClick={() => toggleExpandedChainTreeNode(node.path)}
+              onClick={() =>
+                setExpandedChainTreeNodes((current) => ({
+                  ...current,
+                  [node.path]: !current[node.path],
+                }))
+              }
               size="sm"
               variant="subtle"
             >
@@ -1666,11 +1591,14 @@ export const FileSummaryPage = ({
               }
               let nextSelected: Array<string>;
               if (checked) {
-                const set = new Set([...selectedChainPaths, ...descendantLeafPaths]);
-                nextSelected = Array.from(set).sort();
+                nextSelected = Array.from(
+                  new Set([...selectedChainPaths, ...descendantLeafPaths]),
+                ).sort();
               } else {
                 const descendantSet = new Set(descendantLeafPaths);
-                nextSelected = selectedChainPaths.filter((path) => !descendantSet.has(path));
+                nextSelected = selectedChainPaths.filter(
+                  (path) => !descendantSet.has(path),
+                );
               }
               setSelectedChainPathsForIssue(nextSelected);
             }}
@@ -1697,9 +1625,8 @@ export const FileSummaryPage = ({
                 variant="subtle"
               >
                 Show more (
-                {(
-                  children.length - (treeNodeLimit[node.path] ?? 100)
-                ).toLocaleString()}{' '}
+                {(children.length - (treeNodeLimit[node.path] ?? 100)).toLocaleString()}
+                {' '}
                 remaining)...
               </Button>
             )}
@@ -1708,6 +1635,51 @@ export const FileSummaryPage = ({
       </Stack>
     );
   };
+
+  const handleApplySelectedChainObjects = useCallback(async () => {
+    if (!selectedChainIssue || selectedChainPaths.length === 0) {
+      return;
+    }
+
+    const isBucketOnlyIssue = selectedChainIssue.id === 'bucket_only_object';
+    const isBucketSyfonNoGitIssue = selectedChainIssue.id === 'bucket_syfon_no_git';
+    if (!isBucketOnlyIssue && !isBucketSyfonNoGitIssue) {
+      return;
+    }
+
+    const approved = window.confirm(
+      isBucketOnlyIssue
+        ? `Delete ${selectedChainPaths.length.toLocaleString()} selected bucket-only path${selectedChainPaths.length === 1 ? '' : 's'}?\n\nThis will ask Syfon to delete the bucket objects in one bulk request.`
+        : `Delete ${selectedChainPaths.length.toLocaleString()} selected Bucket + Syfon, No Git path${selectedChainPaths.length === 1 ? '' : 's'}?\n\nThis will ask Syfon to delete both the Syfon records and bucket objects in one bulk request.`,
+    );
+    if (!approved) {
+      return;
+    }
+
+    const result = await applyCleanup({
+      deleteBucketOnlyObjects: isBucketOnlyIssue,
+      deleteRepoOrphans: isBucketSyfonNoGitIssue,
+      deleteStaleDuplicates: false,
+      dryRun: false,
+      selectedPaths: selectedChainPaths,
+    });
+
+    if (!result) {
+      return;
+    }
+
+    setActionFeedbackMessage(
+      isBucketOnlyIssue
+        ? `Deleted ${selectedChainPaths.length.toLocaleString()} selected bucket-only path${selectedChainPaths.length === 1 ? '' : 's'} in one Syfon bulk request.`
+        : `Deleted ${selectedChainPaths.length.toLocaleString()} selected Bucket + Syfon, No Git path${selectedChainPaths.length === 1 ? '' : 's'} in one Syfon bulk request.`,
+    );
+    await refreshAuditViews();
+  }, [
+    applyCleanup,
+    refreshAuditViews,
+    selectedChainIssue,
+    selectedChainPaths,
+  ]);
 
   const renderStorageSortHeader = (
     label: string,
@@ -1801,140 +1773,6 @@ export const FileSummaryPage = ({
           ) : selectedProjectParts ? (
             <>
               <Modal
-                centered
-                onClose={() => {
-                  setIssueActionModalOpen(false);
-                  setIssueActionPreview(null);
-                }}
-                opened={issueActionModalOpen}
-                size="xl"
-                title={pendingIssueAction?.issueTitle ?? 'Issue action'}
-              >
-                {pendingIssueAction ? (
-                  <Stack gap="md">
-                    <Text c="dimmed" size="sm">
-                      Choose the healing action for this issue set. The frontend
-                      uses the backend action contract directly instead of
-                      guessing what is safe to do.
-                    </Text>
-
-                    {selectedIssueActionOption?.destructive ? (
-                      <Alert
-                        color="red"
-                        icon={<IconAlertCircle size={16} />}
-                        title="This action changes project state"
-                      >
-                        Confirm the targets below before applying this action.
-                        Bucket-backed deletions cannot be undone.
-                      </Alert>
-                    ) : null}
-
-                    {pendingIssueAction.availableActions.length > 1 ? (
-                      <Select
-                        data={pendingIssueAction.availableActions.map((action) => ({
-                          label: action.label,
-                          value: action.action,
-                        }))}
-                        label="Action"
-                        onChange={(value) => {
-                          setSelectedIssueAction(value);
-                          setIssueActionPreview(null);
-                        }}
-                        value={selectedIssueAction}
-                      />
-                    ) : null}
-
-                    {selectedIssueActionOption?.description ? (
-                      <Text size="sm">{selectedIssueActionOption.description}</Text>
-                    ) : null}
-
-                    <Text size="sm">
-                      {pendingIssueAction.findings.length.toLocaleString()} findings
-                      {' · '}
-                      {pendingIssueAction.paths.length.toLocaleString()} paths
-                    </Text>
-
-                    <div className="max-h-48 overflow-y-auto rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
-                      <Stack gap={6}>
-                        {pendingIssueAction.paths.slice(0, 50).map((path) => (
-                          <Text className="break-all font-mono" key={path} size="xs">
-                            {path}
-                          </Text>
-                        ))}
-                        {pendingIssueAction.paths.length > 50 ? (
-                          <Text c="dimmed" size="xs">
-                            +{(pendingIssueAction.paths.length - 50).toLocaleString()} more paths
-                          </Text>
-                        ) : null}
-                      </Stack>
-                    </div>
-
-                    {issueActionPreview ? (
-                      <Stack gap="xs">
-                        <Alert
-                          color="blue"
-                          icon={<IconAlertCircle size={16} />}
-                          title="Dry-run preview"
-                        >
-                          Records to delete:{' '}
-                          {issueActionPreview.deletedRecordIds.length.toLocaleString()}
-                          {' · '}
-                          Bucket objects to purge:{' '}
-                          {issueActionPreview.deletedBucketObjectUrls.length.toLocaleString()}
-                          {' · '}
-                          Skipped paths:{' '}
-                          {issueActionPreview.skippedPaths.length.toLocaleString()}
-                        </Alert>
-                        {issueActionPreview.deletedBucketObjectUrls.length > 0 ? (
-                          <div className="max-h-48 overflow-y-auto rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
-                            <Stack gap={6}>
-                              {issueActionPreview.deletedBucketObjectUrls.map((url) => (
-                                <Text className="break-all font-mono" key={url} size="xs">
-                                  {url}
-                                </Text>
-                              ))}
-                            </Stack>
-                          </div>
-                        ) : null}
-                      </Stack>
-                    ) : null}
-
-                    <Group justify="flex-end">
-                      <Button
-                        onClick={() => {
-                          setIssueActionModalOpen(false);
-                          setIssueActionPreview(null);
-                        }}
-                        variant="default"
-                      >
-                        Cancel
-                      </Button>
-                      {selectedIssueActionOption?.supportsDryRun ? (
-                        <Button
-                          loading={isApplying}
-                          onClick={() => {
-                            void handleRunIssueAction({ preview: true });
-                          }}
-                          variant="light"
-                        >
-                          Preview action
-                        </Button>
-                      ) : null}
-                      <Button
-                        color={selectedIssueActionOption?.destructive ? 'red' : 'blue'}
-                        loading={isApplying}
-                        onClick={() => {
-                          void handleRunIssueAction();
-                        }}
-                      >
-                        {selectedIssueActionOption?.label ?? 'Run action'}
-                      </Button>
-                    </Group>
-                  </Stack>
-                ) : null}
-              </Modal>
-
-              <Modal
                 onClose={() => setAuditModalOpen(false)}
                 opened={auditModalOpen}
                 size="min(1680px, 96vw)"
@@ -1957,6 +1795,16 @@ export const FileSummaryPage = ({
                     </Alert>
                   ) : null}
 
+                  {actionFeedbackMessage ? (
+                    <Alert
+                      color="blue"
+                      icon={<IconAlertCircle size={16} />}
+                      title="Action complete"
+                    >
+                      {actionFeedbackMessage}
+                    </Alert>
+                  ) : null}
+
                   {chainAuditResult && !chainAuditResult.summary.bucketInventoryAvailable ? (
                     <Alert
                       color="orange"
@@ -1972,15 +1820,52 @@ export const FileSummaryPage = ({
                     </Alert>
                   ) : null}
 
-                  {chainAuditResult && chainAuditResult.summary.bucketInventoryAvailable ? (
+                  {chainAuditResult &&
+                  chainAuditResult.summary.bucketInventoryAvailable &&
+                  !hasChainIssues &&
+                  cleanChainJoinCount > 0 ? (
                     <Alert
                       color="green"
                       icon={<IconAlertCircle size={16} />}
                       title="Connected end-to-end"
                     >
-                      {(chainAuditResult.summary.countsByKind.bucket_syfon_git_complete ?? 0).toLocaleString()}
+                      {cleanChainJoinCount.toLocaleString()}
                       {' '}
                       bucket objects currently join cleanly through Syfon into Git.
+                      {' '}
+                      Totals scanned:
+                      {' '}
+                      {chainAuditResult.summary.bucketObjectCount.toLocaleString()}
+                      {' '}
+                      bucket objects,
+                      {' '}
+                      {chainAuditResult.summary.syfonRecordCount.toLocaleString()}
+                      {' '}
+                      Syfon records,
+                      {' '}
+                      {chainAuditResult.summary.gitTrackedFileCount.toLocaleString()}
+                      {' '}
+                      Git-tracked files.
+                    </Alert>
+                  ) : null}
+
+                  {chainAuditResult &&
+                  chainAuditResult.summary.bucketInventoryAvailable &&
+                  hasChainIssues ? (
+                    <Alert
+                      color="yellow"
+                      icon={<IconAlertCircle size={16} />}
+                      title="Chain issues found"
+                    >
+                      {cleanChainJoinCount.toLocaleString()}
+                      {' '}
+                      bucket objects currently join cleanly through Syfon into Git, but this subtree also contains
+                      {' '}
+                      {chainIssueSummaries
+                        .reduce((sum, issue) => sum + issue.pathCount, 0)
+                        .toLocaleString()}
+                      {' '}
+                      issue paths that need attention.
                       {' '}
                       Totals scanned:
                       {' '}
@@ -2004,7 +1889,7 @@ export const FileSummaryPage = ({
                       icon={<IconAlertCircle size={16} />}
                       title="Record-backed connectivity only"
                     >
-                      {(chainAuditResult.summary.countsByKind.bucket_syfon_git_complete ?? 0).toLocaleString()}
+                      {cleanChainJoinCount.toLocaleString()}
                       {' '}
                       record-backed storage objects currently validate cleanly through Syfon into Git, but the default bucket-first audit is blocked because the mapped bucket target could not be enumerated.
                       {' '}
@@ -2039,11 +1924,7 @@ export const FileSummaryPage = ({
                         <div>
                           <Title order={5}>Chain Findings</Title>
                           <Text c="dimmed" mt={4} size="sm">
-                            High-level issues across the
-                            {' '}
-                            <span className="font-mono">bucket -&gt; Syfon -&gt; Git</span>
-                            {' '}
-                            chain.
+                            Issues found in the files, records, and project contents for this path.
                           </Text>
                         </div>
                         <Button
@@ -2082,7 +1963,6 @@ export const FileSummaryPage = ({
                                   <Text c="dimmed" size="sm">
                                     {issue.description}
                                   </Text>
-                                  <Text size="sm">{issue.recommendation}</Text>
                                 </Stack>
                               </Table.Td>
                               <Table.Td>
@@ -2095,47 +1975,220 @@ export const FileSummaryPage = ({
                                 </Text>
                               </Table.Td>
                               <Table.Td miw={260}>
-                                <Group gap="xs">
+                                {actionableChainSelectionIssue && selectedChainIssue?.id === issue.id ? (
+                                  <Button
+                                    color="gray"
+                                    onClick={() => handleToggleChainIssueDetails(issue.id)}
+                                    size="xs"
+                                    variant="outline"
+                                  >
+                                    Hide paths
+                                  </Button>
+                                ) : issue.id === 'bucket_only_object' ||
+                                  issue.id === 'bucket_syfon_no_git' ? (
                                   <Button
                                     color={issue.color}
-                                    loading={isAuditing || isDiffAuditing || isChainAuditing}
-                                    onClick={() => {
-                                      openIssueActionModal({
-                                        defaultAction: issue.actionSummary.defaultAction,
-                                        findings: (chainAuditResult?.findings ?? []).filter(
-                                          (finding) => finding.kind === issue.id,
-                                        ),
-                                        issueId: issue.id,
-                                        issueTitle: issue.title,
-                                        paths: (chainAuditResult?.findings ?? [])
-                                          .filter((finding) => finding.kind === issue.id)
-                                          .map((finding) => finding.normalizedPath),
-                                        source: 'chain',
-                                        supportsDryRun: issue.actionSummary.supportsDryRun,
-                                      });
-                                    }}
+                                    onClick={() => handleToggleChainIssueDetails(issue.id)}
                                     size="xs"
                                     variant="light"
                                   >
-                                    {issue.actionSummary.defaultAction?.label ?? 'Open action'}
+                                    Select paths
                                   </Button>
-                                  <Button
-                                    onClick={() => {
-                                      void handleToggleChainIssueDetails(issue);
-                                    }}
-                                    size="xs"
-                                    variant="subtle"
-                                  >
-                                    {selectedChainIssueId === issue.id
-                                      ? 'Hide details'
-                                      : `See details (${issue.pathCount.toLocaleString()})`}
-                                  </Button>
-                                </Group>
+                                ) : (() => {
+                                  const findings = (chainAuditResult?.findings ?? []).filter(
+                                    (finding) => finding.kind === issue.id,
+                                  );
+                                  const action = resolveIssueAction({
+                                    defaultAction: issue.actionSummary.defaultAction,
+                                    findings,
+                                    issueId: issue.id,
+                                  });
+                                  const supportsInlinePathView =
+                                    issue.id === 'syfon_git_no_bucket' ||
+                                    issue.id === 'syfon_missing_bucket_object';
+                                  const isShowingPaths = selectedChainIssue?.id === issue.id;
+                                  return action ? (
+                                    <Group gap="xs">
+                                      <Button
+                                        color={issue.color}
+                                        loading={
+                                          isApplying ||
+                                          isAuditing ||
+                                          isChainAuditing ||
+                                          isBulkDeletingRecords
+                                        }
+                                        onClick={() => {
+                                          void runIssueAction({
+                                            defaultAction: action,
+                                            findings,
+                                            issueId: issue.id,
+                                            issueTitle: issue.title,
+                                            paths: findings.map((finding) => finding.normalizedPath),
+                                            source: 'chain',
+                                          });
+                                        }}
+                                        size="xs"
+                                        variant="light"
+                                      >
+                                        {action.label}
+                                      </Button>
+                                      {supportsInlinePathView ? (
+                                        <Button
+                                          color="gray"
+                                          onClick={() =>
+                                            handleToggleChainIssueDetails(issue.id)
+                                          }
+                                          size="xs"
+                                          variant="outline"
+                                        >
+                                          {isShowingPaths ? 'Hide paths' : 'Show paths'}
+                                        </Button>
+                                      ) : null}
+                                    </Group>
+                                  ) : null;
+                                })()}
                               </Table.Td>
                             </Table.Tr>
                           ))}
                         </Table.Tbody>
                       </Table>
+
+                      {selectedChainIssue && actionableChainSelectionIssue ? (
+                        <Stack
+                          className="rounded-md border border-slate-200 bg-slate-50 px-4 py-4"
+                          gap="sm"
+                        >
+                          <Group justify="space-between" wrap="wrap">
+                            <div>
+                              <Text fw={700} size="sm">
+                                {selectedChainIssue.title}
+                              </Text>
+                              <Text c="dimmed" size="sm">
+                                Choose the exact paths to act on in this issue set.
+                              </Text>
+                            </div>
+                            <Button
+                              color={selectedChainIssue.color}
+                              disabled={selectedChainPaths.length === 0}
+                              loading={isApplying || isAuditing}
+                              onClick={() => {
+                                void handleApplySelectedChainObjects();
+                              }}
+                              size="xs"
+                              variant="light"
+                            >
+                              {selectedChainIssue.id === 'bucket_only_object'
+                                ? 'Delete selected bucket objects'
+                                : 'Delete selected objects'}
+                              {selectedChainPaths.length > 0
+                                ? ` (${selectedChainPaths.length.toLocaleString()})`
+                                : ''}
+                            </Button>
+                          </Group>
+
+                          <Stack
+                            className="rounded-md border border-slate-200 bg-white px-3 py-3"
+                            gap="xs"
+                          >
+                            <Group justify="space-between" wrap="wrap">
+                              <Checkbox
+                                checked={
+                                  selectableChainPaths.length > 0 &&
+                                  selectedChainPaths.length === selectableChainPaths.length
+                                }
+                                indeterminate={
+                                  selectedChainPaths.length > 0 &&
+                                  selectedChainPaths.length < selectableChainPaths.length
+                                }
+                                label={`Select all loaded paths (${selectedChainPaths.length.toLocaleString()} / ${selectableChainPaths.length.toLocaleString()})`}
+                                onChange={(event) => {
+                                  handleToggleAllChainPaths(event.currentTarget.checked);
+                                }}
+                              />
+                              <Text c="dimmed" size="xs">
+                                Expand folders and choose the exact paths to heal.
+                              </Text>
+                            </Group>
+                            <Stack gap={4}>
+                              {chainPathTree
+                                .slice(0, treeNodeLimit[''] ?? 100)
+                                .map((node) => renderChainTreeNode(node))}
+                              {chainPathTree.length > (treeNodeLimit[''] ?? 100) && (
+                                <Button
+                                  onClick={() =>
+                                    setTreeNodeLimit((current) => ({
+                                      ...current,
+                                      '': (current[''] ?? 100) + 100,
+                                    }))
+                                  }
+                                  size="xs"
+                                  style={{
+                                    alignSelf: 'flex-start',
+                                    marginLeft: 28,
+                                  }}
+                                  variant="subtle"
+                                >
+                                  Show more (
+                                  {(
+                                    chainPathTree.length - (treeNodeLimit[''] ?? 100)
+                                  ).toLocaleString()}
+                                  {' '}
+                                  remaining)...
+                                </Button>
+                              )}
+                            </Stack>
+                          </Stack>
+                        </Stack>
+                      ) : null}
+
+                      {selectedChainIssue && !actionableChainSelectionIssue ? (
+                        <Stack
+                          className="rounded-md border border-slate-200 bg-slate-50 px-4 py-4"
+                          gap="sm"
+                        >
+                          <div>
+                            <Text fw={700} size="sm">
+                              {selectedChainIssue.title}
+                            </Text>
+                            <Text c="dimmed" size="sm">
+                              {selectedChainFindings.length.toLocaleString()} paths in this
+                              issue set.
+                            </Text>
+                          </div>
+                          <div className="max-h-[420px] overflow-auto rounded-md border border-slate-200 bg-white">
+                            <Table highlightOnHover stickyHeader>
+                              <Table.Thead>
+                                <Table.Tr>
+                                  <Table.Th>Path</Table.Th>
+                                  <Table.Th>Checksum</Table.Th>
+                                  <Table.Th>Records</Table.Th>
+                                  <Table.Th>Objects</Table.Th>
+                                </Table.Tr>
+                              </Table.Thead>
+                              <Table.Tbody>
+                                {selectedChainFindings.map((finding) => (
+                                  <Table.Tr
+                                    key={`${finding.kind}:${finding.normalizedPath}`}
+                                  >
+                                    <Table.Td maw={720}>
+                                      <Text className="break-all" fw={600} size="sm">
+                                        {finding.normalizedPath}
+                                      </Text>
+                                    </Table.Td>
+                                    <Table.Td maw={320}>
+                                      <Text className="break-all font-mono" size="xs">
+                                        {finding.checksum || '—'}
+                                      </Text>
+                                    </Table.Td>
+                                    <Table.Td>{finding.recordCount.toLocaleString()}</Table.Td>
+                                    <Table.Td>{finding.objectIds.length.toLocaleString()}</Table.Td>
+                                  </Table.Tr>
+                                ))}
+                              </Table.Tbody>
+                            </Table>
+                          </div>
+                        </Stack>
+                      ) : null}
                     </Stack>
                   ) : chainAuditResult ? (
                     <Alert
@@ -2146,499 +2199,6 @@ export const FileSummaryPage = ({
                       Gecko did not find any broken Git-to-Syfon-to-bucket links
                       in this subtree.
                     </Alert>
-                  ) : null}
-
-                  {selectedChainIssue ? (
-                    <Stack
-                      className="rounded-md border border-slate-200 bg-slate-50 px-4 py-4"
-                      gap="sm"
-                    >
-                      <Group justify="space-between" wrap="wrap">
-                        <div>
-                          <Text fw={700} size="sm">
-                            {selectedChainIssue.title}
-                          </Text>
-                          <Text c="dimmed" size="sm">
-                            {selectedChainIssue.pathCount.toLocaleString()} paths in
-                            this chain issue. Showing{' '}
-                            {selectedChainFindings.length.toLocaleString()} findings.
-                          </Text>
-                        </div>
-                        <Group gap="xs">
-                          {actionableChainSelectionIssue ? (
-                            <Button
-                              color={selectedChainIssue?.id === 'bucket_only_object' ? 'red' : 'orange'}
-                              disabled={selectedChainPaths.length === 0}
-                              onClick={() => {
-                                void handleApplySelectedChainDeletion();
-                              }}
-                              size="xs"
-                              variant="light"
-                            >
-                              {selectedChainIssue?.id === 'bucket_only_object'
-                                ? `Delete selected bucket objects (${selectedChainPaths.length.toLocaleString()})`
-                                : `Delete selected Syfon + bucket objects (${selectedChainPaths.length.toLocaleString()})`}
-                            </Button>
-                          ) : null}
-                          <Button
-                            onClick={() => setSelectedChainIssueId(null)}
-                            size="xs"
-                            variant="subtle"
-                          >
-                            Hide details
-                          </Button>
-                        </Group>
-                      </Group>
-
-                      {actionableChainSelectionIssue &&
-                      selectedChainFindings.length > 0 ? (
-                        <Stack
-                          className="rounded-md border border-slate-200 bg-white px-3 py-3"
-                          gap="xs"
-                        >
-                          <Group justify="space-between" wrap="wrap">
-                            <Checkbox
-                              checked={
-                                selectableChainPaths.length > 0 &&
-                                selectedChainPaths.length === selectableChainPaths.length
-                              }
-                              indeterminate={
-                                selectedChainPaths.length > 0 &&
-                                selectedChainPaths.length < selectableChainPaths.length
-                              }
-                              label={`Select all loaded paths (${selectedChainPaths.length.toLocaleString()} / ${selectableChainPaths.length.toLocaleString()})`}
-                              onChange={(event) => {
-                                handleToggleAllChainPaths(event.currentTarget.checked);
-                              }}
-                            />
-                            <Text c="dimmed" size="xs">
-                              Expand folders and choose the exact bucket-backed paths to delete.
-                            </Text>
-                          </Group>
-                          <Stack gap={4}>
-                            {chainPathTree
-                              .slice(0, treeNodeLimit[''] ?? 100)
-                              .map((node) => renderChainTreeNode(node))}
-                            {chainPathTree.length > (treeNodeLimit[''] ?? 100) && (
-                              <Button
-                                onClick={() =>
-                                  setTreeNodeLimit((current) => ({
-                                    ...current,
-                                    '': (current[''] ?? 100) + 100,
-                                  }))
-                                }
-                                size="xs"
-                                style={{
-                                  alignSelf: 'flex-start',
-                                  marginLeft: 28,
-                                }}
-                                variant="subtle"
-                              >
-                                Show more (
-                                {(
-                                  chainPathTree.length - (treeNodeLimit[''] ?? 100)
-                                ).toLocaleString()}{' '}
-                                remaining)...
-                              </Button>
-                            )}
-                          </Stack>
-                        </Stack>
-                      ) : null}
-
-                      {selectedChainFindings.length > 0 ? (
-                        !actionableChainSelectionIssue ? (
-                          <>
-                            <Table highlightOnHover stickyHeader>
-                              <Table.Thead>
-                                <Table.Tr>
-                                  <Table.Th>Path</Table.Th>
-                                  <Table.Th>Checksum</Table.Th>
-                                  <Table.Th>Bucket Object</Table.Th>
-                                  <Table.Th>Access URL</Table.Th>
-                                  <Table.Th>Resolved Bucket/Key</Table.Th>
-                                  <Table.Th>Probe</Table.Th>
-                                </Table.Tr>
-                              </Table.Thead>
-                              <Table.Tbody>
-                                {paginatedChainFindings.map((finding) => (
-                                  <Table.Tr
-                                    key={`${finding.kind}:${finding.normalizedPath}:${finding.objectIds.join(',')}`}
-                                  >
-                                    <Table.Td maw={360}>
-                                      <Text className="break-all" fw={600} size="sm">
-                                        {finding.normalizedPath}
-                                      </Text>
-                                    </Table.Td>
-                                    <Table.Td maw={220}>
-                                      <Text className="break-all font-mono" size="xs">
-                                        {finding.checksum || '—'}
-                                      </Text>
-                                    </Table.Td>
-                                    <Table.Td maw={280}>
-                                      <Text className="break-all font-mono" size="xs">
-                                        {finding.bucketObjectUrl ||
-                                          finding.evidence?.bucketObjectUrls[0] ||
-                                          '—'}
-                                      </Text>
-                                    </Table.Td>
-                                    <Table.Td maw={280}>
-                                      <Stack gap={4}>
-                                        {(finding.accessUrls.length > 0
-                                          ? finding.accessUrls
-                                          : finding.evidence?.accessUrls ?? []
-                                        )
-                                          .slice(0, 2)
-                                          .map((accessUrl) => (
-                                            <Text
-                                              className="break-all font-mono"
-                                              key={accessUrl}
-                                              size="xs"
-                                            >
-                                              {accessUrl}
-                                            </Text>
-                                          ))}
-                                      </Stack>
-                                    </Table.Td>
-                                    <Table.Td maw={260}>
-                                      <Stack gap={4}>
-                                        <Text className="break-all font-mono" size="xs">
-                                          {finding.resolvedBucket || '—'}
-                                        </Text>
-                                        <Text className="break-all font-mono" size="xs">
-                                          {finding.resolvedKey || '—'}
-                                        </Text>
-                                      </Stack>
-                                    </Table.Td>
-                                    <Table.Td maw={260}>
-                                      <Stack gap={4}>
-                                        <Badge color={selectedChainIssue.color} variant="light">
-                                          {finding.probeStatus || 'unknown'}
-                                        </Badge>
-                                        <Text className="break-all" size="xs">
-                                          {finding.errorKind || '—'}
-                                        </Text>
-                                        <Text className="break-all" size="xs">
-                                          {finding.error || '—'}
-                                        </Text>
-                                      </Stack>
-                                    </Table.Td>
-                                  </Table.Tr>
-                                ))}
-                              </Table.Tbody>
-                            </Table>
-                            {totalChainPages > 1 ? (
-                              <Group justify="center" mt="md">
-                                <Pagination
-                                  value={activeChainPage}
-                                  onChange={setActiveChainPage}
-                                  total={totalChainPages}
-                                  size="sm"
-                                />
-                              </Group>
-                            ) : null}
-                          </>
-                        ) : null
-                      ) : isChainAuditing ? (
-                        <Center py="lg">
-                          <Stack align="center" gap="xs">
-                            <Loader size="sm" />
-                            <Text c="dimmed" size="sm">
-                              Loading chain detail rows...
-                            </Text>
-                          </Stack>
-                        </Center>
-                      ) : (
-                        <Alert
-                          color="blue"
-                          icon={<IconAlertCircle size={16} />}
-                          title="No chain findings loaded"
-                        >
-                          Gecko did not return any chain detail rows for this issue.
-                        </Alert>
-                      )}
-                    </Stack>
-                  ) : null}
-
-                  {(diffAuditResult || auditResult) ? (
-                    <Stack gap="xs">
-                      <Group justify="space-between" wrap="wrap">
-                        <div>
-                          <Title order={5}>Supporting Details</Title>
-                          <Text c="dimmed" mt={4} size="sm">
-                            Open the lower-level diff or cleanup audits only when
-                            you need the supporting evidence or delete actions.
-                          </Text>
-                        </div>
-                        <Group gap="xs">
-                          <Button
-                            onClick={() => {
-                              if (!showDiffDetails) {
-                                void ensureDiffAuditLoaded();
-                              }
-                              setShowDiffDetails((current) => !current);
-                            }}
-                            size="xs"
-                            variant="subtle"
-                          >
-                            {showDiffDetails
-                              ? 'Hide project diff'
-                              : `Show project diff${diffAuditResult ? ` (${diffAuditResult.summary.totalFindings.toLocaleString()})` : ''}`}
-                          </Button>
-                          <Button
-                            onClick={() => {
-                              if (!showCleanupDetails) {
-                                void ensureCleanupAuditLoaded();
-                              }
-                              setShowCleanupDetails((current) => !current);
-                            }}
-                            size="xs"
-                            variant="subtle"
-                          >
-                            {showCleanupDetails
-                              ? 'Hide cleanup audit'
-                              : `Show cleanup audit${auditResult ? ` (${auditResult.summary.totalFindings.toLocaleString()})` : ''}`}
-                          </Button>
-                        </Group>
-                      </Group>
-                    </Stack>
-                  ) : null}
-
-                  {showDiffDetails && diffAuditResult ? (
-                    diffIssueSummaries.length > 0 ? (
-                      <Stack gap="sm">
-                        <div>
-                          <Title order={5}>Project Diff</Title>
-                          <Text c="dimmed" mt={4} size="sm">
-                            Checksum join evidence between Git and Syfon.
-                          </Text>
-                        </div>
-                        <Table highlightOnHover>
-                        <Table.Thead>
-                          <Table.Tr>
-                            <Table.Th>Issue</Table.Th>
-                            <Table.Th>Impact</Table.Th>
-                          </Table.Tr>
-                        </Table.Thead>
-                        <Table.Tbody>
-                          {diffIssueSummaries.map((issue) => (
-                            <Table.Tr key={issue.id}>
-                              <Table.Td miw={520}>
-                                <Stack gap={4}>
-                                  <Group gap={8}>
-                                    <Badge color={issue.color} variant="light">
-                                      {issue.pathCount.toLocaleString()} paths
-                                    </Badge>
-                                    <Text fw={700} size="sm">
-                                      {issue.title}
-                                    </Text>
-                                  </Group>
-                                  <Text c="dimmed" size="sm">
-                                    {issue.description}
-                                  </Text>
-                                  <Text size="sm">{issue.recommendation}</Text>
-                                  <Group gap="xs">
-                                    <Button
-                                      color={issue.color}
-                                      loading={isAuditing}
-                                      onClick={() => {
-                                        openIssueActionModal({
-                                          defaultAction: issue.actionSummary.defaultAction,
-                                          findings: (diffAuditResult?.findings ?? []).filter(
-                                            (finding) =>
-                                              issue.findingKinds.includes(finding.kind),
-                                          ),
-                                          issueId: issue.id,
-                                          issueTitle: issue.title,
-                                          paths: (diffAuditResult?.findings ?? [])
-                                            .filter((finding) =>
-                                              issue.findingKinds.includes(finding.kind),
-                                            )
-                                            .map((finding) => finding.normalizedPath),
-                                          source: 'diff',
-                                          supportsDryRun: issue.actionSummary.supportsDryRun,
-                                        });
-                                      }}
-                                      size="xs"
-                                      variant="light"
-                                    >
-                                      {issue.actionSummary.defaultAction?.label ?? 'Open action'}
-                                    </Button>
-                                    <Button
-                                      onClick={() => {
-                                        setSelectedDiffIssueId((current) =>
-                                          current === issue.id ? null : issue.id,
-                                        );
-                                      }}
-                                      size="xs"
-                                      variant="subtle"
-                                    >
-                                      {selectedDiffIssueId === issue.id
-                                        ? 'Hide details'
-                                        : `See details (${issue.pathCount.toLocaleString()})`}
-                                    </Button>
-                                  </Group>
-                                </Stack>
-                              </Table.Td>
-                              <Table.Td>
-                                <Text size="sm">
-                                  {issue.recordCount.toLocaleString()} records
-                                  {' · '}
-                                  {issue.objectCount.toLocaleString()} objects
-                                  {' · '}
-                                  {formatBytes(issue.totalBytes)}
-                                </Text>
-                              </Table.Td>
-                            </Table.Tr>
-                            ))}
-                          </Table.Tbody>
-                        </Table>
-                      </Stack>
-                    ) : (
-                      <Alert
-                        color="green"
-                        icon={<IconAlertCircle size={16} />}
-                        title="No project diff issues"
-                      >
-                        Git and Syfon are aligned for this subtree. No duplicate,
-                        Syfon-only, or Git-only paths were returned.
-                      </Alert>
-                    )
-                  ) : isDiffAuditing ? (
-                    <Center h={140}>
-                      <Loader size={28} />
-                    </Center>
-                  ) : null}
-
-                  {showDiffDetails && diffAuditResult && selectedDiffIssue ? (
-                    <Stack
-                      className="rounded-md border border-slate-200 bg-slate-50 px-4 py-4"
-                      gap="sm"
-                    >
-                      <Group justify="space-between" wrap="wrap">
-                        <div>
-                          <Text fw={700} size="sm">
-                            {selectedDiffIssue.title}
-                          </Text>
-                          <Text c="dimmed" size="sm">
-                            {selectedDiffIssue.pathCount.toLocaleString()} paths in
-                            this issue set.
-                          </Text>
-                        </div>
-                        <Button
-                          onClick={() => setSelectedDiffIssueId(null)}
-                          size="xs"
-                          variant="subtle"
-                        >
-                          Hide details
-                        </Button>
-                      </Group>
-
-                      <Table highlightOnHover stickyHeader>
-                        <Table.Thead>
-                          <Table.Tr>
-                            <Table.Th>Path</Table.Th>
-                            <Table.Th>Issue</Table.Th>
-                            <Table.Th>Records</Table.Th>
-                            <Table.Th>Objects</Table.Th>
-                            <Table.Th>Downloads</Table.Th>
-                          </Table.Tr>
-                        </Table.Thead>
-                        <Table.Tbody>
-                          {paginatedDiffFindings.map((finding) => (
-                            <Table.Tr
-                              key={`${finding.kind}:${finding.normalizedPath}`}
-                            >
-                              <Table.Td maw={560}>
-                                <Text className="break-all" fw={600} size="sm">
-                                  {finding.normalizedPath}
-                                </Text>
-                              </Table.Td>
-                              <Table.Td>
-                                <Badge
-                                  color={getProjectDiffFindingColor(
-                                    finding.kind,
-                                  )}
-                                  variant="light"
-                                >
-                                  {formatCleanupFindingLabel(finding.kind)}
-                                </Badge>
-                              </Table.Td>
-                              <Table.Td>
-                                {finding.recordCount.toLocaleString()}
-                              </Table.Td>
-                              <Table.Td maw={420}>
-                                <Stack gap={4}>
-                                  <Text c="dimmed" size="sm">
-                                    {finding.objectIds.length.toLocaleString()}{' '}
-                                    object ids
-                                  </Text>
-                                  {finding.objectIds
-                                    .slice(0, 2)
-                                    .map((objectId) => (
-                                      <Text
-                                        c="dimmed"
-                                        className="break-all"
-                                        key={objectId}
-                                        size="xs"
-                                      >
-                                        {objectId}
-                                      </Text>
-                                    ))}
-                                  {finding.objectIds.length > 2 ? (
-                                    <Text c="dimmed" size="xs">
-                                      +
-                                      {(
-                                        finding.objectIds.length - 2
-                                      ).toLocaleString()}{' '}
-                                      more
-                                    </Text>
-                                  ) : null}
-                                  {finding.sourcePaths.slice(0, 2).map((sourcePath) => (
-                                    <Text
-                                      c="dimmed"
-                                      className="break-all"
-                                      key={sourcePath}
-                                      size="xs"
-                                    >
-                                      {sourcePath}
-                                    </Text>
-                                  ))}
-                                  {finding.sourcePaths.length > 2 ? (
-                                    <Text c="dimmed" size="xs">
-                                      +
-                                      {(
-                                        finding.sourcePaths.length - 2
-                                      ).toLocaleString()}{' '}
-                                      more source paths
-                                    </Text>
-                                  ) : null}
-                                </Stack>
-                              </Table.Td>
-                              <Table.Td>
-                                <Stack gap={4}>
-                                  <Text size="sm">
-                                    {(finding.downloadCount ?? 0).toLocaleString()}
-                                  </Text>
-                                  <Text c="dimmed" size="xs">
-                                    {formatTimestamp(finding.lastDownload)}
-                                  </Text>
-                                </Stack>
-                              </Table.Td>
-                            </Table.Tr>
-                          ))}
-                        </Table.Tbody>
-                      </Table>
-                      {totalDiffPages > 1 ? (
-                        <Group justify="center" mt="md">
-                          <Pagination
-                            value={activeDiffPage}
-                            onChange={setActiveDiffPage}
-                            total={totalDiffPages}
-                            size="sm"
-                          />
-                        </Group>
-                      ) : null}
-                    </Stack>
                   ) : null}
 
                   {applyError ? (
@@ -2692,14 +2252,161 @@ export const FileSummaryPage = ({
                     </Alert>
                   ) : null}
 
-                  {actionFeedbackMessage ? (
-                    <Alert
-                      color="blue"
-                      icon={<IconAlertCircle size={16} />}
-                      title="Action complete"
-                    >
-                      {actionFeedbackMessage}
-                    </Alert>
+                  {showDiffDetails && diffAuditResult ? (
+                    diffIssueSummaries.length > 0 ? (
+                      <Stack gap="sm">
+                        <div>
+                          <Title order={5}>Project Diff</Title>
+                          <Text c="dimmed" mt={4} size="sm">
+                            Checksum join evidence between Git and Syfon.
+                          </Text>
+                        </div>
+                        <Table highlightOnHover>
+                          <Table.Thead>
+                            <Table.Tr>
+                              <Table.Th>Issue</Table.Th>
+                              <Table.Th>Impact</Table.Th>
+                              <Table.Th>Action</Table.Th>
+                            </Table.Tr>
+                          </Table.Thead>
+                          <Table.Tbody>
+                            {diffIssueSummaries.map((issue) => (
+                              <Table.Tr key={issue.id}>
+                                <Table.Td miw={520}>
+                                  <Stack gap={4}>
+                                    <Group gap={8}>
+                                      <Badge color={issue.color} variant="light">
+                                        {issue.pathCount.toLocaleString()} paths
+                                      </Badge>
+                                      <Text fw={700} size="sm">
+                                        {issue.title}
+                                      </Text>
+                                    </Group>
+                                    <Text c="dimmed" size="sm">
+                                      {issue.description}
+                                    </Text>
+                                    <Text size="sm">{issue.recommendation}</Text>
+                                  </Stack>
+                                </Table.Td>
+                                <Table.Td>
+                                  <Text size="sm">
+                                    {issue.recordCount.toLocaleString()} records
+                                    {' · '}
+                                    {issue.objectCount.toLocaleString()} objects
+                                    {' · '}
+                                    {formatBytes(issue.totalBytes)}
+                                  </Text>
+                                </Table.Td>
+                                <Table.Td>
+                                  {(() => {
+                                    const findings = (diffAuditResult?.findings ?? []).filter(
+                                      (finding) => issue.findingKinds.includes(finding.kind),
+                                    );
+                                    const action = resolveIssueAction({
+                                      defaultAction: issue.actionSummary.defaultAction,
+                                      findings,
+                                      issueId: issue.id,
+                                    });
+                                    return action ? (
+                                      <Button
+                                        color={issue.color}
+                                        loading={isAuditing}
+                                        onClick={() => {
+                                          void runIssueAction({
+                                            defaultAction: action,
+                                            findings,
+                                            issueId: issue.id,
+                                            issueTitle: issue.title,
+                                            paths: findings.map((finding) => finding.normalizedPath),
+                                            source: 'diff',
+                                          });
+                                        }}
+                                        size="xs"
+                                        variant="light"
+                                      >
+                                        {action.label}
+                                      </Button>
+                                    ) : null;
+                                  })()}
+                                </Table.Td>
+                              </Table.Tr>
+                            ))}
+                          </Table.Tbody>
+                        </Table>
+
+                        {selectedDiffIssue ? (
+                          <Stack
+                            className="rounded-md border border-slate-200 bg-slate-50 px-4 py-4"
+                            gap="sm"
+                          >
+                            <Group justify="space-between" wrap="wrap">
+                              <div>
+                                <Text fw={700} size="sm">
+                                  {selectedDiffIssue.title}
+                                </Text>
+                                <Text c="dimmed" size="sm">
+                                  {selectedDiffFindings.length.toLocaleString()} paths in
+                                  this issue set.
+                                </Text>
+                              </div>
+                              <Button
+                                onClick={() => setSelectedDiffIssueId(null)}
+                                size="xs"
+                                variant="subtle"
+                              >
+                                Hide paths
+                              </Button>
+                            </Group>
+
+                            <div className="max-h-[420px] overflow-auto rounded-md border border-slate-200 bg-white">
+                              <Table highlightOnHover stickyHeader>
+                                <Table.Thead>
+                                  <Table.Tr>
+                                    <Table.Th>Path</Table.Th>
+                                    <Table.Th>Issue</Table.Th>
+                                    <Table.Th>Records</Table.Th>
+                                    <Table.Th>Objects</Table.Th>
+                                    <Table.Th>Downloads</Table.Th>
+                                  </Table.Tr>
+                                </Table.Thead>
+                                <Table.Tbody>
+                                  {selectedDiffFindings.map((finding) => (
+                                    <Table.Tr
+                                      key={`${finding.kind}:${finding.normalizedPath}`}
+                                    >
+                                      <Table.Td maw={720}>
+                                        <Text className="break-all" fw={600} size="sm">
+                                          {finding.normalizedPath}
+                                        </Text>
+                                      </Table.Td>
+                                      <Table.Td>
+                                        <Badge color={issueColorForDiffKind(finding.kind)} variant="light">
+                                          {formatCleanupFindingLabel(finding.kind)}
+                                        </Badge>
+                                      </Table.Td>
+                                      <Table.Td>{finding.recordCount.toLocaleString()}</Table.Td>
+                                      <Table.Td>{finding.objectIds.length.toLocaleString()}</Table.Td>
+                                      <Table.Td>
+                                        {(finding.downloadCount ?? 0).toLocaleString()}
+                                      </Table.Td>
+                                    </Table.Tr>
+                                  ))}
+                                </Table.Tbody>
+                              </Table>
+                            </div>
+                          </Stack>
+                        ) : null}
+                      </Stack>
+                    ) : (
+                      <Alert
+                        color="green"
+                        icon={<IconAlertCircle size={16} />}
+                        title="No project diff issues"
+                      >
+                        Git and Syfon are aligned for this subtree. No duplicate,
+                        Syfon-only, or Git-only paths were returned.
+                      </Alert>
+                    )
                   ) : null}
 
                   {showCleanupDetails && auditResult && isDuplicateVerificationContext && !hasSafeDuplicateCleanup ? (
@@ -2709,34 +2416,18 @@ export const FileSummaryPage = ({
                       title="No safe duplicate delete yet"
                     >
                       Syfon confirmed duplicate paths, but this verification pass
-                      did not prove which sibling record is stale. The page will
-                      only expose duplicate deletion when Syfon returns stale
-                      duplicate findings.
+                      did not prove which sibling record is stale.
                     </Alert>
                   ) : null}
 
                   {auditResult && showCleanupDetails ? (
                     <Stack gap="sm">
                       <div>
-                        <Title order={5}>Cleanup Audit</Title>
+                        <Title order={5}>Storage Verification</Title>
                         <Text c="dimmed" mt={4} size="sm">
-                          {selectedDiffIssue
-                            ? `Storage verification for ${selectedDiffIssue.title.toLowerCase()} in this subtree.`
-                            : 'Storage verification for the selected issue set.'}
+                          Syfon verification results for the issue set you just inspected.
                         </Text>
                       </div>
-
-                      {showCleanupDetails && hiddenCleanupFindingCount > 0 ? (
-                        <Alert
-                          color="yellow"
-                          icon={<IconAlertCircle size={16} />}
-                          title="Additional verification details"
-                        >
-                          {hiddenCleanupFindingCount.toLocaleString()} findings are
-                          not split into their own issue rows here. Use raw audit
-                          only if you need the object-level detail.
-                        </Alert>
-                      ) : null}
 
                       {hasCleanupFindings && cleanupIssueSummaries.length > 0 ? (
                         <Table highlightOnHover>
@@ -2775,55 +2466,36 @@ export const FileSummaryPage = ({
                                   </Text>
                                 </Table.Td>
                                 <Table.Td miw={340}>
-                                  <Group gap="xs">
-                                    <Button
-                                      color={issue.color}
-                                      loading={isApplying}
-                                      onClick={() => {
-                                        openIssueActionModal({
-                                          defaultAction: issue.actionSummary.defaultAction,
-                                          findings: (auditResult?.findings ?? []).filter((finding) =>
-                                            issue.findingKinds.includes(finding.kind),
-                                          ),
-                                          issueId: issue.id,
-                                          issueTitle: issue.title,
-                                          paths: (auditResult?.findings ?? [])
-                                            .filter((finding) =>
-                                              issue.findingKinds.includes(finding.kind),
-                                            )
-                                            .map((finding) => finding.normalizedPath),
-                                          source: 'cleanup',
-                                          supportsDryRun: issue.actionSummary.supportsDryRun,
-                                        });
-                                      }}
-                                      size="xs"
-                                      variant="light"
-                                    >
-                                      {issue.actionSummary.defaultAction?.label ?? 'Open action'}
-                                    </Button>
-
-                                    <Button
-                                      onClick={() => {
-                                        const nextIssueId =
-                                          selectedCleanupIssueId === issue.id
-                                            ? null
-                                            : issue.id;
-                                        setSelectedCleanupIssueId(nextIssueId);
-                                        if (nextIssueId) {
-                                          void loadCleanupIssueDetails({
-                                            issue,
-                                            selectedPaths: selectedDiffPaths,
+                                  {(() => {
+                                    const findings = (auditResult?.findings ?? []).filter(
+                                      (finding) => issue.findingKinds.includes(finding.kind),
+                                    );
+                                    const action = resolveIssueAction({
+                                      defaultAction: issue.actionSummary.defaultAction,
+                                      findings,
+                                      issueId: issue.id,
+                                    });
+                                    return action ? (
+                                      <Button
+                                        color={issue.color}
+                                        loading={isApplying}
+                                        onClick={() => {
+                                          void runIssueAction({
+                                            defaultAction: action,
+                                            findings,
+                                            issueId: issue.id,
+                                            issueTitle: issue.title,
+                                            paths: findings.map((finding) => finding.normalizedPath),
+                                            source: 'cleanup',
                                           });
-                                        }
-                                      }}
-                                      size="xs"
-                                      variant="subtle"
-                                    >
-                                      {selectedCleanupIssueId === issue.id
-                                        ? 'Hide raw audit'
-                                        : `See raw audit (${issue.pathCount.toLocaleString()})`}
-                                    </Button>
-                                  </Group>
+                                        }}
+                                        size="xs"
+                                        variant="light"
+                                      >
+                                        {action.label}
+                                      </Button>
+                                    ) : null;
+                                  })()}
                                 </Table.Td>
                               </Table.Tr>
                             ))}
@@ -2840,177 +2512,6 @@ export const FileSummaryPage = ({
                         </Alert>
                       )}
 
-                      {hasCleanupFindings && selectedCleanupIssue ? (
-                        <Stack
-                          className="rounded-md border border-slate-200 bg-slate-50 px-4 py-4"
-                          gap="sm"
-                        >
-                          <Group justify="space-between" wrap="wrap">
-                            <div>
-                              <Text fw={700} size="sm">
-                                {selectedCleanupIssue.title}
-                              </Text>
-                              <Text c="dimmed" size="sm">
-                                {selectedCleanupIssue.pathCount.toLocaleString()} paths in
-                                this verification set.
-                              </Text>
-                            </div>
-                            <Button
-                              onClick={() => setSelectedCleanupIssueId(null)}
-                              size="xs"
-                              variant="subtle"
-                            >
-                              Hide raw audit
-                            </Button>
-                          </Group>
-
-                          <Table highlightOnHover stickyHeader>
-                            <Table.Thead>
-                              <Table.Tr>
-                                <Table.Th>Path</Table.Th>
-                                <Table.Th>Finding</Table.Th>
-                                <Table.Th>Objects</Table.Th>
-                                <Table.Th>Downloads</Table.Th>
-                                <Table.Th>Recommended Action</Table.Th>
-                              </Table.Tr>
-                            </Table.Thead>
-                            <Table.Tbody>
-                              {paginatedCleanupFindings.map((finding) => (
-                                <Table.Tr
-                                  key={`${finding.kind}:${finding.normalizedPath}`}
-                                >
-                                  <Table.Td maw={380}>
-                                    <Stack gap={4}>
-                                      <Text className="break-all" fw={600} size="sm">
-                                        {finding.normalizedPath}
-                                      </Text>
-                                      <Group gap={6}>
-                                        {finding.repoDeleteCandidate ? (
-                                          <Badge color="grape" variant="light">
-                                            Repo Delete Candidate
-                                          </Badge>
-                                        ) : null}
-                                        {finding.cleanupScope !== 'unknown' ? (
-                                          <Badge
-                                            color={
-                                              finding.cleanupScope === 'access_url'
-                                                ? 'red'
-                                                : 'gray'
-                                            }
-                                            variant="light"
-                                          >
-                                            {finding.cleanupScope === 'access_url'
-                                              ? 'Audit Only Partial'
-                                              : 'Whole Record'}
-                                          </Badge>
-                                        ) : null}
-                                        {finding.sizeBytes !== undefined ? (
-                                          <Badge color="gray" variant="light">
-                                            {formatBytes(finding.sizeBytes)}
-                                          </Badge>
-                                        ) : null}
-                                      </Group>
-                                    </Stack>
-                                  </Table.Td>
-                                  <Table.Td>
-                                    <Badge
-                                      color={getCleanupFindingColor(finding.kind)}
-                                      variant="light"
-                                    >
-                                      {formatCleanupFindingLabel(finding.kind)}
-                                    </Badge>
-                                  </Table.Td>
-                                  <Table.Td maw={360}>
-                                    <Stack gap={4}>
-                                      {finding.records.length > 0 ? (
-                                        finding.records.map((record) => (
-                                          <Stack gap={2} key={record.objectId}>
-                                            <Text className="break-all" size="sm">
-                                              {record.objectId}:&nbsp;
-                                              {formatProbeResolution(record.status)}
-                                              {record.cleanupScope === 'access_url'
-                                                ? ' (partial)'
-                                                : ''}
-                                              {record.error
-                                                ? ` (${record.error})`
-                                                : ''}
-                                            </Text>
-                                            {record.accessProbes.map((probe) => (
-                                              <Text
-                                                c="dimmed"
-                                                className="break-all"
-                                                key={`${record.objectId}:${probe.url}`}
-                                                size="xs"
-                                              >
-                                                {probe.url}:&nbsp;
-                                                {formatProbeResolution(
-                                                  probe.status,
-                                                )}
-                                                {probe.exists !== undefined
-                                                  ? ` exists=${String(probe.exists)}`
-                                                  : ''}
-                                                {probe.bucket
-                                                  ? ` bucket=${probe.bucket}`
-                                                  : ''}
-                                                {probe.key ? ` key=${probe.key}` : ''}
-                                                {probe.sizeBytes !== undefined
-                                                  ? ` size=${probe.sizeBytes}`
-                                                  : ''}
-                                                {probe.validationStatus
-                                                  ? ` validation=${probe.validationStatus}`
-                                                  : ''}
-                                                {probe.validationMismatches.length > 0
-                                                  ? ` mismatches=${probe.validationMismatches.join(',')}`
-                                                  : ''}
-                                                {probe.errorKind
-                                                  ? ` error=${probe.errorKind}`
-                                                  : ''}
-                                                {probe.error
-                                                  ? ` (${probe.error})`
-                                                  : ''}
-                                              </Text>
-                                            ))}
-                                          </Stack>
-                                        ))
-                                      ) : (
-                                        <Text c="dimmed" size="sm">
-                                          {finding.objectIds.length.toLocaleString()}{' '}
-                                          object ids
-                                        </Text>
-                                      )}
-                                    </Stack>
-                                  </Table.Td>
-                                  <Table.Td>
-                                    <Stack gap={4}>
-                                      <Text size="sm">
-                                        {(finding.downloadCount ?? 0).toLocaleString()}
-                                      </Text>
-                                      <Text c="dimmed" size="xs">
-                                        {formatTimestamp(finding.lastDownload)}
-                                      </Text>
-                                    </Stack>
-                                  </Table.Td>
-                                  <Table.Td maw={300}>
-                                    <Text size="sm">
-                                      {finding.recommendedAction}
-                                    </Text>
-                                  </Table.Td>
-                                </Table.Tr>
-                              ))}
-                            </Table.Tbody>
-                          </Table>
-                          {totalCleanupPages > 1 ? (
-                            <Group justify="center" mt="md">
-                              <Pagination
-                                value={activeCleanupPage}
-                                onChange={setActiveCleanupPage}
-                                total={totalCleanupPages}
-                                size="sm"
-                              />
-                            </Group>
-                          ) : null}
-                        </Stack>
-                      ) : null}
                     </Stack>
                   ) : null}
                 </Stack>
@@ -3073,7 +2574,7 @@ export const FileSummaryPage = ({
                     </div>
                     <Group align="center" className="shrink-0 justify-self-end" gap="xs" wrap="nowrap">
                       <Button
-                        loading={isDiffAuditing}
+                        loading={isChainAuditing}
                         onClick={() => {
                           void handleOpenAuditModal();
                         }}
