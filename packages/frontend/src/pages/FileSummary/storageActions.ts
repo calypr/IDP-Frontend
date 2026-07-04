@@ -29,7 +29,7 @@ const storageActionMetadata = (
     case 'delete_both':
       return {
         destructive: true,
-        label: 'Delete records and bucket objects',
+        label: 'Delete Syfon records and bucket objects',
         requiresConfirmation: true,
         supportsDryRun: true,
       };

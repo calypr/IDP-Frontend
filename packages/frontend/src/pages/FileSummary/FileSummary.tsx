@@ -58,6 +58,7 @@ import {
 } from './storageUtils';
 import { StorageBrowser } from './StorageBrowser';
 import { StorageChainAuditModal } from './StorageChainAuditModal';
+import { StorageChainAuditReport } from './StorageChainAuditReport';
 import {
   summarizeCleanupIssues,
   summarizeProjectDiffIssues,
@@ -134,6 +135,7 @@ export const FileSummaryPage = ({
     string | null
   >(null);
   const [auditModalOpen, setAuditModalOpen] = useState(false);
+  const [showChainAuditReport, setShowChainAuditReport] = useState(false);
   const [isBulkDeletingRecords, setIsBulkDeletingRecords] = useState(false);
   const [storageSortKey, setStorageSortKey] =
     useState<StorageSortKey>('sizeBytes');
@@ -244,12 +246,19 @@ export const FileSummaryPage = ({
       hiddenItems: breadcrumbItems.slice(1, -4),
     };
   }, [breadcrumbItems]);
-  const { data, error, isLoading, isLoadingMore, loadMore, refresh } =
-    useSyfonPathStorageSummary({
-      config: filesummaryConfig,
-      currentPath,
-      projectSelection: selectedProject,
-    });
+  const {
+    applyExactChainSummary,
+    data,
+    error,
+    isLoading,
+    isLoadingMore,
+    loadMore,
+    refresh,
+  } = useSyfonPathStorageSummary({
+    config: filesummaryConfig,
+    currentPath,
+    projectSelection: selectedProject,
+  });
   const {
     auditError: chainAuditError,
     auditResult: chainAuditResult,
@@ -311,6 +320,7 @@ export const FileSummaryPage = ({
     setSelectedChainPathsByIssue({});
     setExpandedChainTreeNodes({});
     setTreeNodeLimit({});
+    setShowChainAuditReport(false);
   }, [auditResult?.pathPrefix, currentPath, selectedProject]);
 
   const pageTitle = selectedProjectParts
@@ -813,15 +823,25 @@ export const FileSummaryPage = ({
     );
   }, []);
 
-  const handleOpenAuditModal = async () => {
+  const handleRunStorageChainAudit = async () => {
+    const result = await runChainAudit();
+    setShowChainAuditReport(true);
+    if (!result) {
+      return;
+    }
+
+    applyExactChainSummary({
+      bucketObjectCount: result.summary.bucketObjectCount,
+      gitTrackedFileCount: result.summary.gitTrackedFileCount,
+      pathPrefix: result.pathPrefix,
+      syfonRecordCount: result.summary.syfonRecordCount,
+    });
+  };
+
+  const handleOpenChainIssueDetails = (issueId: string) => {
+    setSelectedChainIssueId(issueId);
+    setShowChainAuditReport(true);
     setAuditModalOpen(true);
-    const tasks: Array<Promise<unknown>> = [];
-    if (!chainAuditResult && !isChainAuditing) {
-      tasks.push(runChainAudit());
-    }
-    if (tasks.length > 0) {
-      await Promise.all(tasks);
-    }
   };
 
   const handleStorageSort = (key: StorageSortKey) => {
@@ -980,17 +1000,6 @@ export const FileSummaryPage = ({
                 {error}
               </Alert>
             ) : null}
-
-            {data?.truncated ? (
-              <Alert
-                color="yellow"
-                icon={<IconAlertCircle size={16} />}
-                title="Partial summary"
-              >
-                This path has more direct children than the current page. The
-                totals are still exact; load more rows to continue browsing.
-              </Alert>
-            ) : null}
           </Stack>
 
           {isProjectsLoading || isLoading ? (
@@ -1052,6 +1061,17 @@ export const FileSummaryPage = ({
               />
 
               <StorageBrowser
+                auditReport={
+                  <StorageChainAuditReport
+                    auditError={chainAuditError}
+                    auditResult={chainAuditResult}
+                    chainIssueSummaries={chainIssueSummaries}
+                    cleanChainJoinCount={cleanChainJoinCount}
+                    isOpen={showChainAuditReport}
+                    onOpenChange={setShowChainAuditReport}
+                    onOpenIssueDetails={handleOpenChainIssueDetails}
+                  />
+                }
                 collapsedBreadcrumb={collapsedBreadcrumb}
                 currentPath={currentPath}
                 data={data}
@@ -1062,8 +1082,8 @@ export const FileSummaryPage = ({
                 onLoadMore={() => {
                   void loadMore();
                 }}
-                onOpenAuditModal={() => {
-                  void handleOpenAuditModal();
+                onRunAudit={() => {
+                  void handleRunStorageChainAudit();
                 }}
                 onPathChange={setCurrentPath}
                 onRefresh={refresh}

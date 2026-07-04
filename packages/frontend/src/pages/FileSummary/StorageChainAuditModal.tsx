@@ -135,13 +135,26 @@ export const StorageChainAuditModal = ({
           icon={<IconAlertCircle size={16} />}
           title="Connected end-to-end"
         >
-          {cleanChainJoinCount.toLocaleString()} bucket objects currently join
-          cleanly through Syfon into Git. Totals scanned:{' '}
-          {chainAuditResult.summary.bucketObjectCount.toLocaleString()} bucket
-          objects, {chainAuditResult.summary.syfonRecordCount.toLocaleString()}{' '}
-          Syfon records,{' '}
-          {chainAuditResult.summary.gitTrackedFileCount.toLocaleString()}{' '}
-          Git-tracked files.
+          <Stack gap={4}>
+            <Text size="sm">
+              <strong>Working rows:</strong>{' '}
+              {cleanChainJoinCount.toLocaleString()} bucket objects join cleanly
+              through Syfon into Git.
+            </Text>
+            <Text size="sm">
+              <strong>Problem rows:</strong> 0 issue paths need attention in
+              this subtree.
+            </Text>
+            <Text size="sm">
+              <strong>Audit scope:</strong> scanned{' '}
+              {chainAuditResult.summary.bucketObjectCount.toLocaleString()}{' '}
+              bucket objects,{' '}
+              {chainAuditResult.summary.syfonRecordCount.toLocaleString()} Syfon
+              records, and{' '}
+              {chainAuditResult.summary.gitTrackedFileCount.toLocaleString()}{' '}
+              Git-tracked files.
+            </Text>
+          </Stack>
         </Alert>
       ) : null}
 
@@ -153,22 +166,29 @@ export const StorageChainAuditModal = ({
           icon={<IconAlertCircle size={16} />}
           title="Chain issues found"
         >
-          {chainIssueSummaries
-            .reduce((sum, issue) => sum + issue.pathCount, 0)
-            .toLocaleString()}{' '}
-          issue paths need attention in this subtree. Totals scanned:{' '}
-          {chainAuditResult.summary.bucketObjectCount.toLocaleString()} bucket
-          objects, {chainAuditResult.summary.syfonRecordCount.toLocaleString()}{' '}
-          Syfon records,{' '}
-          {chainAuditResult.summary.gitTrackedFileCount.toLocaleString()}{' '}
-          Git-tracked files.
-          {cleanChainJoinCount > 0 ? (
-            <>
-              {' '}
-              {cleanChainJoinCount.toLocaleString()} bucket objects also join
-              cleanly through Syfon into Git.
-            </>
-          ) : null}
+          <Stack gap={4}>
+            <Text size="sm">
+              <strong>Working rows:</strong>{' '}
+              {cleanChainJoinCount.toLocaleString()} bucket objects join cleanly
+              through Syfon into Git.
+            </Text>
+            <Text size="sm">
+              <strong>Problem rows:</strong>{' '}
+              {chainIssueSummaries
+                .reduce((sum, issue) => sum + issue.pathCount, 0)
+                .toLocaleString()}{' '}
+              issue paths need attention in this subtree.
+            </Text>
+            <Text size="sm">
+              <strong>Audit scope:</strong> scanned{' '}
+              {chainAuditResult.summary.bucketObjectCount.toLocaleString()}{' '}
+              bucket objects,{' '}
+              {chainAuditResult.summary.syfonRecordCount.toLocaleString()} Syfon
+              records, and{' '}
+              {chainAuditResult.summary.gitTrackedFileCount.toLocaleString()}{' '}
+              Git-tracked files.
+            </Text>
+          </Stack>
         </Alert>
       ) : null}
 
@@ -275,11 +295,26 @@ export const StorageChainAuditModal = ({
                         const paths = findings.map(
                           (finding) => finding.normalizedPath,
                         );
+                        const isMetadataMismatch =
+                          issue.id === 'git_syfon_metadata_mismatch';
                         const repairActions = orderedRepairActions(
                           issue.actionSummary.availableActions,
+                        ).filter(
+                          (action) =>
+                            !isMetadataMismatch ||
+                            [
+                              'delete_syfon_record',
+                              'delete_records',
+                              'delete_both',
+                            ].includes(action.action),
                         );
                         const defaultRepairAction =
                           issue.actionSummary.defaultAction &&
+                          repairActions.some(
+                            (action) =>
+                              action.action ===
+                              issue.actionSummary.defaultAction?.action,
+                          ) &&
                           ![
                             'view_paths',
                             'inspect_evidence',
@@ -287,12 +322,13 @@ export const StorageChainAuditModal = ({
                           ].includes(issue.actionSummary.defaultAction.action)
                             ? issue.actionSummary.defaultAction
                             : repairActions[0];
-                        const secondaryRepairActions = defaultRepairAction
-                          ? repairActions.filter(
-                              (action) =>
-                                action.action !== defaultRepairAction.action,
-                            )
-                          : [];
+                        const secondaryRepairActions =
+                          defaultRepairAction && !isMetadataMismatch
+                            ? repairActions.filter(
+                                (action) =>
+                                  action.action !== defaultRepairAction.action,
+                              )
+                            : [];
                         const isBusy =
                           isApplying ||
                           isAuditing ||
@@ -310,8 +346,7 @@ export const StorageChainAuditModal = ({
                         };
                         return (
                           <Group gap="xs">
-                            {issue.id === 'git_syfon_metadata_mismatch' &&
-                            repairActions.length > 1 ? (
+                            {isMetadataMismatch && repairActions.length > 1 ? (
                               <Menu shadow="md" withinPortal>
                                 <Menu.Target>
                                   <Button
@@ -494,33 +529,50 @@ export const StorageChainAuditModal = ({
                     <Table.Tr>
                       <Table.Th>Path</Table.Th>
                       <Table.Th>Checksum</Table.Th>
+                      <Table.Th>Evidence</Table.Th>
                       <Table.Th>Records</Table.Th>
                       <Table.Th>Objects</Table.Th>
                     </Table.Tr>
                   </Table.Thead>
                   <Table.Tbody>
-                    {selectedChainFindings.map((finding) => (
-                      <Table.Tr
-                        key={`${finding.kind}:${finding.normalizedPath}`}
-                      >
-                        <Table.Td maw={720}>
-                          <Text className="break-all" fw={600} size="sm">
-                            {finding.normalizedPath}
-                          </Text>
-                        </Table.Td>
-                        <Table.Td maw={320}>
-                          <Text className="break-all font-mono" size="xs">
-                            {finding.checksum || '—'}
-                          </Text>
-                        </Table.Td>
-                        <Table.Td>
-                          {finding.recordCount.toLocaleString()}
-                        </Table.Td>
-                        <Table.Td>
-                          {finding.objectIds.length.toLocaleString()}
-                        </Table.Td>
-                      </Table.Tr>
-                    ))}
+                    {selectedChainFindings.map((finding) => {
+                      const evidence = [
+                        finding.error,
+                        finding.accessUrls[0],
+                        finding.bucketObjectUrl,
+                        finding.resolvedBucket && finding.resolvedKey
+                          ? `${finding.resolvedBucket}/${finding.resolvedKey}`
+                          : '',
+                      ].find(Boolean);
+
+                      return (
+                        <Table.Tr
+                          key={`${finding.kind}:${finding.normalizedPath}`}
+                        >
+                          <Table.Td maw={560}>
+                            <Text className="break-all" fw={600} size="sm">
+                              {finding.normalizedPath}
+                            </Text>
+                          </Table.Td>
+                          <Table.Td maw={260}>
+                            <Text className="break-all font-mono" size="xs">
+                              {finding.checksum || '—'}
+                            </Text>
+                          </Table.Td>
+                          <Table.Td maw={520}>
+                            <Text className="break-all" size="xs">
+                              {evidence || '—'}
+                            </Text>
+                          </Table.Td>
+                          <Table.Td>
+                            {finding.recordCount.toLocaleString()}
+                          </Table.Td>
+                          <Table.Td>
+                            {finding.objectIds.length.toLocaleString()}
+                          </Table.Td>
+                        </Table.Tr>
+                      );
+                    })}
                   </Table.Tbody>
                 </Table>
               </div>

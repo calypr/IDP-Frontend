@@ -33,6 +33,7 @@ type CollapsedBreadcrumb = {
 };
 
 type StorageBrowserProps = {
+  readonly auditReport?: React.ReactNode;
   readonly collapsedBreadcrumb: CollapsedBreadcrumb;
   readonly currentPath: string;
   readonly data: StoragePathSummary | null;
@@ -46,13 +47,14 @@ type StorageBrowserProps = {
   readonly storageSortDirection: StorageSortDirection;
   readonly storageSortKey: StorageSortKey;
   readonly onLoadMore: () => void;
-  readonly onOpenAuditModal: () => void;
+  readonly onRunAudit: () => void;
   readonly onPathChange: (path: string) => void;
   readonly onRefresh: () => void;
   readonly onSort: (key: StorageSortKey) => void;
 };
 
 export const StorageBrowser = ({
+  auditReport,
   collapsedBreadcrumb,
   currentPath,
   data,
@@ -61,7 +63,7 @@ export const StorageBrowser = ({
   isLoadingMore,
   largestRowSize,
   onLoadMore,
-  onOpenAuditModal,
+  onRunAudit,
   onPathChange,
   onRefresh,
   onSort,
@@ -151,11 +153,11 @@ export const StorageBrowser = ({
           >
             <Button
               loading={isChainAuditing}
-              onClick={onOpenAuditModal}
+              onClick={onRunAudit}
               size="xs"
               variant="light"
             >
-              Audit Project
+              Audit exacts
             </Button>
             <ActionIcon
               aria-label="Refresh metrics"
@@ -169,6 +171,8 @@ export const StorageBrowser = ({
           </Group>
         </div>
       </div>
+
+      {auditReport}
 
       <div className="overflow-x-auto">
         <div className="grid min-w-[1320px] grid-cols-[260px_140px_180px_120px_220px] items-end gap-x-8">
@@ -204,6 +208,19 @@ export const StorageBrowser = ({
               {' · '}
               {data?.childCount ?? 0} children
             </Text>
+            {data?.isChainAuditExact ? (
+              <Stack gap={4} mt={4}>
+                <Badge color="green" size="xs" variant="light">
+                  Audit verified
+                </Badge>
+                <Text c="dimmed" size="xs">
+                  {(data.recordCount ?? 0).toLocaleString()} Syfon records
+                  {typeof data.bucketObjectCount === 'number'
+                    ? ` · ${data.bucketObjectCount.toLocaleString()} bucket objects`
+                    : ''}
+                </Text>
+              </Stack>
+            ) : null}
           </div>
 
           <div className="min-w-[120px]">

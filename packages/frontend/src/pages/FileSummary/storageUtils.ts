@@ -18,10 +18,12 @@ export interface StoragePathRow {
 }
 
 export interface StoragePathSummary {
+  readonly bucketObjectCount?: number;
   readonly childCount: number;
   readonly downloadCount: number;
   readonly fileCount: number;
   readonly hasMore: boolean;
+  readonly isChainAuditExact?: boolean;
   readonly lastDownload?: string;
   readonly lastUpdated?: string;
   readonly nextCursor?: string;

@@ -556,18 +556,35 @@ const normalizeCleanupFinding = (
 const normalizeStorageChainFinding = (
   item: Record<string, unknown>,
 ): StorageChainFinding | null => {
+  const kind = parseStorageChainFindingKind(item.kind ?? item.finding_kind);
+  const fallbackPath =
+    (toStringArray(item.source_paths)[0] ??
+      toStringArray(item.access_urls)[0] ??
+      toStringArray(
+        item.evidence && typeof item.evidence === 'object'
+          ? (item.evidence as Record<string, unknown>).access_urls
+          : [],
+      )[0] ??
+      toStringArray(
+        item.evidence && typeof item.evidence === 'object'
+          ? (item.evidence as Record<string, unknown>).bucket_object_urls
+          : [],
+      )[0] ??
+      (typeof item.bucket_object_url === 'string'
+        ? item.bucket_object_url
+        : '')) ||
+    (typeof item.checksum === 'string' ? item.checksum : '');
   const normalizedPath = normalizeStoragePath(
     typeof item.normalized_path === 'string'
       ? item.normalized_path
       : typeof item.path === 'string'
         ? item.path
-        : '',
+        : fallbackPath,
   );
   if (!normalizedPath) {
     return null;
   }
 
-  const kind = parseStorageChainFindingKind(item.kind ?? item.finding_kind);
   const availableActions = normalizeAvailableActions(item);
   const defaultAction = normalizeDefaultAction(item);
   const defaultRecommendation =

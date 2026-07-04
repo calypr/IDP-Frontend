@@ -10,7 +10,7 @@ import {
 } from './storageUtils';
 import { requestSessionLogout } from '../../lib/session/session';
 
-const DEFAULT_CHILD_LIMIT = 200;
+const DEFAULT_CHILD_LIMIT = 100;
 const STORAGE_FOLDER_CACHE_TTL_MS = 60_000;
 
 interface StorageSummaryResponse {
@@ -47,6 +47,13 @@ interface StorageFolderResponse {
   summary?: StorageSummaryResponse;
   children?: StorageChildrenResponse;
 }
+
+type ExactChainSummary = {
+  readonly bucketObjectCount: number;
+  readonly gitTrackedFileCount: number;
+  readonly pathPrefix: string;
+  readonly syfonRecordCount: number;
+};
 
 const buildGeckoGitProjectBaseUrl = ({
   organization,
@@ -191,6 +198,40 @@ export const useSyfonPathStorageSummary = ({
     cacheRef.current.clear();
     setReloadToken((current) => current + 1);
   }, []);
+
+  const applyExactChainSummary = useCallback(
+    (summary: ExactChainSummary) => {
+      const normalizedSummaryPath = normalizeStoragePath(summary.pathPrefix);
+      const normalizedCurrentPath = normalizeStoragePath(currentPath);
+      if (normalizedSummaryPath !== normalizedCurrentPath) {
+        return;
+      }
+
+      setData((current) => {
+        if (!current) {
+          return current;
+        }
+
+        const next = {
+          ...current,
+          bucketObjectCount: summary.bucketObjectCount,
+          fileCount: summary.gitTrackedFileCount,
+          isChainAuditExact: true,
+          recordCount: summary.syfonRecordCount,
+        };
+
+        if (cacheKey) {
+          cacheRef.current.set(cacheKey, {
+            data: next,
+            expiresAt: Date.now() + STORAGE_FOLDER_CACHE_TTL_MS,
+          });
+        }
+
+        return next;
+      });
+    },
+    [cacheKey, currentPath],
+  );
 
   useEffect(() => {
     const selection = splitProjectSelectionValue(projectSelection);
@@ -381,6 +422,7 @@ export const useSyfonPathStorageSummary = ({
     error,
     isLoading,
     isLoadingMore,
+    applyExactChainSummary,
     loadMore,
     refresh,
   };
