@@ -22,6 +22,7 @@ interface StorageSummaryResponse {
   latest_update_time?: string;
   path?: string;
   record_count?: number;
+  source?: string;
   total_bytes?: number;
 }
 
@@ -158,6 +159,7 @@ const toStoragePathSummary = ({
     recordCount: summaryJson.record_count ?? 0,
     rows,
     sizeBytes: summaryJson.total_bytes ?? 0,
+    source: summaryJson.source,
     truncated: Boolean(childrenJson.has_more),
   };
 };

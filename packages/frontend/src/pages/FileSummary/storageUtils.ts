@@ -31,6 +31,7 @@ export interface StoragePathSummary {
   readonly recordCount: number;
   readonly rows: Array<StoragePathRow>;
   readonly sizeBytes: number;
+  readonly source?: string;
   readonly truncated: boolean;
 }
 

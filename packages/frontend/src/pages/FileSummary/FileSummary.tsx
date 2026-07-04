@@ -1,52 +1,26 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
+import { CALYPR_EXPLORER_CONFIG_API } from '@gen3/core';
 import {
-  useBulkDeleteSyfonDrsObjectsMutation,
-  CALYPR_EXPLORER_CONFIG_API,
-} from '@gen3/core';
-import {
-  ActionIcon,
   Alert,
-  Badge,
-  Button,
   Center,
-  Checkbox,
   Container,
   Group,
   Loader,
-  Menu,
-  Modal,
-  Progress,
   Select,
   Stack,
-  Table,
   Text,
   Title,
 } from '@mantine/core';
-import {
-  IconAlertCircle,
-  IconChevronRight,
-  IconFile,
-  IconFolder,
-  IconRefresh,
-  IconSelector,
-} from '@tabler/icons-react';
+import { IconAlertCircle } from '@tabler/icons-react';
 import ProtectedContent from '../../components/Protected/ProtectedContent';
 import { NavPageLayout, ProjectWorkspaceTabs } from '../../features/Navigation';
-import { formatBytes } from '../../utils/labels';
 import { FileSummaryPageProps } from './types';
 import {
   type AuditActionOption,
-  type ProjectDiffFinding,
-  type ProjectDiffFindingKind,
   type StorageApplyActionRequest,
   type StorageChainFinding,
-  type StorageChainFindingKind,
-  type StorageChainIssueGroup,
-  type StorageCleanupApplyResult,
   type StorageCleanupFinding,
-  type StorageCleanupFindingKind,
-  useSyfonProjectDiff,
   useSyfonStorageChain,
   useSyfonPathStorageSummary,
   useSyfonStorageCleanup,
@@ -57,21 +31,14 @@ import {
   type StoragePathRow,
 } from './storageUtils';
 import { StorageBrowser } from './StorageBrowser';
-import { StorageChainAuditModal } from './StorageChainAuditModal';
 import { StorageChainAuditReport } from './StorageChainAuditReport';
+import { summarizeStorageChainIssues } from './storageIssueSummaries';
 import {
-  summarizeCleanupIssues,
-  summarizeProjectDiffIssues,
-  summarizeStorageChainIssues,
-} from './storageIssueSummaries';
-import {
-  buildPathsByParentMap,
   getPathSegments,
   isInspectAction,
   resolveIssueAction,
   resolveProjectSelection,
   sortStorageRowsBy,
-  type ActionIssueSource,
   type ActionableFinding,
   type BreadcrumbItem,
   type StorageSortDirection,
@@ -117,11 +84,6 @@ export const FileSummaryPage = ({
   const [selectedChainIssueId, setSelectedChainIssueId] = useState<
     string | null
   >(null);
-  const [selectedDiffIssueId, setSelectedDiffIssueId] = useState<string | null>(
-    null,
-  );
-  const [showCleanupDetails, setShowCleanupDetails] = useState(false);
-  const [showDiffDetails, setShowDiffDetails] = useState(false);
   const [selectedChainPathsByIssue, setSelectedChainPathsByIssue] = useState<
     Record<string, Array<string>>
   >({});
@@ -134,9 +96,16 @@ export const FileSummaryPage = ({
   const [actionFeedbackMessage, setActionFeedbackMessage] = useState<
     string | null
   >(null);
-  const [auditModalOpen, setAuditModalOpen] = useState(false);
   const [showChainAuditReport, setShowChainAuditReport] = useState(false);
-  const [isBulkDeletingRecords, setIsBulkDeletingRecords] = useState(false);
+  const [chainIssueFindingsByKind, setChainIssueFindingsByKind] = useState<
+    Record<string, Array<StorageChainFinding>>
+  >({});
+  const [chainIssueLoadErrors, setChainIssueLoadErrors] = useState<
+    Record<string, string>
+  >({});
+  const [loadingChainIssueId, setLoadingChainIssueId] = useState<string | null>(
+    null,
+  );
   const [storageSortKey, setStorageSortKey] =
     useState<StorageSortKey>('sizeBytes');
   const [storageSortDirection, setStorageSortDirection] =
@@ -272,56 +241,33 @@ export const FileSummaryPage = ({
     projectSelection: selectedProject,
   });
   const {
-    auditResult: diffAuditResult,
-    clearAudit: clearDiffAudit,
-    isAuditing: isDiffAuditing,
-    runAudit: runProjectDiffAudit,
-  } = useSyfonProjectDiff({
-    config: filesummaryConfig,
-    currentPath,
-    projectSelection: selectedProject,
-  });
-  const {
     applyCleanup,
     applyError,
     applyResult,
-    auditError,
-    auditResult,
     clearCleanupResults,
     isApplying,
     isAuditing,
-    rerunAudit,
-    runAudit,
   } = useSyfonStorageCleanup({
     config: filesummaryConfig,
     currentPath,
     projectSelection: selectedProject,
   });
-  const [bulkDeleteSyfonDrsObjects] = useBulkDeleteSyfonDrsObjectsMutation();
-
   useEffect(() => {
     clearChainAudit();
-    clearDiffAudit();
     clearCleanupResults();
-  }, [
-    clearChainAudit,
-    clearCleanupResults,
-    clearDiffAudit,
-    currentPath,
-    selectedProject,
-  ]);
+  }, [clearChainAudit, clearCleanupResults, currentPath, selectedProject]);
 
   useEffect(() => {
     setActionFeedbackMessage(null);
     setSelectedChainIssueId(null);
-    setSelectedDiffIssueId(null);
-    setShowCleanupDetails(false);
-    setShowDiffDetails(false);
     setSelectedChainPathsByIssue({});
     setExpandedChainTreeNodes({});
     setTreeNodeLimit({});
     setShowChainAuditReport(false);
-  }, [auditResult?.pathPrefix, currentPath, selectedProject]);
+    setChainIssueFindingsByKind({});
+    setChainIssueLoadErrors({});
+    setLoadingChainIssueId(null);
+  }, [currentPath, selectedProject]);
 
   const pageTitle = selectedProjectParts
     ? `${selectedProjectParts.organization}/${selectedProjectParts.project}`
@@ -335,10 +281,6 @@ export const FileSummaryPage = ({
     () => Math.max(0, ...(data?.rows ?? []).map((row) => row.sizeBytes)),
     [data?.rows],
   );
-  const diffIssueSummaries = useMemo(
-    () => summarizeProjectDiffIssues(diffAuditResult?.findings ?? []),
-    [diffAuditResult?.findings],
-  );
   const chainIssueSummaries = useMemo(
     () =>
       summarizeStorageChainIssues({
@@ -349,22 +291,28 @@ export const FileSummaryPage = ({
   );
   const cleanChainJoinCount =
     chainAuditResult?.summary.countsByKind.bucket_syfon_git_complete ?? 0;
-  const hasChainIssues = chainIssueSummaries.length > 0;
   const selectedChainIssue = useMemo(
     () =>
       chainIssueSummaries.find((issue) => issue.id === selectedChainIssueId) ??
       null,
     [chainIssueSummaries, selectedChainIssueId],
   );
-  const selectedChainFindings = useMemo(
-    () =>
-      selectedChainIssue
-        ? (chainAuditResult?.findings ?? []).filter(
-            (finding) => finding.kind === selectedChainIssue.id,
-          )
-        : [],
-    [chainAuditResult?.findings, selectedChainIssue],
-  );
+  const selectedChainFindings = useMemo(() => {
+    if (!selectedChainIssue) {
+      return [];
+    }
+    const fullIssueFindings = chainIssueFindingsByKind[selectedChainIssue.id];
+    if (fullIssueFindings) {
+      return fullIssueFindings;
+    }
+    return (chainAuditResult?.findings ?? []).filter(
+      (finding) => finding.kind === selectedChainIssue.id,
+    );
+  }, [
+    chainAuditResult?.findings,
+    chainIssueFindingsByKind,
+    selectedChainIssue,
+  ]);
   const actionableChainSelectionIssue =
     selectedChainIssue?.id === 'bucket_only_object' ||
     selectedChainIssue?.id === 'bucket_syfon_no_git';
@@ -392,10 +340,6 @@ export const FileSummaryPage = ({
       selectedChainPathsByIssue,
     ],
   );
-  const pathsByParent = useMemo(
-    () => buildPathsByParentMap(selectableChainPaths),
-    [selectableChainPaths],
-  );
   const selectedChainPathsSet = useMemo(
     () => new Set(selectedChainPaths),
     [selectedChainPaths],
@@ -407,33 +351,6 @@ export const FileSummaryPage = ({
       ),
     [selectedChainFindings, selectedChainPathsSet],
   );
-  const chainPathTree = useMemo(
-    () => pathsByParent.get('') ?? [],
-    [pathsByParent],
-  );
-  const selectedDiffIssue =
-    diffIssueSummaries.find((issue) => issue.id === selectedDiffIssueId) ??
-    null;
-  const selectedDiffFindings = useMemo(
-    () =>
-      selectedDiffIssue
-        ? (diffAuditResult?.findings ?? []).filter((finding) =>
-            selectedDiffIssue.findingKinds.includes(finding.kind),
-          )
-        : [],
-    [diffAuditResult?.findings, selectedDiffIssue],
-  );
-  const cleanupIssueSummaries = useMemo(
-    () => summarizeCleanupIssues(auditResult?.findings ?? []),
-    [auditResult?.findings],
-  );
-  const hasCleanupFindings = (auditResult?.summary.totalFindings ?? 0) > 0;
-  const isDuplicateVerificationContext =
-    selectedDiffIssue?.id === 'duplicate-syfon-paths';
-  const hasSafeDuplicateCleanup = cleanupIssueSummaries.some(
-    (issue) => issue.id === 'stale-duplicates',
-  );
-
   useEffect(() => {
     if (!actionableChainSelectionIssue || !selectedChainIssue) {
       return;
@@ -570,77 +487,24 @@ export const FileSummaryPage = ({
           },
         };
       });
+      setChainIssueFindingsByKind((current) => {
+        const existing = current[issueId];
+        if (!existing) {
+          return current;
+        }
+
+        return {
+          ...current,
+          [issueId]: existing.filter(
+            (finding) => !pathSet.has(finding.normalizedPath),
+          ),
+        };
+      });
       setSelectedChainIssueId((current) =>
         current === issueId ? null : current,
       );
     },
     [setChainAuditResult],
-  );
-
-  const handleBulkDeleteSyfonRecords = useCallback(
-    async ({
-      findings,
-      issueTitle,
-      paths,
-    }: {
-      findings: Array<ActionableFinding>;
-      issueTitle: string;
-      paths: Array<string>;
-    }) => {
-      const objectIds = Array.from(
-        new Set(
-          findings.flatMap((finding) =>
-            'objectIds' in finding && Array.isArray(finding.objectIds)
-              ? finding.objectIds
-              : [],
-          ),
-        ),
-      ).filter(Boolean);
-
-      if (objectIds.length === 0) {
-        setActionFeedbackMessage(
-          `${issueTitle} did not include any Syfon record ids to delete.`,
-        );
-        return;
-      }
-
-      const approved = window.confirm(
-        `Delete ${objectIds.length.toLocaleString()} Syfon record${objectIds.length === 1 ? '' : 's'} across ${paths.length.toLocaleString()} path${paths.length === 1 ? '' : 's'}?\n\nThis removes Syfon metadata only. Bucket objects will not be deleted.`,
-      );
-      if (!approved) {
-        return;
-      }
-
-      try {
-        setIsBulkDeletingRecords(true);
-        await bulkDeleteSyfonDrsObjects({
-          bulk_object_ids: objectIds,
-          delete_object_metadata: true,
-          delete_storage_data: false,
-        }).unwrap();
-      } catch (error) {
-        const message =
-          error instanceof Error
-            ? error.message
-            : 'Syfon record deletion failed.';
-        setActionFeedbackMessage(message);
-        return;
-      } finally {
-        setIsBulkDeletingRecords(false);
-      }
-
-      setActionFeedbackMessage(
-        `Deleted ${objectIds.length.toLocaleString()} Syfon record${objectIds.length === 1 ? '' : 's'} across ${paths.length.toLocaleString()} path${paths.length === 1 ? '' : 's'}.`,
-      );
-      setSelectedChainIssueId(null);
-      removeHealedChainFindings(
-        findings[0] && 'kind' in findings[0] ? findings[0].kind : '',
-        paths,
-        objectIds.length,
-      );
-      refresh();
-    },
-    [bulkDeleteSyfonDrsObjects, refresh, removeHealedChainFindings],
   );
 
   const runIssueAction = useCallback(
@@ -650,14 +514,12 @@ export const FileSummaryPage = ({
       issueId,
       issueTitle,
       paths,
-      source,
     }: {
       defaultAction?: AuditActionOption;
       findings: Array<ActionableFinding>;
       issueId: string;
       issueTitle: string;
       paths: Array<string>;
-      source: ActionIssueSource;
     }) => {
       const resolvedAction = resolveIssueAction({
         defaultAction,
@@ -676,58 +538,12 @@ export const FileSummaryPage = ({
       const selectedPaths = paths;
 
       if (isInspectAction(actionName)) {
-        if (source === 'diff') {
-          setSelectedDiffIssueId(issueId);
-          setShowDiffDetails(true);
-        }
-        if (source === 'chain') {
-          setSelectedChainIssueId(issueId);
-        }
+        setSelectedChainIssueId(issueId);
         return;
       }
 
       if (actionName === 'rerun_audit') {
-        if (source === 'chain') {
-          await runChainAudit();
-        } else {
-          await rerunAudit();
-        }
-        return;
-      }
-
-      if (actionName === 'delete_records') {
-        await handleBulkDeleteSyfonRecords({
-          findings,
-          issueTitle,
-          paths: selectedPaths,
-        });
-        return;
-      }
-
-      if (
-        actionName === 'verify_duplicates' ||
-        actionName === 'prepare_delete'
-      ) {
-        if (source === 'diff') {
-          setSelectedDiffIssueId(issueId);
-        }
-        setShowCleanupDetails(true);
-        const result = await runAudit({
-          includeRepoManifest: true,
-          selectedPaths,
-        });
-        if (result) {
-          const verifiedPathCount = new Set(
-            result.findings
-              .map((finding) => finding.normalizedPath)
-              .filter(Boolean),
-          ).size;
-          setActionFeedbackMessage(
-            result.summary.totalFindings > 0
-              ? `${resolvedAction.label} returned ${result.summary.totalFindings.toLocaleString()} cleanup finding${result.summary.totalFindings === 1 ? '' : 's'} across ${verifiedPathCount.toLocaleString()} path${verifiedPathCount === 1 ? '' : 's'}.`
-              : `${resolvedAction.label} completed, but Syfon did not return any cleanup findings for these paths.`,
-          );
-        }
+        await runChainAudit();
         return;
       }
 
@@ -793,35 +609,84 @@ export const FileSummaryPage = ({
       setActionFeedbackMessage(
         `${resolvedAction.label} completed for ${selectedPaths.length.toLocaleString()} path${selectedPaths.length === 1 ? '' : 's'}.`,
       );
-      if (source === 'chain') {
-        removeHealedChainFindings(
-          issueId,
-          selectedPaths,
-          result.deletedRecordIds.length,
-        );
-        refresh();
-        return;
-      }
+      removeHealedChainFindings(
+        issueId,
+        selectedPaths,
+        result.deletedRecordIds.length,
+      );
       refresh();
     },
     [
       applyCleanup,
       buildActionRequests,
-      handleBulkDeleteSyfonRecords,
       removeHealedChainFindings,
       refresh,
       resolveIssueAction,
-      rerunAudit,
       runChainAudit,
-      runAudit,
     ],
   );
 
-  const handleToggleChainIssueDetails = useCallback((issueId: string) => {
-    setSelectedChainIssueId((current) =>
-      current === issueId ? null : issueId,
-    );
-  }, []);
+  const loadChainIssueDetails = useCallback(
+    async (issueId: string) => {
+      if (chainIssueFindingsByKind[issueId]) {
+        return;
+      }
+
+      setLoadingChainIssueId(issueId);
+      setChainIssueLoadErrors((current) => {
+        const next = { ...current };
+        delete next[issueId];
+        return next;
+      });
+
+      try {
+        const result = await runChainAudit({
+          findingKind: issueId,
+          findingLimit: -1,
+          persistResult: false,
+        });
+        if (!result) {
+          setChainIssueLoadErrors((current) => ({
+            ...current,
+            [issueId]: 'Failed to load issue details.',
+          }));
+          return;
+        }
+        setChainIssueFindingsByKind((current) => ({
+          ...current,
+          [issueId]: result.findings.filter(
+            (finding) => finding.kind === issueId,
+          ),
+        }));
+      } catch (error) {
+        setChainIssueLoadErrors((current) => ({
+          ...current,
+          [issueId]:
+            error instanceof Error
+              ? error.message
+              : 'Failed to load issue details.',
+        }));
+      } finally {
+        setLoadingChainIssueId((current) =>
+          current === issueId ? null : current,
+        );
+      }
+    },
+    [chainIssueFindingsByKind, runChainAudit],
+  );
+
+  const handleToggleChainIssueDetails = useCallback(
+    (issueId: string) => {
+      setSelectedChainIssueId((current) => {
+        if (current === issueId) {
+          return null;
+        }
+        void loadChainIssueDetails(issueId);
+        return issueId;
+      });
+    },
+    [loadChainIssueDetails],
+  );
 
   const handleRunStorageChainAudit = async () => {
     const result = await runChainAudit();
@@ -836,12 +701,6 @@ export const FileSummaryPage = ({
       pathPrefix: result.pathPrefix,
       syfonRecordCount: result.summary.syfonRecordCount,
     });
-  };
-
-  const handleOpenChainIssueDetails = (issueId: string) => {
-    setSelectedChainIssueId(issueId);
-    setShowChainAuditReport(true);
-    setAuditModalOpen(true);
   };
 
   const handleStorageSort = (key: StorageSortKey) => {
@@ -1008,68 +867,47 @@ export const FileSummaryPage = ({
             </Center>
           ) : selectedProjectParts ? (
             <>
-              <StorageChainAuditModal
-                actionFeedbackMessage={actionFeedbackMessage}
-                actionableChainSelectionIssue={actionableChainSelectionIssue}
-                applyError={applyError}
-                applyResult={applyResult}
-                auditError={auditError}
-                auditResult={auditResult}
-                chainAuditError={chainAuditError}
-                chainAuditResult={chainAuditResult}
-                chainIssueSummaries={chainIssueSummaries}
-                chainPathTree={chainPathTree}
-                cleanChainJoinCount={cleanChainJoinCount}
-                cleanupIssueSummaries={cleanupIssueSummaries}
-                diffAuditResult={diffAuditResult}
-                diffIssueSummaries={diffIssueSummaries}
-                expandedChainTreeNodes={expandedChainTreeNodes}
-                hasChainIssues={hasChainIssues}
-                hasCleanupFindings={hasCleanupFindings}
-                hasSafeDuplicateCleanup={hasSafeDuplicateCleanup}
-                isApplying={isApplying}
-                isAuditing={isAuditing}
-                isBulkDeletingRecords={isBulkDeletingRecords}
-                isChainAuditing={isChainAuditing}
-                isDuplicateVerificationContext={isDuplicateVerificationContext}
-                onApplySelectedChainObjects={() => {
-                  void handleApplySelectedChainObjects();
-                }}
-                onClose={() => setAuditModalOpen(false)}
-                onRunIssueAction={(args) => {
-                  void runIssueAction(args);
-                }}
-                onSelectedChainPathsChange={setSelectedChainPathsForIssue}
-                onSelectedDiffIssueChange={setSelectedDiffIssueId}
-                onToggleAllChainPaths={handleToggleAllChainPaths}
-                onToggleChainIssueDetails={handleToggleChainIssueDetails}
-                onToggleChainPath={handleToggleChainPath}
-                opened={auditModalOpen}
-                pathsByParent={pathsByParent}
-                selectableChainPaths={selectableChainPaths}
-                selectedChainFindings={selectedChainFindings}
-                selectedChainIssue={selectedChainIssue}
-                selectedChainPaths={selectedChainPaths}
-                selectedChainPathsSet={selectedChainPathsSet}
-                selectedDiffFindings={selectedDiffFindings}
-                selectedDiffIssue={selectedDiffIssue}
-                setExpandedChainTreeNodes={setExpandedChainTreeNodes}
-                setTreeNodeLimit={setTreeNodeLimit}
-                showCleanupDetails={showCleanupDetails}
-                showDiffDetails={showDiffDetails}
-                treeNodeLimit={treeNodeLimit}
-              />
-
               <StorageBrowser
                 auditReport={
                   <StorageChainAuditReport
+                    actionFeedbackMessage={actionFeedbackMessage}
+                    applyError={applyError}
+                    applyResult={applyResult}
                     auditError={chainAuditError}
                     auditResult={chainAuditResult}
                     chainIssueSummaries={chainIssueSummaries}
                     cleanChainJoinCount={cleanChainJoinCount}
+                    expandedChainTreeNodes={expandedChainTreeNodes}
+                    expandedIssueFindings={selectedChainFindings}
+                    expandedIssueId={selectedChainIssueId}
+                    expandedIssueLoadError={
+                      selectedChainIssueId
+                        ? chainIssueLoadErrors[selectedChainIssueId]
+                        : undefined
+                    }
+                    expandedIssueLoading={
+                      loadingChainIssueId === selectedChainIssueId
+                    }
+                    isApplying={isApplying}
+                    isAuditing={isAuditing}
+                    isChainAuditing={isChainAuditing}
                     isOpen={showChainAuditReport}
+                    onApplySelectedChainObjects={() => {
+                      void handleApplySelectedChainObjects();
+                    }}
                     onOpenChange={setShowChainAuditReport}
-                    onOpenIssueDetails={handleOpenChainIssueDetails}
+                    onRunIssueAction={(args) => {
+                      void runIssueAction(args);
+                    }}
+                    onSelectedChainPathsChange={setSelectedChainPathsForIssue}
+                    onToggleAllChainPaths={handleToggleAllChainPaths}
+                    onToggleChainIssueDetails={handleToggleChainIssueDetails}
+                    onToggleChainPath={handleToggleChainPath}
+                    selectedChainPaths={selectedChainPaths}
+                    selectedChainPathsSet={selectedChainPathsSet}
+                    setExpandedChainTreeNodes={setExpandedChainTreeNodes}
+                    setTreeNodeLimit={setTreeNodeLimit}
+                    treeNodeLimit={treeNodeLimit}
                   />
                 }
                 collapsedBreadcrumb={collapsedBreadcrumb}
