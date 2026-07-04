@@ -6,13 +6,13 @@ export interface ProjectStorageOption {
 }
 
 export interface StoragePathRow {
-  readonly downloadCount: number;
+  readonly downloadCount?: number;
   readonly fileCount: number;
   readonly lastDownload?: string;
   readonly lastUpdated?: string;
   readonly name: string;
   readonly path: string;
-  readonly recordCount: number;
+  readonly recordCount?: number;
   readonly sizeBytes: number;
   readonly type: 'directory' | 'file';
 }
@@ -20,7 +20,7 @@ export interface StoragePathRow {
 export interface StoragePathSummary {
   readonly bucketObjectCount?: number;
   readonly childCount: number;
-  readonly downloadCount: number;
+  readonly downloadCount?: number;
   readonly fileCount: number;
   readonly hasMore: boolean;
   readonly isChainAuditExact?: boolean;
@@ -28,7 +28,7 @@ export interface StoragePathSummary {
   readonly lastUpdated?: string;
   readonly nextCursor?: string;
   readonly path: string;
-  readonly recordCount: number;
+  readonly recordCount?: number;
   readonly rows: Array<StoragePathRow>;
   readonly sizeBytes: number;
   readonly source?: string;

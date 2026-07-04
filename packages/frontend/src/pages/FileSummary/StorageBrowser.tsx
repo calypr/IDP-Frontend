@@ -88,6 +88,8 @@ export const StorageBrowser = ({
       />
     </button>
   );
+  const formatOptionalCount = (value?: number): string =>
+    typeof value === 'number' ? value.toLocaleString() : '-';
 
   return (
     <Stack gap="md" px="sm">
@@ -228,7 +230,7 @@ export const StorageBrowser = ({
               Downloads
             </Text>
             <Text className="mt-1" fw={700} size="sm">
-              {(data?.downloadCount ?? 0).toLocaleString()}
+              {formatOptionalCount(data?.downloadCount)}
             </Text>
           </div>
 
@@ -327,7 +329,7 @@ export const StorageBrowser = ({
                       </Stack>
                     </Table.Td>
                     <Table.Td>{row.fileCount.toLocaleString()}</Table.Td>
-                    <Table.Td>{row.downloadCount.toLocaleString()}</Table.Td>
+                    <Table.Td>{formatOptionalCount(row.downloadCount)}</Table.Td>
                     <Table.Td>{formatTimestamp(row.lastDownload)}</Table.Td>
                     <Table.Td>{formatTimestamp(row.lastUpdated)}</Table.Td>
                   </Table.Tr>

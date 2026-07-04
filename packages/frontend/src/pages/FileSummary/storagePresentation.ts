@@ -370,7 +370,10 @@ export const sortStorageRowsBy = (
       case 'fileCount':
         return left.fileCount - right.fileCount;
       case 'downloadCount':
-        return left.downloadCount - right.downloadCount;
+        return (
+          (left.downloadCount ?? -Infinity) -
+          (right.downloadCount ?? -Infinity)
+        );
       case 'lastDownload':
         return compareOptionalDates(left.lastDownload, right.lastDownload);
       case 'lastUpdated':

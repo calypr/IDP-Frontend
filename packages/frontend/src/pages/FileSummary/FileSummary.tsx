@@ -28,7 +28,6 @@ import {
 import {
   buildProjectOptions,
   splitProjectSelectionValue,
-  type StoragePathRow,
 } from './storageUtils';
 import { StorageBrowser } from './StorageBrowser';
 import { StorageChainAuditReport } from './StorageChainAuditReport';
@@ -621,7 +620,6 @@ export const FileSummaryPage = ({
       buildActionRequests,
       removeHealedChainFindings,
       refresh,
-      resolveIssueAction,
       runChainAudit,
     ],
   );
@@ -695,7 +693,7 @@ export const FileSummaryPage = ({
       return;
     }
 
-    applyExactChainSummary({
+    await applyExactChainSummary({
       bucketObjectCount: result.summary.bucketObjectCount,
       gitTrackedFileCount: result.summary.gitTrackedFileCount,
       pathPrefix: result.pathPrefix,

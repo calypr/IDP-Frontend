@@ -73,12 +73,14 @@ const buildStorageFolderUrl = ({
   organization,
   path,
   project,
+  summaryMode,
 }: {
   cursor?: string;
   limit: number;
   organization: string;
   path?: string;
   project: string;
+  summaryMode?: 'exact';
 }): string => {
   const query = new URLSearchParams({
     limit: String(limit),
@@ -92,6 +94,9 @@ const buildStorageFolderUrl = ({
   }
   if (cursor) {
     query.set('cursor', cursor);
+  }
+  if (summaryMode) {
+    query.set('summary_mode', summaryMode);
   }
 
   return `${buildGeckoGitProjectBaseUrl({
@@ -120,13 +125,13 @@ const normalizeStorageRow = (
   }
 
   return {
-    downloadCount: item.download_count ?? 0,
+    downloadCount: item.download_count,
     fileCount: item.file_count ?? 0,
     lastDownload: item.last_download_time,
     lastUpdated: item.latest_update_time,
     name: item.name?.trim() || path.split('/').filter(Boolean).pop() || path,
     path,
-    recordCount: item.record_count ?? 0,
+    recordCount: item.record_count,
     sizeBytes: item.total_bytes ?? 0,
     type,
   };
@@ -149,14 +154,14 @@ const toStoragePathSummary = ({
 
   return {
     childCount: summaryJson.direct_child_count ?? rows.length,
-    downloadCount: summaryJson.download_count ?? 0,
+    downloadCount: summaryJson.download_count,
     fileCount: summaryJson.file_count ?? 0,
     hasMore: Boolean(childrenJson.has_more),
     lastDownload: summaryJson.last_download_time,
     lastUpdated: summaryJson.latest_update_time,
     nextCursor: childrenJson.next_cursor,
     path: summaryJson.path?.trim() || currentPath.trim(),
-    recordCount: summaryJson.record_count ?? 0,
+    recordCount: summaryJson.record_count,
     rows,
     sizeBytes: summaryJson.total_bytes ?? 0,
     source: summaryJson.source,
@@ -202,27 +207,34 @@ export const useSyfonPathStorageSummary = ({
   }, []);
 
   const applyExactChainSummary = useCallback(
-    (summary: ExactChainSummary) => {
+    async (summary: ExactChainSummary) => {
       const normalizedSummaryPath = normalizeStoragePath(summary.pathPrefix);
       const normalizedCurrentPath = normalizeStoragePath(currentPath);
       if (normalizedSummaryPath !== normalizedCurrentPath) {
         return;
       }
 
-      setData((current) => {
-        if (!current) {
+      const markExact = (
+        current: StoragePathSummary | null,
+        exactSummary?: StoragePathSummary,
+      ): StoragePathSummary | null => {
+        const base = exactSummary ?? current;
+        if (!base) {
           return current;
         }
-
-        const next = {
-          ...current,
+        return {
+          ...base,
           bucketObjectCount: summary.bucketObjectCount,
           fileCount: summary.gitTrackedFileCount,
           isChainAuditExact: true,
-          recordCount: summary.syfonRecordCount,
+          recordCount: exactSummary?.recordCount ?? summary.syfonRecordCount,
         };
+      };
 
-        if (cacheKey) {
+      setData((current) => {
+        const next = markExact(current);
+
+        if (next && cacheKey) {
           cacheRef.current.set(cacheKey, {
             data: next,
             expiresAt: Date.now() + STORAGE_FOLDER_CACHE_TTL_MS,
@@ -231,8 +243,69 @@ export const useSyfonPathStorageSummary = ({
 
         return next;
       });
+
+      const selection = splitProjectSelectionValue(projectSelection);
+      if (!selection) {
+        return;
+      }
+
+      try {
+        const response = await fetch(
+          buildStorageFolderUrl({
+            limit: Math.max(DEFAULT_CHILD_LIMIT, data?.rows.length ?? 0),
+            organization: selection.organization,
+            path: currentPath,
+            project: selection.project,
+            summaryMode: 'exact',
+          }),
+          {
+            credentials: 'include',
+            method: 'GET',
+          },
+        );
+
+        if (handleUnauthorizedResponse(response)) {
+          throw new Error('Your session expired. Please log in again.');
+        }
+        if (!response.ok) {
+          throw new Error(
+            `Failed to fetch audited storage details for ${selection.organization}/${selection.project}`,
+          );
+        }
+
+        const folderJson = (await response.json()) as StorageFolderResponse;
+        const exactSummary = toStoragePathSummary({
+          childrenJson: folderJson.children ?? {},
+          currentPath,
+          summaryJson: folderJson.summary ?? {},
+        });
+
+        setData((current) => {
+          if (
+            current &&
+            normalizeStoragePath(current.path) !== normalizedCurrentPath
+          ) {
+            return current;
+          }
+
+          const next = markExact(current, exactSummary);
+          if (next && cacheKey) {
+            cacheRef.current.set(cacheKey, {
+              data: next,
+              expiresAt: Date.now() + STORAGE_FOLDER_CACHE_TTL_MS,
+            });
+          }
+          return next;
+        });
+      } catch (exactLoadError) {
+        setError(
+          exactLoadError instanceof Error
+            ? exactLoadError.message
+            : 'Audit completed, but audited storage details could not be loaded.',
+        );
+      }
     },
-    [cacheKey, currentPath],
+    [cacheKey, currentPath, data?.rows.length, projectSelection],
   );
 
   useEffect(() => {
@@ -353,6 +426,7 @@ export const useSyfonPathStorageSummary = ({
           organization,
           path: currentPath,
           project,
+          summaryMode: data.isChainAuditExact ? 'exact' : undefined,
         }),
         {
           credentials: 'include',
@@ -398,6 +472,7 @@ export const useSyfonPathStorageSummary = ({
           hasMore: Boolean(childrenJson.has_more),
           nextCursor: childrenJson.next_cursor,
           rows: sortStorageRows(rows),
+          source: folderJson.summary?.source ?? current.source,
           truncated: Boolean(childrenJson.has_more),
         };
         if (cacheKey) {
