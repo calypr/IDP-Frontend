@@ -21,8 +21,10 @@ export interface StoragePathSummary {
   readonly childCount: number;
   readonly downloadCount: number;
   readonly fileCount: number;
+  readonly hasMore: boolean;
   readonly lastDownload?: string;
   readonly lastUpdated?: string;
+  readonly nextCursor?: string;
   readonly path: string;
   readonly recordCount: number;
   readonly rows: Array<StoragePathRow>;

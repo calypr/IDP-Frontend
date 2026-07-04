@@ -12,324 +12,48 @@ import {
   buildProjectOptions,
   normalizeStoragePath,
   splitProjectSelectionValue,
-  sortStorageRows,
   type ProjectStorageOption,
-  type StoragePathRow,
-  type StoragePathSummary,
 } from './storageUtils';
+import {
+  normalizeAvailableActions,
+  normalizeDefaultAction,
+} from './storageActions';
+import type {
+  AuditEvidence,
+  ProjectDiffAuditResult,
+  ProjectDiffFinding,
+  ProjectDiffFindingKind,
+  StorageApplyActionRequest,
+  StorageApplyFindingRequest,
+  StorageChainAuditResult,
+  StorageChainFinding,
+  StorageChainFindingKind,
+  StorageChainIssueGroup,
+  StorageCleanupAccessMethod,
+  StorageCleanupAccessProbe,
+  StorageCleanupApplyResult,
+  StorageCleanupAuditResult,
+  StorageCleanupFinding,
+  StorageCleanupFindingKind,
+  StorageCleanupPurgeResult,
+  StorageCleanupRecordAudit,
+  StorageCleanupScope,
+} from './storageTypes';
 import { requestSessionLogout } from '../../lib/session/session';
 
-const DEFAULT_CHILD_LIMIT = 1000;
-
-export type ProjectDiffFindingKind =
-  | 'duplicate_syfon_paths'
-  | 'syfon_missing_in_repo'
-  | 'repo_missing_in_syfon'
-  | 'unknown';
-
-export interface AuditActionOption {
-  readonly action: string;
-  readonly label: string;
-  readonly description?: string;
-  readonly destructive: boolean;
-  readonly requiresConfirmation: boolean;
-  readonly supportsDryRun: boolean;
-}
-
-export interface ProjectDiffFinding {
-  readonly kind: ProjectDiffFindingKind;
-  readonly normalizedPath: string;
-  readonly sourcePaths: Array<string>;
-  readonly objectIds: Array<string>;
-  readonly recordCount: number;
-  readonly sizeBytes?: number;
-  readonly downloadCount?: number;
-  readonly lastDownload?: string;
-  readonly recommendedAction: string;
-  readonly actionability?: string;
-  readonly availableActions: Array<AuditActionOption>;
-  readonly defaultAction?: string;
-  readonly supportsDryRun: boolean;
-}
-
-export interface ProjectDiffSummary {
-  readonly countsByKind: Record<ProjectDiffFindingKind, number>;
-  readonly totalFindings: number;
-  readonly indexedPathCount: number;
-  readonly expectedPathCount: number;
-  readonly matchedPathCount: number;
-  readonly includesRepoManifest: boolean;
-  readonly scannedRecordCount: number;
-}
-
-export interface ProjectDiffAuditResult {
-  readonly findings: Array<ProjectDiffFinding>;
-  readonly summary: ProjectDiffSummary;
-  readonly pathPrefix: string;
-}
-
-export interface AuditEvidence {
-  readonly checksum?: string;
-  readonly sourcePaths: Array<string>;
-  readonly objectIds: Array<string>;
-  readonly accessUrls: Array<string>;
-  readonly bucketObjectUrls: Array<string>;
-  readonly buckets: Array<string>;
-  readonly keys: Array<string>;
-  readonly probeStatuses: Array<string>;
-  readonly validationStates: Array<string>;
-  readonly errorKinds: Array<string>;
-  readonly errors: Array<string>;
-  readonly bucketEvaluation?: string;
-}
-
-export type StorageChainFindingKind =
-  | 'bucket_only_object'
-  | 'bucket_syfon_no_git'
-  | 'syfon_broken_bucket_mapping'
-  | 'syfon_missing_bucket_object'
-  | 'syfon_git_no_bucket'
-  | 'git_only_no_syfon'
-  | 'git_syfon_metadata_mismatch'
-  | 'probe_error'
-  | 'unknown';
-
-export interface StorageChainFinding {
-  readonly kind: StorageChainFindingKind;
-  readonly normalizedPath: string;
-  readonly checksum?: string;
-  readonly sourcePaths: Array<string>;
-  readonly objectIds: Array<string>;
-  readonly records: Array<StorageCleanupRecordAudit>;
-  readonly accessUrls: Array<string>;
-  readonly bucketObjectUrl?: string;
-  readonly resolvedBucket?: string;
-  readonly resolvedKey?: string;
-  readonly probeStatus?: string;
-  readonly errorKind?: string;
-  readonly error?: string;
-  readonly recordCount: number;
-  readonly sizeBytes?: number;
-  readonly recommendedAction: string;
-  readonly evidence?: AuditEvidence;
-  readonly actionability?: string;
-  readonly availableActions: Array<AuditActionOption>;
-  readonly defaultAction?: string;
-  readonly supportsDryRun: boolean;
-}
-
-export interface StorageChainAuditSummary {
-  readonly countsByKind: Record<string, number>;
-  readonly totalFindings: number;
-  readonly bucketObjectCount: number;
-  readonly syfonRecordCount: number;
-  readonly gitTrackedFileCount: number;
-  readonly bucketInventoryAvailable: boolean;
-  readonly bucketInventoryError?: string;
-}
-
-export interface StorageChainIssueGroup {
-  readonly kind: string;
-  readonly findingCount: number;
-  readonly pathCount: number;
-  readonly recordCount: number;
-  readonly objectCount: number;
-  readonly totalBytes: number;
-}
-
-export interface StorageChainAuditResult {
-  readonly auditId?: string;
-  readonly findings: Array<StorageChainFinding>;
-  readonly groups: Array<StorageChainIssueGroup>;
-  readonly summary: StorageChainAuditSummary;
-  readonly pathPrefix: string;
-  readonly bucketPathPrefix?: string;
-}
-
-export type StorageCleanupFindingKind =
-  | 'stale_duplicate_record'
-  | 'live_duplicate_conflict'
-  | 'broken_access_url_error'
-  | 'broken_bucket_mapping'
-  | 'bucket_only_object'
-  | 'repo_orphan_live_object'
-  | 'repo_orphan_stale_record'
-  | 'storage_object_missing'
-  | 'storage_validation_mismatch'
-  | 'storage_probe_error'
-  | 'unknown';
-
-export type StorageCleanupScope =
-  | 'record'
-  | 'access_url'
-  | 'bucket_object'
-  | 'unknown';
-
-export interface StorageCleanupAccessProbe {
-  readonly url: string;
-  readonly provider?: string;
-  readonly bucket?: string;
-  readonly key?: string;
-  readonly path?: string;
-  readonly exists?: boolean;
-  readonly status?: string;
-  readonly error?: string;
-  readonly errorKind?: string;
-  readonly sizeBytes?: number;
-  readonly metaSha256?: string;
-  readonly etag?: string;
-  readonly lastModified?: string;
-  readonly validationStatus?: string;
-  readonly sizeMatch?: boolean;
-  readonly sha256Match?: boolean;
-  readonly validationMismatches: Array<string>;
-}
-
-export interface StorageCleanupAccessMethod {
-  readonly accessId?: string;
-  readonly type?: string;
-  readonly url?: string;
-  readonly headers: Array<string>;
-}
-
-export interface StorageCleanupRecordAudit {
-  readonly objectId: string;
-  readonly normalizedPath?: string;
-  readonly cleanupScope: StorageCleanupScope;
-  readonly accessUrls: Array<string>;
-  readonly accessMethods: Array<StorageCleanupAccessMethod>;
-  readonly accessProbes: Array<StorageCleanupAccessProbe>;
-  readonly status?: string;
-  readonly error?: string;
-  readonly sizeBytes?: number;
-  readonly lastUpdated?: string;
-  readonly downloadCount?: number;
-  readonly lastDownload?: string;
-}
-
-export interface StorageCleanupFinding {
-  readonly kind: StorageCleanupFindingKind;
-  readonly normalizedPath: string;
-  readonly objectIds: Array<string>;
-  readonly records: Array<StorageCleanupRecordAudit>;
-  readonly accessUrls: Array<string>;
-  readonly recommendedAction: string;
-  readonly repoDeleteCandidate: boolean;
-  readonly cleanupScope: StorageCleanupScope;
-  readonly sizeBytes?: number;
-  readonly lastUpdated?: string;
-  readonly downloadCount?: number;
-  readonly lastDownload?: string;
-  readonly actionability?: string;
-  readonly availableActions: Array<AuditActionOption>;
-  readonly defaultAction?: string;
-  readonly supportsDryRun: boolean;
-  readonly evidence?: AuditEvidence;
-}
-
-export interface StorageCleanupAuditSummary {
-  readonly countsByKind: Record<StorageCleanupFindingKind, number>;
-  readonly totalFindings: number;
-  readonly manualFindingCount: number;
-  readonly repoDeleteCandidateCount: number;
-  readonly staleDuplicateCount: number;
-  readonly repoOrphanCount: number;
-}
-
-export interface StorageCleanupAuditResult {
-  readonly findings: Array<StorageCleanupFinding>;
-  readonly summary: StorageCleanupAuditSummary;
-  readonly expectedPathCount: number;
-  readonly includesRepoManifest: boolean;
-  readonly pathPrefix: string;
-}
-
-export interface StorageCleanupPurgeResult {
-  readonly objectId: string;
-  readonly success: boolean | null;
-  readonly status?: string;
-  readonly error?: string;
-}
-
-export interface StorageApplyActionRequest {
-  readonly kind: string;
-  readonly normalized_path: string;
-  readonly action: string;
-}
-
-export interface StorageApplyFindingRequest {
-  readonly kind: string;
-  readonly normalized_path: string;
-  readonly object_ids?: Array<string>;
-  readonly records?: Array<{
-    readonly object_id: string;
-    readonly normalized_path?: string;
-    readonly cleanup_scope: string;
-    readonly access_urls?: Array<string>;
-    readonly access_methods?: Array<{
-      readonly access_id?: string;
-      readonly type?: string;
-      readonly url?: string;
-      readonly headers?: Array<string>;
-    }>;
-    readonly access_probes?: Array<{
-      readonly url: string;
-      readonly status?: string;
-      readonly error_kind?: string;
-      readonly error?: string;
-    }>;
-  }>;
-  readonly bucket_object_url?: string;
-  readonly bucket_object_urls?: Array<string>;
-  readonly access_urls?: Array<string>;
-  readonly available_actions?: Array<string>;
-  readonly default_action?: string;
-  readonly evidence?: {
-    readonly object_ids?: Array<string>;
-    readonly access_urls?: Array<string>;
-    readonly bucket_object_urls?: Array<string>;
-    readonly source_paths?: Array<string>;
-  };
-}
-
-export interface StorageCleanupApplyResult {
-  readonly deletedRecordIds: Array<string>;
-  readonly deletedBucketObjectUrls: Array<string>;
-  readonly updatedRecordIds: Array<string>;
-  readonly purgeResults: Array<StorageCleanupPurgeResult>;
-  readonly repoDeletePaths: Array<string>;
-  readonly manualPaths: Array<string>;
-  readonly skippedPaths: Array<string>;
-  readonly dryRun: boolean;
-}
-
-interface StorageSummaryResponse {
-  direct_child_count?: number;
-  download_count?: number;
-  duplicate_path_count?: number;
-  file_count?: number;
-  last_download_time?: string;
-  latest_update_time?: string;
-  path?: string;
-  record_count?: number;
-  total_bytes?: number;
-}
-
-interface StorageChildResponseItem {
-  download_count?: number;
-  file_count?: number;
-  last_download_time?: string;
-  latest_update_time?: string;
-  name?: string;
-  path?: string;
-  record_count?: number;
-  total_bytes?: number;
-  type?: 'directory' | 'file';
-}
-
-interface StorageChildrenResponse {
-  items?: Array<StorageChildResponseItem>;
-}
+export { useSyfonPathStorageSummary } from './useStorageFolder';
+export type {
+  AuditActionOption,
+  ProjectDiffFinding,
+  ProjectDiffFindingKind,
+  StorageApplyActionRequest,
+  StorageChainFinding,
+  StorageChainFindingKind,
+  StorageChainIssueGroup,
+  StorageCleanupApplyResult,
+  StorageCleanupFinding,
+  StorageCleanupFindingKind,
+} from './storageTypes';
 
 const buildGeckoGitProjectBaseUrl = ({
   organization,
@@ -341,57 +65,6 @@ const buildGeckoGitProjectBaseUrl = ({
   `${GEN3_API}/gecko/git/projects/${encodeURIComponent(
     organization.trim(),
   )}/${encodeURIComponent(project.trim())}`;
-
-const buildStorageSummaryUrl = ({
-  organization,
-  path,
-  project,
-}: {
-  organization: string;
-  path?: string;
-  project: string;
-}): string => {
-  const query = new URLSearchParams();
-  const normalizedPath = normalizeStoragePath(path);
-
-  if (normalizedPath) {
-    query.set('git_subpath', normalizedPath);
-  }
-
-  const querySuffix = query.toString() ? `?${query.toString()}` : '';
-  return `${buildGeckoGitProjectBaseUrl({
-    organization,
-    project,
-  })}/storage/summary${querySuffix}`;
-};
-
-const buildStorageChildrenUrl = ({
-  limit,
-  organization,
-  path,
-  project,
-}: {
-  limit: number;
-  organization: string;
-  path?: string;
-  project: string;
-}): string => {
-  const query = new URLSearchParams({
-    limit: String(limit),
-    sort_by: 'bytes',
-    sort_order: 'desc',
-  });
-  const normalizedPath = normalizeStoragePath(path);
-
-  if (normalizedPath) {
-    query.set('git_subpath', normalizedPath);
-  }
-
-  return `${buildGeckoGitProjectBaseUrl({
-    organization,
-    project,
-  })}/storage/children?${query.toString()}`;
-};
 
 const buildStorageCleanupUrl = ({
   action,
@@ -480,8 +153,7 @@ const normalizeAuditEvidence = (
         : undefined,
     bucketObjectUrls: toStringArray(item.bucket_object_urls),
     buckets: toStringArray(item.buckets),
-    checksum:
-      typeof item.checksum === 'string' ? item.checksum : undefined,
+    checksum: typeof item.checksum === 'string' ? item.checksum : undefined,
     errorKinds: toStringArray(item.error_kinds),
     errors: toStringArray(item.errors),
     keys: toStringArray(item.keys),
@@ -515,9 +187,9 @@ const handleUnauthorizedResponse = (response: Response): boolean => {
 const isUnauthorizedMutationError = (error: unknown): boolean =>
   Boolean(
     error &&
-      typeof error === 'object' &&
-      'status' in error &&
-      (error as { status?: unknown }).status === 401,
+    typeof error === 'object' &&
+    'status' in error &&
+    (error as { status?: unknown }).status === 401,
   );
 
 const getErrorMessage = async (
@@ -547,128 +219,7 @@ const toStringArray = (value: unknown): Array<string> => {
     .filter(Boolean);
 };
 
-const normalizeAuditActionOption = (
-  item: unknown,
-): AuditActionOption | null => {
-  if (typeof item === 'string') {
-    const action = item.trim();
-    if (!action) {
-      return null;
-    }
-
-    return {
-      action,
-      destructive: false,
-      label: action
-        .replace(/[_-]+/g, ' ')
-        .replace(/\b\w/g, (value) => value.toUpperCase()),
-      requiresConfirmation: false,
-      supportsDryRun: false,
-    };
-  }
-
-  if (!item || typeof item !== 'object') {
-    return null;
-  }
-
-  const record = item as Record<string, unknown>;
-  const actionValue =
-    typeof record.action === 'string'
-      ? record.action.trim()
-      : typeof record.kind === 'string'
-        ? record.kind.trim()
-        : typeof record.id === 'string'
-          ? record.id.trim()
-          : '';
-
-  if (!actionValue) {
-    return null;
-  }
-
-  const labelValue =
-    typeof record.label === 'string'
-      ? record.label.trim()
-      : typeof record.title === 'string'
-        ? record.title.trim()
-        : typeof record.display_name === 'string'
-          ? record.display_name.trim()
-          : '';
-
-  return {
-    action: actionValue,
-    description:
-      typeof record.description === 'string'
-        ? record.description
-        : typeof record.help_text === 'string'
-          ? record.help_text
-          : undefined,
-    destructive:
-      typeof record.destructive === 'boolean'
-        ? record.destructive
-        : typeof record.is_destructive === 'boolean'
-          ? record.is_destructive
-          : false,
-    label:
-      labelValue ||
-      actionValue
-        .replace(/[_-]+/g, ' ')
-        .replace(/\b\w/g, (value) => value.toUpperCase()),
-    requiresConfirmation:
-      typeof record.requires_confirmation === 'boolean'
-        ? record.requires_confirmation
-        : typeof record.requiresConfirmation === 'boolean'
-          ? record.requiresConfirmation
-          : false,
-    supportsDryRun:
-      typeof record.supports_dry_run === 'boolean'
-        ? record.supports_dry_run
-        : typeof record.supportsDryRun === 'boolean'
-          ? record.supportsDryRun
-          : false,
-  };
-};
-
-const normalizeAvailableActions = (
-  item: Record<string, unknown>,
-): Array<AuditActionOption> => {
-  const rawActions = Array.isArray(item.available_actions)
-    ? item.available_actions
-    : Array.isArray(item.availableActions)
-      ? item.availableActions
-      : [];
-
-  const normalized = rawActions
-    .map((action) => normalizeAuditActionOption(action))
-    .filter((action): action is AuditActionOption => action !== null);
-
-  return Array.from(
-    new Map(normalized.map((action) => [action.action, action])).values(),
-  );
-};
-
-const normalizeDefaultAction = (
-  item: Record<string, unknown>,
-): string | undefined => {
-  if (typeof item.default_action === 'string' && item.default_action.trim()) {
-    return item.default_action.trim();
-  }
-  if (typeof item.defaultAction === 'string' && item.defaultAction.trim()) {
-    return item.defaultAction.trim();
-  }
-
-  const defaultActionRecord =
-    item.default_action && typeof item.default_action === 'object'
-      ? normalizeAuditActionOption(item.default_action)
-      : item.defaultAction && typeof item.defaultAction === 'object'
-        ? normalizeAuditActionOption(item.defaultAction)
-        : null;
-
-  return defaultActionRecord?.action;
-};
-
-const parseCleanupFindingKind = (
-  value: unknown,
-): StorageCleanupFindingKind => {
+const parseCleanupFindingKind = (value: unknown): StorageCleanupFindingKind => {
   switch (value) {
     case 'stale_duplicate_record':
     case 'live_duplicate_conflict':
@@ -717,29 +268,6 @@ const parseStorageChainFindingKind = (
   }
 };
 
-const normalizeStorageRow = (
-  item: StorageChildResponseItem,
-): StoragePathRow | null => {
-  const path = item.path?.trim();
-  const type = item.type;
-
-  if (!path || (type !== 'directory' && type !== 'file')) {
-    return null;
-  }
-
-  return {
-    downloadCount: item.download_count ?? 0,
-    fileCount: item.file_count ?? 0,
-    lastDownload: item.last_download_time,
-    lastUpdated: item.latest_update_time,
-    name: item.name?.trim() || path.split('/').filter(Boolean).pop() || path,
-    path,
-    recordCount: item.record_count ?? 0,
-    sizeBytes: item.total_bytes ?? 0,
-    type,
-  };
-};
-
 const parseCleanupScope = (value: unknown): StorageCleanupScope => {
   switch (value) {
     case 'record':
@@ -766,10 +294,8 @@ const normalizeCleanupAccessProbe = (
   }
 
   return {
-    bucket:
-      typeof record.bucket === 'string' ? record.bucket : undefined,
-    etag:
-      typeof record.etag === 'string' ? record.etag : undefined,
+    bucket: typeof record.bucket === 'string' ? record.bucket : undefined,
+    etag: typeof record.etag === 'string' ? record.etag : undefined,
     error:
       typeof record.storage_message === 'string'
         ? record.storage_message
@@ -778,22 +304,16 @@ const normalizeCleanupAccessProbe = (
           : undefined,
     errorKind:
       typeof record.error_kind === 'string' ? record.error_kind : undefined,
-    exists:
-      typeof record.exists === 'boolean' ? record.exists : undefined,
-    key:
-      typeof record.key === 'string' ? record.key : undefined,
+    exists: typeof record.exists === 'boolean' ? record.exists : undefined,
+    key: typeof record.key === 'string' ? record.key : undefined,
     lastModified:
       typeof record.last_modified === 'string'
         ? record.last_modified
         : undefined,
     metaSha256:
-      typeof record.meta_sha256 === 'string'
-        ? record.meta_sha256
-        : undefined,
-    path:
-      typeof record.path === 'string' ? record.path : undefined,
-    provider:
-      typeof record.provider === 'string' ? record.provider : undefined,
+      typeof record.meta_sha256 === 'string' ? record.meta_sha256 : undefined,
+    path: typeof record.path === 'string' ? record.path : undefined,
+    provider: typeof record.provider === 'string' ? record.provider : undefined,
     sha256Match:
       typeof record.sha256_match === 'boolean'
         ? record.sha256_match
@@ -801,9 +321,7 @@ const normalizeCleanupAccessProbe = (
     sizeBytes:
       typeof record.size_bytes === 'number' ? record.size_bytes : undefined,
     sizeMatch:
-      typeof record.size_match === 'boolean'
-        ? record.size_match
-        : undefined,
+      typeof record.size_match === 'boolean' ? record.size_match : undefined,
     status:
       typeof record.storage_status === 'string'
         ? record.storage_status
@@ -847,7 +365,9 @@ const normalizeCleanupRecordAudit = (
     )
     .filter((probe): probe is StorageCleanupAccessProbe => probe !== null);
 
-  const accessMethodItems = Array.isArray(item.access_methods) ? item.access_methods : [];
+  const accessMethodItems = Array.isArray(item.access_methods)
+    ? item.access_methods
+    : [];
   const accessMethods: Array<StorageCleanupAccessMethod> = accessMethodItems
     .map<StorageCleanupAccessMethod | null>((method) => {
       if (!method || typeof method !== 'object') {
@@ -895,7 +415,9 @@ const normalizeCleanupRecordAudit = (
             ? item.last_updated
             : undefined,
     normalizedPath:
-      typeof item.normalized_path === 'string' ? item.normalized_path : undefined,
+      typeof item.normalized_path === 'string'
+        ? item.normalized_path
+        : undefined,
     objectId,
     sizeBytes:
       typeof item.size === 'number'
@@ -954,17 +476,17 @@ const normalizeCleanupFinding = (
           ? 'Fix or remove the Syfon access URL because no bucket mapping is configured for it.'
           : kind === 'bucket_only_object'
             ? 'Review and delete bucket object that has no Syfon record.'
-        : kind === 'repo_orphan_live_object'
-          ? 'Delete Syfon record and purge storage object'
-        : kind === 'repo_orphan_stale_record'
-          ? 'Delete stale Syfon record'
-          : kind === 'storage_object_missing'
-            ? 'Bucket object is missing from storage.'
-            : kind === 'storage_validation_mismatch'
-              ? 'Bucket object metadata does not match the Syfon record.'
-          : kind === 'storage_probe_error'
-            ? 'Retry once storage probing is healthy'
-            : 'Manual review required';
+            : kind === 'repo_orphan_live_object'
+              ? 'Delete Syfon record and purge storage object'
+              : kind === 'repo_orphan_stale_record'
+                ? 'Delete stale Syfon record'
+                : kind === 'storage_object_missing'
+                  ? 'Bucket object is missing from storage.'
+                  : kind === 'storage_validation_mismatch'
+                    ? 'Bucket object metadata does not match the Syfon record.'
+                    : kind === 'storage_probe_error'
+                      ? 'Retry once storage probing is healthy'
+                      : 'Manual review required';
 
   return {
     actionability:
@@ -1014,15 +536,16 @@ const normalizeCleanupFinding = (
     repoDeleteCandidate:
       typeof item.repo_delete_candidate === 'boolean'
         ? item.repo_delete_candidate
-        : kind === 'repo_orphan_live_object' || kind === 'repo_orphan_stale_record',
+        : kind === 'repo_orphan_live_object' ||
+          kind === 'repo_orphan_stale_record',
     sizeBytes:
       typeof item.total_bytes === 'number'
         ? item.total_bytes
         : typeof item.size_bytes === 'number'
           ? item.size_bytes
           : typeof item.sizeBytes === 'number'
-          ? item.sizeBytes
-          : undefined,
+            ? item.sizeBytes
+            : undefined,
     supportsDryRun:
       typeof item.supports_dry_run === 'boolean'
         ? item.supports_dry_run
@@ -1088,10 +611,8 @@ const normalizeStorageChainFinding = (
       typeof item.bucket_object_url === 'string'
         ? item.bucket_object_url
         : undefined,
-    checksum:
-      typeof item.checksum === 'string' ? item.checksum : undefined,
-    error:
-      typeof item.error === 'string' ? item.error : undefined,
+    checksum: typeof item.checksum === 'string' ? item.checksum : undefined,
+    error: typeof item.error === 'string' ? item.error : undefined,
     errorKind:
       typeof item.error_kind === 'string' ? item.error_kind : undefined,
     evidence:
@@ -1189,9 +710,7 @@ const normalizeProjectDiffFinding = (
       typeof item.actionability === 'string' ? item.actionability : undefined,
     availableActions,
     downloadCount:
-      typeof item.download_count === 'number'
-        ? item.download_count
-        : undefined,
+      typeof item.download_count === 'number' ? item.download_count : undefined,
     kind,
     lastDownload:
       typeof item.last_download_time === 'string'
@@ -1270,9 +789,10 @@ const normalizeProjectDiffAuditResult = ({
       expectedPathCount:
         typeof response?.summary === 'object' &&
         response.summary &&
-        typeof (response.summary as Record<string, unknown>).expected_path_count ===
-          'number'
-          ? ((response.summary as Record<string, unknown>).expected_path_count as number)
+        typeof (response.summary as Record<string, unknown>)
+          .expected_path_count === 'number'
+          ? ((response.summary as Record<string, unknown>)
+              .expected_path_count as number)
           : expectedPathCount,
       includesRepoManifest:
         typeof response?.summary === 'object' &&
@@ -1285,16 +805,18 @@ const normalizeProjectDiffAuditResult = ({
       indexedPathCount:
         typeof response?.summary === 'object' &&
         response.summary &&
-        typeof (response.summary as Record<string, unknown>).indexed_path_count ===
-          'number'
-          ? ((response.summary as Record<string, unknown>).indexed_path_count as number)
+        typeof (response.summary as Record<string, unknown>)
+          .indexed_path_count === 'number'
+          ? ((response.summary as Record<string, unknown>)
+              .indexed_path_count as number)
           : 0,
       matchedPathCount:
         typeof response?.summary === 'object' &&
         response.summary &&
-        typeof (response.summary as Record<string, unknown>).matched_path_count ===
-          'number'
-          ? ((response.summary as Record<string, unknown>).matched_path_count as number)
+        typeof (response.summary as Record<string, unknown>)
+          .matched_path_count === 'number'
+          ? ((response.summary as Record<string, unknown>)
+              .matched_path_count as number)
           : 0,
       scannedRecordCount:
         typeof response?.summary === 'object' &&
@@ -1309,7 +831,8 @@ const normalizeProjectDiffAuditResult = ({
         response.summary &&
         typeof (response.summary as Record<string, unknown>).total_findings ===
           'number'
-          ? ((response.summary as Record<string, unknown>).total_findings as number)
+          ? ((response.summary as Record<string, unknown>)
+              .total_findings as number)
           : findings.length,
     },
   };
@@ -1327,14 +850,10 @@ const normalizeStorageChainIssueGroup = (
     kind,
     findingCount:
       typeof item.finding_count === 'number' ? item.finding_count : 0,
-    objectCount:
-      typeof item.object_count === 'number' ? item.object_count : 0,
-    pathCount:
-      typeof item.path_count === 'number' ? item.path_count : 0,
-    recordCount:
-      typeof item.record_count === 'number' ? item.record_count : 0,
-    totalBytes:
-      typeof item.total_bytes === 'number' ? item.total_bytes : 0,
+    objectCount: typeof item.object_count === 'number' ? item.object_count : 0,
+    pathCount: typeof item.path_count === 'number' ? item.path_count : 0,
+    recordCount: typeof item.record_count === 'number' ? item.record_count : 0,
+    totalBytes: typeof item.total_bytes === 'number' ? item.total_bytes : 0,
   };
 };
 
@@ -1345,7 +864,9 @@ const normalizeStorageChainAuditResult = ({
   pathPrefix: string;
   response: Record<string, unknown> | null;
 }): StorageChainAuditResult => {
-  const findingItems = Array.isArray(response?.findings) ? response.findings : [];
+  const findingItems = Array.isArray(response?.findings)
+    ? response.findings
+    : [];
   const findings = findingItems
     .map((item) =>
       item && typeof item === 'object'
@@ -1481,7 +1002,6 @@ const normalizeCleanupAuditResult = ({
   };
 };
 
-
 const buildStorageApplyFindingRequest = (
   finding: StorageCleanupFinding | StorageChainFinding,
 ): StorageApplyFindingRequest => ({
@@ -1591,13 +1111,10 @@ const normalizeCleanupApplyResult = (
         }
 
         return {
-          error:
-            typeof record.error === 'string' ? record.error : undefined,
+          error: typeof record.error === 'string' ? record.error : undefined,
           objectId,
-          status:
-            typeof record.status === 'string' ? record.status : undefined,
-          success:
-            typeof record.success === 'boolean' ? record.success : null,
+          status: typeof record.status === 'string' ? record.status : undefined,
+          success: typeof record.success === 'boolean' ? record.success : null,
         };
       })
       .filter((result): result is StorageCleanupPurgeResult => result !== null),
@@ -1627,7 +1144,9 @@ const resolveInitialProjectSelection = ({
   if (!defaultProject?.trim()) return options[0].value;
 
   const normalizedDefault = defaultProject.trim();
-  const directMatch = options.find((option) => option.value === normalizedDefault);
+  const directMatch = options.find(
+    (option) => option.value === normalizedDefault,
+  );
   if (directMatch) return directMatch.value;
 
   const projectOnlyMatches = options.filter(
@@ -1640,10 +1159,9 @@ const resolveInitialProjectSelection = ({
   return options[0].value;
 };
 
-export const useFileSummaryProjectOptions = (
-  config?: FilesummaryConfig,
-) => {
-  const { data: projectSummary = [], isLoading } = useGetGeckoProjectSummaryQuery();
+export const useFileSummaryProjectOptions = (config?: FilesummaryConfig) => {
+  const { data: projectSummary = [], isLoading } =
+    useGetGeckoProjectSummaryQuery();
 
   const options = useMemo(
     () => buildProjectOptions(projectSummary),
@@ -1663,142 +1181,6 @@ export const useFileSummaryProjectOptions = (
     defaultSelection,
     isLoading,
     options,
-  };
-};
-
-export const useSyfonPathStorageSummary = ({
-  currentPath,
-  projectSelection,
-}: {
-  currentPath: string;
-  projectSelection: string;
-  config?: FilesummaryConfig;
-}) => {
-  const [data, setData] = useState<StoragePathSummary | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [reloadToken, setReloadToken] = useState(0);
-
-  const refresh = useCallback(() => {
-    setReloadToken((current) => current + 1);
-  }, []);
-
-  useEffect(() => {
-    const selection = splitProjectSelectionValue(projectSelection);
-    if (!selection) {
-      setData(null);
-      setError(null);
-      setIsLoading(false);
-      return undefined;
-    }
-
-    const { organization, project } = selection;
-    let cancelled = false;
-
-    const load = async () => {
-      setIsLoading(true);
-      setError(null);
-
-      try {
-        const [summaryResponse, childrenResponse] = await Promise.all([
-          fetch(
-            buildStorageSummaryUrl({
-              organization,
-              path: currentPath,
-              project,
-            }),
-            {
-              credentials: 'include',
-              method: 'GET',
-            },
-          ),
-          fetch(
-            buildStorageChildrenUrl({
-              limit: DEFAULT_CHILD_LIMIT,
-              organization,
-              path: currentPath,
-              project,
-            }),
-            {
-              credentials: 'include',
-              method: 'GET',
-            },
-          ),
-        ]);
-
-        if (
-          handleUnauthorizedResponse(summaryResponse) ||
-          handleUnauthorizedResponse(childrenResponse)
-        ) {
-          throw new Error('Your session expired. Please log in again.');
-        }
-
-        if (!summaryResponse.ok) {
-          throw new Error(
-            `Failed to fetch storage summary for ${organization}/${project}`,
-          );
-        }
-        if (!childrenResponse.ok) {
-          throw new Error(
-            `Failed to fetch storage children for ${organization}/${project}`,
-          );
-        }
-
-        const summaryJson =
-          (await summaryResponse.json()) as StorageSummaryResponse;
-        const childrenJson =
-          (await childrenResponse.json()) as StorageChildrenResponse;
-
-        const rows = sortStorageRows(
-          (childrenJson.items ?? [])
-            .map((item) => normalizeStorageRow(item))
-            .filter((row): row is StoragePathRow => row !== null),
-        );
-
-        const summary: StoragePathSummary = {
-          childCount: summaryJson.direct_child_count ?? rows.length,
-          downloadCount: summaryJson.download_count ?? 0,
-          fileCount: summaryJson.file_count ?? 0,
-          lastDownload: summaryJson.last_download_time,
-          lastUpdated: summaryJson.latest_update_time,
-          path: summaryJson.path?.trim() || currentPath.trim(),
-          recordCount: summaryJson.record_count ?? 0,
-          rows,
-          sizeBytes: summaryJson.total_bytes ?? 0,
-          truncated: (summaryJson.direct_child_count ?? rows.length) > rows.length,
-        };
-
-        if (!cancelled) {
-          setData(summary);
-        }
-      } catch (loadError) {
-        if (!cancelled) {
-          setError(
-            loadError instanceof Error
-              ? loadError.message
-              : 'Failed to load storage summary from Gecko analytics.',
-          );
-          setData(null);
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
-      }
-    };
-
-    void load();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [currentPath, projectSelection, reloadToken]);
-
-  return {
-    data,
-    error,
-    isLoading,
-    refresh,
   };
 };
 
@@ -1823,67 +1205,69 @@ export const useSyfonProjectDiff = ({
 
   void config;
 
-  const runAudit = useCallback(async (): Promise<ProjectDiffAuditResult | null> => {
-    const selection = splitProjectSelectionValue(projectSelection);
-    if (!selection) {
-      setAuditError('Select a project before running the chain audit.');
-      setAuditResult(null);
-      return null;
-    }
+  const runAudit =
+    useCallback(async (): Promise<ProjectDiffAuditResult | null> => {
+      const selection = splitProjectSelectionValue(projectSelection);
+      if (!selection) {
+        setAuditError('Select a project before running the chain audit.');
+        setAuditResult(null);
+        return null;
+      }
 
-    setAuditError(null);
-    setIsAuditing(true);
+      setAuditError(null);
+      setIsAuditing(true);
 
-    try {
-      const response = await fetch(
-        buildProjectDiffUrl({
-          organization: selection.organization,
-          project: selection.project,
-        }),
-        {
-          body: JSON.stringify({
-            git_subpath: normalizeStoragePath(currentPath) || undefined,
+      try {
+        const response = await fetch(
+          buildProjectDiffUrl({
+            organization: selection.organization,
+            project: selection.project,
           }),
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
-        },
-        method: 'POST',
-      });
-
-      if (handleUnauthorizedResponse(response)) {
-        throw new Error('Your session expired. Please log in again.');
-      }
-
-      if (!response.ok) {
-        throw new Error(
-          await getErrorMessage(
-            response,
-            `Failed to audit project records for ${selection.organization}/${selection.project}`,
-          ),
+          {
+            body: JSON.stringify({
+              git_subpath: normalizeStoragePath(currentPath) || undefined,
+            }),
+            credentials: 'include',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
+            },
+            method: 'POST',
+          },
         );
-      }
 
-      const normalized = normalizeProjectDiffAuditResult({
-        expectedPathCount: 0,
-        pathPrefix: normalizeStoragePath(currentPath),
-        response: await readJsonResponse<Record<string, unknown>>(response),
-      });
-      setAuditResult(normalized);
-      return normalized;
-    } catch (auditFailure) {
-      const message =
-        auditFailure instanceof Error
-          ? auditFailure.message
-          : 'Failed to audit project records.';
-      setAuditError(message);
-      setAuditResult(null);
-      return null;
-    } finally {
-      setIsAuditing(false);
-    }
-  }, [csrfToken, currentPath, projectSelection]);
+        if (handleUnauthorizedResponse(response)) {
+          throw new Error('Your session expired. Please log in again.');
+        }
+
+        if (!response.ok) {
+          throw new Error(
+            await getErrorMessage(
+              response,
+              `Failed to audit project records for ${selection.organization}/${selection.project}`,
+            ),
+          );
+        }
+
+        const normalized = normalizeProjectDiffAuditResult({
+          expectedPathCount: 0,
+          pathPrefix: normalizeStoragePath(currentPath),
+          response: await readJsonResponse<Record<string, unknown>>(response),
+        });
+        setAuditResult(normalized);
+        return normalized;
+      } catch (auditFailure) {
+        const message =
+          auditFailure instanceof Error
+            ? auditFailure.message
+            : 'Failed to audit project records.';
+        setAuditError(message);
+        setAuditResult(null);
+        return null;
+      } finally {
+        setIsAuditing(false);
+      }
+    }, [csrfToken, currentPath, projectSelection]);
 
   const clearAudit = useCallback(() => {
     setAuditError(null);
@@ -1910,9 +1294,8 @@ export const useSyfonStorageChain = ({
   projectSelection: string;
 }) => {
   const [auditError, setAuditError] = useState<string | null>(null);
-  const [auditResult, setAuditResult] = useState<StorageChainAuditResult | null>(
-    null,
-  );
+  const [auditResult, setAuditResult] =
+    useState<StorageChainAuditResult | null>(null);
   const [isAuditing, setIsAuditing] = useState(false);
   useGetCSRFQuery();
   const csrfToken = useCoreSelector((state: CoreState) =>
@@ -1921,92 +1304,97 @@ export const useSyfonStorageChain = ({
 
   void config;
 
-  const runAudit = useCallback(async ({
-    bucketInventoryMode,
-    bucketPathPrefix,
-    findingKind,
-    findingLimit,
-    persistResult = true,
-    probeMode,
-  }: {
-    bucketInventoryMode?: 'items' | 'validate';
-    bucketPathPrefix?: string;
-    findingKind?: string;
-    findingLimit?: number;
-    persistResult?: boolean;
-    probeMode?: 'full' | 'inventory_only';
-  } = {}): Promise<StorageChainAuditResult | null> => {
-    const selection = splitProjectSelectionValue(projectSelection);
-    if (!selection) {
-      setAuditError('Select a project before running the storage chain audit.');
-      setAuditResult(null);
-      return null;
-    }
-
-    setAuditError(null);
-    setIsAuditing(true);
-
-    try {
-      const response = await fetch(
-        buildStorageChainUrl({
-          organization: selection.organization,
-          project: selection.project,
-        }),
-        {
-          body: JSON.stringify({
-            bucket_inventory_mode: bucketInventoryMode,
-            bucket_path_prefix: bucketPathPrefix
-              ? normalizeStoragePath(bucketPathPrefix) || undefined
-              : undefined,
-            finding_kind: findingKind,
-            finding_limit: findingLimit,
-            git_subpath: normalizeStoragePath(currentPath) || undefined,
-            probe_mode: probeMode,
-          }),
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
-          },
-          method: 'POST',
-        },
-      );
-
-      if (handleUnauthorizedResponse(response)) {
-        throw new Error('Your session expired. Please log in again.');
-      }
-
-      if (!response.ok) {
-        throw new Error(
-          await getErrorMessage(
-            response,
-            `Failed to audit storage chain for ${selection.organization}/${selection.project}`,
-          ),
+  const runAudit = useCallback(
+    async ({
+      bucketInventoryMode,
+      bucketPathPrefix,
+      findingKind,
+      findingLimit,
+      persistResult = true,
+      probeMode,
+    }: {
+      bucketInventoryMode?: 'items' | 'validate';
+      bucketPathPrefix?: string;
+      findingKind?: string;
+      findingLimit?: number;
+      persistResult?: boolean;
+      probeMode?: 'full' | 'inventory_only';
+    } = {}): Promise<StorageChainAuditResult | null> => {
+      const selection = splitProjectSelectionValue(projectSelection);
+      if (!selection) {
+        setAuditError(
+          'Select a project before running the storage chain audit.',
         );
+        setAuditResult(null);
+        return null;
       }
 
-      const normalized = normalizeStorageChainAuditResult({
-        pathPrefix: normalizeStoragePath(currentPath),
-        response: await readJsonResponse<Record<string, unknown>>(response),
-      });
-      if (persistResult) {
-        setAuditResult(normalized);
+      setAuditError(null);
+      setIsAuditing(true);
+
+      try {
+        const response = await fetch(
+          buildStorageChainUrl({
+            organization: selection.organization,
+            project: selection.project,
+          }),
+          {
+            body: JSON.stringify({
+              bucket_inventory_mode: bucketInventoryMode,
+              bucket_path_prefix: bucketPathPrefix
+                ? normalizeStoragePath(bucketPathPrefix) || undefined
+                : undefined,
+              finding_kind: findingKind,
+              finding_limit: findingLimit,
+              git_subpath: normalizeStoragePath(currentPath) || undefined,
+              probe_mode: probeMode,
+            }),
+            credentials: 'include',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
+            },
+            method: 'POST',
+          },
+        );
+
+        if (handleUnauthorizedResponse(response)) {
+          throw new Error('Your session expired. Please log in again.');
+        }
+
+        if (!response.ok) {
+          throw new Error(
+            await getErrorMessage(
+              response,
+              `Failed to audit storage chain for ${selection.organization}/${selection.project}`,
+            ),
+          );
+        }
+
+        const normalized = normalizeStorageChainAuditResult({
+          pathPrefix: normalizeStoragePath(currentPath),
+          response: await readJsonResponse<Record<string, unknown>>(response),
+        });
+        if (persistResult) {
+          setAuditResult(normalized);
+        }
+        return normalized;
+      } catch (auditFailure) {
+        const message =
+          auditFailure instanceof Error
+            ? auditFailure.message
+            : 'Failed to audit the storage chain.';
+        setAuditError(message);
+        if (persistResult) {
+          setAuditResult(null);
+        }
+        return null;
+      } finally {
+        setIsAuditing(false);
       }
-      return normalized;
-    } catch (auditFailure) {
-      const message =
-        auditFailure instanceof Error
-          ? auditFailure.message
-          : 'Failed to audit the storage chain.';
-      setAuditError(message);
-      if (persistResult) {
-        setAuditResult(null);
-      }
-      return null;
-    } finally {
-      setIsAuditing(false);
-    }
-  }, [csrfToken, currentPath, projectSelection]);
+    },
+    [csrfToken, currentPath, projectSelection],
+  );
 
   const clearAudit = useCallback(() => {
     setAuditError(null);
@@ -2033,13 +1421,11 @@ export const useSyfonStorageCleanup = ({
   projectSelection: string;
 }) => {
   const [applyError, setApplyError] = useState<string | null>(null);
-  const [applyResult, setApplyResult] = useState<StorageCleanupApplyResult | null>(
-    null,
-  );
+  const [applyResult, setApplyResult] =
+    useState<StorageCleanupApplyResult | null>(null);
   const [auditError, setAuditError] = useState<string | null>(null);
-  const [auditResult, setAuditResult] = useState<StorageCleanupAuditResult | null>(
-    null,
-  );
+  const [auditResult, setAuditResult] =
+    useState<StorageCleanupAuditResult | null>(null);
   const [isApplying, setIsApplying] = useState(false);
   const [isAuditing, setIsAuditing] = useState(false);
   const [lastAuditIncludedRepoManifest, setLastAuditIncludedRepoManifest] =
@@ -2222,13 +1608,14 @@ export const useSyfonStorageCleanup = ({
               git_subpath: normalizeStoragePath(currentPath) || undefined,
               selected_repo_paths: selectedPaths,
             }),
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
+            credentials: 'include',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
+            },
+            method: 'POST',
           },
-          method: 'POST',
-        });
+        );
 
         if (handleUnauthorizedResponse(response)) {
           throw new Error('Your session expired. Please log in again.');
@@ -2238,7 +1625,7 @@ export const useSyfonStorageCleanup = ({
           throw new Error(
             await getErrorMessage(
               response,
-            `Failed to apply storage cleanup for ${selection.organization}/${selection.project}`,
+              `Failed to apply storage cleanup for ${selection.organization}/${selection.project}`,
             ),
           );
         }
@@ -2263,11 +1650,7 @@ export const useSyfonStorageCleanup = ({
         setIsApplying(false);
       }
     },
-    [
-      csrfToken,
-      currentPath,
-      projectSelection,
-    ],
+    [csrfToken, currentPath, projectSelection],
   );
 
   const clearCleanupResults = useCallback(() => {
