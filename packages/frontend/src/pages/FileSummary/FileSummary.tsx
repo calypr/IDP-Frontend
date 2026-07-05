@@ -109,6 +109,10 @@ export const FileSummaryPage = ({
     useState<StorageSortKey>('sizeBytes');
   const [storageSortDirection, setStorageSortDirection] =
     useState<StorageSortDirection>('desc');
+  const [exactStorageRequest, setExactStorageRequest] = useState<{
+    path: string;
+    token: number;
+  } | null>(null);
 
   useEffect(() => {
     if (isProjectScopedRoute) {
@@ -219,12 +223,14 @@ export const FileSummaryPage = ({
     data,
     error,
     isLoading,
+    isLoadingExact,
     isLoadingMore,
     loadMore,
     refresh,
   } = useSyfonPathStorageSummary({
     config: filesummaryConfig,
     currentPath,
+    exactRequest: exactStorageRequest ?? undefined,
     projectSelection: selectedProject,
   });
   const {
@@ -687,13 +693,17 @@ export const FileSummaryPage = ({
   );
 
   const handleRunStorageChainAudit = async () => {
+    setExactStorageRequest((current) => ({
+      path: currentPath,
+      token: (current?.token ?? 0) + 1,
+    }));
     const result = await runChainAudit();
     setShowChainAuditReport(true);
     if (!result) {
       return;
     }
 
-    await applyExactChainSummary({
+    applyExactChainSummary({
       bucketObjectCount: result.summary.bucketObjectCount,
       gitTrackedFileCount: result.summary.gitTrackedFileCount,
       pathPrefix: result.pathPrefix,
@@ -912,7 +922,7 @@ export const FileSummaryPage = ({
                 currentPath={currentPath}
                 data={data}
                 filesummaryConfig={filesummaryConfig}
-                isChainAuditing={isChainAuditing}
+                isChainAuditing={isChainAuditing || isLoadingExact}
                 isLoadingMore={isLoadingMore}
                 largestRowSize={largestRowSize}
                 onLoadMore={() => {

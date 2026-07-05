@@ -171,15 +171,18 @@ const toStoragePathSummary = ({
 
 export const useSyfonPathStorageSummary = ({
   currentPath,
+  exactRequest,
   projectSelection,
 }: {
   currentPath: string;
+  exactRequest?: { path: string; token: number };
   projectSelection: string;
   config?: FilesummaryConfig;
 }) => {
   const [data, setData] = useState<StoragePathSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingExact, setIsLoadingExact] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
   const cacheRef = useRef(
@@ -207,34 +210,26 @@ export const useSyfonPathStorageSummary = ({
   }, []);
 
   const applyExactChainSummary = useCallback(
-    async (summary: ExactChainSummary) => {
+    (summary: ExactChainSummary) => {
       const normalizedSummaryPath = normalizeStoragePath(summary.pathPrefix);
       const normalizedCurrentPath = normalizeStoragePath(currentPath);
       if (normalizedSummaryPath !== normalizedCurrentPath) {
         return;
       }
 
-      const markExact = (
-        current: StoragePathSummary | null,
-        exactSummary?: StoragePathSummary,
-      ): StoragePathSummary | null => {
-        const base = exactSummary ?? current;
-        if (!base) {
+      setData((current) => {
+        if (!current) {
           return current;
         }
-        return {
-          ...base,
+        const next = {
+          ...current,
           bucketObjectCount: summary.bucketObjectCount,
           fileCount: summary.gitTrackedFileCount,
           isChainAuditExact: true,
-          recordCount: exactSummary?.recordCount ?? summary.syfonRecordCount,
+          recordCount: current.recordCount ?? summary.syfonRecordCount,
         };
-      };
 
-      setData((current) => {
-        const next = markExact(current);
-
-        if (next && cacheKey) {
+        if (cacheKey) {
           cacheRef.current.set(cacheKey, {
             data: next,
             expiresAt: Date.now() + STORAGE_FOLDER_CACHE_TTL_MS,
@@ -243,12 +238,29 @@ export const useSyfonPathStorageSummary = ({
 
         return next;
       });
+    },
+    [cacheKey, currentPath],
+  );
 
-      const selection = splitProjectSelectionValue(projectSelection);
-      if (!selection) {
-        return;
-      }
+  useEffect(() => {
+    if (!exactRequest?.token) {
+      return undefined;
+    }
 
+    const normalizedCurrentPath = normalizeStoragePath(currentPath);
+    if (normalizeStoragePath(exactRequest.path) !== normalizedCurrentPath) {
+      return undefined;
+    }
+
+    const selection = splitProjectSelectionValue(projectSelection);
+    if (!selection) {
+      return undefined;
+    }
+
+    let cancelled = false;
+    setIsLoadingExact(true);
+
+    const load = async () => {
       try {
         const response = await fetch(
           buildStorageFolderUrl({
@@ -279,6 +291,9 @@ export const useSyfonPathStorageSummary = ({
           currentPath,
           summaryJson: folderJson.summary ?? {},
         });
+        if (cancelled) {
+          return;
+        }
 
         setData((current) => {
           if (
@@ -288,8 +303,12 @@ export const useSyfonPathStorageSummary = ({
             return current;
           }
 
-          const next = markExact(current, exactSummary);
-          if (next && cacheKey) {
+          const next = {
+            ...exactSummary,
+            bucketObjectCount: current?.bucketObjectCount,
+            isChainAuditExact: true,
+          };
+          if (cacheKey) {
             cacheRef.current.set(cacheKey, {
               data: next,
               expiresAt: Date.now() + STORAGE_FOLDER_CACHE_TTL_MS,
@@ -298,15 +317,32 @@ export const useSyfonPathStorageSummary = ({
           return next;
         });
       } catch (exactLoadError) {
-        setError(
-          exactLoadError instanceof Error
-            ? exactLoadError.message
-            : 'Audit completed, but audited storage details could not be loaded.',
-        );
+        if (!cancelled) {
+          setError(
+            exactLoadError instanceof Error
+              ? exactLoadError.message
+              : 'Audited storage details could not be loaded.',
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingExact(false);
+        }
       }
-    },
-    [cacheKey, currentPath, data?.rows.length, projectSelection],
-  );
+    };
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    cacheKey,
+    currentPath,
+    data?.rows.length,
+    exactRequest,
+    projectSelection,
+  ]);
 
   useEffect(() => {
     const selection = splitProjectSelectionValue(projectSelection);
@@ -498,6 +534,7 @@ export const useSyfonPathStorageSummary = ({
     data,
     error,
     isLoading,
+    isLoadingExact,
     isLoadingMore,
     applyExactChainSummary,
     loadMore,

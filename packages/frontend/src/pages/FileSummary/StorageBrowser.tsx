@@ -211,17 +211,17 @@ export const StorageBrowser = ({
               {data?.childCount ?? 0} children
             </Text>
             {data?.isChainAuditExact ? (
-              <Stack gap={4} mt={4}>
-                <Badge color="green" size="xs" variant="light">
-                  Audit verified
+              <Text c="dimmed" className="mt-1 truncate" size="xs">
+                <Badge color="green" mr={6} size="xs" variant="light">
+                  Verified
                 </Badge>
-                <Text c="dimmed" size="xs">
+                <span>
                   {(data.recordCount ?? 0).toLocaleString()} Syfon records
                   {typeof data.bucketObjectCount === 'number'
                     ? ` · ${data.bucketObjectCount.toLocaleString()} bucket objects`
                     : ''}
-                </Text>
-              </Stack>
+                </span>
+              </Text>
             ) : null}
           </div>
 
