@@ -271,7 +271,7 @@ export const buildPathsByParentMap = (
   const nodesByPath = new Map<string, ChainPathTreeNode>();
 
   Array.from(new Set(paths.filter(Boolean))).forEach((value) => {
-    const segments = value.split('/').filter(Boolean);
+    const segments = pathTreeSegments(value);
     let parentPath = '';
     const pathNodes: Array<ChainPathTreeNode> = [];
 
@@ -328,6 +328,18 @@ export const buildPathsByParentMap = (
   });
 
   return map;
+};
+
+const pathTreeSegments = (value: string): Array<string> => {
+  const trimmed = value.trim();
+  const urlMatch = /^([a-z][a-z0-9+.-]*:\/\/)([^/]+)\/?(.*)$/i.exec(trimmed);
+  if (!urlMatch) {
+    return trimmed.split('/').filter(Boolean);
+  }
+
+  const root = `${urlMatch[1]}${urlMatch[2]}`;
+  const rest = urlMatch[3].split('/').filter(Boolean);
+  return [root, ...rest];
 };
 
 export const formatCleanupFindingLabel = (value: string): string =>

@@ -136,7 +136,7 @@ import SubmissionPage from './pages/Submission/Submission';
 import { SubmissionPageGetServerSideProps } from './pages/Submission/data';
 
 import WorkspacePage from './pages/Workspace/Workspace';
-import { WorkspaceNoAccessPage } from './pages/Workspace/index';
+import WorkspaceNoAccessPage from './pages/Workspace/WorkspaceNoAccess';
 import {
   WorkspaceNoAccessPageServerSideProps,
   WorkspacePageGetServerSideProps,

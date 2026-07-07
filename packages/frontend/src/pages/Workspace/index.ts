@@ -1,6 +1,5 @@
-import WorkspaceNoAccessPage from './WorkspaceNoAccess';
 export { default } from './Workspace';
-export { WorkspaceNoAccessPage };
+export { default as WorkspaceNoAccessPage } from './WorkspaceNoAccess';
 export {
   WorkspacePageGetServerSideProps,
   WorkspaceNoAccessPageServerSideProps,

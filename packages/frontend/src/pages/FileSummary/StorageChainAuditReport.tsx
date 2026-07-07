@@ -48,6 +48,7 @@ type StorageChainAuditReportProps = {
   readonly expandedChainTreeNodes: Record<string, boolean>;
   readonly expandedIssueId: string | null;
   readonly expandedIssueLoadError?: string;
+  readonly expandedIssueNotice?: string;
   readonly expandedIssueLoading: boolean;
   readonly expandedIssueFindings: Array<StorageChainFinding>;
   readonly isApplying: boolean;
@@ -110,6 +111,7 @@ export const StorageChainAuditReport = ({
   expandedIssueFindings,
   expandedIssueId,
   expandedIssueLoadError,
+  expandedIssueNotice,
   expandedIssueLoading,
   isApplying,
   isAuditing,
@@ -427,6 +429,16 @@ export const StorageChainAuditReport = ({
                                       title="Issue details failed"
                                     >
                                       {expandedIssueLoadError}
+                                    </Alert>
+                                  ) : null}
+
+                                  {expandedIssueNotice ? (
+                                    <Alert
+                                      color="blue"
+                                      icon={<IconAlertCircle size={16} />}
+                                      title="Audit response rows"
+                                    >
+                                      {expandedIssueNotice}
                                     </Alert>
                                   ) : null}
 

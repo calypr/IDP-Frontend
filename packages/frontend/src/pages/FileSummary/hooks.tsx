@@ -945,6 +945,10 @@ const normalizeStorageChainAuditResult = ({
           ? summary.bucket_object_count
           : 0,
       countsByKind,
+      findingLimit:
+        typeof summary?.finding_limit === 'number'
+          ? summary.finding_limit
+          : undefined,
       gitTrackedFileCount:
         typeof summary?.git_tracked_file_count === 'number'
           ? summary.git_tracked_file_count
@@ -953,6 +957,10 @@ const normalizeStorageChainAuditResult = ({
         typeof summary?.syfon_record_count === 'number'
           ? summary.syfon_record_count
           : 0,
+      returnedFindings:
+        typeof summary?.returned_findings === 'number'
+          ? summary.returned_findings
+          : findings.length,
       totalFindings:
         typeof summary?.total_findings === 'number'
           ? summary.total_findings

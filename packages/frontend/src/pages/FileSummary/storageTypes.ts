@@ -97,6 +97,8 @@ export interface StorageChainFinding {
 
 export interface StorageChainAuditSummary {
   readonly countsByKind: Record<string, number>;
+  readonly findingLimit?: number;
+  readonly returnedFindings: number;
   readonly totalFindings: number;
   readonly bucketObjectCount: number;
   readonly syfonRecordCount: number;

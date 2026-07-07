@@ -102,6 +102,9 @@ export const FileSummaryPage = ({
   const [chainIssueLoadErrors, setChainIssueLoadErrors] = useState<
     Record<string, string>
   >({});
+  const [chainIssueLoadNotices, setChainIssueLoadNotices] = useState<
+    Record<string, string>
+  >({});
   const [loadingChainIssueId, setLoadingChainIssueId] = useState<string | null>(
     null,
   );
@@ -260,7 +263,7 @@ export const FileSummaryPage = ({
   useEffect(() => {
     clearChainAudit();
     clearCleanupResults();
-  }, [clearChainAudit, clearCleanupResults, currentPath, selectedProject]);
+  }, [clearChainAudit, clearCleanupResults, selectedProject]);
 
   useEffect(() => {
     setActionFeedbackMessage(null);
@@ -271,8 +274,9 @@ export const FileSummaryPage = ({
     setShowChainAuditReport(false);
     setChainIssueFindingsByKind({});
     setChainIssueLoadErrors({});
+    setChainIssueLoadNotices({});
     setLoadingChainIssueId(null);
-  }, [currentPath, selectedProject]);
+  }, [selectedProject]);
 
   const pageTitle = selectedProjectParts
     ? `${selectedProjectParts.organization}/${selectedProjectParts.project}`
@@ -631,52 +635,60 @@ export const FileSummaryPage = ({
   );
 
   const loadChainIssueDetails = useCallback(
-    async (issueId: string) => {
+    (issueId: string) => {
       if (chainIssueFindingsByKind[issueId]) {
         return;
       }
 
-      setLoadingChainIssueId(issueId);
+      setLoadingChainIssueId(null);
       setChainIssueLoadErrors((current) => {
         const next = { ...current };
         delete next[issueId];
         return next;
       });
+      setChainIssueLoadNotices((current) => {
+        const next = { ...current };
+        delete next[issueId];
+        return next;
+      });
 
-      try {
-        const result = await runChainAudit({
-          findingKind: issueId,
-          findingLimit: -1,
-          persistResult: false,
-        });
-        if (!result) {
-          setChainIssueLoadErrors((current) => ({
-            ...current,
-            [issueId]: 'Failed to load issue details.',
-          }));
-          return;
-        }
-        setChainIssueFindingsByKind((current) => ({
-          ...current,
-          [issueId]: result.findings.filter(
-            (finding) => finding.kind === issueId,
-          ),
-        }));
-      } catch (error) {
+      if (!chainAuditResult) {
         setChainIssueLoadErrors((current) => ({
           ...current,
-          [issueId]:
-            error instanceof Error
-              ? error.message
-              : 'Failed to load issue details.',
+          [issueId]: 'Run the storage chain audit before opening issue details.',
         }));
-      } finally {
-        setLoadingChainIssueId((current) =>
-          current === issueId ? null : current,
-        );
+        return;
+      }
+
+      const findings = chainAuditResult.findings.filter(
+        (finding) => finding.kind === issueId,
+      );
+      setChainIssueFindingsByKind((current) => ({
+        ...current,
+        [issueId]: findings,
+      }));
+
+      const expectedCount =
+        chainAuditResult.groups.find((group) => group.kind === issueId)
+          ?.findingCount ?? findings.length;
+      if (expectedCount > findings.length) {
+        const findingLimit = chainAuditResult.summary.findingLimit;
+        setChainIssueLoadNotices((current) => ({
+          ...current,
+          [issueId]:
+            findings.length > 0
+              ? `Showing ${findings.length.toLocaleString()} of ${expectedCount.toLocaleString()} ${expectedCount === 1 ? 'row' : 'rows'} from the completed audit response for this issue group.${findingLimit ? ` Audit responses include up to ${findingLimit.toLocaleString()} rows per issue group.` : ''}`
+              : 'The completed audit response did not include row details for this issue group. Rerun the audit after Gecko is updated to return rows per issue group.',
+        }));
+      } else if (findings.length === 0 && expectedCount > 0) {
+        setChainIssueLoadNotices((current) => ({
+          ...current,
+          [issueId]:
+            'The completed audit summarized this issue group but did not include row-level findings for it.',
+        }));
       }
     },
-    [chainIssueFindingsByKind, runChainAudit],
+    [chainAuditResult, chainIssueFindingsByKind],
   );
 
   const handleToggleChainIssueDetails = useCallback(
@@ -891,6 +903,11 @@ export const FileSummaryPage = ({
                     expandedIssueLoadError={
                       selectedChainIssueId
                         ? chainIssueLoadErrors[selectedChainIssueId]
+                        : undefined
+                    }
+                    expandedIssueNotice={
+                      selectedChainIssueId
+                        ? chainIssueLoadNotices[selectedChainIssueId]
                         : undefined
                     }
                     expandedIssueLoading={
