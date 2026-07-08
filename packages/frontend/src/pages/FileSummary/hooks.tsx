@@ -659,6 +659,22 @@ const normalizeStorageChainFinding = (
       item.recommended_action.trim().length > 0
         ? item.recommended_action
         : defaultRecommendation,
+    suggestedAction:
+      typeof item.suggested_action === 'string' &&
+      item.suggested_action.trim().length > 0
+        ? item.suggested_action.trim()
+        : typeof item.suggestedAction === 'string' &&
+            item.suggestedAction.trim().length > 0
+          ? item.suggestedAction.trim()
+          : undefined,
+    suggestedFix:
+      typeof item.suggested_fix === 'string' &&
+      item.suggested_fix.trim().length > 0
+        ? item.suggested_fix.trim()
+        : typeof item.suggestedFix === 'string' &&
+            item.suggestedFix.trim().length > 0
+          ? item.suggestedFix.trim()
+          : undefined,
     recordCount:
       typeof item.record_count === 'number'
         ? item.record_count
@@ -1054,6 +1070,8 @@ const buildStorageApplyFindingRequest = (
   kind: finding.kind,
   normalized_path: finding.normalizedPath,
   object_ids: finding.objectIds,
+  suggested_action:
+    'suggestedAction' in finding ? finding.suggestedAction : undefined,
   records:
     'records' in finding
       ? finding.records.map((record) => ({
@@ -1064,10 +1082,23 @@ const buildStorageApplyFindingRequest = (
             url: method.url,
           })),
           access_probes: record.accessProbes.map((probe) => ({
+            bucket: probe.bucket,
+            etag: probe.etag,
             error: probe.error,
             error_kind: probe.errorKind,
+            exists: probe.exists,
+            key: probe.key,
+            last_modified: probe.lastModified,
+            meta_sha256: probe.metaSha256,
+            path: probe.path,
+            provider: probe.provider,
+            sha256_match: probe.sha256Match,
+            size_bytes: probe.sizeBytes,
+            size_match: probe.sizeMatch,
             status: probe.status,
             url: probe.url,
+            validation_mismatches: probe.validationMismatches,
+            validation_status: probe.validationStatus,
           })),
           access_urls: record.accessUrls,
           cleanup_scope: record.cleanupScope,

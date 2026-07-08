@@ -405,6 +405,36 @@ export const FileSummaryPage = ({
       ),
     [],
   );
+  const buildSuggestedActionRequests = useCallback(
+    ({
+      findings,
+    }: {
+      findings: Array<ActionableFinding>;
+    }): Array<StorageApplyActionRequest> =>
+      Array.from(
+        new Map(
+          findings
+            .filter(
+              (finding) =>
+                finding.normalizedPath &&
+                'suggestedAction' in finding &&
+                finding.suggestedAction,
+            )
+            .map((finding) => [
+              `${finding.kind}:${finding.normalizedPath}:${'suggestedAction' in finding ? finding.suggestedAction : ''}`,
+              {
+                action:
+                  'suggestedAction' in finding && finding.suggestedAction
+                    ? finding.suggestedAction
+                    : '',
+                kind: finding.kind,
+                normalized_path: finding.normalizedPath,
+              },
+            ]),
+        ).values(),
+      ),
+    [],
+  );
 
   const removeHealedChainFindings = useCallback(
     (issueId: string, paths: Array<string>, deletedRecordCount = 0) => {
@@ -556,15 +586,33 @@ export const FileSummaryPage = ({
         return;
       }
 
+      const suggestedMode = actionName === 'apply_suggested_fixes';
+      const actionFindings = suggestedMode
+        ? findings.filter(
+            (finding) =>
+              'suggestedAction' in finding && Boolean(finding.suggestedAction),
+          )
+        : findings;
+      const actionRequests = suggestedMode
+        ? buildSuggestedActionRequests({ findings: actionFindings })
+        : buildActionRequests({
+            action: actionName,
+            findings: actionFindings,
+          });
+
+      if (suggestedMode && actionRequests.length === 0) {
+        setActionFeedbackMessage(
+          `${issueTitle} does not currently have any backend-applicable suggested fixes.`,
+        );
+        return;
+      }
+
       if (resolvedAction.requiresConfirmation || resolvedAction.destructive) {
         let approved = true;
         if (resolvedAction.supportsDryRun) {
           const preview = await applyCleanup({
-            actions: buildActionRequests({
-              action: actionName,
-              findings,
-            }),
-            findings: findings.filter(
+            actions: actionRequests,
+            findings: actionFindings.filter(
               (
                 finding,
               ): finding is StorageCleanupFinding | StorageChainFinding =>
@@ -596,11 +644,8 @@ export const FileSummaryPage = ({
       }
 
       const result = await applyCleanup({
-        actions: buildActionRequests({
-          action: actionName,
-          findings,
-        }),
-        findings: findings.filter(
+        actions: actionRequests,
+        findings: actionFindings.filter(
           (finding): finding is StorageCleanupFinding | StorageChainFinding =>
             'records' in finding,
         ),
@@ -628,6 +673,7 @@ export const FileSummaryPage = ({
     [
       applyCleanup,
       buildActionRequests,
+      buildSuggestedActionRequests,
       removeHealedChainFindings,
       refresh,
       runChainAudit,

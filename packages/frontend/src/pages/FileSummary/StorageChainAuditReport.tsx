@@ -176,39 +176,67 @@ export const StorageChainAuditReport = ({
       });
     };
 
+    const suggestedFindings = expandedIssueFindings.filter(
+      (finding) => finding.suggestedAction,
+    );
+    const suggestedFixButton =
+      suggestedFindings.length > 0 ? (
+        <Button
+          color={expandedIssue.color}
+          loading={isBusy}
+          onClick={() =>
+            runRepairAction({
+              action: 'apply_suggested_fixes',
+              destructive: true,
+              label: 'Apply suggested fixes',
+              requiresConfirmation: true,
+              supportsDryRun: true,
+            })
+          }
+          size="xs"
+          variant="light"
+        >
+          Apply suggested fixes ({suggestedFindings.length.toLocaleString()})
+        </Button>
+      ) : null;
+
     if (
       expandedIssue.id === 'git_syfon_metadata_mismatch' &&
       repairActions.length > 1
     ) {
       return (
-        <Menu shadow="md" withinPortal>
-          <Menu.Target>
-            <Button
-              color={expandedIssue.color}
-              loading={isBusy}
-              size="xs"
-              variant="light"
-            >
-              Choose fix
-            </Button>
-          </Menu.Target>
-          <Menu.Dropdown>
-            {repairActions.map((action) => (
-              <Menu.Item
-                color={action.destructive ? 'red' : undefined}
-                key={action.action}
-                onClick={() => runRepairAction(action)}
+        <Group gap="xs">
+          {suggestedFixButton}
+          <Menu shadow="md" withinPortal>
+            <Menu.Target>
+              <Button
+                color={expandedIssue.color}
+                loading={isBusy}
+                size="xs"
+                variant={suggestedFixButton ? 'outline' : 'light'}
               >
-                {action.label}
-              </Menu.Item>
-            ))}
-          </Menu.Dropdown>
-        </Menu>
+                Choose fix
+              </Button>
+            </Menu.Target>
+            <Menu.Dropdown>
+              {repairActions.map((action) => (
+                <Menu.Item
+                  color={action.destructive ? 'red' : undefined}
+                  key={action.action}
+                  onClick={() => runRepairAction(action)}
+                >
+                  {action.label}
+                </Menu.Item>
+              ))}
+            </Menu.Dropdown>
+          </Menu>
+        </Group>
       );
     }
 
-    return repairActions.length > 0 ? (
+    return suggestedFixButton || repairActions.length > 0 ? (
       <Group gap="xs">
+        {suggestedFixButton}
         {repairActions.map((action) => (
           <Button
             color={expandedIssue.color}
@@ -538,6 +566,7 @@ export const StorageChainAuditReport = ({
                                             <Table.Th>Path</Table.Th>
                                             <Table.Th>Checksum</Table.Th>
                                             <Table.Th>Evidence</Table.Th>
+                                            <Table.Th>Suggested fix</Table.Th>
                                             <Table.Th>Records</Table.Th>
                                             <Table.Th>Objects</Table.Th>
                                           </Table.Tr>
@@ -574,6 +603,13 @@ export const StorageChainAuditReport = ({
                                                       {chainEvidenceForFinding(
                                                         finding,
                                                       )}
+                                                    </Text>
+                                                  </Table.Td>
+                                                  <Table.Td maw={520}>
+                                                    <Text size="sm">
+                                                      {finding.suggestedFix ||
+                                                        finding.recommendedAction ||
+                                                        '—'}
                                                     </Text>
                                                   </Table.Td>
                                                   <Table.Td>

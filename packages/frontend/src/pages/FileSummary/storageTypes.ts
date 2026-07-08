@@ -88,6 +88,8 @@ export interface StorageChainFinding {
   readonly recordCount: number;
   readonly sizeBytes?: number;
   readonly recommendedAction: string;
+  readonly suggestedFix?: string;
+  readonly suggestedAction?: string;
   readonly evidence?: AuditEvidence;
   readonly actionability?: string;
   readonly availableActions: Array<AuditActionOption>;
@@ -253,9 +255,22 @@ export interface StorageApplyFindingRequest {
     }>;
     readonly access_probes?: Array<{
       readonly url: string;
+      readonly provider?: string;
+      readonly bucket?: string;
+      readonly key?: string;
+      readonly path?: string;
+      readonly exists?: boolean;
       readonly status?: string;
       readonly error_kind?: string;
       readonly error?: string;
+      readonly size_bytes?: number;
+      readonly meta_sha256?: string;
+      readonly etag?: string;
+      readonly last_modified?: string;
+      readonly validation_status?: string;
+      readonly size_match?: boolean;
+      readonly sha256_match?: boolean;
+      readonly validation_mismatches?: Array<string>;
     }>;
   }>;
   readonly bucket_object_url?: string;
@@ -263,6 +278,7 @@ export interface StorageApplyFindingRequest {
   readonly access_urls?: Array<string>;
   readonly available_actions?: Array<string>;
   readonly default_action?: string;
+  readonly suggested_action?: string;
   readonly evidence?: {
     readonly object_ids?: Array<string>;
     readonly access_urls?: Array<string>;
