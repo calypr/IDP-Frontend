@@ -1,24 +1,35 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
-import { CALYPR_EXPLORER_CONFIG_API } from '@gen3/core';
 import {
+  CALYPR_EXPLORER_CONFIG_API,
+  useGetConfigContentQuery,
+} from '@gen3/core';
+import {
+  ActionIcon,
   Alert,
+  Badge,
   Center,
   Container,
   Group,
   Loader,
+  Menu,
   Select,
   Stack,
   Text,
-  Title,
 } from '@mantine/core';
-import { IconAlertCircle } from '@tabler/icons-react';
+import {
+  IconAlertCircle,
+  IconCheck,
+  IconCopy,
+  IconRefresh,
+} from '@tabler/icons-react';
 import ProtectedContent from '../../components/Protected/ProtectedContent';
 import { NavPageLayout, ProjectWorkspaceTabs } from '../../features/Navigation';
 import { FileSummaryPageProps } from './types';
 import {
   type AuditActionOption,
   type StorageApplyActionRequest,
+  type StorageChainAuditResult,
   type StorageChainFinding,
   type StorageCleanupFinding,
   useSyfonStorageChain,
@@ -80,9 +91,10 @@ export const FileSummaryPage = ({
   const [currentPath, setCurrentPath] = useState(
     filesummaryConfig?.defaultPath?.trim() ?? '',
   );
-  const [selectedChainIssueId, setSelectedChainIssueId] = useState<
-    string | null
-  >(null);
+  const [hasCopiedStoragePath, setHasCopiedStoragePath] = useState(false);
+  const [expandedChainIssueIds, setExpandedChainIssueIds] = useState<
+    Set<string>
+  >(new Set());
   const [selectedChainPathsByIssue, setSelectedChainPathsByIssue] = useState<
     Record<string, Array<string>>
   >({});
@@ -95,7 +107,6 @@ export const FileSummaryPage = ({
   const [actionFeedbackMessage, setActionFeedbackMessage] = useState<
     string | null
   >(null);
-  const [showChainAuditReport, setShowChainAuditReport] = useState(false);
   const [chainIssueFindingsByKind, setChainIssueFindingsByKind] = useState<
     Record<string, Array<StorageChainFinding>>
   >({});
@@ -116,6 +127,7 @@ export const FileSummaryPage = ({
     path: string;
     token: number;
   } | null>(null);
+  const [storageTab, setStorageTab] = useState<'browser' | 'audit'>('browser');
 
   useEffect(() => {
     if (isProjectScopedRoute) {
@@ -188,6 +200,16 @@ export const FileSummaryPage = ({
     () => splitProjectSelectionValue(selectedProject),
     [selectedProject],
   );
+  const explorerConfigId = selectedProjectParts
+    ? `${selectedProjectParts.organization}-${selectedProjectParts.project}`
+    : '';
+  const { data: explorerConfigResponse } = useGetConfigContentQuery(
+    explorerConfigId,
+    {
+      skip: !explorerConfigId,
+    },
+  );
+  const hasExplorerConfig = Boolean(explorerConfigResponse?.data);
   const breadcrumbSegments = useMemo(
     () => getPathSegments(currentPath),
     [currentPath],
@@ -226,7 +248,6 @@ export const FileSummaryPage = ({
     data,
     error,
     isLoading,
-    isLoadingExact,
     isLoadingMore,
     loadMore,
     refresh,
@@ -267,20 +288,16 @@ export const FileSummaryPage = ({
 
   useEffect(() => {
     setActionFeedbackMessage(null);
-    setSelectedChainIssueId(null);
+    setExpandedChainIssueIds(new Set());
     setSelectedChainPathsByIssue({});
     setExpandedChainTreeNodes({});
     setTreeNodeLimit({});
-    setShowChainAuditReport(false);
     setChainIssueFindingsByKind({});
     setChainIssueLoadErrors({});
     setChainIssueLoadNotices({});
     setLoadingChainIssueId(null);
   }, [selectedProject]);
 
-  const pageTitle = selectedProjectParts
-    ? `${selectedProjectParts.organization}/${selectedProjectParts.project}`
-    : 'Storage Monitor';
   const sortedRows = useMemo(
     () =>
       sortStorageRowsBy(data?.rows ?? [], storageSortKey, storageSortDirection),
@@ -300,87 +317,47 @@ export const FileSummaryPage = ({
   );
   const cleanChainJoinCount =
     chainAuditResult?.summary.countsByKind.bucket_syfon_git_complete ?? 0;
-  const selectedChainIssue = useMemo(
-    () =>
-      chainIssueSummaries.find((issue) => issue.id === selectedChainIssueId) ??
-      null,
-    [chainIssueSummaries, selectedChainIssueId],
-  );
-  const selectedChainFindings = useMemo(() => {
-    if (!selectedChainIssue) {
-      return [];
-    }
-    const fullIssueFindings = chainIssueFindingsByKind[selectedChainIssue.id];
-    if (fullIssueFindings) {
-      return fullIssueFindings;
-    }
-    return (chainAuditResult?.findings ?? []).filter(
-      (finding) => finding.kind === selectedChainIssue.id,
-    );
-  }, [
-    chainAuditResult?.findings,
-    chainIssueFindingsByKind,
-    selectedChainIssue,
-  ]);
-  const actionableChainSelectionIssue =
-    selectedChainIssue?.id === 'bucket_only_object' ||
-    selectedChainIssue?.id === 'bucket_syfon_no_git';
-  const selectableChainPaths = useMemo(
-    () =>
-      actionableChainSelectionIssue
-        ? Array.from(
-            new Set(
-              selectedChainFindings
-                .map((finding) => finding.normalizedPath)
-                .filter(Boolean),
-            ),
-          ).sort()
-        : [],
-    [actionableChainSelectionIssue, selectedChainFindings],
-  );
-  const selectedChainPaths = useMemo(
-    () =>
-      actionableChainSelectionIssue
-        ? (selectedChainPathsByIssue[selectedChainIssue?.id ?? ''] ?? [])
-        : [],
-    [
-      actionableChainSelectionIssue,
-      selectedChainIssue?.id,
-      selectedChainPathsByIssue,
-    ],
-  );
-  const selectedChainPathsSet = useMemo(
-    () => new Set(selectedChainPaths),
-    [selectedChainPaths],
-  );
-  const selectedChainApplyFindings = useMemo(
-    () =>
-      selectedChainFindings.filter((finding) =>
-        selectedChainPathsSet.has(finding.normalizedPath),
-      ),
-    [selectedChainFindings, selectedChainPathsSet],
+  const getChainFindingsForIssue = useCallback(
+    (issueId: string): Array<StorageChainFinding> => {
+      const fullIssueFindings = chainIssueFindingsByKind[issueId];
+      if (fullIssueFindings) {
+        return fullIssueFindings;
+      }
+      return (chainAuditResult?.findings ?? []).filter(
+        (finding) => finding.kind === issueId,
+      );
+    },
+    [chainAuditResult?.findings, chainIssueFindingsByKind],
   );
   useEffect(() => {
-    if (!actionableChainSelectionIssue || !selectedChainIssue) {
-      return;
-    }
     setSelectedChainPathsByIssue((current) => {
-      const existing = current[selectedChainIssue.id];
-      const available = new Set(selectableChainPaths);
-      const next = (existing ?? []).filter((path) => available.has(path));
-      if (
-        existing &&
-        existing.length === next.length &&
-        existing.every((value, index) => value === next[index])
-      ) {
-        return current;
-      }
-      return {
-        ...current,
-        [selectedChainIssue.id]: next,
-      };
+      let changed = false;
+      const nextSelections: Record<string, Array<string>> = {};
+      Object.entries(current).forEach(([issueId, selectedPaths]) => {
+        const issueIsSelectable =
+          issueId === 'bucket_only_object' ||
+          issueId === 'bucket_syfon_no_git';
+        if (!issueIsSelectable) {
+          nextSelections[issueId] = selectedPaths;
+          return;
+        }
+        const available = new Set(
+          getChainFindingsForIssue(issueId)
+            .map((finding) => finding.normalizedPath)
+            .filter(Boolean),
+        );
+        const nextPaths = selectedPaths.filter((path) => available.has(path));
+        nextSelections[issueId] = nextPaths;
+        if (
+          nextPaths.length !== selectedPaths.length ||
+          nextPaths.some((value, index) => value !== selectedPaths[index])
+        ) {
+          changed = true;
+        }
+      });
+      return changed ? nextSelections : current;
     });
-  }, [actionableChainSelectionIssue, selectableChainPaths, selectedChainIssue]);
+  }, [getChainFindingsForIssue]);
   const buildActionRequests = useCallback(
     ({
       action,
@@ -539,11 +516,73 @@ export const FileSummaryPage = ({
           ),
         };
       });
-      setSelectedChainIssueId((current) =>
-        current === issueId ? null : current,
-      );
+      setExpandedChainIssueIds((current) => {
+        if (!current.has(issueId)) {
+          return current;
+        }
+        const next = new Set(current);
+        next.delete(issueId);
+        return next;
+      });
     },
     [setChainAuditResult],
+  );
+
+  const loadChainIssueDetails = useCallback(
+    (issueId: string) => {
+      if (chainIssueFindingsByKind[issueId]) {
+        return;
+      }
+
+      setLoadingChainIssueId(null);
+      setChainIssueLoadErrors((current) => {
+        const next = { ...current };
+        delete next[issueId];
+        return next;
+      });
+      setChainIssueLoadNotices((current) => {
+        const next = { ...current };
+        delete next[issueId];
+        return next;
+      });
+
+      if (!chainAuditResult) {
+        setChainIssueLoadErrors((current) => ({
+          ...current,
+          [issueId]: 'Run the storage chain audit before opening issue details.',
+        }));
+        return;
+      }
+
+      const findings = chainAuditResult.findings.filter(
+        (finding) => finding.kind === issueId,
+      );
+      setChainIssueFindingsByKind((current) => ({
+        ...current,
+        [issueId]: findings,
+      }));
+
+      const expectedCount =
+        chainAuditResult.groups.find((group) => group.kind === issueId)
+          ?.findingCount ?? findings.length;
+      if (expectedCount > findings.length) {
+        const findingLimit = chainAuditResult.summary.findingLimit;
+        setChainIssueLoadNotices((current) => ({
+          ...current,
+          [issueId]:
+            findings.length > 0
+              ? `Showing ${findings.length.toLocaleString()} of ${expectedCount.toLocaleString()} ${expectedCount === 1 ? 'row' : 'rows'} from the completed audit response for this issue group.${findingLimit ? ` Audit responses include up to ${findingLimit.toLocaleString()} rows per issue group.` : ''}`
+              : 'The completed audit response did not include row details for this issue group. Rerun the audit after Gecko is updated to return rows per issue group.',
+        }));
+      } else if (findings.length === 0 && expectedCount > 0) {
+        setChainIssueLoadNotices((current) => ({
+          ...current,
+          [issueId]:
+            'The completed audit summarized this issue group but did not include row-level findings for it.',
+        }));
+      }
+    },
+    [chainAuditResult, chainIssueFindingsByKind],
   );
 
   const runIssueAction = useCallback(
@@ -577,7 +616,12 @@ export const FileSummaryPage = ({
       const selectedPaths = paths;
 
       if (isInspectAction(actionName)) {
-        setSelectedChainIssueId(issueId);
+        setExpandedChainIssueIds((current) => {
+          const next = new Set(current);
+          next.add(issueId);
+          return next;
+        });
+        void loadChainIssueDetails(issueId);
         return;
       }
 
@@ -674,99 +718,77 @@ export const FileSummaryPage = ({
       applyCleanup,
       buildActionRequests,
       buildSuggestedActionRequests,
+      loadChainIssueDetails,
       removeHealedChainFindings,
       refresh,
       runChainAudit,
     ],
   );
 
-  const loadChainIssueDetails = useCallback(
-    (issueId: string) => {
-      if (chainIssueFindingsByKind[issueId]) {
-        return;
-      }
-
-      setLoadingChainIssueId(null);
-      setChainIssueLoadErrors((current) => {
-        const next = { ...current };
-        delete next[issueId];
-        return next;
-      });
-      setChainIssueLoadNotices((current) => {
-        const next = { ...current };
-        delete next[issueId];
-        return next;
-      });
-
-      if (!chainAuditResult) {
-        setChainIssueLoadErrors((current) => ({
-          ...current,
-          [issueId]: 'Run the storage chain audit before opening issue details.',
-        }));
-        return;
-      }
-
-      const findings = chainAuditResult.findings.filter(
-        (finding) => finding.kind === issueId,
-      );
-      setChainIssueFindingsByKind((current) => ({
-        ...current,
-        [issueId]: findings,
-      }));
-
-      const expectedCount =
-        chainAuditResult.groups.find((group) => group.kind === issueId)
-          ?.findingCount ?? findings.length;
-      if (expectedCount > findings.length) {
-        const findingLimit = chainAuditResult.summary.findingLimit;
-        setChainIssueLoadNotices((current) => ({
-          ...current,
-          [issueId]:
-            findings.length > 0
-              ? `Showing ${findings.length.toLocaleString()} of ${expectedCount.toLocaleString()} ${expectedCount === 1 ? 'row' : 'rows'} from the completed audit response for this issue group.${findingLimit ? ` Audit responses include up to ${findingLimit.toLocaleString()} rows per issue group.` : ''}`
-              : 'The completed audit response did not include row details for this issue group. Rerun the audit after Gecko is updated to return rows per issue group.',
-        }));
-      } else if (findings.length === 0 && expectedCount > 0) {
-        setChainIssueLoadNotices((current) => ({
-          ...current,
-          [issueId]:
-            'The completed audit summarized this issue group but did not include row-level findings for it.',
-        }));
-      }
-    },
-    [chainAuditResult, chainIssueFindingsByKind],
-  );
-
   const handleToggleChainIssueDetails = useCallback(
     (issueId: string) => {
-      setSelectedChainIssueId((current) => {
-        if (current === issueId) {
-          return null;
+      setExpandedChainIssueIds((current) => {
+        const next = new Set(current);
+        if (next.has(issueId)) {
+          next.delete(issueId);
+          return next;
         }
+        next.add(issueId);
         void loadChainIssueDetails(issueId);
-        return issueId;
+        return next;
       });
     },
     [loadChainIssueDetails],
   );
+
+  const applyStorageChainAuditSummary = useCallback(
+    (result: StorageChainAuditResult | null) => {
+      if (!result) {
+        return;
+      }
+      applyExactChainSummary({
+        bucketObjectCount: result.summary.bucketObjectCount,
+        gitTrackedFileCount: result.summary.gitTrackedFileCount,
+        pathPrefix: result.pathPrefix,
+        syfonRecordCount: result.summary.syfonRecordCount,
+      });
+    },
+    [applyExactChainSummary],
+  );
+
+  useEffect(() => {
+    if (!selectedProjectParts || isProjectsLoading) {
+      return;
+    }
+
+    let cancelled = false;
+    void runChainAudit().then((result) => {
+      if (!cancelled) {
+        applyStorageChainAuditSummary(result);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    applyStorageChainAuditSummary,
+    currentPath,
+    isProjectsLoading,
+    runChainAudit,
+    selectedProjectParts,
+  ]);
 
   const handleRunStorageChainAudit = async () => {
     setExactStorageRequest((current) => ({
       path: currentPath,
       token: (current?.token ?? 0) + 1,
     }));
-    const result = await runChainAudit();
-    setShowChainAuditReport(true);
-    if (!result) {
-      return;
-    }
-
-    applyExactChainSummary({
-      bucketObjectCount: result.summary.bucketObjectCount,
-      gitTrackedFileCount: result.summary.gitTrackedFileCount,
-      pathPrefix: result.pathPrefix,
-      syfonRecordCount: result.summary.syfonRecordCount,
+    const result = await runChainAudit({
+      bucketInventoryMode: 'validate',
+      forceAuditRefresh: true,
     });
+    applyStorageChainAuditSummary(result);
   };
 
   const handleStorageSort = (key: StorageSortKey) => {
@@ -782,59 +804,213 @@ export const FileSummaryPage = ({
     setStorageSortKey(key);
   };
 
-  const setSelectedChainPathsForIssue = useCallback(
-    (paths: Array<string>) => {
-      if (!selectedChainIssue) {
-        return;
-      }
-      setSelectedChainPathsByIssue((current) => ({
-        ...current,
-        [selectedChainIssue.id]: Array.from(new Set(paths)).sort(),
-      }));
-    },
-    [selectedChainIssue],
-  );
+  const formatAuditRefreshTimestamp = (value?: string): string => {
+    if (!value) {
+      return 'Never';
+    }
 
-  const handleToggleAllChainPaths = useCallback(
-    (checked: boolean) => {
-      if (!actionableChainSelectionIssue) {
-        return;
-      }
-      setSelectedChainPathsForIssue(checked ? selectableChainPaths : []);
-    },
-    [
-      actionableChainSelectionIssue,
-      selectableChainPaths,
-      setSelectedChainPathsForIssue,
-    ],
-  );
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return value;
+    }
 
-  const handleToggleChainPath = useCallback(
-    (path: string, checked: boolean) => {
-      const next = checked
-        ? [...selectedChainPaths, path]
-        : selectedChainPaths.filter((value) => value !== path);
-      setSelectedChainPathsForIssue(next);
-    },
-    [selectedChainPaths, setSelectedChainPathsForIssue],
-  );
-
-  const handleApplySelectedChainObjects = useCallback(async () => {
-    if (!selectedChainIssue || selectedChainPaths.length === 0) {
+    return new Intl.DateTimeFormat(undefined, {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    }).format(date);
+  };
+  const breadcrumbLabelClassName =
+    'truncate text-[1.1rem] font-semibold leading-tight text-slate-900 hover:text-slate-950';
+  const copyCurrentStoragePath = async () => {
+    if (!selectedProjectParts || typeof navigator === 'undefined') {
       return;
     }
 
-    const isBucketOnlyIssue = selectedChainIssue.id === 'bucket_only_object';
+    await navigator.clipboard.writeText(
+      [selectedProjectParts.project, currentPath].filter(Boolean).join('/'),
+    );
+    setHasCopiedStoragePath(true);
+    window.setTimeout(() => setHasCopiedStoragePath(false), 2000);
+  };
+  const auditLastRefreshedAt = formatAuditRefreshTimestamp(
+    chainAuditResult?.summary.auditCachedAt,
+  );
+  const auditIssuePathCount = chainIssueSummaries.reduce(
+    (total, issue) => total + issue.pathCount,
+    0,
+  );
+  const browserBreadcrumbs = (
+    <Group className="min-w-0 flex-1 overflow-x-auto" gap={8} wrap="nowrap">
+      {collapsedBreadcrumb.leadingItems.map((item, index) => (
+        <React.Fragment key={item.path || item.label}>
+          {index > 0 ? (
+            <Text c="dimmed" fw={700} size="sm">
+              /
+            </Text>
+          ) : null}
+          {index === 1 && collapsedBreadcrumb.hiddenItems.length > 0 ? (
+            <>
+              <Menu shadow="md" width={260} withinPortal>
+                <Menu.Target>
+                  <button
+                    className={`${breadcrumbLabelClassName} max-w-[220px] text-slate-500`}
+                    type="button"
+                  >
+                    ...
+                  </button>
+                </Menu.Target>
+                <Menu.Dropdown>
+                  {collapsedBreadcrumb.hiddenItems.map((hiddenItem) => (
+                    <Menu.Item
+                      key={hiddenItem.path}
+                      onClick={() => setCurrentPath(hiddenItem.path)}
+                    >
+                      {hiddenItem.label}
+                    </Menu.Item>
+                  ))}
+                </Menu.Dropdown>
+              </Menu>
+              <Text c="dimmed" fw={700} size="sm">
+                /
+              </Text>
+            </>
+          ) : null}
+          <button
+            className={`${breadcrumbLabelClassName} max-w-[240px] ${
+              index === 0
+                ? 'text-primary hover:underline'
+                : item.path === currentPath
+                ? 'text-slate-900'
+                : 'text-slate-900 hover:text-slate-950'
+            }`}
+            onClick={() => setCurrentPath(item.path)}
+            title={item.label}
+            type="button"
+          >
+            {item.label}
+          </button>
+        </React.Fragment>
+      ))}
+      <ActionIcon
+        aria-label="Copy storage path"
+        color={hasCopiedStoragePath ? 'primary.0' : 'gray'}
+        onClick={() => {
+          void copyCurrentStoragePath();
+        }}
+        size="sm"
+        variant="subtle"
+      >
+        {hasCopiedStoragePath ? (
+          <IconCheck size={16} />
+        ) : (
+          <IconCopy size={16} />
+        )}
+      </ActionIcon>
+    </Group>
+  );
+  const auditRefreshUtility = (
+    <Group className="ml-auto shrink-0" gap="xs" wrap="nowrap">
+      <Text c="dimmed" size="xs">
+        Last refreshed: {auditLastRefreshedAt}
+      </Text>
+      <ActionIcon
+        aria-label="Refresh audit"
+        disabled={isChainAuditing}
+        loading={isChainAuditing}
+        onClick={() => {
+          void handleRunStorageChainAudit();
+        }}
+        size="lg"
+        variant="subtle"
+      >
+        <IconRefresh size={16} />
+      </ActionIcon>
+    </Group>
+  );
+  const storageTabToolbar = selectedProjectParts ? (
+    <Group
+      aria-label="Storage views"
+      className="shrink-0 border-l border-slate-200 pl-5"
+      gap="md"
+      role="tablist"
+      wrap="nowrap"
+    >
+      <button
+        aria-selected={storageTab === 'browser'}
+        className={`rounded-none border-0 border-b-2 bg-transparent px-0 pb-3 pt-3 text-sm font-semibold transition-colors ${
+          storageTab === 'browser'
+            ? 'border-[#2f5aac] text-[#2f5aac]'
+            : 'border-transparent text-slate-500 hover:text-slate-800'
+        }`}
+        onClick={() => setStorageTab('browser')}
+        role="tab"
+        type="button"
+      >
+        Browser
+      </button>
+      <button
+        aria-selected={storageTab === 'audit'}
+        className={`rounded-none border-0 border-b-2 bg-transparent px-0 pb-3 pt-3 text-sm font-semibold transition-colors ${
+          storageTab === 'audit'
+            ? 'border-[#2f5aac] text-[#2f5aac]'
+            : 'border-transparent text-slate-500 hover:text-slate-800'
+        }`}
+        onClick={() => setStorageTab('audit')}
+        role="tab"
+        type="button"
+      >
+        <Group gap={6} wrap="nowrap">
+          <span>Audit</span>
+          {chainAuditResult ? (
+            <Badge
+              color={chainIssueSummaries.length > 0 ? 'yellow' : 'green'}
+              size="xs"
+              variant="light"
+            >
+              {auditIssuePathCount.toLocaleString()}
+            </Badge>
+          ) : null}
+        </Group>
+      </button>
+    </Group>
+  ) : null;
+
+  const setSelectedChainPathsForIssue = useCallback(
+    (issueId: string, paths: Array<string>) => {
+      setSelectedChainPathsByIssue((current) => ({
+        ...current,
+        [issueId]: Array.from(new Set(paths)).sort(),
+      }));
+    },
+    [],
+  );
+
+  const handleApplySelectedChainObjects = useCallback(async (issueId: string) => {
+    const targetIssue = chainIssueSummaries.find(
+      (issue) => issue.id === issueId,
+    );
+    if (!targetIssue) {
+      return;
+    }
+    const targetPaths = selectedChainPathsByIssue[targetIssue.id] ?? [];
+    if (targetPaths.length === 0) {
+      return;
+    }
+    const targetFindings = getChainFindingsForIssue(targetIssue.id).filter(
+      (finding) => targetPaths.includes(finding.normalizedPath),
+    );
+
+    const isBucketOnlyIssue = targetIssue.id === 'bucket_only_object';
     const isBucketSyfonNoGitIssue =
-      selectedChainIssue.id === 'bucket_syfon_no_git';
+      targetIssue.id === 'bucket_syfon_no_git';
     if (!isBucketOnlyIssue && !isBucketSyfonNoGitIssue) {
       return;
     }
 
     const approved = window.confirm(
       isBucketOnlyIssue
-        ? `Delete ${selectedChainPaths.length.toLocaleString()} selected bucket-only path${selectedChainPaths.length === 1 ? '' : 's'}?\n\nThis will ask Syfon to delete the bucket objects in one bulk request.`
-        : `Delete ${selectedChainPaths.length.toLocaleString()} selected Bucket + Syfon, No Git path${selectedChainPaths.length === 1 ? '' : 's'}?\n\nThis will ask Syfon to delete both the Syfon records and bucket objects in one bulk request.`,
+        ? `Delete ${targetPaths.length.toLocaleString()} selected bucket-only path${targetPaths.length === 1 ? '' : 's'}?\n\nThis will ask Syfon to delete the bucket objects in one bulk request.`
+        : `Delete ${targetPaths.length.toLocaleString()} selected Bucket + Syfon, No Git path${targetPaths.length === 1 ? '' : 's'}?\n\nThis will ask Syfon to delete both the Syfon records and bucket objects in one bulk request.`,
     );
     if (!approved) {
       return;
@@ -844,9 +1020,9 @@ export const FileSummaryPage = ({
       deleteBucketOnlyObjects: isBucketOnlyIssue,
       deleteRepoOrphans: isBucketSyfonNoGitIssue,
       deleteStaleDuplicates: false,
-      findings: selectedChainApplyFindings,
+      findings: targetFindings,
       dryRun: false,
-      selectedPaths: selectedChainPaths,
+      selectedPaths: targetPaths,
     });
 
     if (!result) {
@@ -855,40 +1031,38 @@ export const FileSummaryPage = ({
 
     setActionFeedbackMessage(
       isBucketOnlyIssue
-        ? `Deleted ${selectedChainPaths.length.toLocaleString()} selected bucket-only path${selectedChainPaths.length === 1 ? '' : 's'} in one Syfon bulk request.`
-        : `Deleted ${selectedChainPaths.length.toLocaleString()} selected Bucket + Syfon, No Git path${selectedChainPaths.length === 1 ? '' : 's'} in one Syfon bulk request.`,
+        ? `Deleted ${targetPaths.length.toLocaleString()} selected bucket-only path${targetPaths.length === 1 ? '' : 's'} in one Syfon bulk request.`
+        : `Deleted ${targetPaths.length.toLocaleString()} selected Bucket + Syfon, No Git path${targetPaths.length === 1 ? '' : 's'} in one Syfon bulk request.`,
     );
     removeHealedChainFindings(
-      selectedChainIssue.id,
-      selectedChainPaths,
+      targetIssue.id,
+      targetPaths,
       result.deletedRecordIds.length,
     );
     refresh();
   }, [
     applyCleanup,
+    chainIssueSummaries,
+    getChainFindingsForIssue,
     removeHealedChainFindings,
     refresh,
-    selectedChainApplyFindings,
-    selectedChainIssue,
-    selectedChainPaths,
+    selectedChainPathsByIssue,
   ]);
 
   const pageContent = (
     <div className="min-h-screen bg-[#f6f8fa]">
-      <Container className="max-w-[1680px]" py="xl" size="100%">
+      <Container
+        className="w-full max-w-none"
+        fluid
+        pb="xl"
+        pt={isProjectScopedRoute ? 'sm' : 'xl'}
+      >
         <Stack gap="lg">
-          <Stack gap="md" px="sm">
-            <Group justify="space-between" align="flex-start">
-              <div>
-                <Title order={2}>Storage Monitor</Title>
-                <Text c="dimmed" mt={4} size="sm">
-                  Gecko-backed storage view by project path using repository
-                  analytics plus Syfon-backed object verification.
-                </Text>
-              </div>
-            </Group>
-
-            {!isProjectScopedRoute ? (
+          {!isProjectScopedRoute ||
+          (!selectedProject && !isProjectsLoading) ||
+          error ? (
+            <Stack gap="md" px="sm">
+              {!isProjectScopedRoute ? (
               <Select
                 data={projectOptions.map((option) => ({
                   label: option.label,
@@ -904,28 +1078,31 @@ export const FileSummaryPage = ({
                 searchable
                 value={selectedProject}
               />
-            ) : null}
+              ) : null}
 
-            {!selectedProject && !isProjectsLoading && !isProjectScopedRoute ? (
-              <Alert
-                color="yellow"
-                icon={<IconAlertCircle size={16} />}
-                title="No projects"
-              >
-                No Gecko projects are available for this storage monitor.
-              </Alert>
-            ) : null}
+              {!selectedProject &&
+              !isProjectsLoading &&
+              !isProjectScopedRoute ? (
+                <Alert
+                  color="yellow"
+                  icon={<IconAlertCircle size={16} />}
+                  title="No projects"
+                >
+                  No Gecko projects are available for this storage monitor.
+                </Alert>
+              ) : null}
 
-            {error ? (
-              <Alert
-                color="red"
-                icon={<IconAlertCircle size={16} />}
-                title="Storage load failed"
-              >
-                {error}
-              </Alert>
-            ) : null}
-          </Stack>
+              {error ? (
+                <Alert
+                  color="red"
+                  icon={<IconAlertCircle size={16} />}
+                  title="Storage load failed"
+                >
+                  {error}
+                </Alert>
+              ) : null}
+            </Stack>
+          ) : null}
 
           {isProjectsLoading || isLoading ? (
             <Center h="45vh">
@@ -933,8 +1110,48 @@ export const FileSummaryPage = ({
             </Center>
           ) : selectedProjectParts ? (
             <>
-              <StorageBrowser
-                auditReport={
+              {storageTab === 'browser' ? (
+                <Stack gap="md">
+                  <Stack gap="xs" px="sm" pt="xs">
+                    <Group
+                      className="min-w-0"
+                      gap="sm"
+                      justify="space-between"
+                      wrap="nowrap"
+                    >
+                      {browserBreadcrumbs}
+                    </Group>
+                  </Stack>
+                  <StorageBrowser
+                    data={data}
+                    filesummaryConfig={filesummaryConfig}
+                    isLoadingMore={isLoadingMore}
+                    largestRowSize={largestRowSize}
+                    onLoadMore={() => {
+                      void loadMore();
+                    }}
+                    onPathChange={setCurrentPath}
+                    onSort={handleStorageSort}
+                    sortedRows={sortedRows}
+                    storageSortDirection={storageSortDirection}
+                    storageSortKey={storageSortKey}
+                  />
+                </Stack>
+              ) : null}
+
+              {storageTab === 'audit' ? (
+                <Stack gap="md">
+                  <Stack gap="xs" px="sm" pt="xs">
+                    <Group
+                      className="min-w-0"
+                      gap="sm"
+                      justify="space-between"
+                      wrap="nowrap"
+                    >
+                      {browserBreadcrumbs}
+                      {auditRefreshUtility}
+                    </Group>
+                  </Stack>
                   <StorageChainAuditReport
                     actionFeedbackMessage={actionFeedbackMessage}
                     applyError={applyError}
@@ -942,67 +1159,31 @@ export const FileSummaryPage = ({
                     auditError={chainAuditError}
                     auditResult={chainAuditResult}
                     chainIssueSummaries={chainIssueSummaries}
+                    chainIssueFindingsByKind={chainIssueFindingsByKind}
                     cleanChainJoinCount={cleanChainJoinCount}
                     expandedChainTreeNodes={expandedChainTreeNodes}
-                    expandedIssueFindings={selectedChainFindings}
-                    expandedIssueId={selectedChainIssueId}
-                    expandedIssueLoadError={
-                      selectedChainIssueId
-                        ? chainIssueLoadErrors[selectedChainIssueId]
-                        : undefined
-                    }
-                    expandedIssueNotice={
-                      selectedChainIssueId
-                        ? chainIssueLoadNotices[selectedChainIssueId]
-                        : undefined
-                    }
-                    expandedIssueLoading={
-                      loadingChainIssueId === selectedChainIssueId
-                    }
+                    expandedIssueIds={expandedChainIssueIds}
+                    expandedIssueLoadErrors={chainIssueLoadErrors}
+                    expandedIssueLoadNotices={chainIssueLoadNotices}
                     isApplying={isApplying}
                     isAuditing={isAuditing}
                     isChainAuditing={isChainAuditing}
-                    isOpen={showChainAuditReport}
-                    onApplySelectedChainObjects={() => {
-                      void handleApplySelectedChainObjects();
-                    }}
-                    onOpenChange={setShowChainAuditReport}
+                    loadingChainIssueId={loadingChainIssueId}
                     onRunIssueAction={(args) => {
                       void runIssueAction(args);
                     }}
                     onSelectedChainPathsChange={setSelectedChainPathsForIssue}
-                    onToggleAllChainPaths={handleToggleAllChainPaths}
                     onToggleChainIssueDetails={handleToggleChainIssueDetails}
-                    onToggleChainPath={handleToggleChainPath}
-                    selectedChainPaths={selectedChainPaths}
-                    selectedChainPathsSet={selectedChainPathsSet}
+                    onApplySelectedChainObjects={(issueId) => {
+                      void handleApplySelectedChainObjects(issueId);
+                    }}
+                    selectedChainPathsByIssue={selectedChainPathsByIssue}
                     setExpandedChainTreeNodes={setExpandedChainTreeNodes}
                     setTreeNodeLimit={setTreeNodeLimit}
                     treeNodeLimit={treeNodeLimit}
                   />
-                }
-                collapsedBreadcrumb={collapsedBreadcrumb}
-                currentPath={currentPath}
-                data={data}
-                filesummaryConfig={filesummaryConfig}
-                isChainAuditing={isChainAuditing || isLoadingExact}
-                isLoadingMore={isLoadingMore}
-                largestRowSize={largestRowSize}
-                onLoadMore={() => {
-                  void loadMore();
-                }}
-                onRunAudit={() => {
-                  void handleRunStorageChainAudit();
-                }}
-                onPathChange={setCurrentPath}
-                onRefresh={refresh}
-                onSort={handleStorageSort}
-                pageTitle={pageTitle}
-                selectedProject={selectedProject}
-                sortedRows={sortedRows}
-                storageSortDirection={storageSortDirection}
-                storageSortKey={storageSortKey}
-              />
+                </Stack>
+              ) : null}
             </>
           ) : null}
         </Stack>
@@ -1024,9 +1205,10 @@ export const FileSummaryPage = ({
         {isProjectScopedRoute ? (
           <ProjectWorkspaceTabs
             activeTab="storage"
-            hasExplorerConfig
+            hasExplorerConfig={hasExplorerConfig}
             organization={routeOrganization}
             project={routeProject}
+            toolbarContent={storageTabToolbar}
           >
             {pageContent}
           </ProjectWorkspaceTabs>

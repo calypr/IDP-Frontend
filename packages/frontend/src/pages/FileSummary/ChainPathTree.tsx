@@ -3,6 +3,8 @@ import { ActionIcon, Button, Checkbox, Group, Stack } from '@mantine/core';
 import { IconChevronRight } from '@tabler/icons-react';
 import type { ChainPathTreeNode } from './storagePresentation';
 
+const chainPathTreeNodeLimit = 250;
+
 type ChainPathTreeProps = {
   readonly expandedTreeNodes: Record<string, boolean>;
   readonly nodes: Array<ChainPathTreeNode>;
@@ -99,14 +101,17 @@ export const ChainPathTree = ({
         {!isLeaf && isExpanded ? (
           <>
             {children
-              .slice(0, treeNodeLimit[node.path] ?? 100)
+              .slice(0, treeNodeLimit[node.path] ?? chainPathTreeNodeLimit)
               .map((child) => renderNode(child, depth + 1))}
-            {children.length > (treeNodeLimit[node.path] ?? 100) && (
+            {children.length >
+              (treeNodeLimit[node.path] ?? chainPathTreeNodeLimit) && (
               <Button
                 onClick={() =>
                   onTreeNodeLimitChange((current) => ({
                     ...current,
-                    [node.path]: (current[node.path] ?? 100) + 100,
+                    [node.path]:
+                      (current[node.path] ?? chainPathTreeNodeLimit) +
+                      chainPathTreeNodeLimit,
                   }))
                 }
                 size="xs"
@@ -118,7 +123,8 @@ export const ChainPathTree = ({
               >
                 Show more (
                 {(
-                  children.length - (treeNodeLimit[node.path] ?? 100)
+                  children.length -
+                  (treeNodeLimit[node.path] ?? chainPathTreeNodeLimit)
                 ).toLocaleString()}{' '}
                 remaining)...
               </Button>

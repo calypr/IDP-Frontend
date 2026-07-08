@@ -1,11 +1,10 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Alert,
   Badge,
   Button,
   Center,
   Checkbox,
-  Collapse,
   Group,
   Loader,
   Menu,
@@ -13,7 +12,7 @@ import {
   Table,
   Text,
 } from '@mantine/core';
-import { IconAlertCircle, IconChevronRight } from '@tabler/icons-react';
+import { IconAlertCircle } from '@tabler/icons-react';
 import { formatBytes } from '../../utils/labels';
 import { ChainPathTree } from './ChainPathTree';
 import type { AuditActionOption } from './hooks';
@@ -46,24 +45,25 @@ type StorageChainAuditReportProps = {
   readonly chainIssueSummaries: Array<ChainIssueSummary>;
   readonly cleanChainJoinCount: number;
   readonly expandedChainTreeNodes: Record<string, boolean>;
-  readonly expandedIssueId: string | null;
-  readonly expandedIssueLoadError?: string;
-  readonly expandedIssueNotice?: string;
-  readonly expandedIssueLoading: boolean;
-  readonly expandedIssueFindings: Array<StorageChainFinding>;
+  readonly expandedIssueIds: Set<string>;
+  readonly chainIssueFindingsByKind: Record<
+    string,
+    Array<StorageChainFinding>
+  >;
+  readonly expandedIssueLoadErrors: Record<string, string>;
+  readonly expandedIssueLoadNotices: Record<string, string>;
+  readonly loadingChainIssueId: string | null;
   readonly isApplying: boolean;
   readonly isAuditing: boolean;
   readonly isChainAuditing: boolean;
-  readonly isOpen: boolean;
-  readonly onApplySelectedChainObjects: () => void;
-  readonly onOpenChange: (open: boolean) => void;
+  readonly onApplySelectedChainObjects: (issueId: string) => void;
   readonly onRunIssueAction: (args: RunChainIssueActionArgs) => void;
-  readonly onSelectedChainPathsChange: (paths: Array<string>) => void;
-  readonly onToggleAllChainPaths: (checked: boolean) => void;
+  readonly onSelectedChainPathsChange: (
+    issueId: string,
+    paths: Array<string>,
+  ) => void;
   readonly onToggleChainIssueDetails: (issueId: string) => void;
-  readonly onToggleChainPath: (path: string, checked: boolean) => void;
-  readonly selectedChainPaths: Array<string>;
-  readonly selectedChainPathsSet: Set<string>;
+  readonly selectedChainPathsByIssue: Record<string, Array<string>>;
   readonly setExpandedChainTreeNodes: React.Dispatch<
     React.SetStateAction<Record<string, boolean>>
   >;
@@ -99,6 +99,10 @@ const repairActionsForIssue = (
   );
 };
 
+const issueDetailInitialRowLimit = 250;
+const issueDetailRowLimitIncrement = 250;
+const chainPathTreeNodeLimit = 250;
+
 export const StorageChainAuditReport = ({
   actionFeedbackMessage,
   applyError,
@@ -106,32 +110,86 @@ export const StorageChainAuditReport = ({
   auditError,
   auditResult,
   chainIssueSummaries,
+  chainIssueFindingsByKind,
   cleanChainJoinCount,
   expandedChainTreeNodes,
-  expandedIssueFindings,
-  expandedIssueId,
-  expandedIssueLoadError,
-  expandedIssueNotice,
-  expandedIssueLoading,
+  expandedIssueIds,
+  expandedIssueLoadErrors,
+  expandedIssueLoadNotices,
+  loadingChainIssueId,
   isApplying,
   isAuditing,
   isChainAuditing,
-  isOpen,
   onApplySelectedChainObjects,
-  onOpenChange,
   onRunIssueAction,
   onSelectedChainPathsChange,
-  onToggleAllChainPaths,
   onToggleChainIssueDetails,
-  onToggleChainPath,
-  selectedChainPaths,
-  selectedChainPathsSet,
+  selectedChainPathsByIssue,
   setExpandedChainTreeNodes,
   setTreeNodeLimit,
   treeNodeLimit,
 }: StorageChainAuditReportProps): JSX.Element | null => {
+  const [visibleIssueDetailRowLimits, setVisibleIssueDetailRowLimits] =
+    useState<Record<string, number>>({});
+
+  useEffect(() => {
+    setVisibleIssueDetailRowLimits((current) => {
+      const next: Record<string, number> = {};
+      expandedIssueIds.forEach((issueId) => {
+        next[issueId] = current[issueId] ?? issueDetailInitialRowLimit;
+      });
+      return next;
+    });
+  }, [expandedIssueIds]);
+
+  const issueFindingsFor = (issueId: string): Array<StorageChainFinding> => {
+    const fullIssueFindings = chainIssueFindingsByKind[issueId];
+    if (fullIssueFindings) {
+      return fullIssueFindings;
+    }
+    return (auditResult?.findings ?? []).filter(
+      (finding) => finding.kind === issueId,
+    );
+  };
+  const loadMoreIssueDetailRows = (issueId: string, total: number) => {
+    setVisibleIssueDetailRowLimits((current) => ({
+      ...current,
+      [issueId]: Math.min(
+        (current[issueId] ?? issueDetailInitialRowLimit) +
+          issueDetailRowLimitIncrement,
+        total,
+      ),
+    }));
+  };
+  const handleIssueDetailScroll = (
+    issueId: string,
+    total: number,
+    event: React.UIEvent<HTMLDivElement>,
+  ): void => {
+    const target = event.currentTarget;
+    const visibleLimit =
+      visibleIssueDetailRowLimits[issueId] ?? issueDetailInitialRowLimit;
+    if (
+      visibleLimit < total &&
+      target.scrollTop + target.clientHeight >= target.scrollHeight - 160
+    ) {
+      loadMoreIssueDetailRows(issueId, total);
+    }
+  };
+
   if (!auditResult && !auditError) {
-    return null;
+    return (
+      <Center py="xl">
+        <Group gap="xs">
+          {isChainAuditing ? <Loader size="xs" /> : null}
+          <Text c="dimmed" size="sm">
+            {isChainAuditing
+              ? 'Running storage chain audit...'
+              : 'No storage chain audit has been run for this project.'}
+          </Text>
+        </Group>
+      </Center>
+    );
   }
 
   const issuePathCount = chainIssueSummaries.reduce(
@@ -139,50 +197,40 @@ export const StorageChainAuditReport = ({
     0,
   );
   const totalChainRows = cleanChainJoinCount + issuePathCount;
-  const expandedIssue =
-    chainIssueSummaries.find((issue) => issue.id === expandedIssueId) ?? null;
-  const isExpandedIssueSelectable =
-    expandedIssue?.id === 'bucket_only_object' ||
-    expandedIssue?.id === 'bucket_syfon_no_git';
-  const selectableChainPaths = Array.from(
-    new Set(
-      expandedIssueFindings
-        .map((finding) => finding.normalizedPath)
-        .filter(Boolean),
-    ),
-  ).sort();
-  const pathsByParent = buildPathsByParentMap(selectableChainPaths);
-  const chainPathTree = pathsByParent.get('') ?? [];
-  const repairActions = expandedIssue
-    ? repairActionsForIssue(expandedIssue)
-    : [];
+  const totalScopedRows =
+    auditResult?.summary.gitTrackedFileCount ?? totalChainRows;
   const isBusy = isApplying || isAuditing || isChainAuditing;
 
-  const renderRepairActions = (): JSX.Element | null => {
-    if (!expandedIssue || expandedIssue.id === 'git_only_no_syfon') {
+  const renderRepairActions = (
+    issue: ChainIssueSummary,
+    issueFindings: Array<StorageChainFinding>,
+    isIssueLoading: boolean,
+  ): JSX.Element | null => {
+    if (issue.id === 'git_only_no_syfon') {
       return null;
     }
-    if (expandedIssueLoading || expandedIssueFindings.length === 0) {
+    if (isIssueLoading || issueFindings.length === 0) {
       return null;
     }
+    const repairActions = repairActionsForIssue(issue);
 
     const runRepairAction = (action: AuditActionOption) => {
       onRunIssueAction({
         defaultAction: action,
-        findings: expandedIssueFindings,
-        issueId: expandedIssue.id,
-        issueTitle: expandedIssue.title,
-        paths: expandedIssueFindings.map((finding) => finding.normalizedPath),
+        findings: issueFindings,
+        issueId: issue.id,
+        issueTitle: issue.title,
+        paths: issueFindings.map((finding) => finding.normalizedPath),
       });
     };
 
-    const suggestedFindings = expandedIssueFindings.filter(
+    const suggestedFindings = issueFindings.filter(
       (finding) => finding.suggestedAction,
     );
     const suggestedFixButton =
       suggestedFindings.length > 0 ? (
         <Button
-          color={expandedIssue.color}
+          color={issue.color}
           loading={isBusy}
           onClick={() =>
             runRepairAction({
@@ -201,7 +249,7 @@ export const StorageChainAuditReport = ({
       ) : null;
 
     if (
-      expandedIssue.id === 'git_syfon_metadata_mismatch' &&
+      issue.id === 'git_syfon_metadata_mismatch' &&
       repairActions.length > 1
     ) {
       return (
@@ -210,7 +258,7 @@ export const StorageChainAuditReport = ({
           <Menu shadow="md" withinPortal>
             <Menu.Target>
               <Button
-                color={expandedIssue.color}
+                color={issue.color}
                 loading={isBusy}
                 size="xs"
                 variant={suggestedFixButton ? 'outline' : 'light'}
@@ -239,7 +287,7 @@ export const StorageChainAuditReport = ({
         {suggestedFixButton}
         {repairActions.map((action) => (
           <Button
-            color={expandedIssue.color}
+            color={issue.color}
             key={action.action}
             loading={isBusy}
             onClick={() => runRepairAction(action)}
@@ -257,39 +305,7 @@ export const StorageChainAuditReport = ({
 
   return (
     <Stack gap="sm" px="sm">
-      <Group justify="space-between">
-        <Group gap="xs">
-          <button
-            className="flex items-center gap-2 text-left text-sm font-semibold text-slate-900"
-            onClick={() => onOpenChange(!isOpen)}
-            type="button"
-          >
-            <IconChevronRight
-              className={`transition-transform ${isOpen ? 'rotate-90' : ''}`}
-              size={16}
-            />
-            Storage chain audit report
-          </button>
-          {auditResult ? (
-            <Badge
-              color={chainIssueSummaries.length > 0 ? 'yellow' : 'green'}
-              variant="light"
-            >
-              {issuePathCount.toLocaleString()} issues
-            </Badge>
-          ) : null}
-        </Group>
-        <Button
-          onClick={() => onOpenChange(!isOpen)}
-          size="xs"
-          variant="subtle"
-        >
-          {isOpen ? 'Hide report' : 'View report'}
-        </Button>
-      </Group>
-
-      <Collapse in={isOpen}>
-        <Stack gap="md">
+      <Stack gap="md">
           {auditError ? (
             <Alert
               color="red"
@@ -297,6 +313,16 @@ export const StorageChainAuditReport = ({
               title="Chain audit failed"
             >
               {auditError}
+            </Alert>
+          ) : null}
+
+          {auditResult?.summary.auditCacheError ? (
+            <Alert
+              color="yellow"
+              icon={<IconAlertCircle size={16} />}
+              title="Audit cache write failed"
+            >
+              {auditResult.summary.auditCacheError}
             </Alert>
           ) : null}
 
@@ -334,41 +360,72 @@ export const StorageChainAuditReport = ({
             <>
               <Alert
                 color={chainIssueSummaries.length > 0 ? 'yellow' : 'green'}
-                icon={<IconAlertCircle size={16} />}
-                title={
-                  chainIssueSummaries.length > 0
-                    ? 'Issues found'
-                    : 'Fully connected'
-                }
               >
-                <Text size="sm">
-                  <strong>
-                    {cleanChainJoinCount.toLocaleString()} /{' '}
-                    {totalChainRows.toLocaleString()} audited rows fully
-                    connected.
-                  </strong>{' '}
-                  Scope: scanned{' '}
-                  {auditResult.summary.bucketObjectCount.toLocaleString()}{' '}
-                  bucket objects,{' '}
-                  {auditResult.summary.syfonRecordCount.toLocaleString()} Syfon
-                  records, and{' '}
-                  {auditResult.summary.gitTrackedFileCount.toLocaleString()}{' '}
-                  Git-tracked files.
-                </Text>
+                <Stack gap={2}>
+                  <Text size="sm">
+                    <strong>
+                      {cleanChainJoinCount.toLocaleString()} /{' '}
+                      {totalScopedRows.toLocaleString()} audited rows fully
+                      connected.
+                    </strong>
+                  </Text>
+                  <Text size="sm">
+                    Checked{' '}
+                    {auditResult.summary.bucketObjectCount.toLocaleString()}{' '}
+                    bucket objects,{' '}
+                    {auditResult.summary.syfonRecordCount.toLocaleString()}{' '}
+                    Syfon records, and{' '}
+                    {auditResult.summary.gitTrackedFileCount.toLocaleString()}{' '}
+                    Git-tracked files.
+                  </Text>
+                </Stack>
               </Alert>
 
               {chainIssueSummaries.length > 0 ? (
                 <Table highlightOnHover>
                   <Table.Thead>
                     <Table.Tr>
-                      <Table.Th>Chain Issue</Table.Th>
+                      <Table.Th>Issue</Table.Th>
                       <Table.Th>Impact</Table.Th>
                       <Table.Th>Action</Table.Th>
                     </Table.Tr>
                   </Table.Thead>
                   <Table.Tbody>
                     {chainIssueSummaries.map((issue) => {
-                      const isExpanded = expandedIssueId === issue.id;
+                      const isExpanded = expandedIssueIds.has(issue.id);
+                      const issueFindings = issueFindingsFor(issue.id);
+                      const isIssueLoading =
+                        loadingChainIssueId === issue.id;
+                      const issueLoadError =
+                        expandedIssueLoadErrors[issue.id];
+                      const issueNotice =
+                        expandedIssueLoadNotices[issue.id];
+                      const isIssueSelectable =
+                        issue.id === 'bucket_only_object' ||
+                        issue.id === 'bucket_syfon_no_git';
+                      const issueSelectedPaths =
+                        selectedChainPathsByIssue[issue.id] ?? [];
+                      const issueSelectedPathsSet = new Set(issueSelectedPaths);
+                      const issueSelectablePaths = Array.from(
+                        new Set(
+                          issueFindings
+                            .map((finding) => finding.normalizedPath)
+                            .filter(Boolean),
+                        ),
+                      ).sort();
+                      const issuePathsByParent =
+                        buildPathsByParentMap(issueSelectablePaths);
+                      const issueChainPathTree =
+                        issuePathsByParent.get('') ?? [];
+                      const visibleLimit =
+                        visibleIssueDetailRowLimits[issue.id] ??
+                        issueDetailInitialRowLimit;
+                      const visibleIssueFindings = issueFindings.slice(
+                        0,
+                        visibleLimit,
+                      );
+                      const hasMoreIssueFindings =
+                        visibleIssueFindings.length < issueFindings.length;
                       return (
                         <React.Fragment key={issue.id}>
                           <Table.Tr>
@@ -413,7 +470,7 @@ export const StorageChainAuditReport = ({
                             <Table.Tr>
                               <Table.Td colSpan={3}>
                                 <Stack
-                                  className="rounded-md border border-slate-200 bg-slate-50 px-4 py-4"
+                                  className="bg-slate-50 px-4 py-4"
                                   gap="sm"
                                 >
                                   <Group justify="space-between" wrap="wrap">
@@ -422,56 +479,62 @@ export const StorageChainAuditReport = ({
                                         {issue.title}
                                       </Text>
                                       <Text c="dimmed" size="sm">
-                                        {expandedIssueLoading
+                                        {isIssueLoading
                                           ? 'Loading all issue findings...'
-                                          : `${expandedIssueFindings.length.toLocaleString()} loaded path${expandedIssueFindings.length === 1 ? '' : 's'} in this issue set.`}
+                                          : `${issueFindings.length.toLocaleString()} loaded path${issueFindings.length === 1 ? '' : 's'} in this issue set.`}
                                       </Text>
                                     </div>
-                                    {isExpandedIssueSelectable ? (
+                                    {isIssueSelectable ? (
                                       <Button
                                         color={issue.color}
                                         disabled={
-                                          selectedChainPaths.length === 0
+                                          issueSelectedPaths.length === 0
                                         }
                                         loading={isApplying || isAuditing}
-                                        onClick={onApplySelectedChainObjects}
+                                        onClick={() =>
+                                          onApplySelectedChainObjects(issue.id)
+                                        }
                                         size="xs"
                                         variant="light"
                                       >
                                         {issue.id === 'bucket_only_object'
                                           ? 'Delete selected bucket objects'
                                           : 'Delete selected objects'}
-                                        {selectedChainPaths.length > 0
-                                          ? ` (${selectedChainPaths.length.toLocaleString()})`
+                                        {issueSelectedPaths.length > 0
+                                          ? ` (${issueSelectedPaths.length.toLocaleString()})`
                                           : ''}
                                       </Button>
                                     ) : (
-                                      renderRepairActions()
+                                      renderRepairActions(
+                                        issue,
+                                        issueFindings,
+                                        isIssueLoading,
+                                      )
                                     )}
                                   </Group>
 
-                                  {expandedIssueLoadError ? (
+                                  {issueLoadError ? (
                                     <Alert
                                       color="red"
                                       icon={<IconAlertCircle size={16} />}
                                       title="Issue details failed"
                                     >
-                                      {expandedIssueLoadError}
+                                      {issueLoadError}
                                     </Alert>
                                   ) : null}
 
-                                  {expandedIssueNotice ? (
+                                  {issueNotice ? (
                                     <Alert
                                       color="blue"
                                       icon={<IconAlertCircle size={16} />}
                                       title="Audit response rows"
                                     >
-                                      {expandedIssueNotice}
+                                      {issueNotice}
                                     </Alert>
                                   ) : null}
 
-                                  {expandedIssueLoading &&
-                                  expandedIssueFindings.length === 0 ? (
+                                  {isIssueLoading &&
+                                  issueFindings.length === 0 ? (
                                     <Center py="md">
                                       <Group gap="xs">
                                         <Loader size="xs" />
@@ -480,7 +543,7 @@ export const StorageChainAuditReport = ({
                                         </Text>
                                       </Group>
                                     </Center>
-                                  ) : isExpandedIssueSelectable ? (
+                                  ) : isIssueSelectable ? (
                                     <Stack
                                       className="rounded-md border border-slate-200 bg-white px-3 py-3"
                                       gap="xs"
@@ -491,19 +554,22 @@ export const StorageChainAuditReport = ({
                                       >
                                         <Checkbox
                                           checked={
-                                            selectableChainPaths.length > 0 &&
-                                            selectedChainPaths.length ===
-                                              selectableChainPaths.length
+                                            issueSelectablePaths.length > 0 &&
+                                            issueSelectedPaths.length ===
+                                              issueSelectablePaths.length
                                           }
                                           indeterminate={
-                                            selectedChainPaths.length > 0 &&
-                                            selectedChainPaths.length <
-                                              selectableChainPaths.length
+                                            issueSelectedPaths.length > 0 &&
+                                            issueSelectedPaths.length <
+                                              issueSelectablePaths.length
                                           }
-                                          label={`Select all loaded paths (${selectedChainPaths.length.toLocaleString()} / ${selectableChainPaths.length.toLocaleString()})`}
+                                          label={`Select all loaded paths (${issueSelectedPaths.length.toLocaleString()} / ${issueSelectablePaths.length.toLocaleString()})`}
                                           onChange={(event) => {
-                                            onToggleAllChainPaths(
-                                              event.currentTarget.checked,
+                                            onSelectedChainPathsChange(
+                                              issue.id,
+                                              event.currentTarget.checked
+                                                ? issueSelectablePaths
+                                                : [],
                                             );
                                           }}
                                         />
@@ -516,30 +582,50 @@ export const StorageChainAuditReport = ({
                                         expandedTreeNodes={
                                           expandedChainTreeNodes
                                         }
-                                        nodes={chainPathTree.slice(
+                                        nodes={issueChainPathTree.slice(
                                           0,
-                                          treeNodeLimit[''] ?? 100,
+                                          treeNodeLimit[issue.id] ??
+                                            chainPathTreeNodeLimit,
                                         )}
-                                        onSelectedPathsChange={
-                                          onSelectedChainPathsChange
+                                        onSelectedPathsChange={(paths) =>
+                                          onSelectedChainPathsChange(
+                                            issue.id,
+                                            paths,
+                                          )
                                         }
-                                        onTogglePath={onToggleChainPath}
+                                        onTogglePath={(path, checked) => {
+                                          const next = checked
+                                            ? [...issueSelectedPaths, path]
+                                            : issueSelectedPaths.filter(
+                                                (value) => value !== path,
+                                              );
+                                          onSelectedChainPathsChange(
+                                            issue.id,
+                                            next,
+                                          );
+                                        }}
                                         onTreeNodeLimitChange={setTreeNodeLimit}
                                         onTreeNodeToggle={
                                           setExpandedChainTreeNodes
                                         }
-                                        pathsByParent={pathsByParent}
-                                        selectedPaths={selectedChainPaths}
-                                        selectedPathsSet={selectedChainPathsSet}
+                                        pathsByParent={issuePathsByParent}
+                                        selectedPaths={issueSelectedPaths}
+                                        selectedPathsSet={
+                                          issueSelectedPathsSet
+                                        }
                                         treeNodeLimit={treeNodeLimit}
                                       />
-                                      {chainPathTree.length >
-                                        (treeNodeLimit[''] ?? 100) && (
+                                      {issueChainPathTree.length >
+                                        (treeNodeLimit[issue.id] ??
+                                          chainPathTreeNodeLimit) && (
                                         <Button
                                           onClick={() =>
                                             setTreeNodeLimit((current) => ({
                                               ...current,
-                                              '': (current[''] ?? 100) + 100,
+                                              [issue.id]:
+                                                (current[issue.id] ??
+                                                  chainPathTreeNodeLimit) +
+                                                chainPathTreeNodeLimit,
                                             }))
                                           }
                                           size="xs"
@@ -551,15 +637,25 @@ export const StorageChainAuditReport = ({
                                         >
                                           Show more (
                                           {(
-                                            chainPathTree.length -
-                                            (treeNodeLimit[''] ?? 100)
+                                            issueChainPathTree.length -
+                                            (treeNodeLimit[issue.id] ??
+                                              chainPathTreeNodeLimit)
                                           ).toLocaleString()}{' '}
                                           remaining)...
                                         </Button>
                                       )}
                                     </Stack>
                                   ) : (
-                                    <div className="max-h-[420px] overflow-auto rounded-md border border-slate-200 bg-white">
+                                    <div
+                                      className="max-h-[420px] overflow-auto rounded-md border border-slate-200 bg-white"
+                                      onScroll={(event) =>
+                                        handleIssueDetailScroll(
+                                          issue.id,
+                                          issueFindings.length,
+                                          event,
+                                        )
+                                      }
+                                    >
                                       <Table highlightOnHover stickyHeader>
                                         <Table.Thead>
                                           <Table.Tr>
@@ -572,8 +668,8 @@ export const StorageChainAuditReport = ({
                                           </Table.Tr>
                                         </Table.Thead>
                                         <Table.Tbody>
-                                          {expandedIssueFindings.length > 0 ? (
-                                            expandedIssueFindings.map(
+                                          {issueFindings.length > 0 ? (
+                                            visibleIssueFindings.map(
                                               (finding) => (
                                                 <Table.Tr
                                                   key={`${finding.kind}:${finding.normalizedPath}`}
@@ -623,7 +719,7 @@ export const StorageChainAuditReport = ({
                                             )
                                           ) : (
                                             <Table.Tr>
-                                              <Table.Td colSpan={5}>
+                                              <Table.Td colSpan={6}>
                                                 <Text
                                                   c="dimmed"
                                                   py="md"
@@ -635,6 +731,21 @@ export const StorageChainAuditReport = ({
                                               </Table.Td>
                                             </Table.Tr>
                                           )}
+                                          {hasMoreIssueFindings ? (
+                                            <Table.Tr>
+                                              <Table.Td colSpan={6}>
+                                                <Center py="sm">
+                                                  <Text c="dimmed" size="xs">
+                                                    Showing{' '}
+                                                    {visibleIssueFindings.length.toLocaleString()}{' '}
+                                                    of{' '}
+                                                    {issueFindings.length.toLocaleString()}{' '}
+                                                    paths. Scroll for more.
+                                                  </Text>
+                                                </Center>
+                                              </Table.Td>
+                                            </Table.Tr>
+                                          ) : null}
                                         </Table.Tbody>
                                       </Table>
                                     </div>
@@ -651,8 +762,7 @@ export const StorageChainAuditReport = ({
               ) : null}
             </>
           ) : null}
-        </Stack>
-      </Collapse>
+      </Stack>
     </Stack>
   );
 };

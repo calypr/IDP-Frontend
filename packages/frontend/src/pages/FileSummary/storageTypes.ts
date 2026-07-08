@@ -107,6 +107,11 @@ export interface StorageChainAuditSummary {
   readonly gitTrackedFileCount: number;
   readonly bucketInventoryAvailable: boolean;
   readonly bucketInventoryError?: string;
+  readonly auditCacheHit?: boolean;
+  readonly auditCachedAt?: string;
+  readonly auditCacheAgeSeconds?: number;
+  readonly auditCacheSource?: string;
+  readonly auditCacheError?: string;
 }
 
 export interface StorageChainIssueGroup {

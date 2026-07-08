@@ -47,6 +47,7 @@ export type {
   ProjectDiffFinding,
   ProjectDiffFindingKind,
   StorageApplyActionRequest,
+  StorageChainAuditResult,
   StorageChainFinding,
   StorageChainFindingKind,
   StorageChainIssueGroup,
@@ -956,6 +957,26 @@ const normalizeStorageChainAuditResult = ({
         typeof summary?.bucket_inventory_error === 'string'
           ? summary.bucket_inventory_error
           : undefined,
+      auditCacheAgeSeconds:
+        typeof summary?.audit_cache_age_seconds === 'number'
+          ? summary.audit_cache_age_seconds
+          : undefined,
+      auditCacheError:
+        typeof summary?.audit_cache_error === 'string'
+          ? summary.audit_cache_error
+          : undefined,
+      auditCacheHit:
+        typeof summary?.audit_cache_hit === 'boolean'
+          ? summary.audit_cache_hit
+          : undefined,
+      auditCacheSource:
+        typeof summary?.audit_cache_source === 'string'
+          ? summary.audit_cache_source
+          : undefined,
+      auditCachedAt:
+        typeof summary?.audit_cached_at === 'string'
+          ? summary.audit_cached_at
+          : undefined,
       bucketObjectCount:
         typeof summary?.bucket_object_count === 'number'
           ? summary.bucket_object_count
@@ -1366,6 +1387,7 @@ export const useSyfonStorageChain = ({
       bucketPathPrefix,
       findingKind,
       findingLimit,
+      forceAuditRefresh,
       persistResult = true,
       probeMode,
     }: {
@@ -1373,6 +1395,7 @@ export const useSyfonStorageChain = ({
       bucketPathPrefix?: string;
       findingKind?: string;
       findingLimit?: number;
+      forceAuditRefresh?: boolean;
       persistResult?: boolean;
       probeMode?: 'full' | 'inventory_only';
     } = {}): Promise<StorageChainAuditResult | null> => {
@@ -1402,6 +1425,7 @@ export const useSyfonStorageChain = ({
                 : undefined,
               finding_kind: findingKind,
               finding_limit: findingLimit,
+              force_audit_refresh: forceAuditRefresh || undefined,
               git_subpath: normalizeStoragePath(currentPath) || undefined,
               probe_mode: probeMode,
             }),

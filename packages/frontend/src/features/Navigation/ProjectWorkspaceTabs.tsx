@@ -14,6 +14,7 @@ interface ProjectWorkspaceTabsProps {
   readonly presentationHref?: string;
   readonly explorerHref?: string;
   readonly storageHref?: string;
+  readonly toolbarContent?: React.ReactNode;
 }
 
 const ProjectWorkspaceTabs = ({
@@ -26,6 +27,7 @@ const ProjectWorkspaceTabs = ({
   presentationHref,
   explorerHref,
   storageHref,
+  toolbarContent,
 }: ProjectWorkspaceTabsProps) => {
   const { data: authzMapping = {} } = useGetAuthzMappingsQuery();
 
@@ -127,30 +129,35 @@ const ProjectWorkspaceTabs = ({
   return (
     <div>
       <div className="border-b border-slate-200 bg-white">
-        <div
-          aria-label={`Project workspaces for ${organization}/${project}`}
-          className="flex min-h-[3rem] gap-5 px-4"
-          role="tablist"
-        >
-          {visibleTabs.map((tab) => {
-            const isActive = activeTab === tab.key;
-            return (
-              <Link
-                aria-current={isActive ? 'page' : undefined}
-                aria-selected={isActive}
-                className={`rounded-none border-0 border-b-2 bg-transparent px-0 pb-3 pt-3 text-sm font-semibold transition-colors ${
-                  isActive
-                    ? 'border-[#2f5aac] text-[#2f5aac]'
-                    : 'border-transparent text-slate-500 hover:text-slate-800'
-                }`}
-                href={tab.href}
-                key={tab.key}
-                role="tab"
-              >
-                {tab.label}
-              </Link>
-            );
-          })}
+        <div className="flex min-h-[3rem] items-center gap-6 px-4">
+          <div
+            aria-label={`Project workspaces for ${organization}/${project}`}
+            className="flex self-stretch gap-5"
+            role="tablist"
+          >
+            {visibleTabs.map((tab) => {
+              const isActive = activeTab === tab.key;
+              return (
+                <Link
+                  aria-current={isActive ? 'page' : undefined}
+                  aria-selected={isActive}
+                  className={`rounded-none border-0 border-b-2 bg-transparent px-0 pb-3 pt-3 text-sm font-semibold transition-colors ${
+                    isActive
+                      ? 'border-[#2f5aac] text-[#2f5aac]'
+                      : 'border-transparent text-slate-500 hover:text-slate-800'
+                  }`}
+                  href={tab.href}
+                  key={tab.key}
+                  role="tab"
+                >
+                  {tab.label}
+                </Link>
+              );
+            })}
+          </div>
+          {toolbarContent ? (
+            <div className="min-w-0 flex-1">{toolbarContent}</div>
+          ) : null}
         </div>
       </div>
 

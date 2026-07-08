@@ -1,20 +1,16 @@
 import React from 'react';
 import {
-  ActionIcon,
   Badge,
   Button,
   Group,
-  Menu,
   Progress,
   Stack,
   Table,
   Text,
 } from '@mantine/core';
 import {
-  IconChevronRight,
   IconFile,
   IconFolder,
-  IconRefresh,
   IconSelector,
 } from '@tabler/icons-react';
 import { formatBytes } from '../../utils/labels';
@@ -22,53 +18,31 @@ import type { FilesummaryConfig } from './types';
 import type { StoragePathRow, StoragePathSummary } from './storageUtils';
 import {
   formatTimestamp,
-  type BreadcrumbItem,
   type StorageSortDirection,
   type StorageSortKey,
 } from './storagePresentation';
 
-type CollapsedBreadcrumb = {
-  readonly leadingItems: Array<BreadcrumbItem>;
-  readonly hiddenItems: Array<BreadcrumbItem>;
-};
-
 type StorageBrowserProps = {
-  readonly auditReport?: React.ReactNode;
-  readonly collapsedBreadcrumb: CollapsedBreadcrumb;
-  readonly currentPath: string;
   readonly data: StoragePathSummary | null;
   readonly filesummaryConfig?: FilesummaryConfig;
-  readonly isChainAuditing: boolean;
   readonly isLoadingMore: boolean;
   readonly largestRowSize: number;
-  readonly pageTitle: string;
-  readonly selectedProject: string;
   readonly sortedRows: Array<StoragePathRow>;
   readonly storageSortDirection: StorageSortDirection;
   readonly storageSortKey: StorageSortKey;
   readonly onLoadMore: () => void;
-  readonly onRunAudit: () => void;
   readonly onPathChange: (path: string) => void;
-  readonly onRefresh: () => void;
   readonly onSort: (key: StorageSortKey) => void;
 };
 
 export const StorageBrowser = ({
-  auditReport,
-  collapsedBreadcrumb,
-  currentPath,
   data,
   filesummaryConfig,
-  isChainAuditing,
   isLoadingMore,
   largestRowSize,
   onLoadMore,
-  onRunAudit,
   onPathChange,
-  onRefresh,
   onSort,
-  pageTitle,
-  selectedProject,
   sortedRows,
   storageSortKey,
 }: StorageBrowserProps): JSX.Element => {
@@ -94,104 +68,7 @@ export const StorageBrowser = ({
   return (
     <Stack gap="md" px="sm">
       <div className="overflow-x-auto">
-        <div className="flex min-w-[1320px] items-center justify-between gap-6">
-          <div className="flex min-w-0 flex-1 items-center gap-2 whitespace-nowrap overflow-x-auto pb-1">
-            {collapsedBreadcrumb.leadingItems.map((item, index) => (
-              <React.Fragment key={item.path || item.label}>
-                {index > 0 ? (
-                  <IconChevronRight
-                    className="shrink-0 text-slate-400"
-                    size={14}
-                  />
-                ) : null}
-                {index === 1 && collapsedBreadcrumb.hiddenItems.length > 0 ? (
-                  <>
-                    <Menu shadow="md" width={260} withinPortal>
-                      <Menu.Target>
-                        <button
-                          className="max-w-[220px] shrink-0 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
-                          type="button"
-                        >
-                          ...
-                        </button>
-                      </Menu.Target>
-                      <Menu.Dropdown>
-                        {collapsedBreadcrumb.hiddenItems.map((hiddenItem) => (
-                          <Menu.Item
-                            key={hiddenItem.path}
-                            onClick={() => onPathChange(hiddenItem.path)}
-                          >
-                            {hiddenItem.label}
-                          </Menu.Item>
-                        ))}
-                      </Menu.Dropdown>
-                    </Menu>
-                    <IconChevronRight
-                      className="shrink-0 text-slate-400"
-                      size={14}
-                    />
-                  </>
-                ) : null}
-                <button
-                  className={`max-w-[240px] truncate rounded-md border px-3 py-1.5 text-sm font-semibold transition ${
-                    item.path === currentPath
-                      ? 'border-slate-200 bg-slate-100 text-slate-900'
-                      : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900'
-                  }`}
-                  onClick={() => onPathChange(item.path)}
-                  title={item.label}
-                  type="button"
-                >
-                  {item.label}
-                </button>
-              </React.Fragment>
-            ))}
-          </div>
-          <Group
-            align="center"
-            className="shrink-0 justify-self-end"
-            gap="xs"
-            wrap="nowrap"
-          >
-            <Button
-              loading={isChainAuditing}
-              onClick={onRunAudit}
-              size="xs"
-              variant="light"
-            >
-              Audit exacts
-            </Button>
-            <ActionIcon
-              aria-label="Refresh metrics"
-              disabled={!selectedProject}
-              onClick={onRefresh}
-              size="lg"
-              variant="subtle"
-            >
-              <IconRefresh size={16} />
-            </ActionIcon>
-          </Group>
-        </div>
-      </div>
-
-      {auditReport}
-
-      <div className="overflow-x-auto">
-        <div className="grid min-w-[1320px] grid-cols-[260px_140px_180px_120px_220px] items-end gap-x-8">
-          <div className="min-w-[220px]">
-            <Text c="dimmed" fw={700} size="xs" tt="uppercase">
-              Project
-            </Text>
-            <Text
-              className="mt-1 truncate"
-              fw={700}
-              size="sm"
-              title={pageTitle}
-            >
-              {pageTitle}
-            </Text>
-          </div>
-
+        <div className="grid min-w-[960px] grid-cols-[140px_180px_120px_220px] items-end gap-x-8">
           <div className="min-w-[140px]">
             <Text c="dimmed" fw={700} size="xs" tt="uppercase">
               Size
@@ -210,19 +87,6 @@ export const StorageBrowser = ({
               {' · '}
               {data?.childCount ?? 0} children
             </Text>
-            {data?.isChainAuditExact ? (
-              <Text c="dimmed" className="mt-1 truncate" size="xs">
-                <Badge color="green" mr={6} size="xs" variant="light">
-                  Verified
-                </Badge>
-                <span>
-                  {(data.recordCount ?? 0).toLocaleString()} Syfon records
-                  {typeof data.bucketObjectCount === 'number'
-                    ? ` · ${data.bucketObjectCount.toLocaleString()} bucket objects`
-                    : ''}
-                </span>
-              </Text>
-            ) : null}
           </div>
 
           <div className="min-w-[120px]">
