@@ -16,10 +16,7 @@ import {
   type CoreState,
   GEN3_FENCE_API,
   GEN3_REDIRECT_URL,
-  Modals,
   selectUserAuthStatus,
-  showModal,
-  useCoreDispatch,
   useCoreSelector,
   useGetCSRFQuery,
   useLazyFetchUserDetailsQuery,
@@ -202,7 +199,6 @@ export const SessionProvider = ({
   monitorWorkspace = false,
 }: SessionProviderProps) => {
   const router = useRouter();
-  const coreDispatch = useCoreDispatch();
 
   const { isSuccess: isGetCSRFSuccess, isError: isGetCSRFError } =
     useGetCSRFQuery();
@@ -293,18 +289,12 @@ export const SessionProvider = ({
       return undefined;
     }
 
-    const handleForcedLogout = (event: Event) => {
+    const handleForcedLogout = () => {
       if (forcedLogoutInFlightRef.current) {
         return;
       }
 
       forcedLogoutInFlightRef.current = true;
-      const customEvent = event as CustomEvent<{ showLoginModal?: boolean }>;
-
-      if (customEvent.detail?.showLoginModal) {
-        const LoginModal = (Modals as Record<string, any>).LoginModal;
-        coreDispatch(showModal({ modal: LoginModal }));
-      }
 
       void endSession(false).finally(() => {
         forcedLogoutInFlightRef.current = false;
@@ -316,7 +306,7 @@ export const SessionProvider = ({
     return () => {
       window.removeEventListener(FORCE_LOGOUT_EVENT, handleForcedLogout);
     };
-  }, [coreDispatch, endSession]);
+  }, [endSession]);
 
   const updateSession = useCallback(() => {
     const updateSessionWithUserStatus = async () => {
@@ -324,15 +314,13 @@ export const SessionProvider = ({
         await getUserDetails().unwrap();
       } catch (err: any) {
         if (err?.status === 401) {
-          const LoginModal = (Modals as Record<string, any>).LoginModal;
-          coreDispatch(showModal({ modal: LoginModal }));
           endSession(false);
         }
       }
     };
 
     updateSessionWithUserStatus();
-  }, [getUserDetails, coreDispatch, endSession]);
+  }, [getUserDetails, endSession]);
   /**
    * Update session value every updateSessionInterval seconds
    */
@@ -382,8 +370,6 @@ export const SessionProvider = ({
           timeSinceLastActivity >= inactiveTimeLimitMilliseconds &&
           !isUserOnPage('Workspace')
         ) {
-          const LoginModal = (Modals as Record<string, any>).LoginModal;
-          coreDispatch(showModal({ modal: LoginModal }));
           endSession(false);
           return;
         }
@@ -392,7 +378,6 @@ export const SessionProvider = ({
           timeSinceLastActivity >= workspaceInactivityTimeLimitMilliseconds &&
           isUserOnPage('Workspace')
         ) {
-          coreDispatch(showModal({ modal: (Modals as any).LoginModal }));
           endSession(false);
           return;
         }

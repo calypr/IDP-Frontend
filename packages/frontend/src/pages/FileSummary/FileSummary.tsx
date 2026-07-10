@@ -35,6 +35,7 @@ import {
   useSyfonStorageChain,
   useSyfonPathStorageSummary,
   useSyfonStorageCleanup,
+  useRegisterGitOnlySyfonRecords,
 } from './hooks';
 import {
   buildProjectOptions,
@@ -43,6 +44,7 @@ import {
 import { StorageBrowser } from './StorageBrowser';
 import { StorageChainAuditReport } from './StorageChainAuditReport';
 import { summarizeStorageChainIssues } from './storageIssueSummaries';
+import { getReadableDuration } from '../../utils/time';
 import {
   getPathSegments,
   isInspectAction,
@@ -273,12 +275,21 @@ export const FileSummaryPage = ({
     applyCleanup,
     applyError,
     applyResult,
+    clearApplyError,
+    clearApplyResult,
     clearCleanupResults,
     isApplying,
     isAuditing,
   } = useSyfonStorageCleanup({
     config: filesummaryConfig,
     currentPath,
+    projectSelection: selectedProject,
+  });
+  const {
+    error: gitOnlyRegistrationError,
+    isRegistering: isRegisteringGitOnly,
+    register: registerGitOnlySyfonRecords,
+  } = useRegisterGitOnlySyfonRecords({
     projectSelection: selectedProject,
   });
   useEffect(() => {
@@ -336,7 +347,8 @@ export const FileSummaryPage = ({
       Object.entries(current).forEach(([issueId, selectedPaths]) => {
         const issueIsSelectable =
           issueId === 'bucket_only_object' ||
-          issueId === 'bucket_syfon_no_git';
+          issueId === 'bucket_syfon_no_git' ||
+          issueId === 'git_only_no_syfon';
         if (!issueIsSelectable) {
           nextSelections[issueId] = selectedPaths;
           return;
@@ -835,6 +847,12 @@ export const FileSummaryPage = ({
   const auditLastRefreshedAt = formatAuditRefreshTimestamp(
     chainAuditResult?.summary.auditCachedAt,
   );
+  const auditRefreshDuration =
+    typeof chainAuditResult?.summary.auditRefreshDurationMs === 'number'
+      ? ` in ${getReadableDuration(
+          chainAuditResult.summary.auditRefreshDurationMs,
+        )}`
+      : '';
   const auditIssuePathCount = chainIssueSummaries.reduce(
     (total, issue) => total + issue.pathCount,
     0,
@@ -911,7 +929,7 @@ export const FileSummaryPage = ({
   const auditRefreshUtility = (
     <Group className="ml-auto shrink-0" gap="xs" wrap="nowrap">
       <Text c="dimmed" size="xs">
-        Last refreshed: {auditLastRefreshedAt}
+        Last refreshed: {auditLastRefreshedAt}{auditRefreshDuration}
       </Text>
       <ActionIcon
         aria-label="Refresh audit"
@@ -1049,6 +1067,49 @@ export const FileSummaryPage = ({
     selectedChainPathsByIssue,
   ]);
 
+  const handleRegisterSelectedGitOnly = useCallback(async () => {
+    const targetPaths = selectedChainPathsByIssue.git_only_no_syfon ?? [];
+    const gitRevision = chainAuditResult?.summary.gitRevision;
+    if (targetPaths.length === 0 || !gitRevision) {
+      return;
+    }
+    const approved = window.confirm(
+      `Create ${targetPaths.length.toLocaleString()} Syfon record${targetPaths.length === 1 ? '' : 's'}?\n\nGecko will re-read each Git LFS pointer and live-check the mapped bucket object. It will create only records whose bucket object is present and has the same byte size; every other selected path will return a precise skipped reason. RGW does not expose a SHA-256 here, so this action cannot prove the bucket bytes match the Git checksum.`,
+    );
+    if (!approved) {
+      return;
+    }
+    const result = await registerGitOnlySyfonRecords({
+      expectedGitRevision: gitRevision,
+      repoPaths: targetPaths,
+    });
+    if (!result) {
+      return;
+    }
+    const createdCount = result.results.filter(
+      (item) => item.status === 'created',
+    ).length;
+    const skippedCount = result.results.length - createdCount;
+    setActionFeedbackMessage(
+      `Created ${createdCount.toLocaleString()} Syfon record${createdCount === 1 ? '' : 's'}${skippedCount > 0 ? `; ${skippedCount.toLocaleString()} path${skippedCount === 1 ? '' : 's'} skipped after live revalidation.` : '.'}`,
+    );
+    setSelectedChainPathsForIssue('git_only_no_syfon', []);
+    const refreshed = await runChainAudit({
+      bucketInventoryMode: 'validate',
+      forceAuditRefresh: true,
+    });
+    applyStorageChainAuditSummary(refreshed);
+    refresh();
+  }, [
+    applyStorageChainAuditSummary,
+    chainAuditResult?.summary.gitRevision,
+    refresh,
+    registerGitOnlySyfonRecords,
+    runChainAudit,
+    selectedChainPathsByIssue.git_only_no_syfon,
+    setSelectedChainPathsForIssue,
+  ]);
+
   const pageContent = (
     <div className="min-h-screen bg-[#f6f8fa]">
       <Container
@@ -1154,7 +1215,15 @@ export const FileSummaryPage = ({
                   </Stack>
                   <StorageChainAuditReport
                     actionFeedbackMessage={actionFeedbackMessage}
+                    onDismissActionFeedback={() =>
+                      setActionFeedbackMessage(null)
+                    }
                     applyError={applyError}
+                    onDismissApplyError={clearApplyError}
+                    onDismissApplyResult={() => {
+                      clearApplyResult();
+                      setActionFeedbackMessage(null);
+                    }}
                     applyResult={applyResult}
                     auditError={chainAuditError}
                     auditResult={chainAuditResult}
@@ -1168,6 +1237,8 @@ export const FileSummaryPage = ({
                     isApplying={isApplying}
                     isAuditing={isAuditing}
                     isChainAuditing={isChainAuditing}
+                    gitOnlyRegistrationError={gitOnlyRegistrationError}
+                    isRegisteringGitOnly={isRegisteringGitOnly}
                     loadingChainIssueId={loadingChainIssueId}
                     onRunIssueAction={(args) => {
                       void runIssueAction(args);
@@ -1176,6 +1247,9 @@ export const FileSummaryPage = ({
                     onToggleChainIssueDetails={handleToggleChainIssueDetails}
                     onApplySelectedChainObjects={(issueId) => {
                       void handleApplySelectedChainObjects(issueId);
+                    }}
+                    onRegisterSelectedGitOnly={() => {
+                      void handleRegisterSelectedGitOnly();
                     }}
                     selectedChainPathsByIssue={selectedChainPathsByIssue}
                     setExpandedChainTreeNodes={setExpandedChainTreeNodes}

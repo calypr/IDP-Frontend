@@ -430,8 +430,9 @@ const chainIssueDefinitions: Array<{
     title: 'Git + Syfon, Metadata Mismatch',
     color: 'orange',
     description:
-      'Bucket object exists, but its metadata does not match what Syfon expects.',
-    recommendation: 'Investigate metadata drift before applying deletion.',
+      'Git and Syfon map to a bucket object, but checksum or size evidence does not agree.',
+    recommendation:
+      'Recompute or verify the bucket SHA-256 and reconcile the stale side manually; deletion is intentionally disabled.',
     actionLabel: 'Show mismatches',
   },
   {

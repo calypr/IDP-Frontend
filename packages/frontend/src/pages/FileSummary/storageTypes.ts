@@ -87,6 +87,7 @@ export interface StorageChainFinding {
   readonly error?: string;
   readonly recordCount: number;
   readonly sizeBytes?: number;
+  readonly bucketSizeBytes?: number;
   readonly recommendedAction: string;
   readonly suggestedFix?: string;
   readonly suggestedAction?: string;
@@ -105,13 +106,31 @@ export interface StorageChainAuditSummary {
   readonly bucketObjectCount: number;
   readonly syfonRecordCount: number;
   readonly gitTrackedFileCount: number;
+  readonly gitRevision?: string;
   readonly bucketInventoryAvailable: boolean;
   readonly bucketInventoryError?: string;
   readonly auditCacheHit?: boolean;
   readonly auditCachedAt?: string;
   readonly auditCacheAgeSeconds?: number;
+  readonly auditRefreshDurationMs?: number;
   readonly auditCacheSource?: string;
   readonly auditCacheError?: string;
+}
+
+export interface GitOnlySyfonRegistrationResult {
+  readonly normalizedPath: string;
+  readonly checksum?: string;
+  readonly gitSizeBytes?: number;
+  readonly bucketObjectUrl?: string;
+  readonly bucketSizeBytes?: number;
+  readonly status: 'created' | 'eligible' | 'skipped' | string;
+  readonly reason?: string;
+  readonly objectId?: string;
+}
+
+export interface GitOnlySyfonRegistrationResponse {
+  readonly gitRevision: string;
+  readonly results: Array<GitOnlySyfonRegistrationResult>;
 }
 
 export interface StorageChainIssueGroup {

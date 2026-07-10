@@ -38,6 +38,7 @@ import type {
   StorageCleanupPurgeResult,
   StorageCleanupRecordAudit,
   StorageCleanupScope,
+  GitOnlySyfonRegistrationResponse,
 } from './storageTypes';
 import { requestSessionLogout } from '../../lib/session/session';
 
@@ -104,6 +105,18 @@ const buildStorageChainUrl = ({
     organization,
     project,
   })}/repair/storage-chain/audit`;
+
+const buildGitOnlySyfonRegistrationUrl = ({
+  organization,
+  project,
+}: {
+  organization: string;
+  project: string;
+}): string =>
+  `${buildGeckoGitProjectBaseUrl({
+    organization,
+    project,
+  })}/repair/storage-chain/register-git-only`;
 
 const emptyCleanupCounts = (): Record<StorageCleanupFindingKind, number> => ({
   broken_access_url_error: 0,
@@ -629,6 +642,10 @@ const normalizeStorageChainFinding = (
       typeof item.bucket_object_url === 'string'
         ? item.bucket_object_url
         : undefined,
+    bucketSizeBytes:
+      typeof item.bucket_size_bytes === 'number'
+        ? item.bucket_size_bytes
+        : undefined,
     checksum: typeof item.checksum === 'string' ? item.checksum : undefined,
     error: typeof item.error === 'string' ? item.error : undefined,
     errorKind:
@@ -969,6 +986,10 @@ const normalizeStorageChainAuditResult = ({
         typeof summary?.audit_cache_hit === 'boolean'
           ? summary.audit_cache_hit
           : undefined,
+      auditRefreshDurationMs:
+        typeof summary?.audit_refresh_duration_ms === 'number'
+          ? summary.audit_refresh_duration_ms
+          : undefined,
       auditCacheSource:
         typeof summary?.audit_cache_source === 'string'
           ? summary.audit_cache_source
@@ -990,6 +1011,10 @@ const normalizeStorageChainAuditResult = ({
         typeof summary?.git_tracked_file_count === 'number'
           ? summary.git_tracked_file_count
           : 0,
+      gitRevision:
+        typeof summary?.git_revision === 'string'
+          ? summary.git_revision
+          : undefined,
       syfonRecordCount:
         typeof summary?.syfon_record_count === 'number'
           ? summary.syfon_record_count
@@ -1004,6 +1029,80 @@ const normalizeStorageChainAuditResult = ({
           : findings.length,
     },
   };
+};
+
+export const useRegisterGitOnlySyfonRecords = ({
+  projectSelection,
+}: {
+  projectSelection: string;
+}) => {
+  const [error, setError] = useState<string | null>(null);
+  const [isRegistering, setIsRegistering] = useState(false);
+  useGetCSRFQuery();
+  const csrfToken = useCoreSelector((state: CoreState) =>
+    selectCSRFToken(state),
+  );
+  const register = useCallback(
+    async ({
+      expectedGitRevision,
+      repoPaths,
+    }: {
+      expectedGitRevision: string;
+      repoPaths: Array<string>;
+    }): Promise<GitOnlySyfonRegistrationResponse | null> => {
+      const selection = splitProjectSelectionValue(projectSelection);
+      if (!selection) {
+        setError('Select a project before creating Syfon records.');
+        return null;
+      }
+      setError(null);
+      setIsRegistering(true);
+      try {
+        const response = await fetch(
+          buildGitOnlySyfonRegistrationUrl(selection),
+          {
+            body: JSON.stringify({
+              expected_git_revision: expectedGitRevision,
+              repo_paths: Array.from(
+                new Set(repoPaths.map(normalizeStoragePath).filter(Boolean)),
+              ),
+            }),
+            credentials: 'include',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
+            },
+            method: 'POST',
+          },
+        );
+        if (handleUnauthorizedResponse(response)) {
+          throw new Error('Your session expired. Please log in again.');
+        }
+        if (!response.ok) {
+          throw new Error(
+            await getErrorMessage(
+              response,
+              `Failed to create Syfon records for ${selection.organization}/${selection.project}`,
+            ),
+          );
+        }
+        return (await readJsonResponse<GitOnlySyfonRegistrationResponse>(
+          response,
+        )) as GitOnlySyfonRegistrationResponse;
+      } catch (failure) {
+        setError(
+          failure instanceof Error
+            ? failure.message
+            : 'Failed to create Syfon records.',
+        );
+        return null;
+      } finally {
+        setIsRegistering(false);
+      }
+    },
+    [csrfToken, projectSelection],
+  );
+  return { error, isRegistering, register };
 };
 
 const normalizeCleanupAuditResult = ({
@@ -1068,7 +1167,6 @@ const buildStorageApplyFindingRequest = (
   finding: StorageCleanupFinding | StorageChainFinding,
 ): StorageApplyFindingRequest => ({
   access_urls: Array.from(new Set(finding.accessUrls ?? [])),
-  available_actions: finding.availableActions.map((action) => action.action),
   bucket_object_url:
     'bucketObjectUrl' in finding ? finding.bucketObjectUrl : undefined,
   bucket_object_urls: Array.from(
@@ -1079,7 +1177,6 @@ const buildStorageApplyFindingRequest = (
       ...(finding.evidence?.bucketObjectUrls ?? []),
     ]),
   ),
-  default_action: finding.defaultAction,
   evidence: finding.evidence
     ? {
         access_urls: finding.evidence.accessUrls,
@@ -1091,8 +1188,6 @@ const buildStorageApplyFindingRequest = (
   kind: finding.kind,
   normalized_path: finding.normalizedPath,
   object_ids: finding.objectIds,
-  suggested_action:
-    'suggestedAction' in finding ? finding.suggestedAction : undefined,
   records:
     'records' in finding
       ? finding.records.map((record) => ({
@@ -1740,12 +1835,22 @@ export const useSyfonStorageCleanup = ({
     setAuditResult(null);
   }, []);
 
+  const clearApplyError = useCallback(() => {
+    setApplyError(null);
+  }, []);
+
+  const clearApplyResult = useCallback(() => {
+    setApplyResult(null);
+  }, []);
+
   return {
     applyCleanup,
     applyError,
     applyResult,
     auditError,
     auditResult,
+    clearApplyError,
+    clearApplyResult,
     clearCleanupResults,
     isApplying,
     isAuditing,

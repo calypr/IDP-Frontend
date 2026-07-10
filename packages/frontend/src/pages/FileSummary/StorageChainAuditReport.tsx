@@ -7,7 +7,6 @@ import {
   Checkbox,
   Group,
   Loader,
-  Menu,
   Stack,
   Table,
   Text,
@@ -38,6 +37,9 @@ type RunChainIssueActionArgs = {
 
 type StorageChainAuditReportProps = {
   readonly actionFeedbackMessage: string | null;
+  readonly onDismissActionFeedback: () => void;
+  readonly onDismissApplyError: () => void;
+  readonly onDismissApplyResult: () => void;
   readonly applyError: string | null;
   readonly applyResult: StorageCleanupApplyResult | null;
   readonly auditError: string | null;
@@ -56,7 +58,10 @@ type StorageChainAuditReportProps = {
   readonly isApplying: boolean;
   readonly isAuditing: boolean;
   readonly isChainAuditing: boolean;
+  readonly gitOnlyRegistrationError: string | null;
+  readonly isRegisteringGitOnly: boolean;
   readonly onApplySelectedChainObjects: (issueId: string) => void;
+  readonly onRegisterSelectedGitOnly: () => void;
   readonly onRunIssueAction: (args: RunChainIssueActionArgs) => void;
   readonly onSelectedChainPathsChange: (
     issueId: string,
@@ -89,14 +94,10 @@ const chainEvidenceForFinding = (finding: StorageChainFinding): string => {
 const repairActionsForIssue = (
   issue: ChainIssueSummary,
 ): Array<AuditActionOption> => {
-  const isMetadataMismatch = issue.id === 'git_syfon_metadata_mismatch';
-  return orderedRepairActions(issue.actionSummary.availableActions).filter(
-    (action) =>
-      !isMetadataMismatch ||
-      ['delete_syfon_record', 'delete_records', 'delete_both'].includes(
-        action.action,
-      ),
-  );
+  if (issue.id === 'git_syfon_metadata_mismatch') {
+    return [];
+  }
+  return orderedRepairActions(issue.actionSummary.availableActions);
 };
 
 const issueDetailInitialRowLimit = 250;
@@ -105,6 +106,9 @@ const chainPathTreeNodeLimit = 250;
 
 export const StorageChainAuditReport = ({
   actionFeedbackMessage,
+  onDismissActionFeedback,
+  onDismissApplyError,
+  onDismissApplyResult,
   applyError,
   applyResult,
   auditError,
@@ -120,7 +124,10 @@ export const StorageChainAuditReport = ({
   isApplying,
   isAuditing,
   isChainAuditing,
+  gitOnlyRegistrationError,
+  isRegisteringGitOnly,
   onApplySelectedChainObjects,
+  onRegisterSelectedGitOnly,
   onRunIssueAction,
   onSelectedChainPathsChange,
   onToggleChainIssueDetails,
@@ -199,7 +206,8 @@ export const StorageChainAuditReport = ({
   const totalChainRows = cleanChainJoinCount + issuePathCount;
   const totalScopedRows =
     auditResult?.summary.gitTrackedFileCount ?? totalChainRows;
-  const isBusy = isApplying || isAuditing || isChainAuditing;
+  const isBusy =
+    isApplying || isAuditing || isChainAuditing || isRegisteringGitOnly;
 
   const renderRepairActions = (
     issue: ChainIssueSummary,
@@ -248,40 +256,6 @@ export const StorageChainAuditReport = ({
         </Button>
       ) : null;
 
-    if (
-      issue.id === 'git_syfon_metadata_mismatch' &&
-      repairActions.length > 1
-    ) {
-      return (
-        <Group gap="xs">
-          {suggestedFixButton}
-          <Menu shadow="md" withinPortal>
-            <Menu.Target>
-              <Button
-                color={issue.color}
-                loading={isBusy}
-                size="xs"
-                variant={suggestedFixButton ? 'outline' : 'light'}
-              >
-                Choose fix
-              </Button>
-            </Menu.Target>
-            <Menu.Dropdown>
-              {repairActions.map((action) => (
-                <Menu.Item
-                  color={action.destructive ? 'red' : undefined}
-                  key={action.action}
-                  onClick={() => runRepairAction(action)}
-                >
-                  {action.label}
-                </Menu.Item>
-              ))}
-            </Menu.Dropdown>
-          </Menu>
-        </Group>
-      );
-    }
-
     return suggestedFixButton || repairActions.length > 0 ? (
       <Group gap="xs">
         {suggestedFixButton}
@@ -326,11 +300,13 @@ export const StorageChainAuditReport = ({
             </Alert>
           ) : null}
 
-          {actionFeedbackMessage ? (
+          {actionFeedbackMessage && !applyResult ? (
             <Alert
               color="blue"
               icon={<IconAlertCircle size={16} />}
+              onClose={onDismissActionFeedback}
               title="Action complete"
+              withCloseButton
             >
               {actionFeedbackMessage}
             </Alert>
@@ -340,9 +316,21 @@ export const StorageChainAuditReport = ({
             <Alert
               color="red"
               icon={<IconAlertCircle size={16} />}
+              onClose={onDismissApplyError}
               title="Cleanup apply failed"
+              withCloseButton
             >
               {applyError}
+            </Alert>
+          ) : null}
+
+          {gitOnlyRegistrationError ? (
+            <Alert
+              color="red"
+              icon={<IconAlertCircle size={16} />}
+              title="Syfon record creation failed"
+            >
+              {gitOnlyRegistrationError}
             </Alert>
           ) : null}
 
@@ -350,7 +338,9 @@ export const StorageChainAuditReport = ({
             <Alert
               color={applyResult.dryRun ? 'blue' : 'green'}
               icon={<IconAlertCircle size={16} />}
+              onClose={onDismissApplyResult}
               title={applyResult.dryRun ? 'Cleanup dry run' : 'Cleanup applied'}
+              withCloseButton
             >
               {buildCleanupApplySummary(applyResult)}
             </Alert>
@@ -402,7 +392,8 @@ export const StorageChainAuditReport = ({
                         expandedIssueLoadNotices[issue.id];
                       const isIssueSelectable =
                         issue.id === 'bucket_only_object' ||
-                        issue.id === 'bucket_syfon_no_git';
+                        issue.id === 'bucket_syfon_no_git' ||
+                        issue.id === 'git_only_no_syfon';
                       const issueSelectedPaths =
                         selectedChainPathsByIssue[issue.id] ?? [];
                       const issueSelectedPathsSet = new Set(issueSelectedPaths);
@@ -492,14 +483,20 @@ export const StorageChainAuditReport = ({
                                         }
                                         loading={isApplying || isAuditing}
                                         onClick={() =>
-                                          onApplySelectedChainObjects(issue.id)
+                                          issue.id === 'git_only_no_syfon'
+                                            ? onRegisterSelectedGitOnly()
+                                            : onApplySelectedChainObjects(
+                                                issue.id,
+                                              )
                                         }
                                         size="xs"
                                         variant="light"
                                       >
                                         {issue.id === 'bucket_only_object'
                                           ? 'Delete selected bucket objects'
-                                          : 'Delete selected objects'}
+                                          : issue.id === 'git_only_no_syfon'
+                                            ? 'Create Syfon records'
+                                            : 'Delete selected objects'}
                                         {issueSelectedPaths.length > 0
                                           ? ` (${issueSelectedPaths.length.toLocaleString()})`
                                           : ''}
@@ -574,8 +571,9 @@ export const StorageChainAuditReport = ({
                                           }}
                                         />
                                         <Text c="dimmed" size="xs">
-                                          Expand folders and choose the exact
-                                          paths to heal.
+                                          {issue.id === 'git_only_no_syfon'
+                                            ? 'Gecko rechecks every selected path against the live bucket before creating a record. RGW does not provide a SHA-256 for this verification.'
+                                            : 'Expand folders and choose the exact paths to heal.'}
                                         </Text>
                                       </Group>
                                       <ChainPathTree
