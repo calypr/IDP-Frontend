@@ -105,14 +105,6 @@ export type BreadcrumbItem = {
   readonly path: string;
 };
 
-export type ChainPathTreeNode = {
-  label: string;
-  path: string;
-  isFolder: boolean;
-  leafPath?: string;
-  descendantLeafPaths: Array<string>;
-};
-
 export type StorageSortKey =
   | 'name'
   | 'type'
@@ -127,9 +119,7 @@ export type StorageSortDirection = 'asc' | 'desc';
 export type ActionIssueSource = 'chain' | 'cleanup' | 'diff';
 
 export type ActionableFinding =
-  | ProjectDiffFinding
-  | StorageCleanupFinding
-  | StorageChainFinding;
+  ProjectDiffFinding | StorageCleanupFinding | StorageChainFinding;
 
 export const resolveProjectSelection = ({
   defaultProject,
@@ -196,11 +186,9 @@ export const orderedRepairActions = (
 
 export const resolveIssueAction = ({
   defaultAction,
-  issueId,
   findings,
 }: {
   defaultAction?: AuditActionOption;
-  issueId: string;
   findings: Array<ActionableFinding>;
 }): AuditActionOption | null => {
   const availableActions = Array.from(
@@ -221,125 +209,7 @@ export const resolveIssueAction = ({
     );
   }
 
-  if (issueId === 'git-only' || issueId === 'git_only_no_syfon') {
-    return {
-      action: 'view_paths',
-      destructive: false,
-      label: 'View paths',
-      requiresConfirmation: false,
-      supportsDryRun: false,
-    };
-  }
-
-  if (
-    issueId === 'syfon_git_no_bucket' ||
-    issueId === 'syfon_missing_bucket_object'
-  ) {
-    return {
-      action: 'delete_records',
-      destructive: true,
-      label: 'Delete Syfon records',
-      requiresConfirmation: true,
-      supportsDryRun: false,
-    };
-  }
-
-  if (issueId === 'probe_error') {
-    return {
-      action: 'delete_syfon_record',
-      destructive: true,
-      label: 'Delete Syfon records',
-      requiresConfirmation: true,
-      supportsDryRun: true,
-    };
-  }
-
-  return {
-    action: 'view_paths',
-    destructive: false,
-    label: 'View paths',
-    requiresConfirmation: false,
-    supportsDryRun: false,
-  };
-};
-
-export const buildPathsByParentMap = (
-  paths: Array<string>,
-): Map<string, Array<ChainPathTreeNode>> => {
-  const map = new Map<string, Array<ChainPathTreeNode>>();
-  const seenPaths = new Set<string>();
-  const nodesByPath = new Map<string, ChainPathTreeNode>();
-
-  Array.from(new Set(paths.filter(Boolean))).forEach((value) => {
-    const segments = pathTreeSegments(value);
-    let parentPath = '';
-    const pathNodes: Array<ChainPathTreeNode> = [];
-
-    for (let index = 0; index < segments.length; index += 1) {
-      const segment = segments[index];
-      const nodePath = parentPath ? `${parentPath}/${segment}` : segment;
-      const isLast = index === segments.length - 1;
-      const key = parentPath;
-      const uniqKey = `${key}::${nodePath}`;
-      let node: ChainPathTreeNode;
-
-      if (!seenPaths.has(uniqKey)) {
-        seenPaths.add(uniqKey);
-        let list = map.get(key);
-        if (!list) {
-          list = [];
-          map.set(key, list);
-        }
-        node = {
-          label: segment,
-          path: nodePath,
-          isFolder: !isLast,
-          leafPath: isLast ? value : undefined,
-          descendantLeafPaths: [],
-        };
-        list.push(node);
-        nodesByPath.set(nodePath, node);
-      } else {
-        node = nodesByPath.get(nodePath)!;
-        if (!isLast) {
-          node.isFolder = true;
-        }
-      }
-
-      pathNodes.push(node);
-      parentPath = nodePath;
-    }
-
-    pathNodes.forEach((node) => {
-      node.descendantLeafPaths.push(value);
-    });
-  });
-
-  map.forEach((list) => {
-    list.sort((left, right) => {
-      if (left.isFolder !== right.isFolder) {
-        return left.isFolder ? -1 : 1;
-      }
-      return left.label.localeCompare(right.label, undefined, {
-        numeric: true,
-        sensitivity: 'base',
-      });
-    });
-  });
-
-  return map;
-};
-
-const pathTreeSegments = (value: string): Array<string> => {
-  const trimmed = value.trim();
-  const urlMatch = /^([a-z][a-z0-9+.-]*:\/\/)([^/]+)\/?(.*)$/i.exec(trimmed);
-  if (!urlMatch) {
-    return trimmed.split('/').filter(Boolean);
-  }
-
-  const root = `${urlMatch[1]}${urlMatch[2]}`;
-  const rest = urlMatch[3].split('/').filter(Boolean);
-  return [root, ...rest];
+  return null;
 };
 
 export const formatCleanupFindingLabel = (value: string): string =>
@@ -383,8 +253,7 @@ export const sortStorageRowsBy = (
         return left.fileCount - right.fileCount;
       case 'downloadCount':
         return (
-          (left.downloadCount ?? -Infinity) -
-          (right.downloadCount ?? -Infinity)
+          (left.downloadCount ?? -Infinity) - (right.downloadCount ?? -Infinity)
         );
       case 'lastDownload':
         return compareOptionalDates(left.lastDownload, right.lastDownload);

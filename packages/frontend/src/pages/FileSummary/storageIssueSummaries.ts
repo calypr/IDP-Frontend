@@ -25,7 +25,6 @@ const summarizeIssueActions = <
   },
 >(
   findings: Array<T>,
-  fallbackAction?: AuditActionOption,
 ): IssueActionSummary => {
   const availableActions = Array.from(
     new Map(
@@ -38,20 +37,16 @@ const summarizeIssueActions = <
   const actionability = findings.find(
     (finding) => finding.actionability,
   )?.actionability;
-  const defaultActionName =
-    findings.find((finding) => finding.defaultAction)?.defaultAction ??
-    fallbackAction?.action;
+  const defaultActionName = findings.find(
+    (finding) => finding.defaultAction,
+  )?.defaultAction;
   const defaultAction =
     availableActions.find((action) => action.action === defaultActionName) ??
-    fallbackAction ??
     availableActions[0];
 
   return {
     actionability,
-    availableActions:
-      fallbackAction && availableActions.length === 0
-        ? [fallbackAction]
-        : availableActions,
+    availableActions,
     defaultAction,
     supportsDryRun:
       findings.some((finding) => finding.supportsDryRun) ||
@@ -139,18 +134,7 @@ export const summarizeProjectDiffIssues = (
       }
 
       return {
-        actionSummary: summarizeIssueActions(
-          matched,
-          group.id === 'git-only'
-            ? {
-                action: 'view_paths',
-                destructive: false,
-                label: 'View paths',
-                requiresConfirmation: false,
-                supportsDryRun: false,
-              }
-            : undefined,
-        ),
+        actionSummary: summarizeIssueActions(matched),
         color: group.color,
         description: group.description,
         findingKinds: group.findingKinds,
@@ -468,43 +452,7 @@ export const summarizeStorageChainIssues = ({
       );
 
       summaries.push({
-        actionSummary: summarizeIssueActions(
-          matchingFindings,
-          definition.id === 'git_only_no_syfon'
-            ? {
-                action: 'view_paths',
-                destructive: false,
-                label: 'View paths',
-                requiresConfirmation: false,
-                supportsDryRun: false,
-              }
-            : definition.id === 'syfon_git_no_bucket' ||
-                definition.id === 'syfon_missing_bucket_object'
-              ? {
-                  action: 'delete_syfon_record',
-                  destructive: true,
-                  label: 'Delete Syfon records',
-                  requiresConfirmation: true,
-                  supportsDryRun: true,
-                }
-              : definition.id === 'syfon_broken_bucket_mapping'
-                ? {
-                    action: 'remove_broken_access_urls',
-                    destructive: true,
-                    label: 'Repair access URLs',
-                    requiresConfirmation: true,
-                    supportsDryRun: true,
-                  }
-                : definition.id === 'probe_error'
-                  ? {
-                      action: 'delete_syfon_record',
-                      destructive: true,
-                      label: 'Delete Syfon records',
-                      requiresConfirmation: true,
-                      supportsDryRun: true,
-                    }
-                  : undefined,
-        ),
+        actionSummary: summarizeIssueActions(matchingFindings),
         color: definition.color,
         description: definition.description,
         findingCount: group.findingCount,

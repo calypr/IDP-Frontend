@@ -4,7 +4,6 @@ import {
   Badge,
   Button,
   Center,
-  Checkbox,
   Group,
   Loader,
   Stack,
@@ -18,7 +17,6 @@ import type { AuditActionOption } from './hooks';
 import type { ChainIssueSummary } from './storageIssueSummaries';
 import {
   buildCleanupApplySummary,
-  buildPathsByParentMap,
   orderedRepairActions,
 } from './storagePresentation';
 import type {
@@ -102,7 +100,6 @@ const repairActionsForIssue = (
 
 const issueDetailInitialRowLimit = 250;
 const issueDetailRowLimitIncrement = 250;
-const chainPathTreeNodeLimit = 250;
 
 export const StorageChainAuditReport = ({
   actionFeedbackMessage,
@@ -199,7 +196,10 @@ export const StorageChainAuditReport = ({
     );
   }
 
-  const issuePathCount = chainIssueSummaries.reduce(
+  const actualIssueSummaries = chainIssueSummaries.filter(
+    (issue) => issue.id !== 'bucket_only_object',
+  );
+  const issuePathCount = actualIssueSummaries.reduce(
     (sum, issue) => sum + issue.pathCount,
     0,
   );
@@ -349,7 +349,7 @@ export const StorageChainAuditReport = ({
           {auditResult ? (
             <>
               <Alert
-                color={chainIssueSummaries.length > 0 ? 'yellow' : 'green'}
+                color={actualIssueSummaries.length > 0 ? 'yellow' : 'green'}
               >
                 <Stack gap={2}>
                   <Text size="sm">
@@ -396,18 +396,6 @@ export const StorageChainAuditReport = ({
                         issue.id === 'git_only_no_syfon';
                       const issueSelectedPaths =
                         selectedChainPathsByIssue[issue.id] ?? [];
-                      const issueSelectedPathsSet = new Set(issueSelectedPaths);
-                      const issueSelectablePaths = Array.from(
-                        new Set(
-                          issueFindings
-                            .map((finding) => finding.normalizedPath)
-                            .filter(Boolean),
-                        ),
-                      ).sort();
-                      const issuePathsByParent =
-                        buildPathsByParentMap(issueSelectablePaths);
-                      const issueChainPathTree =
-                        issuePathsByParent.get('') ?? [];
                       const visibleLimit =
                         visibleIssueDetailRowLimits[issue.id] ??
                         issueDetailInitialRowLimit;
@@ -541,108 +529,23 @@ export const StorageChainAuditReport = ({
                                       </Group>
                                     </Center>
                                   ) : isIssueSelectable ? (
-                                    <Stack
-                                      className="rounded-md border border-slate-200 bg-white px-3 py-3"
-                                      gap="xs"
-                                    >
-                                      <Group
-                                        justify="space-between"
-                                        wrap="wrap"
-                                      >
-                                        <Checkbox
-                                          checked={
-                                            issueSelectablePaths.length > 0 &&
-                                            issueSelectedPaths.length ===
-                                              issueSelectablePaths.length
-                                          }
-                                          indeterminate={
-                                            issueSelectedPaths.length > 0 &&
-                                            issueSelectedPaths.length <
-                                              issueSelectablePaths.length
-                                          }
-                                          label={`Select all loaded paths (${issueSelectedPaths.length.toLocaleString()} / ${issueSelectablePaths.length.toLocaleString()})`}
-                                          onChange={(event) => {
-                                            onSelectedChainPathsChange(
-                                              issue.id,
-                                              event.currentTarget.checked
-                                                ? issueSelectablePaths
-                                                : [],
-                                            );
-                                          }}
-                                        />
-                                        <Text c="dimmed" size="xs">
-                                          {issue.id === 'git_only_no_syfon'
-                                            ? 'Gecko rechecks every selected path against the live bucket before creating a record. RGW does not provide a SHA-256 for this verification.'
-                                            : 'Expand folders and choose the exact paths to heal.'}
-                                        </Text>
-                                      </Group>
-                                      <ChainPathTree
-                                        expandedTreeNodes={
-                                          expandedChainTreeNodes
-                                        }
-                                        nodes={issueChainPathTree.slice(
-                                          0,
-                                          treeNodeLimit[issue.id] ??
-                                            chainPathTreeNodeLimit,
-                                        )}
-                                        onSelectedPathsChange={(paths) =>
-                                          onSelectedChainPathsChange(
-                                            issue.id,
-                                            paths,
-                                          )
-                                        }
-                                        onTogglePath={(path, checked) => {
-                                          const next = checked
-                                            ? [...issueSelectedPaths, path]
-                                            : issueSelectedPaths.filter(
-                                                (value) => value !== path,
-                                              );
-                                          onSelectedChainPathsChange(
-                                            issue.id,
-                                            next,
-                                          );
-                                        }}
-                                        onTreeNodeLimitChange={setTreeNodeLimit}
-                                        onTreeNodeToggle={
-                                          setExpandedChainTreeNodes
-                                        }
-                                        pathsByParent={issuePathsByParent}
-                                        selectedPaths={issueSelectedPaths}
-                                        selectedPathsSet={
-                                          issueSelectedPathsSet
-                                        }
-                                        treeNodeLimit={treeNodeLimit}
-                                      />
-                                      {issueChainPathTree.length >
-                                        (treeNodeLimit[issue.id] ??
-                                          chainPathTreeNodeLimit) && (
-                                        <Button
-                                          onClick={() =>
-                                            setTreeNodeLimit((current) => ({
-                                              ...current,
-                                              [issue.id]:
-                                                (current[issue.id] ??
-                                                  chainPathTreeNodeLimit) +
-                                                chainPathTreeNodeLimit,
-                                            }))
-                                          }
-                                          size="xs"
-                                          style={{
-                                            alignSelf: 'flex-start',
-                                            marginLeft: 28,
-                                          }}
-                                          variant="subtle"
-                                        >
-                                          Show more (
-                                          {(
-                                            issueChainPathTree.length -
-                                            (treeNodeLimit[issue.id] ??
-                                              chainPathTreeNodeLimit)
-                                          ).toLocaleString()}{' '}
-                                          remaining)...
-                                        </Button>
-                                      )}
-                                    </Stack>
+                                    <ChainPathTree
+                                      expandedTreeNodes={expandedChainTreeNodes}
+                                      findings={issueFindings}
+                                      helperText={
+                                        issue.id === 'git_only_no_syfon'
+                                          ? 'Gecko rechecks every selected path against the live bucket before creating a record. RGW does not provide a SHA-256 for this verification.'
+                                          : undefined
+                                      }
+                                      onSelectedPathsChange={(paths) =>
+                                        onSelectedChainPathsChange(issue.id, paths)
+                                      }
+                                      onTreeNodeLimitChange={setTreeNodeLimit}
+                                      onTreeNodeToggle={setExpandedChainTreeNodes}
+                                      rootLimitKey={issue.id}
+                                      selectedPaths={issueSelectedPaths}
+                                      treeNodeLimit={treeNodeLimit}
+                                    />
                                   ) : (
                                     <div
                                       className="max-h-[420px] overflow-auto rounded-md border border-slate-200 bg-white"

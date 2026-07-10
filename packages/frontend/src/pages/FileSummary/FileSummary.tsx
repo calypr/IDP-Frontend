@@ -561,7 +561,8 @@ export const FileSummaryPage = ({
       if (!chainAuditResult) {
         setChainIssueLoadErrors((current) => ({
           ...current,
-          [issueId]: 'Run the storage chain audit before opening issue details.',
+          [issueId]:
+            'Run the storage chain audit before opening issue details.',
         }));
         return;
       }
@@ -614,7 +615,6 @@ export const FileSummaryPage = ({
       const resolvedAction = resolveIssueAction({
         defaultAction,
         findings,
-        issueId,
       });
 
       if (!resolvedAction) {
@@ -784,10 +784,10 @@ export const FileSummaryPage = ({
       cancelled = true;
     };
   }, [
-    applyStorageChainAuditSummary,
+      applyStorageChainAuditSummary,
     currentPath,
     isProjectsLoading,
-    runChainAudit,
+      runChainAudit,
     selectedProjectParts,
   ]);
 
@@ -853,7 +853,10 @@ export const FileSummaryPage = ({
           chainAuditResult.summary.auditRefreshDurationMs,
         )}`
       : '';
-  const auditIssuePathCount = chainIssueSummaries.reduce(
+  const actualChainIssues = chainIssueSummaries.filter(
+    (issue) => issue.id !== 'bucket_only_object',
+  );
+  const auditIssuePathCount = actualChainIssues.reduce(
     (total, issue) => total + issue.pathCount,
     0,
   );
@@ -898,8 +901,8 @@ export const FileSummaryPage = ({
               index === 0
                 ? 'text-primary hover:underline'
                 : item.path === currentPath
-                ? 'text-slate-900'
-                : 'text-slate-900 hover:text-slate-950'
+                  ? 'text-slate-900'
+                  : 'text-slate-900 hover:text-slate-950'
             }`}
             onClick={() => setCurrentPath(item.path)}
             title={item.label}
@@ -929,7 +932,8 @@ export const FileSummaryPage = ({
   const auditRefreshUtility = (
     <Group className="ml-auto shrink-0" gap="xs" wrap="nowrap">
       <Text c="dimmed" size="xs">
-        Last refreshed: {auditLastRefreshedAt}{auditRefreshDuration}
+        Last refreshed: {auditLastRefreshedAt}
+        {auditRefreshDuration}
       </Text>
       <ActionIcon
         aria-label="Refresh audit"
@@ -981,7 +985,7 @@ export const FileSummaryPage = ({
           <span>Audit</span>
           {chainAuditResult ? (
             <Badge
-              color={chainIssueSummaries.length > 0 ? 'yellow' : 'green'}
+              color={actualChainIssues.length > 0 ? 'yellow' : 'green'}
               size="xs"
               variant="light"
             >
@@ -1003,69 +1007,82 @@ export const FileSummaryPage = ({
     [],
   );
 
-  const handleApplySelectedChainObjects = useCallback(async (issueId: string) => {
-    const targetIssue = chainIssueSummaries.find(
-      (issue) => issue.id === issueId,
-    );
-    if (!targetIssue) {
-      return;
-    }
-    const targetPaths = selectedChainPathsByIssue[targetIssue.id] ?? [];
-    if (targetPaths.length === 0) {
-      return;
-    }
-    const targetFindings = getChainFindingsForIssue(targetIssue.id).filter(
-      (finding) => targetPaths.includes(finding.normalizedPath),
-    );
+  const handleApplySelectedChainObjects = useCallback(
+    async (issueId: string) => {
+      const targetIssue = chainIssueSummaries.find(
+        (issue) => issue.id === issueId,
+      );
+      if (!targetIssue) {
+        return;
+      }
+      const targetPaths = selectedChainPathsByIssue[targetIssue.id] ?? [];
+      if (targetPaths.length === 0) {
+        return;
+      }
+      const targetFindings = getChainFindingsForIssue(targetIssue.id).filter(
+        (finding) => targetPaths.includes(finding.normalizedPath),
+      );
 
-    const isBucketOnlyIssue = targetIssue.id === 'bucket_only_object';
-    const isBucketSyfonNoGitIssue =
-      targetIssue.id === 'bucket_syfon_no_git';
-    if (!isBucketOnlyIssue && !isBucketSyfonNoGitIssue) {
-      return;
-    }
+      const isBucketOnlyIssue = targetIssue.id === 'bucket_only_object';
+      const isBucketSyfonNoGitIssue = targetIssue.id === 'bucket_syfon_no_git';
+      if (!isBucketOnlyIssue && !isBucketSyfonNoGitIssue) {
+        return;
+      }
 
-    const approved = window.confirm(
-      isBucketOnlyIssue
-        ? `Delete ${targetPaths.length.toLocaleString()} selected bucket-only path${targetPaths.length === 1 ? '' : 's'}?\n\nThis will ask Syfon to delete the bucket objects in one bulk request.`
-        : `Delete ${targetPaths.length.toLocaleString()} selected Bucket + Syfon, No Git path${targetPaths.length === 1 ? '' : 's'}?\n\nThis will ask Syfon to delete both the Syfon records and bucket objects in one bulk request.`,
-    );
-    if (!approved) {
-      return;
-    }
+      const approved = window.confirm(
+        isBucketOnlyIssue
+          ? `Delete ${targetPaths.length.toLocaleString()} selected bucket-only path${targetPaths.length === 1 ? '' : 's'}?\n\nThis will ask Syfon to delete the bucket objects in one bulk request.`
+          : `Delete ${targetPaths.length.toLocaleString()} selected Bucket + Syfon, No Git path${targetPaths.length === 1 ? '' : 's'}?\n\nThis will ask Syfon to delete both the Syfon records and bucket objects in one bulk request.`,
+      );
+      if (!approved) {
+        return;
+      }
 
-    const result = await applyCleanup({
-      deleteBucketOnlyObjects: isBucketOnlyIssue,
-      deleteRepoOrphans: isBucketSyfonNoGitIssue,
-      deleteStaleDuplicates: false,
-      findings: targetFindings,
-      dryRun: false,
-      selectedPaths: targetPaths,
-    });
+      const result = await applyCleanup({
+        deleteBucketOnlyObjects: isBucketOnlyIssue,
+        deleteRepoOrphans: isBucketSyfonNoGitIssue,
+        deleteStaleDuplicates: false,
+        findings: targetFindings,
+        dryRun: false,
+        selectedPaths: targetPaths,
+      });
 
-    if (!result) {
-      return;
-    }
+      if (!result) {
+        return;
+      }
 
-    setActionFeedbackMessage(
-      isBucketOnlyIssue
-        ? `Deleted ${targetPaths.length.toLocaleString()} selected bucket-only path${targetPaths.length === 1 ? '' : 's'} in one Syfon bulk request.`
-        : `Deleted ${targetPaths.length.toLocaleString()} selected Bucket + Syfon, No Git path${targetPaths.length === 1 ? '' : 's'} in one Syfon bulk request.`,
-    );
-    removeHealedChainFindings(
-      targetIssue.id,
-      targetPaths,
-      result.deletedRecordIds.length,
-    );
-    refresh();
-  }, [
-    applyCleanup,
-    chainIssueSummaries,
-    getChainFindingsForIssue,
-    removeHealedChainFindings,
-    refresh,
-    selectedChainPathsByIssue,
-  ]);
+      const deletedPathCount = isBucketOnlyIssue
+        ? result.deletedBucketObjectUrls.length
+        : result.deletedRecordIds.length;
+      const skippedPathCount = result.skippedPaths.length;
+      setActionFeedbackMessage(
+        isBucketOnlyIssue
+          ? `Deleted ${deletedPathCount.toLocaleString()} bucket-only path${deletedPathCount === 1 ? '' : 's'} in one Syfon bulk request.${skippedPathCount > 0 ? ` ${skippedPathCount.toLocaleString()} selected path${skippedPathCount === 1 ? '' : 's'} disappeared before deletion.` : ''}`
+          : `Deleted ${deletedPathCount.toLocaleString()} Bucket + Syfon, No Git path${deletedPathCount === 1 ? '' : 's'} in one Syfon bulk request.${skippedPathCount > 0 ? ` ${skippedPathCount.toLocaleString()} selected path${skippedPathCount === 1 ? '' : 's'} disappeared before deletion.` : ''}`,
+      );
+      removeHealedChainFindings(
+        targetIssue.id,
+        targetPaths,
+        result.deletedRecordIds.length,
+      );
+      const refreshed = await runChainAudit({
+        bucketInventoryMode: 'validate',
+        forceAuditRefresh: true,
+      });
+      applyStorageChainAuditSummary(refreshed);
+      refresh();
+    },
+    [
+      applyCleanup,
+      applyStorageChainAuditSummary,
+      chainIssueSummaries,
+      getChainFindingsForIssue,
+      removeHealedChainFindings,
+      refresh,
+      runChainAudit,
+      selectedChainPathsByIssue,
+    ],
+  );
 
   const handleRegisterSelectedGitOnly = useCallback(async () => {
     const targetPaths = selectedChainPathsByIssue.git_only_no_syfon ?? [];
@@ -1124,21 +1141,23 @@ export const FileSummaryPage = ({
           error ? (
             <Stack gap="md" px="sm">
               {!isProjectScopedRoute ? (
-              <Select
-                data={projectOptions.map((option) => ({
-                  label: option.label,
-                  value: option.value,
-                }))}
-                disabled={isProjectsLoading || projectOptions.length === 0}
-                label="Project"
-                onChange={(value) => {
-                  setSelectedProject(value ?? '');
-                  setCurrentPath(filesummaryConfig?.defaultPath?.trim() ?? '');
-                }}
-                placeholder="Select a project"
-                searchable
-                value={selectedProject}
-              />
+                <Select
+                  data={projectOptions.map((option) => ({
+                    label: option.label,
+                    value: option.value,
+                  }))}
+                  disabled={isProjectsLoading || projectOptions.length === 0}
+                  label="Project"
+                  onChange={(value) => {
+                    setSelectedProject(value ?? '');
+                    setCurrentPath(
+                      filesummaryConfig?.defaultPath?.trim() ?? '',
+                    );
+                  }}
+                  placeholder="Select a project"
+                  searchable
+                  value={selectedProject}
+                />
               ) : null}
 
               {!selectedProject &&
