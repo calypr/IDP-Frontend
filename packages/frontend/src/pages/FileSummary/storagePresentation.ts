@@ -246,11 +246,11 @@ export const resolveIssueAction = ({
 
   if (issueId === 'probe_error') {
     return {
-      action: 'rerun_audit',
-      destructive: false,
-      label: 'Retry verification',
-      requiresConfirmation: false,
-      supportsDryRun: false,
+      action: 'delete_syfon_record',
+      destructive: true,
+      label: 'Delete Syfon records',
+      requiresConfirmation: true,
+      supportsDryRun: true,
     };
   }
 

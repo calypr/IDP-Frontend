@@ -442,8 +442,8 @@ const chainIssueDefinitions: Array<{
     description:
       'Bucket verification failed before Gecko could classify the chain cleanly.',
     recommendation:
-      'Fix the mapped bucket target, bucket credential, or provider access problem and rerun the audit.',
-    actionLabel: 'Show probe errors',
+      'Review the paths, then delete the affected Syfon records if they are unwanted remnants.',
+    actionLabel: 'Delete Syfon records',
   },
 ];
 
@@ -497,11 +497,11 @@ export const summarizeStorageChainIssues = ({
                   }
                 : definition.id === 'probe_error'
                   ? {
-                      action: 'rerun_audit',
-                      destructive: false,
-                      label: 'Retry verification',
-                      requiresConfirmation: false,
-                      supportsDryRun: false,
+                      action: 'delete_syfon_record',
+                      destructive: true,
+                      label: 'Delete Syfon records',
+                      requiresConfirmation: true,
+                      supportsDryRun: true,
                     }
                   : undefined,
         ),
