@@ -140,6 +140,12 @@ declare module '@gen3/core' {
     resolved_drs_object?: Array<SyfonDrsObject>;
   }
 
+  export interface SyfonBulkDeleteDrsObjectsArgs {
+    bulk_object_ids: Array<string>;
+    delete_object_metadata?: boolean;
+    delete_storage_data?: boolean;
+  }
+
   export interface SyfonIndexRecord {
     access_methods?: Array<SyfonAccessMethod>;
     controlled_access?: Array<string>;
@@ -273,6 +279,11 @@ declare module '@gen3/core' {
   export function useDeleteSyfonDrsObjectMutation(): [
     (
       objectId: string,
+    ) => { unwrap: () => Promise<void> },
+  ];
+  export function useBulkDeleteSyfonDrsObjectsMutation(): [
+    (
+      args: SyfonBulkDeleteDrsObjectsArgs,
     ) => { unwrap: () => Promise<void> },
   ];
   export function useLazyGetSyfonDownloadUrlQuery(): [

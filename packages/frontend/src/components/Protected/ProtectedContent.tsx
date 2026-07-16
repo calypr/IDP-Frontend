@@ -99,8 +99,8 @@ const ProtectedContent = ({ children, errorStatus }: ProtectedContentProps) => {
   }
 
   return (
-    <div className="fixed inset-0 z-[1000] flex flex-col items-center justify-center bg-gray-100 py-12 px-4">
-      <div className="max-w-xl w-full bg-white shadow-2xl rounded-2xl overflow-hidden transition-all scale-110">
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center overflow-auto bg-gray-100/95 px-4 py-8">
+      <div className="w-full max-w-xl overflow-hidden rounded-2xl bg-white shadow-2xl">
         <div className="bg-primary p-8">
           <Text className="text-white text-3xl font-bold font-heading text-center tracking-tight">
             Protected Content

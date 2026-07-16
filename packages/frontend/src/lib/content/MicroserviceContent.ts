@@ -11,7 +11,31 @@ export class MicroserviceContent implements ContentStore {
     url: string,
     requestHeaders?: Record<string, string>,
   ): Promise<T> {
-    this.log(`GET ${url}`);
+    let targetUrl = url;
+
+    if (
+      typeof window === 'undefined' &&
+      !targetUrl.startsWith('http://') &&
+      !targetUrl.startsWith('https://')
+    ) {
+      // We are in Node.js (SSR) and the URL is relative. Prepend origin to prevent ERR_INVALID_URL.
+      const hostHeader =
+        requestHeaders?.['Host'] ||
+        requestHeaders?.['host'] ||
+        process.env.HOSTNAME ||
+        'localhost:3000';
+      
+      const protocol =
+        hostHeader.includes('localhost') ||
+        hostHeader.includes('127.0.0.1') ||
+        hostHeader.includes('::1')
+          ? 'http'
+          : 'https';
+
+      targetUrl = `${protocol}://${hostHeader}${targetUrl.startsWith('/') ? '' : '/'}${targetUrl}`;
+    }
+
+    this.log(`GET ${targetUrl}`);
 
     // Default headers, including those passed from ContentDatabase
     const finalHeaders: Record<string, string> = {
@@ -26,7 +50,7 @@ export class MicroserviceContent implements ContentStore {
       }
     }
 
-    const res = await fetch(url, {
+    const res = await fetch(targetUrl, {
       headers: finalHeaders, // Use the merged headers
     });
 

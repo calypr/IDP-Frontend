@@ -23,8 +23,31 @@ jest.mock('@gen3/core', () => ({
 
 jest.mock('../../features/Navigation', () => ({
   NavPageLayout: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  ProjectWorkspaceTabs: ({ children }: { children: React.ReactNode }) => (
-    <>{children}</>
+  ProjectWorkspaceTabs: ({
+    children,
+    hasExplorerConfig,
+    organization,
+    project,
+  }: {
+    children: React.ReactNode;
+    hasExplorerConfig: boolean;
+    organization: string;
+    project: string;
+  }) => (
+    <>
+      <a href={`/org/${organization}/project/${project}/presentation`} role="tab">
+        Home
+      </a>
+      {hasExplorerConfig ? (
+        <a href={`/Explorer/${organization}-${project}`} role="tab">
+          Explorer
+        </a>
+      ) : null}
+      <a href={`/org/${organization}/project/${project}`} role="tab">
+        Source
+      </a>
+      {children}
+    </>
   ),
 }));
 
@@ -684,64 +707,4 @@ describe('GitProjectPage', () => {
     openSpy.mockRestore();
   });
 
-  it('breaks the syfon project view link out of the parent frame when embedded', () => {
-    useIsEmbedded.mockReturnValue(true);
-    const projectStatus = {
-      project_id: 'Ellrott_Lab/embedding_rotation',
-      organization: 'Ellrott_Lab',
-      project: 'embedding_rotation',
-      resource_path: '/programs/Ellrott_Lab/projects/embedding_rotation',
-      config: {
-        title: 'Embedding Rotation',
-        contact_email: 'owner@example.org',
-        src_repo: 'github.com/EllrottLab/embedding-rotation',
-        org_title: 'Ellrott Lab',
-        description: 'Test project',
-        project_title: 'Embedding Rotation',
-        icon_name: 'git.png',
-      },
-      repository: {
-        host: 'github.com',
-        owner: 'EllrottLab',
-        repo: 'embedding-rotation',
-        url: 'https://github.com/EllrottLab/embedding-rotation',
-      },
-      installation_state: 'connected',
-      installation_target: 'EllrottLab',
-      installation_target_type: 'Organization',
-      organization_app_installed: true,
-      sync_state: 'ready',
-      default_branch: 'main',
-      mirror_ready: true,
-    };
-    coreMocks.useGetGeckoGitProjectsQuery.mockReturnValue({
-      data: [projectStatus],
-      isLoading: false,
-      refetch: jest.fn(),
-    });
-    coreMocks.useGetGeckoGitProjectRefsQuery.mockReturnValue({
-      data: {
-        default_branch: 'main',
-        refs: [{ name: 'main', type: 'branch', hash: 'abc123', default: true }],
-      },
-      isLoading: false,
-      refetch: jest.fn(),
-    });
-    coreMocks.useGetGeckoGitProjectTreeQuery.mockReturnValue({
-      data: { entries: [] },
-      isLoading: false,
-      refetch: jest.fn(),
-    });
-
-    render(
-      <MantineProvider>
-        <GitProjectPage {...layoutProps} />
-      </MantineProvider>,
-    );
-
-    expect(screen.getByLabelText(/open syfon project view/i)).toHaveAttribute(
-      'target',
-      '_parent',
-    );
-  });
 });

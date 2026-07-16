@@ -37,7 +37,11 @@ import drsHostnames from '../../config/drsHostnames.json';
 import { loadContent } from '@/lib/content/loadContent';
 import Loading from '../components/Loading';
 
-if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
+if (
+  typeof window !== 'undefined' &&
+  process.env.NODE_ENV !== 'production' &&
+  process.env.NEXT_PUBLIC_ENABLE_AXE === 'true'
+) {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const ReactDOM = require('react-dom');
   // eslint-disable-next-line @typescript-eslint/no-require-imports

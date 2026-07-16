@@ -6,29 +6,14 @@ export interface FileSummaryProps {
 }
 
 export interface FilesummaryConfig {
-  config: Record<string, SummaryTableColumn>;
-  barChartColor: string;
-  defaultProject: string;
-  binslicePoints: number[];
-  idField: string;
-  index: string;
+  barChartColor?: string;
+  binslicePoints?: number[];
+  config?: Record<string, SummaryTableColumn>;
+  defaultPath?: string;
+  defaultProject?: string;
+  idField?: string;
+  index?: string;
+  maxTraversalPages?: number;
 }
-
-export interface ProjectFilter {
-  EQ: { project_id: string };
-}
-
-export interface ContentTypeFilter {
-  EQ: { document_reference_contentType: string };
-}
-
-export interface RangeFilter {
-  AND: [
-    { GTE: { document_reference_size: number } },
-    { LT: { document_reference_size: number } },
-  ];
-}
-
-export type Filter = ProjectFilter | ContentTypeFilter | RangeFilter;
 
 export type FileSummaryPageProps = NavPageLayoutProps & FileSummaryProps;

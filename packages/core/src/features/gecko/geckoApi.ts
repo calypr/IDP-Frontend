@@ -5,6 +5,7 @@ import { CoreState } from '../../reducers';
 import { resourcePathFromProjectID } from '../submission/authMappingUtils';
 import { gen3Api } from '../gen3';
 import { selectCSRFToken } from '../user/userSliceRTK';
+import { handleUnauthorizedStatus } from '../user/unauthorized';
 import { getCookie } from 'cookies-next';
 
 export interface GeckoProjectRecord {
@@ -272,6 +273,18 @@ export interface GeckoGitTreeResponse {
   readonly project_id: string;
   readonly ref: string;
   readonly path: string;
+  readonly entry_count: number;
+  readonly truncated?: boolean;
+  readonly entries: Array<GeckoGitTreeEntry>;
+}
+
+export interface GeckoGitManifestResponse {
+  readonly project_id: string;
+  readonly ref: string;
+  readonly path: string;
+  readonly entry_count: number;
+  readonly has_more: boolean;
+  readonly next_cursor?: string;
   readonly entries: Array<GeckoGitTreeEntry>;
 }
 
@@ -426,6 +439,7 @@ const blobToDataURL = async (blob: Blob): Promise<string> =>
   });
 
 const responseErrorMessage = async (response: Response): Promise<string> => {
+  handleUnauthorizedStatus(response.status);
   const text = await response.text();
   return (
     geckoErrorMessage(text) ||
@@ -995,6 +1009,11 @@ export const geckoApi = geckoTaggedApi.injectEndpoints({
         project: string;
         path?: string;
         ref?: string;
+        include_size?: boolean;
+        include_last_modified?: boolean;
+        include_lfs_pointer?: boolean;
+        view?: 'manifest';
+        limit?: number;
       }
     >({
       query: ({
@@ -1004,19 +1023,41 @@ export const geckoApi = geckoTaggedApi.injectEndpoints({
         project,
         path,
         ref,
+        include_size,
+        include_last_modified,
+        include_lfs_pointer,
+        view,
+        limit,
       }) => {
         const normalizedPath = path?.trim().replace(/^\/+|\/+$/g, '');
-        const params = new URLSearchParams();
+        const queryParams = new URLSearchParams();
         if (ref) {
-          params.set('ref', ref);
+          queryParams.set('ref', ref);
         }
-        if (includeLFSPointer) {
-          params.set('include_lfs_pointer', 'true');
+        if (typeof include_size === 'boolean') {
+          queryParams.set('include_size', String(include_size));
+        }
+        if (typeof include_last_modified === 'boolean') {
+          queryParams.set('include_last_modified', String(include_last_modified));
         }
         if (includeLastModified) {
-          params.set('include_last_modified', 'true');
+          queryParams.set('include_last_modified', 'true');
         }
-        const query = params.toString() ? `?${params.toString()}` : '';
+        if (typeof include_lfs_pointer === 'boolean') {
+          queryParams.set('include_lfs_pointer', String(include_lfs_pointer));
+        }
+        if (includeLFSPointer) {
+          queryParams.set('include_lfs_pointer', 'true');
+        }
+        if (view) {
+          queryParams.set('view', view);
+        }
+        if (typeof limit === 'number') {
+          queryParams.set('limit', String(limit));
+        }
+        const query = queryParams.toString()
+          ? `?${queryParams.toString()}`
+          : '';
         const suffix = normalizedPath
           ? `/tree/${normalizedPath
               .split('/')
@@ -1071,6 +1112,58 @@ export const geckoApi = geckoTaggedApi.injectEndpoints({
         body,
         credentials: 'include',
       }),
+    }),
+    getGeckoGitProjectManifest: builder.query<
+      GeckoGitManifestResponse,
+      {
+        organization: string;
+        project: string;
+        path?: string;
+        ref?: string;
+        cursor?: string;
+        files_only?: boolean;
+        limit?: number;
+      }
+    >({
+      query: ({
+        organization,
+        project,
+        path,
+        ref,
+        cursor,
+        files_only,
+        limit,
+      }) => {
+        const normalizedPath = path?.trim().replace(/^\/+|\/+$/g, '');
+        const queryParams = new URLSearchParams();
+        if (ref) {
+          queryParams.set('ref', ref);
+        }
+        if (cursor) {
+          queryParams.set('cursor', cursor);
+        }
+        if (typeof files_only === 'boolean') {
+          queryParams.set('files_only', String(files_only));
+        }
+        if (typeof limit === 'number') {
+          queryParams.set('limit', String(limit));
+        }
+        const query = queryParams.toString()
+          ? `?${queryParams.toString()}`
+          : '';
+        const suffix = normalizedPath
+          ? `/manifest/${normalizedPath
+              .split('/')
+              .map((segment) => encodeURIComponent(segment))
+              .join('/')}${query}`
+          : `/manifest${query}`;
+
+        return {
+          url: buildGitProjectApiPath(organization, project, suffix),
+          method: 'GET',
+          credentials: 'include',
+        };
+      },
     }),
     getGeckoGitUploadSession: builder.query<
       GeckoGitUploadSessionResponse,

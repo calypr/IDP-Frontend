@@ -1,8 +1,8 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import React, { useEffect, useMemo, useState } from 'react';
-import { ChevronDown, ChevronRight, Wrench } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import {
   useGetAuthzMappingsQuery,
   userHasMethodForServiceOnResource,
@@ -38,8 +38,6 @@ const projectRepoHref = (organization: string, project: string) =>
   `/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}`;
 
 const fallbackProjectThumbnailURL = '/icons/calypr-mark-mono.svg';
-const genericNavIcon = '/icons/apps/gen3_app.svg';
-const toolNavIconClassName = 'h-5 w-5 stroke-[1.85]';
 const isProjectThumbnailIcon = (icon?: string): boolean =>
   Boolean(
     icon &&
@@ -57,7 +55,7 @@ const SidebarContent = ({
     useSidebarContext();
   const [searchQuery, setSearchQuery] = useState('');
   const [showAllProjects, setShowAllProjects] = useState(false);
-  const showNewProjectButton = router.pathname === '/';
+  const showNewProjectButton = true;
 
   const combinedItems = useMemo<Array<LeftNavBarProps>>(() => {
     const projectItems: Array<LeftNavBarProps> = geckoProjects
@@ -90,59 +88,9 @@ const SidebarContent = ({
       })
       .sort((left, right) => left.title.localeCompare(right.title));
 
-    const toolItemsFromConfig = (items || [])
-      .filter(
-        (item) =>
-          item.title.toLowerCase() !== 'directory structure' &&
-          item.title.toLowerCase() !== 'home',
-      )
-      .map((item) => ({
-        title: item.title,
-        description: item.description || '',
-        href: item.href,
-        icon: item.icon,
-        iconNode: item.iconNode,
-        perms: item.perms || '',
-        subItems: item.subItems,
-      }));
-
-    return [
-      ...projectItems,
-      ...(toolItemsFromConfig.length > 0
-        ? [
-            {
-              title: 'Tools',
-              description: 'Common CALYPR tools',
-              href: '#',
-              icon: genericNavIcon,
-              iconNode: <Wrench className={toolNavIconClassName} />,
-              perms: '',
-              subItems: toolItemsFromConfig,
-            },
-          ]
-        : []),
-    ];
+    return projectItems;
   }, [geckoProjects, items]);
 
-  // Keep menu expanded if navigating to a sub-item
-  useEffect(() => {
-    combinedItems.forEach((item) => {
-      if (
-        item.subItems?.some((sub: LeftNavBarProps) => router.asPath === sub.href)
-      ) {
-        setExpandedItems((prev) => ({ ...prev, [item.title]: true }));
-      }
-    });
-  }, [router.asPath, combinedItems, setExpandedItems]);
-
-  useEffect(() => {
-    if (
-      !combinedItems.some((item) => item.title === 'Tools' && item.subItems?.length)
-    ) {
-      return;
-    }
-    setExpandedItems((prev) => (prev.Tools ? prev : { ...prev, Tools: true }));
-  }, [combinedItems, setExpandedItems]);
   const { data: authzMapping = {} } = useGetAuthzMappingsQuery();
 
   const hasAccess = (perms: string | undefined) => {
@@ -419,16 +367,5 @@ const SidebarWithProjectsData = (props: SidebarProps) => {
 };
 
 export const Sidebar = (props: SidebarProps) => {
-  const router = useRouter();
-  const isGitPage =
-    router.pathname === '/git' ||
-    router.pathname.startsWith('/git/') ||
-    router.asPath === '/git' ||
-    router.asPath.startsWith('/git/');
-
-  if (isGitPage) {
-    return <SidebarContent {...props} geckoProjects={[]} />;
-  }
-
   return <SidebarWithProjectsData {...props} />;
 };

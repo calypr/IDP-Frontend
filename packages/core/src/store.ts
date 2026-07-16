@@ -6,15 +6,10 @@ import { gen3ServicesReducerMiddleware } from './features/gen3/gen3Api';
 import { guppyAPISliceMiddleware } from './features/guppy/guppyApi';
 import { userAuthApiMiddleware } from './features/user/userSliceRTK';
 import { coreStoreListenerMiddleware } from './listeners';
-import type { PersistConfig, PersistState } from 'redux-persist';
 import {
-  FLUSH,
-  PAUSE,
-  PERSIST,
   persistReducer,
-  PURGE,
-  REGISTER,
-  REHYDRATE,
+  type PersistConfig,
+  type PersistState,
 } from 'redux-persist';
 
 import type { Action, Reducer } from 'redux';
@@ -49,12 +44,8 @@ export const setupCoreStore = (preloadedState?: Partial<CoreState>) =>
     preloadedState,
     middleware: (getDefaultMiddleware) =>
       getDefaultMiddleware({
-        serializableCheck: {
-          ignoredActions: [FLUSH, REHYDRATE, PAUSE, PERSIST, PURGE, REGISTER],
-        },
-        immutableCheck: {
-          warnAfter: 128,
-        },
+        serializableCheck: false,
+        immutableCheck: false,
       })
         .concat(
           gen3ServicesReducerMiddleware,

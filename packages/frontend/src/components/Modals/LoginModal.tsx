@@ -19,7 +19,7 @@ export const LoginView = ({
 }: {
   redirectPath?: string;
 }): JSX.Element => (
-  <div className="py-16 bg-gray-50/20">
+  <div className="bg-gray-50/20 py-10">
     <Stack gap="xl" align="center">
       <Text
         size="lg"

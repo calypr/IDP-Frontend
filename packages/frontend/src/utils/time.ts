@@ -57,7 +57,7 @@ const isTimeGreaterThan = (startTime: number, minutes: number): boolean => {
 };
 
 // Get human-readable duration
-const getReadableDuration = (milliseconds: number): string => {
+export const getReadableDuration = (milliseconds: number): string => {
   const seconds = Math.floor(milliseconds / 1000);
   const minutes = Math.floor(seconds / 60);
   const hours = Math.floor(minutes / 60);

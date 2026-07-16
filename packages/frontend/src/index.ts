@@ -64,7 +64,6 @@ import {
 import {
   OrganizationExplorerPageGetServerSideProps,
   OrganizationLandingPage,
-  OrganizationProjectPage,
 } from './pages/OrganizationExplorer';
 import {
   ProjectPresentationPage,
@@ -137,7 +136,7 @@ import SubmissionPage from './pages/Submission/Submission';
 import { SubmissionPageGetServerSideProps } from './pages/Submission/data';
 
 import WorkspacePage from './pages/Workspace/Workspace';
-import { WorkspaceNoAccessPage } from './pages/Workspace/index';
+import WorkspaceNoAccessPage from './pages/Workspace/WorkspaceNoAccess';
 import {
   WorkspaceNoAccessPageServerSideProps,
   WorkspacePageGetServerSideProps,
@@ -220,7 +219,6 @@ export {
   GitProjectPage,
   GitExplorerPageGetServerSideProps,
   OrganizationLandingPage,
-  OrganizationProjectPage,
   OrganizationExplorerPageGetServerSideProps,
   ProjectPresentationPage,
   ProjectPresentationEditPage,

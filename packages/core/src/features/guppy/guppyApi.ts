@@ -5,6 +5,7 @@ import { GEN3_GUPPY_API } from '../../constants';
 import { CoreState } from '../../reducers';
 import { getCookie } from 'cookies-next';
 import { selectCSRFToken } from '../user';
+import { handleUnauthorizedStatus } from '../user/unauthorized';
 
 export interface guppyFetchError {
   readonly url: string;
@@ -66,6 +67,17 @@ export const guppyApi = createApi({
         method: 'POST',
         body: JSON.stringify(query),
       });
+      if (response.status === 401) {
+        handleUnauthorizedStatus(response.status);
+      }
+      if (!response.ok) {
+        return {
+          error: {
+            status: response.status,
+            data: await response.text(),
+          },
+        };
+      }
       return { data: await response.json() };
     } catch (e: unknown) {
       if (e instanceof Error) return { error: e.message };
