@@ -21,7 +21,7 @@ export const userAuthApi = createApi({
   reducerPath: 'userAuthApi',
   refetchOnMountOrArgChange: 1800,
   refetchOnReconnect: true,
-  baseQuery: async ({ endpoint }, { getState }) => {
+  baseQuery: async ({ endpoint }, { getState, signal }) => {
     let results;
     const csrfToken = selectCSRFToken(getState() as CoreState);
     let accessToken = undefined;
@@ -33,17 +33,17 @@ export const userAuthApi = createApi({
       'Content-Type': 'application/json',
       ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
       ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-      credentials: 'include',
     };
 
     try {
-      results = await fetchFence({ endpoint, headers });
-    } catch (_e: unknown) {
-      /*
-        Because an "error" response is valid for the auth requests we don't want to
-        put the request in an error state, or it will attempt the request over and over again
-      */
-      return { data: {} };
+      results = await fetchFence({ endpoint, headers, signal });
+    } catch (error: any) {
+      return {
+        error: {
+          status: error?.status || 0,
+          data: error,
+        },
+      };
     }
 
     return { data: results };
@@ -64,14 +64,24 @@ export const userAuthApi = createApi({
       },
     }),
     getCSRF: builder.query<CSRFToken, void>({
-      queryFn: async () => {
+      queryFn: async (_arg, { signal }) => {
         const headers: Record<string, string> = {
           Accept: 'application/json',
           'Content-Type': 'application/json',
         };
+        const controller = new AbortController();
+        let timedOut = false;
+        const abortFromCaller = () => controller.abort(signal.reason);
+        signal.addEventListener('abort', abortFromCaller, { once: true });
+        const timeout = setTimeout(() => {
+          timedOut = true;
+          controller.abort();
+        }, 12_000);
         try {
           const res = await fetch(`${GEN3_API}/_status`, {
             headers: headers,
+            cache: 'no-store',
+            signal: controller.signal,
           });
 
           if (res.ok) {
@@ -84,16 +94,22 @@ export const userAuthApi = createApi({
         } catch (error: unknown) {
           if (error instanceof Error) {
             return {
-              error: error.message,
+              error: {
+                status: timedOut ? 408 : 0,
+                data: timedOut ? 'Commons status request timed out' : error.message,
+              },
             };
           } else {
             return {
-              error: 'Unknown Error',
+              error: { status: 0, data: 'Unknown Error' },
             };
           }
+        } finally {
+          clearTimeout(timeout);
+          signal.removeEventListener('abort', abortFromCaller);
         }
         return {
-          error: 'Unknown Error',
+          error: { status: 0, data: 'Unknown Error' },
         };
       },
     }),

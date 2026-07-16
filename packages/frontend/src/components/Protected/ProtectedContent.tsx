@@ -16,6 +16,7 @@ import { useGetAuthzMappingsQuery } from '@gen3/core';
 import { hasFenceAccess, NoAccessOverlay } from './NoAccessOverlay';
 
 import { VerifyingAccessLoader } from './VerifyingAccessLoader';
+import SessionFailureView from './SessionFailureView';
 export { VerifyingAccessLoader };
 
 const isAppHomePath = (path?: string): boolean =>
@@ -30,24 +31,35 @@ const AccessGate = ({
   const {
     data: authzMapping = {},
     isLoading: isAuthZLoading,
+    isError: isAuthZError,
+    refetch: refetchAuthz,
   } = useGetAuthzMappingsQuery();
   const hasAccess = hasFenceAccess(authzMapping);
 
   useEffect(() => {
-    if (!isAuthZLoading) {
+    if (!isAuthZLoading && !isAuthZError) {
       if (!hasAccess) {
         onBlocked();
       } else {
         sessionStorage.setItem('hasVerifiedAccess', 'true');
       }
     }
-  }, [hasAccess, isAuthZLoading, onBlocked]);
+  }, [hasAccess, isAuthZError, isAuthZLoading, onBlocked]);
 
   if (isAuthZLoading) {
     if (isAppHomePath(router.pathname)) {
       return <VerifyingAccessLoader />;
     }
     return null;
+  }
+
+  if (isAuthZError) {
+    return (
+      <SessionFailureView
+        detail="Your session is valid, but Fence could not return a usable access mapping."
+        onRetry={() => void refetchAuthz()}
+      />
+    );
   }
 
   if (!hasAccess) {

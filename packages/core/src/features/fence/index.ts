@@ -18,12 +18,17 @@ import {
 } from './credentialsApi';
 
 import { useGetJWKKeysQuery } from './jwtApi';
-import { FetchError, Gen3FenceResponse } from './types';
+import {
+  FetchError,
+  FenceRequestFailure,
+  Gen3FenceResponse,
+} from './types';
 import { fetchFence, isFetchError } from './utils';
 
 export {
   type Gen3FenceResponse,
   type FetchError,
+  type FenceRequestFailure,
   type FetchRequest,
   type APIKey,
   type Gen3FenceCredentials,

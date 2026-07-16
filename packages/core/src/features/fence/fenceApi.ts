@@ -63,6 +63,8 @@ export interface FetchRequest {
   readonly body?: object;
   readonly headers?: Record<string, string>;
   readonly isJSON?: boolean;
+  readonly signal?: AbortSignal;
+  readonly timeoutMs?: number;
 }
 
 /**

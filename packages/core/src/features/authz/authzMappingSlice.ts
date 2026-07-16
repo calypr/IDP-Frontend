@@ -1,5 +1,6 @@
 import { gen3Api } from '../gen3';
 import { createSelector } from '@reduxjs/toolkit';
+import type { FetchBaseQueryError } from '@reduxjs/toolkit/query';
 import {
   type AuthzMapping,
   AuthzOwnerMutationRequest,
@@ -14,16 +15,11 @@ import {
   DeleteAuthzResourceRequest,
   type ServiceAndMethod,
 } from './types';
-import { GEN3_AUTHZ_API, GEN3_FENCE_API } from '../../constants';
+import { GEN3_AUTHZ_API } from '../../constants';
 import { userAuthApi, selectUserDetailsFromState } from '../user/userSliceRTK';
 import type { CoreState } from '../../reducers';
 
 const TAGS = 'authz';
-
-interface FenceUserAuthzResponse {
-  readonly authz?: AuthzMapping;
-  readonly project_access?: Record<string, Array<string | ServiceAndMethod>>;
-}
 
 const isServiceAndMethod = (value: unknown): value is ServiceAndMethod => {
   if (typeof value !== 'object' || value === null) return false;
@@ -72,7 +68,7 @@ export const authzApi = authzTags.injectEndpoints({
   endpoints: (builder) => ({
     getAuthzMappings: builder.query<AuthzMapping, void>({
       providesTags: [TAGS],
-      async queryFn(_arg, api, _extraOptions, baseQuery) {
+      async queryFn(_arg, api) {
         const userDetailsState = selectUserDetailsFromState(
           api.getState() as CoreState,
         );
@@ -109,22 +105,25 @@ export const authzApi = authzTags.injectEndpoints({
           }
         }
 
-        const response = await baseQuery({
-          url: `${GEN3_FENCE_API}/user`,
-          method: 'GET',
-          credentials: 'include',
-        });
+        const requestError =
+          'error' in userResult ? userResult.error : undefined;
+        const error: FetchBaseQueryError =
+          requestError &&
+          typeof requestError === 'object' &&
+          'status' in requestError
+            ? (requestError as FetchBaseQueryError)
+            : {
+                status: 'CUSTOM_ERROR',
+                error:
+                  requestError &&
+                  typeof requestError === 'object' &&
+                  'message' in requestError &&
+                  typeof requestError.message === 'string'
+                    ? requestError.message
+                    : 'Fence user details were unavailable',
+              };
 
-        if (response.error) {
-          return { error: response.error };
-        }
-
-        const fenceResponse = response.data as FenceUserAuthzResponse;
-        return {
-          data: normalizeFenceAuthzMapping(
-            fenceResponse.authz ?? fenceResponse.project_access,
-          ),
-        };
+        return { error };
       },
     }),
     getAuthzResources: builder.query<AuthzResourceResponse, void>({
