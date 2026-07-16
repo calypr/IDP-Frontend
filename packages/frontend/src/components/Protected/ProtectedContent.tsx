@@ -16,6 +16,7 @@ import { useGetAuthzMappingsQuery } from '@gen3/core';
 import { useHasAccess, NoAccessOverlay } from './NoAccessOverlay';
 
 import { VerifyingAccessLoader } from './VerifyingAccessLoader';
+import SessionFailureView from './SessionFailureView';
 export { VerifyingAccessLoader };
 
 const isAppHomePath = (path?: string): boolean =>
@@ -27,26 +28,58 @@ const AccessGate = ({
   onBlocked,
 }: ProtectedContentProps & { onBlocked: () => void }) => {
   const router = useRouter();
-  const { data: authzMapping = {}, isLoading: isAuthZLoading } =
-    useGetAuthzMappingsQuery();
-  const { hasAccess, isLoading: isFileCountLoading } =
-    useHasAccess(authzMapping);
+  const {
+    data: authzMapping = {},
+    isLoading: isAuthZLoading,
+    isError: isAuthZError,
+    refetch: refetchAuthz,
+  } = useGetAuthzMappingsQuery();
+  const {
+    hasAccess,
+    isLoading: isFileCountLoading,
+    isError: isFileCountError,
+    refetch: refetchFileCount,
+  } = useHasAccess(authzMapping);
 
   useEffect(() => {
-    if (!isAuthZLoading && !isFileCountLoading) {
+    if (
+      !isAuthZLoading &&
+      !isFileCountLoading &&
+      !isAuthZError &&
+      !isFileCountError
+    ) {
       if (!hasAccess) {
         onBlocked();
       } else {
         sessionStorage.setItem('hasVerifiedAccess', 'true');
       }
     }
-  }, [hasAccess, isAuthZLoading, isFileCountLoading, onBlocked]);
+  }, [
+    hasAccess,
+    isAuthZError,
+    isAuthZLoading,
+    isFileCountError,
+    isFileCountLoading,
+    onBlocked,
+  ]);
 
   if (isAuthZLoading || isFileCountLoading) {
     if (isAppHomePath(router.pathname)) {
       return <VerifyingAccessLoader />;
     }
     return null;
+  }
+
+  if (isAuthZError || isFileCountError) {
+    return (
+      <SessionFailureView
+        detail="Your session is valid, but the access services did not return a usable response."
+        onRetry={() => {
+          void refetchAuthz();
+          void refetchFileCount();
+        }}
+      />
+    );
   }
 
   if (!hasAccess) {

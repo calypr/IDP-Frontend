@@ -22,17 +22,32 @@ import {
   useLazyFetchUserDetailsQuery,
 } from '@gen3/core';
 
-import { Center, Loader, Text } from '@mantine/core';
+import { Center } from '@mantine/core';
 
 import { MinutesToMilliseconds } from '../../utils';
 import { useWorkspaceResourceMonitor } from '../../components/Providers/ResourceMonitor';
 import { VerifyingAccessLoader } from '../../components/Protected/VerifyingAccessLoader';
+import SessionFailureView from '../../components/Protected/SessionFailureView';
 import { WORKSPACES_ENABLED } from '../../features/Workspace/config';
 
 const ACTIVITY_CHANNEL = 'gen3-user-activity';
 const FORCE_LOGOUT_EVENT = 'gen3-force-logout';
 const isAppHomePath = (path?: string): boolean =>
   path === '/' || Boolean(path?.startsWith('/Apps'));
+
+const getRequestErrorStatus = (error: unknown): number | undefined => {
+  if (!error || typeof error !== 'object' || !('status' in error)) return;
+  const status = (error as { status?: unknown }).status;
+  return typeof status === 'number' ? status : undefined;
+};
+
+const getRequestErrorDetail = (error: unknown): string => {
+  if (!error || typeof error !== 'object') return 'The request failed.';
+  if ('data' in error && typeof error.data === 'string') return error.data;
+  if ('error' in error && typeof error.error === 'string') return error.error;
+  const status = getRequestErrorStatus(error);
+  return status ? `Fence returned HTTP ${status}.` : 'The request failed.';
+};
 
 export const requestSessionLogout = ({
   showLoginModal = false,
@@ -52,14 +67,28 @@ export const requestSessionLogout = ({
   );
 };
 
+const fetchWithDeadline = async (
+  input: RequestInfo | URL,
+  init: RequestInit = {},
+  timeoutMs = 12_000,
+) => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
+};
+
 export const logoutSession = async () => {
   // logged in using credentials then execute credentials logout first
   const accessToken = getCookie('credentials_token');
   if (accessToken) {
-    await fetch('/api/auth/credentialsLogout');
+    await fetchWithDeadline('/api/auth/credentialsLogout');
   }
 
-  await fetch(`${GEN3_FENCE_API}/logout?next=${GEN3_REDIRECT_URL}/`, {
+  await fetchWithDeadline(`${GEN3_FENCE_API}/logout?next=${GEN3_REDIRECT_URL}/`, {
     cache: 'no-store',
   });
 };
@@ -200,12 +229,23 @@ export const SessionProvider = ({
 }: SessionProviderProps) => {
   const router = useRouter();
 
-  const { isSuccess: isGetCSRFSuccess, isError: isGetCSRFError } =
-    useGetCSRFQuery();
+  const {
+    isSuccess: isGetCSRFSuccess,
+    isError: isGetCSRFError,
+    error: getCSRFError,
+    refetch: refetchCSRF,
+  } = useGetCSRFQuery();
   useWorkspaceResourceMonitor(monitorWorkspace && WORKSPACES_ENABLED); // monitor workspaces if explicitly enabled
 
-  const [getUserDetails, { isLoading: isUserDetailsLoading }] =
-    useLazyFetchUserDetailsQuery(); // Fetch user details
+  const [
+    getUserDetails,
+    {
+      isLoading: isUserDetailsLoading,
+      isFetching: isUserDetailsFetching,
+      isError: isUserDetailsError,
+      error: userDetailsError,
+    },
+  ] = useLazyFetchUserDetailsQuery(); // Fetch user details
   const userStatus = useCoreSelector((state: CoreState) =>
     selectUserAuthStatus(state),
   );
@@ -398,17 +438,46 @@ export const SessionProvider = ({
   const value: Session = useDeepCompareMemo(() => {
     return {
       ...sessionInfo,
-      pending: sessionInfo.pending || isUserDetailsLoading,
+      pending:
+        sessionInfo.pending || isUserDetailsLoading || isUserDetailsFetching,
       updateSession,
       endSession,
     };
-  }, [sessionInfo, isUserDetailsLoading, updateSession, endSession]);
+  }, [
+    sessionInfo,
+    isUserDetailsLoading,
+    isUserDetailsFetching,
+    updateSession,
+    endSession,
+  ]);
+
+  const restartLogin = useCallback(() => {
+    const next = `${GEN3_REDIRECT_URL}/Login`;
+    window.location.assign(
+      `${GEN3_FENCE_API}/logout?next=${encodeURIComponent(next)}`,
+    );
+  }, []);
 
   if (isGetCSRFError) {
     return (
-      <Center h="100vh">
-        {`Error from the commons services. They do not seem to be running`}
-      </Center>
+      <SessionFailureView
+        detail={`The commons status check failed. ${getRequestErrorDetail(getCSRFError)}`}
+        onRetry={() => void refetchCSRF()}
+        onRestartLogin={restartLogin}
+      />
+    );
+  }
+
+  if (
+    isUserDetailsError &&
+    getRequestErrorStatus(userDetailsError) !== 401
+  ) {
+    return (
+      <SessionFailureView
+        detail={`Fence could not return your user session. ${getRequestErrorDetail(userDetailsError)}`}
+        onRetry={() => void getUserDetails()}
+        onRestartLogin={restartLogin}
+      />
     );
   }
 
@@ -420,7 +489,7 @@ export const SessionProvider = ({
     );
 
   if (isAppHomePath(router.pathname)) {
-    return <VerifyingAccessLoader />;
+    return <VerifyingAccessLoader message="Contacting commons services..." />;
   }
 
   return <Center h="100vh" />;

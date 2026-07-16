@@ -1,6 +1,5 @@
 import React, { useCallback } from 'react';
 import { useRouter } from 'next/router';
-import { showNotification } from '@mantine/notifications';
 import { Center, Stack } from '@mantine/core';
 import TexturedSidePanel from '../Layout/TexturedSidePanel';
 import LoginProvidersPanel from './LoginProvidersPanel';
@@ -37,30 +36,18 @@ const LoginPanel = (loginConfig: LoginConfig) => {
   } = router;
 
   const handleFenceLoginSelected = useCallback(
-    async (loginURL: string) => {
-      router
-        .push(
-          `${appendParameterToUrl(loginURL, 'redirect', filterRedirect(referer))}`,
-        )
-        .catch((e) => {
-          showNotification({
-            title: 'Login Error',
-            message: `error logging in ${e.message}`,
-          });
-        });
+    (loginURL: string) => {
+      window.location.assign(
+        appendParameterToUrl(loginURL, 'redirect', filterRedirect(referer)),
+      );
     },
-    [referer, router],
+    [referer],
   );
 
   const handleCredentialsLogin = useCallback(async () => {
     const redirect = filterRedirect(referer);
-    router.push(redirect).catch((e) => {
-      showNotification({
-        title: 'Login Error',
-        message: `error logging in ${e.message}`,
-      });
-    });
-  }, [referer, router]);
+    window.location.assign(redirect);
+  }, [referer]);
 
   return (
     <div className="grid grid-cols-6 w-full">

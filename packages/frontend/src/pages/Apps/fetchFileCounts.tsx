@@ -2,7 +2,7 @@ import { useGeneralGQLQuery } from '@gen3/core';
 import { useMemo } from 'react';
 
 export const useFileTotalCountQuery = () => {
-  const { data, isLoading, isError } = useGeneralGQLQuery({
+  const { data, isLoading, isError, refetch } = useGeneralGQLQuery({
     query: `query{
               _aggregation {
                 document_reference{
@@ -26,5 +26,5 @@ export const useFileTotalCountQuery = () => {
     return -1;
   }, [data]);
 
-  return { data: cachedCounts, isLoading: isLoading, isError: isError };
+  return { data: cachedCounts, isLoading, isError, refetch };
 };

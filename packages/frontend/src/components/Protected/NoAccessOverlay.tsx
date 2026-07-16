@@ -4,7 +4,7 @@ import { useFileTotalCountQuery } from '../../pages/Apps/fetchFileCounts';
 import { useSession } from '../../lib/session/session';
 
 export function useHasAccess(authz: any) {
-  const { data, isLoading, isError } = useFileTotalCountQuery();
+  const { data, isLoading, isError, refetch } = useFileTotalCountQuery();
   const authzMap = authz ?? {};
 
   const isProgramScopedResource = (resource: string): boolean => {
@@ -81,7 +81,14 @@ export function useHasAccess(authz: any) {
     hasProgramScopedAccess ||
     (data !== undefined && data > 0);
 
-  return { len_access_projects, fileCount: data, isLoading, isError, hasAccess };
+  return {
+    len_access_projects,
+    fileCount: data,
+    isLoading,
+    isError,
+    refetch,
+    hasAccess,
+  };
 }
 
 
