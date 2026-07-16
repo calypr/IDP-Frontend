@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/router';
 import {
   Alert,
@@ -26,6 +25,7 @@ import ProtectedContent from '../../components/Protected/ProtectedContent';
 import { NavPageLayout } from '../../features/Navigation';
 import { useIsEmbedded } from '../../utils';
 import type { GitExplorerPageProps } from './types';
+import { hardNavigate } from './navigation';
 
 const formatBytes = (size: number): string => {
   if (!Number.isFinite(size) || size < 0) {
@@ -230,14 +230,12 @@ const GitProjectFilePage = ({
             <Stack gap={4}>
               <Group justify="space-between" align="flex-start">
                 <div>
-                  <Link
-                    href={`/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}${selectedRef ? `?ref=${encodeURIComponent(selectedRef)}${parentPath ? `&path=${encodeURIComponent(parentPath)}` : ''}` : parentPath ? `?path=${encodeURIComponent(parentPath)}` : ''}`}
-                    legacyBehavior
+                  <a
+                    className="text-sm font-medium text-primary hover:underline"
+                    href={`${router.basePath ?? ''}/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}${selectedRef ? `?ref=${encodeURIComponent(selectedRef)}${parentPath ? `&path=${encodeURIComponent(parentPath)}` : ''}` : parentPath ? `?path=${encodeURIComponent(parentPath)}` : ''}`}
                   >
-                    <a className="text-sm font-medium text-primary hover:underline">
-                      Back to repository tree
-                    </a>
-                  </Link>
+                    Back to repository tree
+                  </a>
                   <Title className="mt-2 leading-tight" order={2}>
                     {breadcrumbSegments[breadcrumbSegments.length - 1] ||
                       filePath}
@@ -276,12 +274,10 @@ const GitProjectFilePage = ({
                     const encodedPath = pathSegments
                       .map((segment) => encodeURIComponent(segment))
                       .join('/');
-                    void router.push({
-                      pathname: `/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}/blob/${encodedPath}`,
-                      query: {
-                        ...(value ? { ref: value } : {}),
-                      },
-                    });
+                    hardNavigate(
+                      router,
+                      `/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}/blob/${encodedPath}${value ? `?ref=${encodeURIComponent(value)}` : ''}`,
+                    );
                   }}
                   placeholder={
                     areRefsLoading ? 'Loading refs...' : 'Select a ref'
@@ -292,12 +288,11 @@ const GitProjectFilePage = ({
               </Group>
 
               <Breadcrumbs>
-                <Link
-                  href={`/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}`}
-                  legacyBehavior
+                <a
+                  href={`${router.basePath ?? ''}/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}`}
                 >
-                  <a>root</a>
-                </Link>
+                  root
+                </a>
                 {breadcrumbSegments.map((segment, index) => (
                   <Text key={`${segment}-${index}`} size="sm">
                     {segment}

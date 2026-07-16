@@ -59,6 +59,7 @@ import { getFileExtensionCandidates } from '../OrganizationExplorer/utils';
 import { useIsEmbedded } from '../../utils';
 import type { GitExplorerPageProps } from './types';
 import GitUploadPRModal from './GitUploadPRModal';
+import { hardNavigate } from './navigation';
 
 const formatBytes = (size: number): string => {
   if (!Number.isFinite(size) || size < 0) {
@@ -549,7 +550,8 @@ const GitProjectPage = ({
       .map((segment) => encodeURIComponent(segment))
       .join('/');
     const query = selectedRef ? `?ref=${encodeURIComponent(selectedRef)}` : '';
-    void router.push(
+    hardNavigate(
+      router,
       `/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}/blob/${encodedPath}${query}`,
     );
   };
@@ -582,17 +584,10 @@ const GitProjectPage = ({
       nextQuery.path = pathSegments.join('/');
     }
 
-    void router.push(
-      {
-        pathname: '/org/[org]/project/[project]',
-        query: {
-          org: organization,
-          project,
-          ...nextQuery,
-        },
-      },
-      undefined,
-      { shallow: true },
+    const queryString = new URLSearchParams(nextQuery).toString();
+    hardNavigate(
+      router,
+      `/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}${queryString ? `?${queryString}` : ''}`,
     );
   };
 
@@ -920,15 +915,13 @@ const GitProjectPage = ({
                           disabled={areRefsLoading || refOptions.length === 0}
                           leftSection={<IconGitBranch size={15} />}
                           onChange={(value) => {
-                            void router.push({
-                              pathname: `/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}`,
-                              query: {
-                                ...(value ? { ref: value } : {}),
-                                ...(currentPath
-                                  ? { path: currentPath }
-                                  : {}),
-                              },
-                            });
+                              const query = new URLSearchParams();
+                              if (value) query.set('ref', value);
+                              if (currentPath) query.set('path', currentPath);
+                              hardNavigate(
+                                router,
+                                `/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}${query.toString() ? `?${query.toString()}` : ''}`,
+                              );
                           }}
                           placeholder={
                             areRefsLoading ? 'Loading refs...' : 'Default ref'
@@ -947,19 +940,17 @@ const GitProjectPage = ({
                           value={effectiveRef}
                         />
                       </div>
-                      <Link
-                        href={`/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}${effectiveRef ? `?ref=${encodeURIComponent(effectiveRef)}` : ''}`}
-                        legacyBehavior
+                      <a
+                        className="min-w-0 no-underline text-primary hover:underline"
+                        href={`${router.basePath ?? ''}/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}${effectiveRef ? `?ref=${encodeURIComponent(effectiveRef)}` : ''}`}
                       >
-                        <a className="min-w-0 no-underline text-primary hover:underline">
-                          <Title
-                            className="truncate text-[1.1rem] leading-tight"
-                            order={3}
-                          >
-                            {project}
-                          </Title>
-                        </a>
-                      </Link>
+                        <Title
+                          className="truncate text-[1.1rem] leading-tight"
+                          order={3}
+                        >
+                          {project}
+                        </Title>
+                      </a>
                       {breadcrumbSegments.map((breadcrumb) => (
                         <React.Fragment key={breadcrumb.pathSegments.join('/')}>
                           <Text c="dimmed" fw={700} size="sm">
@@ -1142,12 +1133,12 @@ const GitProjectPage = ({
                               disabled={areRefsLoading || refOptions.length === 0}
                               leftSection={<IconGitBranch size={15} />}
                               onChange={(value) => {
-                                void router.push({
-                                  pathname: `/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}`,
-                                  query: {
-                                    ...(value ? { ref: value } : {}),
-                                  },
-                                });
+                                const query = new URLSearchParams();
+                                if (value) query.set('ref', value);
+                                hardNavigate(
+                                  router,
+                                  `/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}${query.toString() ? `?${query.toString()}` : ''}`,
+                                );
                               }}
                               placeholder={
                                 areRefsLoading ? 'Loading refs...' : 'Default ref'
