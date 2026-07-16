@@ -83,6 +83,7 @@ import {
   repositoryFullNamesEqual,
 } from './githubConnectState';
 import type { GitExplorerPageProps } from './types';
+import { hardNavigate } from './navigation';
 
 const pluralize = (count: number, singular: string, plural = `${singular}s`) =>
   `${count} ${count === 1 ? singular : plural}`;
@@ -1835,12 +1836,12 @@ const CompactProjectRow = ({
     <div
       className="grid cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-t border-slate-100 px-6 py-2.5 text-sm transition hover:bg-slate-50/80"
       onClick={() => {
-        void router.push(localProjectHref);
+        hardNavigate(router, localProjectHref);
       }}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
-          void router.push(localProjectHref);
+          hardNavigate(router, localProjectHref);
         }
       }}
       role="link"
@@ -2631,15 +2632,12 @@ const GitLandingPage = ({
                             <div className="max-h-[24rem] overflow-y-auto py-2">
                               {searchResults.length > 0 ? (
                                 searchResults.map((result) => (
-                                  <Link
-                                    href={result.href}
+                                  <a
+                                    className="flex items-start gap-3 px-3 py-2 text-left hover:bg-slate-50"
+                                    href={`${router.basePath ?? ''}${result.href}`}
                                     key={result.key}
-                                    legacyBehavior
+                                    onClick={() => setSearchQuery('')}
                                   >
-                                    <a
-                                      className="flex items-start gap-3 px-3 py-2 text-left hover:bg-slate-50"
-                                      onClick={() => setSearchQuery('')}
-                                    >
                                       {result.kind === 'organization' ? (
                                         <IconBuildingBank
                                           className="mt-0.5 text-slate-500"
@@ -2663,8 +2661,7 @@ const GitLandingPage = ({
                                           {result.sublabel}
                                         </Text>
                                       </div>
-                                    </a>
-                                  </Link>
+                                  </a>
                                 ))
                               ) : (
                                 <Text
