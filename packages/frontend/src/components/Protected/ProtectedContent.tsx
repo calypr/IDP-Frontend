@@ -1,7 +1,7 @@
 import React, { ReactNode, useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { useSession } from '../../lib/session/session';
-import { Loader, Text } from '@mantine/core';
+import { Text } from '@mantine/core';
 import { type JWTSessionStatus } from '@gen3/core';
 import { LoginView } from '../Modals/LoginModal';
 
@@ -13,7 +13,7 @@ export interface ProtectedContentProps {
 }
 
 import { useGetAuthzMappingsQuery } from '@gen3/core';
-import { useHasAccess, NoAccessOverlay } from './NoAccessOverlay';
+import { hasFenceAccess, NoAccessOverlay } from './NoAccessOverlay';
 
 import { VerifyingAccessLoader } from './VerifyingAccessLoader';
 export { VerifyingAccessLoader };
@@ -27,22 +27,23 @@ const AccessGate = ({
   onBlocked,
 }: ProtectedContentProps & { onBlocked: () => void }) => {
   const router = useRouter();
-  const { data: authzMapping = {}, isLoading: isAuthZLoading } =
-    useGetAuthzMappingsQuery();
-  const { hasAccess, isLoading: isFileCountLoading } =
-    useHasAccess(authzMapping);
+  const {
+    data: authzMapping = {},
+    isLoading: isAuthZLoading,
+  } = useGetAuthzMappingsQuery();
+  const hasAccess = hasFenceAccess(authzMapping);
 
   useEffect(() => {
-    if (!isAuthZLoading && !isFileCountLoading) {
+    if (!isAuthZLoading) {
       if (!hasAccess) {
         onBlocked();
       } else {
         sessionStorage.setItem('hasVerifiedAccess', 'true');
       }
     }
-  }, [hasAccess, isAuthZLoading, isFileCountLoading, onBlocked]);
+  }, [hasAccess, isAuthZLoading, onBlocked]);
 
-  if (isAuthZLoading || isFileCountLoading) {
+  if (isAuthZLoading) {
     if (isAppHomePath(router.pathname)) {
       return <VerifyingAccessLoader />;
     }
