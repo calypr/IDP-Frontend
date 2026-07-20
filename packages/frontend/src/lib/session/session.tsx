@@ -88,9 +88,13 @@ export const logoutSession = async () => {
     await fetchWithDeadline('/api/auth/credentialsLogout');
   }
 
-  await fetchWithDeadline(`${GEN3_FENCE_API}/logout?next=${GEN3_REDIRECT_URL}/`, {
-    cache: 'no-store',
-  });
+  await fetchWithDeadline(
+    `${GEN3_FENCE_API}/logout?next=${GEN3_REDIRECT_URL}/`,
+    {
+      cache: 'no-store',
+      redirect: 'manual',
+    },
+  );
 };
 
 function useOnline() {
@@ -253,6 +257,15 @@ export const SessionProvider = ({
   const [mostRecentActivityTimestamp, setMostRecentActivityTimestamp] =
     useState(Date.now());
   const forcedLogoutInFlightRef = useRef(false);
+  const userVerificationPromiseRef = useRef<Promise<void> | null>(null);
+  const homeUnauthorizedRef = useRef(false);
+  const [isUserVerificationPending, setIsUserVerificationPending] =
+    useState(true);
+  const [isHomeRouteTransitionPending, setIsHomeRouteTransitionPending] =
+    useState(false);
+  const [isLogoutTransitionPending, setIsLogoutTransitionPending] =
+    useState(false);
+  const homeNavigationVerificationRef = useRef<Promise<void> | null>(null);
 
   const broadcastChannelRef = useRef<BroadcastChannel | null>(null);
 
@@ -304,6 +317,7 @@ export const SessionProvider = ({
   const endSession = useCallback(
     async (shouldRedirect = true) => {
       if (shouldRedirect && typeof window !== 'undefined') {
+        setIsLogoutTransitionPending(true);
         const accessToken = getCookie('credentials_token');
         if (accessToken) {
           try {
@@ -331,7 +345,11 @@ export const SessionProvider = ({
           message: `error logging out ${e instanceof Error ? e.message : String(e)}`,
         });
       } finally {
-        void getUserDetails();
+        try {
+          await getUserDetails().unwrap();
+        } catch {
+          // The post-logout user request is expected to be unauthorized.
+        }
       }
     },
     [getUserDetails],
@@ -348,9 +366,11 @@ export const SessionProvider = ({
       }
 
       forcedLogoutInFlightRef.current = true;
+      setIsUserVerificationPending(true);
 
       void endSession(false).finally(() => {
         forcedLogoutInFlightRef.current = false;
+        setIsUserVerificationPending(false);
       });
     };
 
@@ -361,24 +381,113 @@ export const SessionProvider = ({
     };
   }, [endSession]);
 
-  const updateSession = useCallback(() => {
-    const updateSessionWithUserStatus = async () => {
+  const updateSession = useCallback((): Promise<void> => {
+    if (isAppHomePath(router.pathname) && homeUnauthorizedRef.current) {
+      setIsUserVerificationPending(false);
+      return Promise.resolve();
+    }
+
+    if (userVerificationPromiseRef.current) {
+      return userVerificationPromiseRef.current;
+    }
+
+    setIsUserVerificationPending(true);
+
+    const verification = (async () => {
+      const hasBearerCredential = Boolean(getCookie('credentials_token'));
+
       try {
         await getUserDetails().unwrap();
-      } catch (err: any) {
-        if (err?.status === 401) {
-          endSession(false);
+        homeUnauthorizedRef.current = false;
+      } catch (error: unknown) {
+        const isUnauthorized = getRequestErrorStatus(error) === 401;
+        if (isUnauthorized && isAppHomePath(router.pathname)) {
+          homeUnauthorizedRef.current = true;
+        }
+
+        if (
+          hasBearerCredential &&
+          isUnauthorized &&
+          !forcedLogoutInFlightRef.current
+        ) {
+          // The 401 has already resolved authentication as logged out. Clear
+          // the rejected bearer session without issuing another /user request.
+          forcedLogoutInFlightRef.current = true;
+          void logoutSession()
+            .catch((logoutError: unknown) => {
+              showNotification({
+                title: 'Logout Error',
+                message: `error logging out ${
+                  logoutError instanceof Error
+                    ? logoutError.message
+                    : String(logoutError)
+                }`,
+              });
+            })
+            .finally(() => {
+              forcedLogoutInFlightRef.current = false;
+            });
         }
       }
+    })();
+
+    userVerificationPromiseRef.current = verification;
+    void verification.finally(() => {
+      if (userVerificationPromiseRef.current === verification) {
+        userVerificationPromiseRef.current = null;
+        setIsUserVerificationPending(false);
+      }
+    });
+    return verification;
+  }, [getUserDetails, router.pathname]);
+
+  useEffect(() => {
+    const routePath = (url: string) => url.split(/[?#]/, 1)[0];
+
+    const handleRouteChangeStart = (url: string) => {
+      if (!isAppHomePath(routePath(url))) return;
+
+      setIsHomeRouteTransitionPending(true);
+      homeNavigationVerificationRef.current = updateSession();
     };
 
-    updateSessionWithUserStatus();
-  }, [getUserDetails, endSession]);
+    const handleRouteChangeComplete = (url: string) => {
+      if (!isAppHomePath(routePath(url))) {
+        homeNavigationVerificationRef.current = null;
+        setIsHomeRouteTransitionPending(false);
+        return;
+      }
+
+      const verification =
+        homeNavigationVerificationRef.current ?? updateSession();
+      void verification.finally(() => {
+        if (homeNavigationVerificationRef.current === verification) {
+          homeNavigationVerificationRef.current = null;
+          setIsHomeRouteTransitionPending(false);
+        }
+      });
+    };
+
+    const handleRouteChangeError = () => {
+      homeNavigationVerificationRef.current = null;
+      setIsHomeRouteTransitionPending(false);
+    };
+
+    router.events.on('routeChangeStart', handleRouteChangeStart);
+    router.events.on('routeChangeComplete', handleRouteChangeComplete);
+    router.events.on('routeChangeError', handleRouteChangeError);
+
+    return () => {
+      router.events.off('routeChangeStart', handleRouteChangeStart);
+      router.events.off('routeChangeComplete', handleRouteChangeComplete);
+      router.events.off('routeChangeError', handleRouteChangeError);
+    };
+  }, [router.events, updateSession]);
   /**
    * Update session value every updateSessionInterval seconds
    */
   useEffect(() => {
-    updateSession();
+    void updateSession();
 
     if (updateSessionIntervalMilliseconds <= 0) return; // do not poll if updateSessionInterval is 0
 
@@ -455,7 +564,7 @@ export const SessionProvider = ({
         mostRecentSessionRefreshTimestamp,
         (ts: number) => setMostRecentSessionRefreshTimestamp(ts),
       );
-      updateSession();
+      void updateSession();
     },
     updateSessionIntervalMilliseconds > 0
       ? updateSessionIntervalMilliseconds
@@ -466,12 +575,16 @@ export const SessionProvider = ({
     return {
       ...sessionInfo,
       pending:
-        sessionInfo.pending || isUserDetailsLoading || isUserDetailsFetching,
+        sessionInfo.pending ||
+        isUserVerificationPending ||
+        isUserDetailsLoading ||
+        isUserDetailsFetching,
       updateSession,
       endSession,
     };
   }, [
     sessionInfo,
+    isUserVerificationPending,
     isUserDetailsLoading,
     isUserDetailsFetching,
     updateSession,
@@ -495,10 +608,7 @@ export const SessionProvider = ({
     );
   }
 
-  if (
-    isUserDetailsError &&
-    getRequestErrorStatus(userDetailsError) !== 401
-  ) {
+  if (isUserDetailsError && getRequestErrorStatus(userDetailsError) !== 401) {
     return (
       <SessionFailureView
         detail={`Fence could not return your user session. ${getRequestErrorDetail(userDetailsError)}`}
@@ -508,10 +618,24 @@ export const SessionProvider = ({
     );
   }
 
+  if (isGetCSRFSuccess && isAppHomePath(router.pathname) && value.pending) {
+    return <VerifyingAccessLoader />;
+  }
+
   if (isGetCSRFSuccess)
     return (
       <SessionContext.Provider value={value}>
-        {children}
+        {isHomeRouteTransitionPending || isLogoutTransitionPending ? (
+          <VerifyingAccessLoader
+            message={
+              isLogoutTransitionPending
+                ? 'Signing out...'
+                : 'Loading home page...'
+            }
+          />
+        ) : (
+          children
+        )}
       </SessionContext.Provider>
     );
 

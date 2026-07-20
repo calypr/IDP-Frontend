@@ -1,5 +1,3 @@
-import { useState } from 'react';
-import { useDeepCompareEffect } from 'use-deep-compare';
 import useSWR from 'swr';
 import { AuthTokenData } from './types';
 import type { IncomingMessage } from 'http';
@@ -95,43 +93,31 @@ export type SessionContextValue = {
 export const useManageSession = (
   userStatus: LoginStatus,
 ): SessionContextValue => {
-  const [session, setSession] = useState<SessionContextValue>({
-    status: 'not present',
-    pending: true,
-  });
-
-  useDeepCompareEffect(() => {
-    if (userStatus === 'authenticated') {
-      setSession((prev) => ({
-        ...prev,
-        userStatus: 'authenticated',
+  switch (userStatus) {
+    case 'authenticated':
+      return {
+        userStatus,
         status: 'issued',
         pending: false,
-      }));
-    } else if (userStatus === 'not present') {
-      // if (isSuccess && existingSession && existingSession.status === 'issued') {
-      setSession((prev) => ({
-        ...prev,
+      };
+    case 'pending':
+      return {
+        userStatus,
+        status: 'not present',
+        pending: true,
+      };
+    case 'unauthenticated':
+      return {
+        userStatus,
+        status: 'invalid',
+        pending: false,
+      };
+    case 'not present':
+    default:
+      return {
         userStatus: 'not present',
         status: 'not present',
         pending: false,
-      }));
-    } else if (userStatus === 'pending') {
-      setSession((prev) => ({
-        ...prev,
-        pending: true,
-        status: 'not present',
-        userStatus: 'pending',
-      }));
-    } else if (userStatus === 'unauthenticated') {
-      setSession((prev) => ({
-        ...prev,
-        pending: false,
-        status: 'invalid',
-        userStatus: 'unauthenticated',
-      }));
-    }
-  }, [userStatus]);
-
-  return session;
+      };
+  }
 };

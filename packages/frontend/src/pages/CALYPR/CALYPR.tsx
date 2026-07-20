@@ -6,8 +6,6 @@ import {
   Button,
   Divider,
   Image,
-  Center,
-  Loader,
 } from '@mantine/core';
 import { CalyprLandingPageProps } from './types';
 import { LandingPageProps } from '../../components/Content/LandingPageContent';
@@ -50,33 +48,10 @@ const BannerPanel = ({
     </div>
   );
 };
-const CalyprPage = ({
-  headerProps,
-  footerProps,
-  hasAuthenticatedSession = false,
-}: Props) => {
-  const session = useSession(false);
-  const shouldShowAuthenticatedHome =
-    hasAuthenticatedSession || session.status === 'issued';
+const CalyprPage = ({ headerProps, footerProps }: Props) => {
+  const { status } = useSession(false);
 
-  if (session.pending && !shouldShowAuthenticatedHome) {
-    return (
-      <NavPageLayout
-        {...{ headerProps, footerProps }}
-        headerMetadata={{
-          title: 'CALYPR Home',
-          content: 'Loading home page',
-          key: 'calypr-home-loading',
-        }}
-      >
-        <Center className="min-h-[60vh]">
-          <Loader />
-        </Center>
-      </NavPageLayout>
-    );
-  }
-
-  if (shouldShowAuthenticatedHome) {
+  if (status === 'issued') {
     return (
       <AppsPage
         {...{ headerProps, footerProps }}

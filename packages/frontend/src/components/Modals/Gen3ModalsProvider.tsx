@@ -58,9 +58,10 @@ const Gen3ModalsProvider = ({
   config,
   children,
 }: Gen3StandardModalsProviderProps) => {
+  const { isAuthenticated } = useIsAuthenticated();
   // TODO: move this to another
   const { isError } = useGetCSRFQuery(undefined, { refetchOnFocus: true });
-  useGetAuthzMappingsQuery();
+  useGetAuthzMappingsQuery(undefined, { skip: !isAuthenticated });
 
   const [cookie] = useCookies(['Gen3-first-time-use']);
   const dispatch = useCoreDispatch();
@@ -72,8 +73,6 @@ const Gen3ModalsProvider = ({
     () => defaultComposer(defaultConfig, config),
     [config],
   );
-  const { isAuthenticated } = useIsAuthenticated();
-
   useDeepCompareEffect(() => {
     if (
       !cookie['Gen3-first-time-use'] &&
