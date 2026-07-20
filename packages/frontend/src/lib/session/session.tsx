@@ -260,7 +260,8 @@ export const SessionProvider = ({
   // any user event on one tab or window will update mostRecentActivityTimestamp
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      broadcastChannelRef.current = new BroadcastChannel(ACTIVITY_CHANNEL);
+      const channel = new BroadcastChannel(ACTIVITY_CHANNEL);
+      broadcastChannelRef.current = channel;
 
       // Listen for activity updates from other tabs
       const handleActivityMessage = (event: MessageEvent) => {
@@ -269,18 +270,13 @@ export const SessionProvider = ({
         }
       };
 
-      broadcastChannelRef.current.addEventListener(
-        'message',
-        handleActivityMessage,
-      );
+      channel.addEventListener('message', handleActivityMessage);
 
       return () => {
-        if (broadcastChannelRef.current) {
-          broadcastChannelRef.current.removeEventListener(
-            'message',
-            handleActivityMessage,
-          );
-          broadcastChannelRef.current.close();
+        channel.removeEventListener('message', handleActivityMessage);
+        channel.close();
+        if (broadcastChannelRef.current === channel) {
+          broadcastChannelRef.current = null;
         }
       };
     }
@@ -307,21 +303,38 @@ export const SessionProvider = ({
   // for now, we are using the user status to determine if the user is logged in
   const endSession = useCallback(
     async (shouldRedirect = true) => {
-      logoutSession()
-        .then(() => {
-          getUserDetails();
-        })
-        .catch((e: unknown) => {
-          showNotification({
-            title: 'Logout Error',
-            message: `error logging in ${e instanceof Error ? e.message : String(e)}`,
-          });
-        })
-        .finally(() => {
-          if (shouldRedirect) router.push('/'); // TODO replace with config option
+      if (shouldRedirect && typeof window !== 'undefined') {
+        const accessToken = getCookie('credentials_token');
+        if (accessToken) {
+          try {
+            await fetchWithDeadline('/api/auth/credentialsLogout');
+          } catch (e: unknown) {
+            showNotification({
+              title: 'Logout Error',
+              message: `error logging out ${e instanceof Error ? e.message : String(e)}`,
+            });
+          }
+        }
+
+        const next = `${GEN3_REDIRECT_URL}/`;
+        window.location.assign(
+          `${GEN3_FENCE_API}/logout?next=${encodeURIComponent(next)}`,
+        );
+        return;
+      }
+
+      try {
+        await logoutSession();
+      } catch (e: unknown) {
+        showNotification({
+          title: 'Logout Error',
+          message: `error logging out ${e instanceof Error ? e.message : String(e)}`,
         });
+      } finally {
+        void getUserDetails();
+      }
     },
-    [getUserDetails, router],
+    [getUserDetails],
   );
 
   useEffect(() => {
@@ -373,11 +386,25 @@ export const SessionProvider = ({
       const timestamp = Date.now();
       setMostRecentActivityTimestamp(timestamp);
 
-      if (broadcastChannelRef.current) {
-        broadcastChannelRef.current.postMessage({
-          type: 'activity-update',
-          timestamp,
-        });
+      const channel = broadcastChannelRef.current;
+      if (channel) {
+        try {
+          channel.postMessage({
+            type: 'activity-update',
+            timestamp,
+          });
+        } catch (error) {
+          if (
+            error instanceof DOMException &&
+            error.name === 'InvalidStateError'
+          ) {
+            if (broadcastChannelRef.current === channel) {
+              broadcastChannelRef.current = null;
+            }
+          } else {
+            throw error;
+          }
+        }
       }
     };
 
