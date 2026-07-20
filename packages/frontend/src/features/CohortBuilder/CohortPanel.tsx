@@ -4,17 +4,20 @@ import {
   Accessibility,
   AggregationsData,
   CombineMode,
+  convertFilterSetToLoomFilters,
   CoreState,
   extractEnumFilterValue,
   FacetDefinition,
   FacetType,
+  isExplorerDataType,
   isIntersection,
-  selectCurrentCohortId,
   selectIndexFilters,
   selectSharedFilters,
   useCoreSelector,
-  useGetAggsQuery,
-  useGetCountsQuery,
+  toLoomDataType,
+  useGetLoomAggregationsQuery,
+  useGetLoomCountQuery,
+  useGetLoomDatasetQuery,
 } from '@gen3/core';
 import { type CohortPanelConfiguration, type FileActionsConfig } from './types';
 import { type SummaryChart } from '../../components/charts/types';
@@ -103,6 +106,9 @@ export const CohortPanel = ({
   }, [isSm, isMd, isXl]);
 
   const index = guppyConfig.dataType;
+  const loomDataType = isExplorerDataType(index)
+    ? toLoomDataType(index)
+    : null;
   const fields = useMemo(
     () => getAllFieldsFromFilterConfigs(filters?.tabs ?? []),
     [filters?.tabs],
@@ -118,22 +124,40 @@ export const CohortPanel = ({
   const cohortFilters = useCoreSelector((state: CoreState) =>
     selectIndexFilters(state, index),
   );
-  const cohortId = useCoreSelector((state: CoreState) =>
-    selectCurrentCohortId(state),
-  );
+  const loomFilters = useMemo(() => {
+    try {
+      return {
+        filters: convertFilterSetToLoomFilters(cohortFilters),
+        error: null,
+      };
+    } catch (error) {
+      return {
+        filters: [],
+        error: error instanceof Error ? error.message : 'Unsupported Loom filter',
+      };
+    }
+  }, [cohortFilters]);
+  const {
+    data: dataset,
+    isError: isDatasetError,
+    isLoading: isDatasetLoading,
+  } = useGetLoomDatasetQuery(loomDataType ?? 'DocumentReference', {
+    skip: !loomDataType,
+  });
 
   const {
     data,
     isSuccess,
     isFetching: isAggsQueryFetching,
     isError: isAggsQueryError,
-  } = useGetAggsQuery({
-    type: index,
+  } = useGetLoomAggregationsQuery(
+    {
+    dataType: loomDataType ?? 'DocumentReference',
     fields,
-    filters: cohortFilters,
-    accessibility: accessLevel,
-    queryId: cohortId,
-  });
+    filters: loomFilters.filters,
+    },
+    { skip: !loomDataType || !!loomFilters.error },
+  );
 
   const chartKeys = useDeepCompareMemo(
     () => [...Object.keys(chartsSection?.charts ?? {}), ...Object.keys(charts)],
@@ -145,16 +169,13 @@ export const CohortPanel = ({
     isSuccess: isChartSuccess,
     isFetching: isChartFetching,
     isError: isChartError,
-  } = useGetAggsQuery(
+  } = useGetLoomAggregationsQuery(
     {
-      type: index,
+      dataType: loomDataType ?? 'DocumentReference',
       fields: chartKeys,
-      filters: cohortFilters,
-      accessibility: accessLevel,
-      filterSelf: true,
-      queryId: cohortId,
+      filters: loomFilters.filters,
     },
-    { skip: chartKeys.length === 0 },
+    { skip: chartKeys.length === 0 || !loomDataType || !!loomFilters.error },
   );
 
   const cleanChartData = useDeepCompareMemo(() => {
@@ -328,13 +349,34 @@ export const CohortPanel = ({
     isFetching: isCountsFetching,
     isSuccess: isCountSuccess,
     isError: isCountsError,
-  } = useGetCountsQuery({
-    type: index,
-    filters: cohortFilters,
-    accessibility: accessLevel,
-    queryId: cohortId,
-  });
+  } = useGetLoomCountQuery({
+    dataType: loomDataType ?? 'DocumentReference',
+    filters: loomFilters.filters,
+    operation: 'COUNT',
+  }, { skip: !loomDataType || !!loomFilters.error });
 
+  if (!loomDataType) {
+    return <ErrorCard message={`Unsupported Explorer data type: ${index}`} />;
+  }
+  if (loomFilters.error) {
+    return <ErrorCard message={loomFilters.error} />;
+  }
+  if (isDatasetError) {
+    return <ErrorCard message="Unable to discover the authorized Loom dataset" />;
+  }
+  if (isDatasetLoading) {
+    return (
+      <div className="flex items-center justify-center w-full h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
+      </div>
+    );
+  }
+  if (!dataset) {
+    return <ErrorCard message="No authorized Loom dataset is available for this Explorer tab" />;
+  }
+  if (dataset.state !== 'READY') {
+    return <ErrorCard message={`Loom dataset is ${dataset.state.toLowerCase()}${dataset.error ? `: ${dataset.error}` : ''}`} />;
+  }
   if (isCountsError || isAggsQueryError) {
     return <ErrorCard message="Unable to fetch data from server" />;
   }

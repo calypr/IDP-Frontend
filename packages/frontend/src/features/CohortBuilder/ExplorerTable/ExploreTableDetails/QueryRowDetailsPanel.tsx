@@ -1,7 +1,13 @@
 import React, { useEffect, useMemo } from 'react';
 import { LoadingOverlay, Stack, Table, Text } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { useGetRawDataAndTotalCountsQuery } from '@gen3/core';
+import {
+  convertFilterSetToLoomFilters,
+  isExplorerDataType,
+  toLoomDataType,
+  useGetLoomDatasetQuery,
+  useGetLoomRowsQuery,
+} from '@gen3/core';
 import { MdKeyboardDoubleArrowLeft as BackIcon } from 'react-icons/md';
 import ErrorCard from '../../../../components/MessageCards/ErrorCard';
 import { TableDetailsPanelProps } from './types';
@@ -11,31 +17,15 @@ import { isArray } from 'lodash';
 import { useStudyContext } from '../../../Study/StudyProvider';
 import { SinglePageStudyDetailsPanel } from '../../../Study';
 
-interface QueryResponse {
-  data?: Record<string, Array<any>>;
-}
-
-function isQueryResponse(obj: any): obj is QueryResponse {
-  // Considering that the data property can be optional
-  return (
-    typeof obj === 'object' &&
-    (obj.data === undefined || typeof obj.data === 'object')
-  );
-}
-
 const ExtractData = (
-  data: QueryResponse,
-  index: string,
+  row: Record<string, any> | undefined,
   path?: string,
 ): Record<string, any> => {
-  if (data === undefined || data === null) return {};
-  if (data.data === undefined || data.data === null) return {};
+  if (!row) return {};
 
-  if (!isArray(data.data[index])) return {};
-
-  let rowData = data.data[index][0];
+  let rowData = row;
   if (path) {
-    const tmp = JSONPath({ path: path, json: data.data[index][0] });
+    const tmp = JSONPath({ path: path, json: row });
     if (!isArray(tmp)) {
       return {};
     }
@@ -59,35 +49,55 @@ export const QueryRowDetailsPanel = ({
   const { setStudyDetails } = useStudyContext();
   const [opened, { open, close }] = useDisclosure(false);
 
-  const { data, isError, isFetching } = useGetRawDataAndTotalCountsQuery(
+  const loomDataType = isExplorerDataType(index)
+    ? toLoomDataType(index)
+    : null;
+  const loomFilters = useMemo(() => {
+    if (!idField || !id) return { filters: [], error: null };
+    try {
+      return {
+        filters: convertFilterSetToLoomFilters({
+          mode: 'and',
+          root: {
+            [idField]: buildNested(idField, {
+              operator: '=',
+              field: idField,
+              operand: id,
+            }),
+          },
+        }),
+        error: null,
+      };
+    } catch (error) {
+      return {
+        filters: [],
+        error: error instanceof Error ? error.message : 'Unsupported Loom filter',
+      };
+    }
+  }, [id, idField]);
+  const {
+    data: dataset,
+    isError: isDatasetError,
+    isLoading: isDatasetLoading,
+  } = useGetLoomDatasetQuery(loomDataType ?? 'DocumentReference', {
+    skip: !loomDataType,
+  });
+  const { data, isError: isRowsError, isFetching } = useGetLoomRowsQuery(
     {
-      type: index,
+      dataType: loomDataType ?? 'DocumentReference',
       fields: tableConfig.fields as string[],
-      filters: {
-        mode: 'and',
-        root: {
-          [idField as string]: buildNested(idField as string, {
-            operator: '=',
-            field: idField as string,
-            operand: id as string,
-          }),
-        },
-      },
-      offset: 0,
-      size: 1,
-      accessibility: accessibility,
+      filters: loomFilters.filters,
+      first: 1,
     },
     {
-      skip: !idField || !id, // if no ide do not send request
+      skip: !loomDataType || !idField || !id || !!loomFilters.error,
     },
   );
 
   const queryData = useMemo(
     () =>
-      isQueryResponse(data)
-        ? ExtractData(data, index, tableConfig?.detailsConfig?.dataPath)
-        : {},
-    [data, index, tableConfig?.detailsConfig?.dataPath],
+      ExtractData(data?.rows?.[0], tableConfig?.detailsConfig?.dataPath),
+    [data, tableConfig?.detailsConfig?.dataPath],
   );
 
   useEffect(() => {
@@ -100,8 +110,20 @@ export const QueryRowDetailsPanel = ({
     );
   }
 
-  if (isError) {
+  if (!loomDataType) {
+    return <ErrorCard message={`Unsupported Explorer data type: ${index}`} />;
+  }
+  if (loomFilters.error) {
+    return <ErrorCard message={loomFilters.error} />;
+  }
+  if (isDatasetError || isRowsError) {
     return <ErrorCard message={'Error occurred while fetching data'} />;
+  }
+  if (isDatasetLoading) {
+    return <LoadingOverlay visible />;
+  }
+  if (!dataset || dataset.state !== 'READY') {
+    return <ErrorCard message="Loom dataset is not ready for detail lookup" />;
   }
 
   // Inital attempt at using Study Details component

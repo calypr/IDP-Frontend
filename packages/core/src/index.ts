@@ -10,6 +10,7 @@ import {
   GEN3_GRIP_API,
   GEN3_GECKO_API,
   GEN3_GUPPY_API,
+  GEN3_LOOM_API,
   GEN3_MANIFEST_API,
   GEN3_MDS_API,
   GEN3_REDIRECT_URL,
@@ -43,6 +44,7 @@ export * from './features/gen3Apps';
 export * from './features/gecko';
 export * from './features/graphQL';
 export * from './features/guppy';
+export * from './features/loom';
 export * from './features/manifest';
 export * from './features/metadata';
 export * from './features/modals';
@@ -62,6 +64,7 @@ export {
   GEN3_API,
   GEN3_DOWNLOADS_ENDPOINT,
   GEN3_GUPPY_API,
+  GEN3_LOOM_API,
   GEN3_GRIP_API,
   GEN3_GECKO_API,
   GEN3_FENCE_API,

@@ -1,4 +1,4 @@
-import { downloadFromGuppyToBlob, GuppyDownloadDataParams } from '@gen3/core';
+import { downloadFromLoomToBlob, LoomDownloadParams } from '@gen3/core';
 import { handleDownload } from './utils';
 
 export const downloadToFileAction = async (
@@ -8,9 +8,9 @@ export const downloadToFileAction = async (
   onAbort?: () => void,
   signal?: AbortSignal,
 ): Promise<void> => {
-  // call the downloadFromGuppy function
-  await downloadFromGuppyToBlob({
-    parameters: params as GuppyDownloadDataParams,
+  // Call the principal-scoped Loom export endpoint.
+  await downloadFromLoomToBlob({
+    parameters: params as LoomDownloadParams,
     onDone: (data: Blob) => {
       handleDownload(data, params.filename);
       if (done) done();

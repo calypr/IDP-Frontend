@@ -1,8 +1,8 @@
 import {
-  downloadJSONDataFromGuppy,
+  downloadJSONDataFromLoom,
   Equals,
   FilterSet,
-  GuppyDownloadDataParams,
+  LoomDownloadParams,
   Includes,
   JSONObject,
 } from '@gen3/core';
@@ -58,11 +58,10 @@ export const downloadToManifestAction = async (
   const manifestFields = fileFields ?? DEFAULT_FILE_FIELDS;
   const manifestFilename = params?.filename ?? `${params.type}_manifest.json`;
 
-  const cohortFilterParams: GuppyDownloadDataParams = {
+  const cohortFilterParams: LoomDownloadParams = {
     filter: params.filter,
     type: params.type,
     fields: params.fields,
-    accessibility: params.accessibility,
     sort: params.sort,
     format: 'json',
   };
@@ -70,7 +69,7 @@ export const downloadToManifestAction = async (
   // getting data from the same index.
   if (params.type === resourceIndexType) {
     try {
-      let resultManifest = await downloadJSONDataFromGuppy({
+      let resultManifest = await downloadJSONDataFromLoom({
         parameters: {
           ...cohortFilterParams,
           fields: [referenceIdFieldInDataIndex, ...manifestFields],
@@ -106,7 +105,7 @@ export const downloadToManifestAction = async (
   // join data from two different indices
   try {
     // get a list of reference IDs from the data index using the current cohort filters
-    let refIDList = await downloadJSONDataFromGuppy({
+    let refIDList = await downloadJSONDataFromLoom({
       parameters: {
         ...cohortFilterParams,
         fields: [referenceIdFieldInDataIndex],
@@ -139,7 +138,7 @@ export const downloadToManifestAction = async (
       },
     };
 
-    let resultManifest = await downloadJSONDataFromGuppy({
+    let resultManifest = await downloadJSONDataFromLoom({
       parameters: {
         ...cohortFilterParams,
         type: resourceIndexType,

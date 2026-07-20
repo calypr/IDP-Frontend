@@ -9,10 +9,11 @@ import {
 import {
   fetchJSONDataFromURL,
   GEN3_COMMONS_NAME,
-  GEN3_GUPPY_API,
+  GEN3_LOOM_API,
   groupSharedFields,
   HttpMethod,
   SharedFieldMapping,
+  toLoomDataType,
 } from '@gen3/core';
 import { isArray } from 'lodash';
 import type { NavPageLayoutProps } from '../../features/Navigation';
@@ -35,23 +36,49 @@ const GetSharedFieldMapping = async (
 
   if (cohortBuilderConfiguration?.sharedFilters) {
     if (cohortBuilderConfiguration?.sharedFilters?.autoCreate) {
-      const indices = cohortBuilderConfiguration?.explorerConfig.map(
-        (tab) => tab.guppyConfig.dataType,
-      );
+      const tabs = cohortBuilderConfiguration?.explorerConfig ?? [];
 
       try {
-        const data = await fetchJSONDataFromURL<any>(
-          `${GEN3_GUPPY_API}/graphql`,
+        const dataTypes = Array.from(
+          new Set(tabs.map((tab) => toLoomDataType(tab.guppyConfig.dataType))),
+        );
+        const selections = dataTypes
+          .map(
+            (dataType, index) =>
+              `d${index}: dataframeDataset(input: { dataType: ${JSON.stringify(dataType)} }) { name columns { name } }`,
+          )
+          .join(' ');
+        const response = await fetchJSONDataFromURL<{
+          data?: Record<
+            string,
+            { name: string; columns: Array<{ name: string }> } | null
+          >;
+        }>(
+          `${GEN3_LOOM_API}/graphql/flat`,
           true,
           HttpMethod.POST,
-          { query: `{ _mapping { ${indices.join(' ')} }}`, variables: {} },
+          JSON.stringify({
+            query: `query ExplorerDatasets { ${selections} }`,
+            variables: {},
+          }),
         );
-        if ('_mapping' in data.data) {
-          sharedFiltersMap = groupSharedFields(data.data['_mapping']);
+        const fieldsByExplorerType = Object.fromEntries(
+          tabs.map((tab) => {
+            const loomType = toLoomDataType(tab.guppyConfig.dataType);
+            const datasetIndex = dataTypes.indexOf(loomType);
+            const dataset = response?.data?.[`d${datasetIndex}`];
+            return [
+              tab.guppyConfig.dataType,
+              dataset?.columns.map((column) => column.name) ?? [],
+            ];
+          }),
+        );
+        if (response?.data && Object.keys(fieldsByExplorerType).length > 0) {
+          sharedFiltersMap = groupSharedFields(fieldsByExplorerType);
         }
       } catch (err: unknown) {
         if (err instanceof Error) {
-          console.warn('Unable to get mapping data from guppy:', err);
+          console.warn('Unable to get Explorer field mapping from Loom:', err);
         }
       }
     }

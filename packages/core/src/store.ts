@@ -5,6 +5,7 @@ import { CoreState, rootReducer } from './reducers';
 import { gen3ServicesReducerMiddleware } from './features/gen3/gen3Api';
 import { guppyAPISliceMiddleware } from './features/guppy/guppyApi';
 import { userAuthApiMiddleware } from './features/user/userSliceRTK';
+import { loomApiSliceMiddleware } from './features/loom/loomApi';
 import { coreStoreListenerMiddleware } from './listeners';
 import {
   persistReducer,
@@ -50,6 +51,7 @@ export const setupCoreStore = (preloadedState?: Partial<CoreState>) =>
         .concat(
           gen3ServicesReducerMiddleware,
           guppyAPISliceMiddleware,
+          loomApiSliceMiddleware,
           userAuthApiMiddleware,
         )
         .prepend(coreStoreListenerMiddleware.middleware), // needs to be prepended,

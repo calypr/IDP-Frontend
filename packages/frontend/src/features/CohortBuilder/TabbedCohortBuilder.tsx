@@ -1,22 +1,26 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import { Stack } from '@mantine/core';
 import {
   Accessibility,
   CombineMode,
+  convertFilterSetToLoomFilters,
   CoreState,
   extractEnumFilterValue,
   FacetDefinition,
   FacetType,
   isIntersection,
-  selectCurrentCohortId,
+  isExplorerDataType,
   selectIndexFilters,
+  toLoomDataType,
   useCoreSelector,
-  useGetAggsQuery,
-  useGetCountsQuery,
+  useGetLoomAggregationsQuery,
+  useGetLoomCountQuery,
+  useGetLoomDatasetQuery,
   usePrevious,
 } from '@gen3/core';
 import FacetTabs from '../../components/facets/FacetTabs';
+import { ErrorCard } from '../../components/MessageCards';
 import {
   classifyFacets,
   extractRangeValues,
@@ -103,37 +107,59 @@ const TabbedCohortBuilder = ({
     Accessibility.ALL,
   );
 
-  const cohortId = useCoreSelector((state: CoreState) =>
-    selectCurrentCohortId(state),
-  );
-
   const cohortFilters = useCoreSelector((state: CoreState) =>
     selectIndexFilters(state, index),
   );
+  const loomDataType = isExplorerDataType(index)
+    ? toLoomDataType(index)
+    : null;
+  const loomFilters = useMemo(() => {
+    try {
+      return {
+        filters: convertFilterSetToLoomFilters(cohortFilters),
+        error: null,
+      };
+    } catch (error) {
+      return {
+        filters: [],
+        error: error instanceof Error ? error.message : 'Unsupported Loom filter',
+      };
+    }
+  }, [cohortFilters]);
+  const {
+    data: dataset,
+    isError: isDatasetError,
+    isLoading: isDatasetLoading,
+  } = useGetLoomDatasetQuery(loomDataType ?? 'DocumentReference', {
+    skip: !loomDataType,
+  });
 
   const {
     data,
     isSuccess,
     isFetching: isAggsQueryFetching,
     isError: isAggsQueryError,
-  } = useGetAggsQuery({
-    type: index,
+  } = useGetLoomAggregationsQuery(
+    {
+    dataType: loomDataType ?? 'DocumentReference',
     fields: cohortBuilderFilters,
-    filters: cohortFilters,
-    accessibility: accessLevel,
-    queryId: cohortId,
-  });
+    filters: loomFilters.filters,
+    },
+    { skip: !loomDataType || !!loomFilters.error },
+  );
 
   const {
     data: counts,
     isSuccess: isCountSuccess,
     isError,
-  } = useGetCountsQuery({
-    type: index,
-    filters: cohortFilters,
-    accessibility: accessLevel,
-    queryId: cohortId,
-  });
+  } = useGetLoomCountQuery(
+    {
+      dataType: loomDataType ?? 'DocumentReference',
+      filters: loomFilters.filters,
+      operation: 'COUNT',
+    },
+    { skip: !loomDataType || !!loomFilters.error },
+  );
 
   const [facetDefinitions, setFacetDefinitions] = useState<
     Record<string, FacetDefinition>
@@ -250,6 +276,25 @@ const TabbedCohortBuilder = ({
         upload: EnumHookInstances,
       };
     }, [getEnumFacetData, getRangeFacetData, index]);
+
+  if (!loomDataType) {
+    return <ErrorCard message={`Unsupported Explorer data type: ${index}`} />;
+  }
+  if (loomFilters.error) {
+    return <ErrorCard message={loomFilters.error} />;
+  }
+  if (isDatasetError) {
+    return <ErrorCard message="Unable to discover the authorized Loom dataset" />;
+  }
+  if (isDatasetLoading) {
+    return <Stack align="center">Loading Loom dataset…</Stack>;
+  }
+  if (!dataset) {
+    return <ErrorCard message="No authorized Loom dataset is available for this Explorer tab" />;
+  }
+  if (dataset.state !== 'READY') {
+    return <ErrorCard message={`Loom dataset is ${dataset.state.toLowerCase()}${dataset.error ? `: ${dataset.error}` : ''}`} />;
+  }
 
   return (
     <Stack gap="xs" align="stretch" classNames={{ root: 'w-full' }}>

@@ -1,4 +1,4 @@
-import { downloadJSONDataFromGuppy, GuppyDownloadDataParams } from '@gen3/core';
+import { downloadJSONDataFromLoom, LoomDownloadParams } from '@gen3/core';
 import { handleDownload } from './utils';
 import { jsonToCsv } from '../utils/jsonToCsv';
 import { ActionButtonWithArgsFunction } from '../../types';
@@ -26,23 +26,21 @@ export const downloadTabularAction: ActionButtonWithArgsFunction = async (
     fileFields,
     type,
     filter,
-    accessibility,
     sort,
     filename,
   } = params as DownloadTabularParams;
   const downloadFilename = filename ?? `${type}_export.csv`;
 
-  const cohortFilterParams: GuppyDownloadDataParams = {
+  const cohortFilterParams: LoomDownloadParams = {
     filter,
     type: resourceIndexType || type,
     fields: fileFields,
-    accessibility,
     sort,
     format: 'json',
   };
 
   try {
-    const data = await downloadJSONDataFromGuppy({
+    const data = await downloadJSONDataFromLoom({
       parameters: cohortFilterParams,
       onAbort,
       signal,

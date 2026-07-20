@@ -1,12 +1,16 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useDeepCompareMemo } from 'use-deep-compare';
 import {
   CoreState,
+  convertFilterSetToLoomFilters,
+  isExplorerDataType,
   isJSONValue,
   JSONObject,
   selectIndexFilters,
+  toLoomDataType,
   useCoreSelector,
-  useGetRawDataAndTotalCountsQuery,
+  useGetLoomDatasetQuery,
+  useGetLoomRowsQuery,
 } from '@gen3/core';
 import {
   MantineReactTable,
@@ -25,13 +29,14 @@ import SubtableStack from './SubTables/SubtableStack';
 import { JSONPath } from 'jsonpath-plus';
 import { StudyProvider } from '../../Study';
 import QueryRowDetailsPanel from './ExploreTableDetails/QueryRowDetailsPanel';
+import { ErrorCard } from '../../../components/MessageCards';
 
 const DEFAULT_PAGE_LIMIT_LABEL = 'Rows per Page (Limited to 10,0000):';
 const DEFAULT_PAGE_LIMIT = 10000;
 
 /**
- * Main table component for the explorer page. Fetches data from guppy using
- * useGetRawDataAndTotalCountsQuery() hook that leverages guppy core API slices
+ * Main table component for the Explorer page. Fetches canonical Loom rows and
+ * adapts them to the existing table contract.
  *
  * @param index - Offset to use for fetching/displaying pages of rows
  * @param tableConfig - Inherited from ExplorerPageGetServerSideProps
@@ -150,21 +155,95 @@ const ExplorerTable = ({
     selectIndexFilters(state, index),
   );
 
-  const { data, isLoading, isError, isFetching } =
-    useGetRawDataAndTotalCountsQuery({
-      type: index,
-      fields: fields,
-      filters: cohortFilters,
-      offset: pagination.pageIndex * pagination.pageSize,
-      size: pagination.pageSize,
-      sort:
-        sorting.length > 0
-          ? (sorting.map((x) => {
-              return { [x.id]: x.desc ? 'desc' : 'asc' };
-            }) as Record<string, 'desc' | 'asc'>[])
-          : undefined,
-      accessibility: accessibility,
-    });
+  const loomDataType = isExplorerDataType(index)
+    ? toLoomDataType(index)
+    : null;
+  const loomFilters = useMemo(() => {
+    try {
+      return {
+        filters: convertFilterSetToLoomFilters(cohortFilters),
+        error: null,
+      };
+    } catch (error) {
+      return {
+        filters: [],
+        error: error instanceof Error ? error.message : 'Unsupported Loom filter',
+      };
+    }
+  }, [cohortFilters]);
+  const {
+    data: dataset,
+    isError: isDatasetError,
+    isLoading: isDatasetLoading,
+  } = useGetLoomDatasetQuery(loomDataType ?? 'DocumentReference', {
+    skip: !loomDataType,
+  });
+  const [cursorLedger, setCursorLedger] = useState<Record<number, string | null>>({
+    0: null,
+  });
+  const querySignature = useMemo(
+    () =>
+      JSON.stringify({
+        loomDataType,
+        loomFilters: loomFilters.filters,
+        sorting,
+        pageSize: pagination.pageSize,
+      }),
+    [loomDataType, loomFilters.filters, sorting, pagination.pageSize],
+  );
+  useEffect(() => {
+    setCursorLedger({ 0: null });
+    setPagination((current) => ({ ...current, pageIndex: 0 }));
+  }, [querySignature]);
+
+  const {
+    data: loomRows,
+    isLoading,
+    isError: isRowsError,
+    isFetching,
+  } = useGetLoomRowsQuery(
+    {
+      dataType: loomDataType ?? 'DocumentReference',
+      columns: fields,
+      filters: loomFilters.filters,
+      first: pagination.pageSize,
+      after: cursorLedger[pagination.pageIndex] ?? null,
+      sort: sorting[0]
+        ? { column: sorting[0].id, desc: sorting[0].desc }
+        : undefined,
+    },
+    { skip: !loomDataType || !!loomFilters.error },
+  );
+  useEffect(() => {
+    const nextCursor = loomRows?.pageInfo?.endCursor;
+    if (nextCursor) {
+      setCursorLedger((current) =>
+        current[pagination.pageIndex + 1] === nextCursor
+          ? current
+          : { ...current, [pagination.pageIndex + 1]: nextCursor },
+      );
+    }
+  }, [loomRows, pagination.pageIndex]);
+
+  const setTablePagination = useCallback(
+    (
+      updater:
+        | MRT_PaginationState
+        | ((current: MRT_PaginationState) => MRT_PaginationState),
+    ) => {
+      setPagination((current) => {
+        const next =
+          typeof updater === 'function' ? updater(current) : updater;
+        return next.pageIndex === 0 || next.pageIndex in cursorLedger
+          ? next
+          : current;
+      });
+    },
+    [cursorLedger],
+  );
+
+  const data = loomRows?.rows ?? [];
+  const isError = isRowsError || isDatasetError;
 
   const { totalRowCount, limitLabel } = useDeepCompareMemo(() => {
     const pageLimit =
@@ -173,9 +252,9 @@ const ExplorerTable = ({
     const totalRowCount = tableConfig?.pageLimit
       ? Math.min(
           pageLimit,
-          data?.data?._aggregation?.[index]._totalCount ?? pagination.pageSize,
+          loomRows?.totalCount ?? dataset?.rowCount ?? pagination.pageSize,
         )
-      : (data?.data?._aggregation?.[index]._totalCount ?? pagination.pageSize);
+      : (loomRows?.totalCount ?? dataset?.rowCount ?? pagination.pageSize);
     const limitLabel = tableConfig?.pageLimit
       ? (tableConfig?.pageLimit?.label ?? DEFAULT_PAGE_LIMIT_LABEL)
       : 'Rows per Page:';
@@ -186,7 +265,7 @@ const ExplorerTable = ({
    * @see https://www.mantine-react-table.com/docs/api/table-options
    * @param columns - column options table config
    *   @see https://www.mantine-react-table.com/docs/api/column-options
-   * @param data - data array, from useGetRawDataAndTotalCountsQuery()
+   * @param data - data array, from the Loom row adapter
    * @param manualSorting - If this is true, you will be expected to sort your data before it is passed to the table.
    * @param manualPagination - If this is true, you will be expected to manually paginate the rows before passing them to the table
 0.
@@ -202,13 +281,13 @@ const ExplorerTable = ({
 
   const table = useMantineReactTable<JSONObject>({
     columns: tableColumns as any[], //TODO: fix this
-    data: data?.data?.[index] ?? [],
+    data,
     enableColumnFilters: false,
     manualSorting: true,
     manualPagination: true,
     enableStickyHeader: true,
     paginateExpandedRows: false,
-    onPaginationChange: setPagination,
+    onPaginationChange: setTablePagination,
     onSortingChange: setSorting,
     enableTopToolbar: false,
     enableExpandAll: false,
@@ -315,6 +394,33 @@ const ExplorerTable = ({
           }
         : undefined,
   });
+  if (!loomDataType) {
+    return <ErrorCard message={`Unsupported Explorer data type: ${index}`} />;
+  }
+  if (loomFilters.error) {
+    return <ErrorCard message={loomFilters.error} />;
+  }
+  if (isDatasetError) {
+    return <ErrorCard message="Unable to discover the authorized Loom dataset" />;
+  }
+  if (isDatasetLoading) {
+    return (
+      <div className="flex items-center justify-center w-full h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
+      </div>
+    );
+  }
+  if (!dataset) {
+    return <ErrorCard message="No authorized Loom dataset is available for this Explorer tab" />;
+  }
+  if (dataset.state !== 'READY') {
+    return (
+      <ErrorCard
+        message={`Loom dataset is ${dataset.state.toLowerCase()}${dataset.error ? `: ${dataset.error}` : ''}`}
+      />
+    );
+  }
+
   return (
     <React.Fragment>
       <StudyProvider>
@@ -323,12 +429,12 @@ const ExplorerTable = ({
             title={`${String(tableConfig?.detailsConfig?.nodeType).charAt(0).toUpperCase() + String(tableConfig?.detailsConfig?.nodeType).slice(1)} / ${getFieldValue(
               tableConfig,
               rowSelection,
-              data?.data?.[index] ?? [],
+              data,
               'project_id',
             )} / ${getFieldValue(
               tableConfig,
               rowSelection,
-              data?.data?.[index] ?? [],
+              data,
               tableConfig?.detailsConfig?.title as string,
             )}`}
             id={
