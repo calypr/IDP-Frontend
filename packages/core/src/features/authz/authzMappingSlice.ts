@@ -1,6 +1,7 @@
 import { gen3Api } from '../gen3';
 import { createSelector } from '@reduxjs/toolkit';
 import type { FetchBaseQueryError } from '@reduxjs/toolkit/query';
+import { QueryStatus } from '@reduxjs/toolkit/query';
 import {
   type AuthzMapping,
   AuthzOwnerMutationRequest,
@@ -80,6 +81,20 @@ export const authzApi = authzTags.injectEndpoints({
               cachedUser.authz ?? cachedUser.project_access,
             ),
           };
+        }
+
+        const cachedUserError = userDetailsState?.error;
+        if (
+          userDetailsState?.status === QueryStatus.rejected &&
+          cachedUserError &&
+          typeof cachedUserError === 'object' &&
+          'status' in cachedUserError &&
+          cachedUserError.status === 401
+        ) {
+          // An unauthenticated user has no authz mapping. Treat the cached 401
+          // as a terminal empty mapping instead of repeatedly dispatching the
+          // same Fence /user request from every authz consumer.
+          return { data: {} };
         }
 
         const userResult = await api.dispatch(

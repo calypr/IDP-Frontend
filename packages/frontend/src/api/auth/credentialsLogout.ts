@@ -9,5 +9,5 @@ export default async function (req: NextApiRequest, res: NextApiResponse) {
     httpOnly: process.env.NODE_ENV === 'production',
     secure: process.env.NODE_ENV === 'production',
   });
-  res.redirect(307, '/');
+  res.status(204).end();
 }

@@ -8,7 +8,7 @@ interface CalyprConfig {
 
 export interface CalyprProps {
   calyprConfig?: CalyprConfig;
-  hasAuthenticatedSession?: boolean;
+  hasAuthenticatedSession?: boolean | null;
 }
 
 export type CalyprLandingPageProps = NavPageLayoutProps & CalyprProps;
