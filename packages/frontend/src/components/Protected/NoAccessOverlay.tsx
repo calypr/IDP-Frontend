@@ -1,11 +1,13 @@
 import React, { useEffect } from 'react';
 import { Button } from '@mantine/core';
-import { useFileTotalCountQuery } from '../../pages/Apps/fetchFileCounts';
 import { useSession } from '../../lib/session/session';
 
-export function useHasAccess(authz: any) {
-  const { data, isLoading, isError, refetch } = useFileTotalCountQuery();
-  const authzMap = authz ?? {};
+type AccessPermission = { method?: string; service?: string };
+type FenceAuthzMapping = Record<string, AccessPermission[]>;
+
+export function hasFenceAccess(authz: unknown) {
+  const authzMap: FenceAuthzMapping =
+    authz && typeof authz === 'object' ? (authz as FenceAuthzMapping) : {};
 
   const isProgramScopedResource = (resource: string): boolean => {
     const parts = String(resource).split('/').filter(Boolean);
@@ -14,7 +16,7 @@ export function useHasAccess(authz: any) {
 
   const hasMeaningfulArboristAccess = (
     resource: string,
-    perms: Array<{ method?: string; service?: string }>,
+    perms: AccessPermission[],
   ): boolean => {
     const parts = String(resource).split('/').filter(Boolean);
     if (parts.length < 2 || parts[0] !== 'programs') return false;
@@ -62,7 +64,9 @@ export function useHasAccess(authz: any) {
       if (parts[0] !== 'programs' || parts[2] !== 'projects') return false;
       if (!Array.isArray(perms)) return false;
 
-      return perms.some((p: any) => p?.method === 'read' && p?.service === '*');
+      return perms.some((permission) =>
+        permission?.method === 'read' && permission?.service === '*',
+      );
     },
   ).length;
 
@@ -72,23 +76,11 @@ export function useHasAccess(authz: any) {
       Array.isArray(perms) &&
       hasMeaningfulArboristAccess(
         resource,
-        perms as Array<{ method?: string; service?: string }>,
+        perms as AccessPermission[],
       ),
   );
 
-  const hasAccess =
-    len_access_projects > 0 ||
-    hasProgramScopedAccess ||
-    (data !== undefined && data > 0);
-
-  return {
-    len_access_projects,
-    fileCount: data,
-    isLoading,
-    isError,
-    refetch,
-    hasAccess,
-  };
+  return len_access_projects > 0 || hasProgramScopedAccess;
 }
 
 
