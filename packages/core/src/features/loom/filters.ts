@@ -63,7 +63,7 @@ const convertOperation = (
       return convertOperation(flattenedColumn, nestedOperation);
     }
     default:
-      throw new Error(`Unsupported Loom filter operation: ${operation.operator}`);
+      throw new Error('Unsupported Loom filter operation');
   }
 };
 

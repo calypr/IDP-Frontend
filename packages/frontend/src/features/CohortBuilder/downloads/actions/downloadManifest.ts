@@ -105,7 +105,7 @@ export const downloadToManifestAction = async (
   // join data from two different indices
   try {
     // get a list of reference IDs from the data index using the current cohort filters
-    let refIDList = await downloadJSONDataFromLoom({
+    const referenceRows = await downloadJSONDataFromLoom({
       parameters: {
         ...cohortFilterParams,
         fields: [referenceIdFieldInDataIndex],
@@ -114,16 +114,19 @@ export const downloadToManifestAction = async (
       signal: signal,
     });
     // get the reference IDs from the list
-    refIDList = refIDList.map(
-      (item: JSONObject) => item[referenceIdFieldInDataIndex],
-    );
+    const refIDList = referenceRows
+      .map((item) => item[referenceIdFieldInDataIndex])
+      .filter(
+        (value): value is string | number =>
+          typeof value === 'string' || typeof value === 'number',
+      );
     // create a filter of the ids to use in the resource index
     const refIdsFilter: FilterSet = {
       mode: 'and',
       root: {
         manifest_ids: {
           operator: 'in',
-          operands: refIDList as string[],
+          operands: refIDList,
           field: referenceIdFieldInResourceIndex,
         } as Includes,
         ...(dataFormat

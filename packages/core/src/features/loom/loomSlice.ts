@@ -1,6 +1,6 @@
 import type { AggregationsData } from '../../types';
 import { loomApi } from './loomApi';
-import { shapeLoomRows } from './processing';
+import { shapeLoomRows, toHistogramKey } from './processing';
 import type {
   LoomAggregateRequest,
   LoomAggregateResponse,
@@ -166,20 +166,30 @@ export const loomSlice = loomTags.injectEndpoints({
       LoomAggregationsRequest
     >({
       query: buildLoomAggregationsQuery,
-      transformResponse: (response: Record<string, { columns: string[]; rows: unknown }>, _meta, args) => {
-        return Object.fromEntries(
-          args.fields.map((field, index) => {
-            const value = response[`a${index}`];
-            const rows = shapeLoomRows(value?.rows, value?.columns ?? []);
-            return [
-              field,
-              rows.map((row) => ({
-                key: row.key ?? row[field] ?? row[value?.columns?.[0] ?? ''],
-                count: Number(row.doc_count ?? row.count ?? row[value?.columns?.[1] ?? '']) || 0,
-              })),
-            ];
-          }),
-        );
+      transformResponse: (
+        response: Record<string, { columns: string[]; rows: unknown }>,
+        _meta,
+        args,
+      ): AggregationsData => {
+        const aggregations: AggregationsData = {};
+
+        args.fields.forEach((field, index) => {
+          const value = response[`a${index}`];
+          const rows = shapeLoomRows(value?.rows, value?.columns ?? []);
+          aggregations[field] = rows.map((row) => ({
+            key: toHistogramKey(
+              row.key ?? row[field] ?? row[value?.columns?.[0] ?? ''],
+            ),
+            count:
+              Number(
+                row.doc_count ??
+                  row.count ??
+                  row[value?.columns?.[1] ?? ''],
+              ) || 0,
+          }));
+        });
+
+        return aggregations;
       },
       providesTags: (_result, _error, input) => [
         { type: 'LOOM_AGGREGATE', id: input.dataType },

@@ -85,7 +85,7 @@ export const QueryRowDetailsPanel = ({
   const { data, isError: isRowsError, isFetching } = useGetLoomRowsQuery(
     {
       dataType: loomDataType ?? 'DocumentReference',
-      fields: tableConfig.fields as string[],
+      columns: tableConfig.fields as string[],
       filters: loomFilters.filters,
       first: 1,
     },

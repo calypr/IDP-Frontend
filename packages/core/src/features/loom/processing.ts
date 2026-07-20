@@ -52,6 +52,18 @@ const numericValue = (value: unknown): number => {
   return Number.isFinite(result) ? result : 0;
 };
 
+export const toHistogramKey = (value: unknown): string | [number, number] => {
+  if (
+    Array.isArray(value) &&
+    value.length === 2 &&
+    value.every((item) => typeof item === 'number')
+  ) {
+    return [value[0], value[1]];
+  }
+
+  return typeof value === 'string' ? value : String(value ?? '');
+};
+
 export const aggregateToHistogram = (
   response: LoomAggregateResponse,
   field: string,
@@ -59,7 +71,7 @@ export const aggregateToHistogram = (
   const rows = response.rows.map((row) => {
     const key = row.key ?? row[field] ?? row[response.columns[0]];
     const count = row.doc_count ?? row.count ?? row[response.columns[1]];
-    return { key: key as string | number, count: numericValue(count) };
+    return { key: toHistogramKey(key), count: numericValue(count) };
   });
   return { [field]: rows };
 };

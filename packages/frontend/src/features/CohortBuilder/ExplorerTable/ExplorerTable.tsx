@@ -242,7 +242,10 @@ const ExplorerTable = ({
     [cursorLedger],
   );
 
-  const data = loomRows?.rows ?? [];
+  const data = useMemo<JSONObject[]>(
+    () => [...(loomRows?.rows ?? [])],
+    [loomRows?.rows],
+  );
   const isError = isRowsError || isDatasetError;
 
   const { totalRowCount, limitLabel } = useDeepCompareMemo(() => {
