@@ -3,8 +3,7 @@ import { LoadingOverlay, Stack, Table, Text } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import {
   convertFilterSetToLoomFilters,
-  isExplorerDataType,
-  toLoomDataType,
+  isLoomDataType,
   useGetLoomDatasetQuery,
   useGetLoomRowsQuery,
 } from '@gen3/core';
@@ -49,9 +48,7 @@ export const QueryRowDetailsPanel = ({
   const { setStudyDetails } = useStudyContext();
   const [opened, { open, close }] = useDisclosure(false);
 
-  const loomDataType = isExplorerDataType(index)
-    ? toLoomDataType(index)
-    : null;
+  const loomDataType = isLoomDataType(index) ? index : null;
   const loomFilters = useMemo(() => {
     if (!idField || !id) return { filters: [], error: null };
     try {

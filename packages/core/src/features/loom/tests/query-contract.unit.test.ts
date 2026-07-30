@@ -3,10 +3,16 @@ import {
   buildLoomAggregationsQuery,
   buildLoomDatasetQuery,
   buildLoomRowsQuery,
+  normalizeLoomAggregateGraphQLResponse,
+  normalizeLoomRowsGraphQLResponse,
 } from '../loomSlice';
+import { isLoomDataType } from '../types';
 
 describe('Loom GraphQL request contracts', () => {
-  it('maps a legacy file request at the caller boundary', () => {
+  it('uses canonical Loom data types', () => {
+    expect(isLoomDataType('DocumentReference')).toBe(true);
+    expect(isLoomDataType('document_reference')).toBe(false);
+
     const request = buildLoomDatasetQuery('DocumentReference');
     expect(request.variables).toEqual({ dataType: 'DocumentReference' });
     expect(request.query).toContain('dataframeDataset');
@@ -59,5 +65,32 @@ describe('Loom GraphQL request contracts', () => {
       dataType: 'MedicationAdministration',
       filters: [{ column: 'status', op: 'IN', value: ['active', 'stopped'] }],
     });
+  });
+
+  it('unwraps and shapes dataframeRows GraphQL responses', () => {
+    const response = normalizeLoomRowsGraphQLResponse({
+      dataframeRows: {
+        materialization: {} as never,
+        columns: ['id', 'title'],
+        rows: [['file-1', 'example.tif']],
+        totalCount: 1,
+        pageInfo: { hasNextPage: false },
+      },
+    });
+
+    expect(response.rows).toEqual([{ id: 'file-1', title: 'example.tif' }]);
+    expect(response.totalCount).toBe(1);
+  });
+
+  it('unwraps and shapes dataframeAggregate GraphQL responses', () => {
+    const response = normalizeLoomAggregateGraphQLResponse({
+      dataframeAggregate: {
+        materialization: {} as never,
+        columns: ['status', 'count'],
+        rows: [['active', '12']],
+      },
+    });
+
+    expect(response.rows).toEqual([{ status: 'active', count: '12' }]);
   });
 });

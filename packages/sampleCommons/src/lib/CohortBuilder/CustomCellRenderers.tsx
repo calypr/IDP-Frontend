@@ -3,6 +3,7 @@ import {
   ExplorerTableCellRendererFactory,
   type CellRendererFunctionProps,
   RenderFileActions,
+  getSafeRowValue,
 } from '@gen3/frontend';
 import { SYFON_API } from '@gen3/core';
 import { ActionIcon, Text } from '@mantine/core';
@@ -13,7 +14,7 @@ const RenderReportsLink = (
   ...args: unknown[]
 ) => {
   const cellValue = cell?.getValue();
-  const projectId = row.getValue('project_id') as string;
+  const projectId = getSafeRowValue(row, 'project_id') as string;
   const arg0 = args[0] as Record<string, unknown>;
   const baseUrl = arg0?.baseURL;
   if (
@@ -37,19 +38,18 @@ const RenderReportsLink = (
   return <span></span>;
 };
 
-
-
 /* File Actions Components */
 
 const RenderFileDownloadLink = (
-  { cell, row }: CellRendererFunctionProps,
+  { cell }: CellRendererFunctionProps,
   ...args: unknown[]
 ) => {
   const arg0 = args[0] as Record<string, unknown>;
   const fileId = cell?.getValue();
-  const downloadBaseUrl = arg0?.actionUrl || arg0?.downloadURL || `${SYFON_API}/download`;
+  const downloadBaseUrl =
+    arg0?.actionUrl || arg0?.downloadURL || `${SYFON_API}/download`;
 
-  if (Number(row.getValue('document_reference_size') as number) !== 0 && fileId) {
+  if (fileId) {
     return (
       <a
         href={`${downloadBaseUrl}/${fileId}?redirect=true`}
@@ -66,20 +66,17 @@ const RenderFileDownloadLink = (
 };
 
 const RenderFileImageLink = (
-  { cell, row }: CellRendererFunctionProps,
+  { cell }: CellRendererFunctionProps,
   ...args: unknown[]
 ) => {
   const arg0 = args[0] as Record<string, unknown>;
   const fileId = cell?.getValue();
-  const imageBaseUrl = arg0?.actionUrl || arg0?.imageURL || '/image-viewer/view';
+  const imageBaseUrl =
+    arg0?.actionUrl || arg0?.imageURL || '/image-viewer/view';
 
-  if (Number(row.getValue('document_reference_size') as number) !== 0 && fileId) {
+  if (fileId) {
     return (
-      <a
-        href={`${imageBaseUrl}/${fileId}`}
-        target="_blank"
-        rel="noreferrer"
-      >
+      <a href={`${imageBaseUrl}/${fileId}`} target="_blank" rel="noreferrer">
         <ActionIcon color="primary.0" size="md" variant="filled">
           <FaImage />
         </ActionIcon>
@@ -104,7 +101,7 @@ const JoinFields = (
     ) {
       const otherFields = arg0.otherFields as Array<string>;
       const labels = otherFields.map((field) => {
-        return row.getValue(field);
+        return getSafeRowValue(row, field);
       });
       return <Text fw={600}> {labels.join(' ')}</Text>;
     }
@@ -123,14 +120,15 @@ const RenderLinkCell = ({ cell }: CellRendererFunctionProps) => {
   );
 };
 
-const RenderHumanReadableString = (
-  { cell, row }: CellRendererFunctionProps,
-  ...args: unknown[]
-) => {
-  if (!cell?.getValue() || cell?.getValue() === '') {
+export const RenderHumanReadableString = ({
+  cell,
+}: CellRendererFunctionProps) => {
+  const value = cell.getValue();
+  if (value === null || value === undefined || value === '') {
     return <span></span>;
   }
-  const bytes = Number(row.getValue('document_reference_size'));
+  const bytes = Number(value);
+  if (!Number.isFinite(bytes) || bytes < 0) return <span />;
   if (bytes === 0) return '0 B';
   const humanReadable = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
   const i = Math.floor(Math.log(bytes) / Math.log(1024));
@@ -170,7 +168,7 @@ export const registerCohortTableCustomCellRenderers = () => {
     'DicomLink',
     RenderFileActions,
   );
-  
+
   ExplorerTableCellRendererFactory().registerRenderer(
     'link',
     'file_download',

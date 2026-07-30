@@ -12,6 +12,7 @@ import {
   registerCohortBuilderDefaultPreviewRenderers,
   registerExplorerDefaultCellRenderers,
   RenderFileActions,
+  getSafeRowValue,
   type TableDetailsPanelProps,
   type TableDetailsReportPanelProps,
 } from './ExplorerTable';
@@ -44,6 +45,7 @@ export {
   ExplorerTableDetailsPanelFactory,
   registerExplorerDefaultCellRenderers,
   RenderFileActions,
+  getSafeRowValue,
   registerCohortBuilderDefaultPreviewRenderers,
   QueryExpressionContext,
   QueryExpression,

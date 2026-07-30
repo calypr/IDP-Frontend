@@ -3,11 +3,10 @@ import { useDeepCompareMemo } from 'use-deep-compare';
 import {
   CoreState,
   convertFilterSetToLoomFilters,
-  isExplorerDataType,
+  isLoomDataType,
   isJSONValue,
   JSONObject,
   selectIndexFilters,
-  toLoomDataType,
   useCoreSelector,
   useGetLoomDatasetQuery,
   useGetLoomRowsQuery,
@@ -155,9 +154,7 @@ const ExplorerTable = ({
     selectIndexFilters(state, index),
   );
 
-  const loomDataType = isExplorerDataType(index)
-    ? toLoomDataType(index)
-    : null;
+  const loomDataType = isLoomDataType(index) ? index : null;
   const loomFilters = useMemo(() => {
     try {
       return {

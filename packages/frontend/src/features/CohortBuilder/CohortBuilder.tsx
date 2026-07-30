@@ -18,7 +18,10 @@ export const useGetCurrentCohort = () => {
 };
 
 const CohortBuilder = ({
+  activeTab,
   explorerConfig,
+  hideTabList = false,
+  onTabChange,
   sharedFiltersMap = null,
   tabsLayout = 'left',
   fileActions,
@@ -73,27 +76,31 @@ const CohortBuilder = ({
 
   return (
     <ProtectedContent>
-      <div className="flex flex-col w-full mt-2">
+      <div className="flex w-full flex-col">
         <Tabs
           color="primary.4"
           variant={explorerConfig[0]?.tabType}
           keepMounted={true}
           defaultValue={explorerConfig[0].tabTitle}
+          onChange={onTabChange}
+          value={activeTab}
         >
-          <Tabs.List
-            className="w-full"
-            justify={TabsLayoutToComponentProp(tabsLayout)}
-          >
-            {configuration.map((panelConfig: CohortPanelConfiguration) => (
-              <Tabs.Tab
-                value={panelConfig.tabTitle}
-                key={`${panelConfig.tabTitle}-tabList`}
-                className="mt-2"
-              >
-                {panelConfig.tabTitle}
-              </Tabs.Tab>
-            ))}
-          </Tabs.List>
+          {!hideTabList ? (
+            <Tabs.List
+              className="w-full"
+              grow
+              justify={TabsLayoutToComponentProp(tabsLayout)}
+            >
+              {configuration.map((panelConfig: CohortPanelConfiguration) => (
+                <Tabs.Tab
+                  value={panelConfig.tabTitle}
+                  key={`${panelConfig.tabTitle}-tabList`}
+                >
+                  {panelConfig.tabTitle}
+                </Tabs.Tab>
+              ))}
+            </Tabs.List>
+          ) : null}
 
           {configuration.map((panelConfig: CohortPanelConfiguration) => (
             <Tabs.Panel

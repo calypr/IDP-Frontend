@@ -4,12 +4,11 @@ import { coreStore } from '../../store';
 import { selectCSRFToken } from '../user';
 import { isJSONObject, JSONObject } from '../../types';
 import { convertFilterSetToLoomFilters } from './filters';
-import { toLoomDataType } from './mapping';
 import type { FilterSet } from '../filters';
-import type { LoomSort } from './types';
+import type { LoomDataType, LoomSort } from './types';
 
 export interface LoomDownloadParams {
-  readonly type: string;
+  readonly type: LoomDataType;
   readonly fields: ReadonlyArray<string>;
   readonly filter?: FilterSet;
   readonly sort?: unknown;
@@ -44,7 +43,7 @@ const normalizeSort = (sort: unknown): LoomSort | undefined => {
 };
 
 const buildRequest = (parameters: LoomDownloadParams) => ({
-  dataType: toLoomDataType(parameters.type),
+  dataType: parameters.type,
   columns: [...parameters.fields],
   filters: convertFilterSetToLoomFilters(parameters.filter),
   sort: normalizeSort(parameters.sort),

@@ -4,6 +4,7 @@ import {
   FilterSet,
   LoomDownloadParams,
   Includes,
+  isLoomDataType,
   JSONObject,
 } from '@gen3/core';
 import { handleDownload } from './utils';
@@ -54,6 +55,15 @@ export const downloadToManifestAction = async (
     resourceIdField,
     fileFields,
   } = params;
+
+  if (!isLoomDataType(params.type) || !isLoomDataType(resourceIndexType)) {
+    onError?.(
+      new Error(
+        `Unsupported Loom data type: ${params.type ?? resourceIndexType}`,
+      ),
+    );
+    return;
+  }
 
   const manifestFields = fileFields ?? DEFAULT_FILE_FIELDS;
   const manifestFilename = params?.filename ?? `${params.type}_manifest.json`;

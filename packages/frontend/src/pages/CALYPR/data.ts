@@ -7,6 +7,19 @@ import type { NavPageLayoutProps } from '../../features/Navigation';
 
 const SESSION_CHECK_TIMEOUT_MS = 12_000;
 
+const cookieValue = (
+  cookieHeader: string | undefined,
+  name: string,
+): string | undefined => {
+  if (!cookieHeader) return undefined;
+
+  for (const item of cookieHeader.split(';')) {
+    const [key, ...valueParts] = item.trim().split('=');
+    if (key === name) return valueParts.join('=') || undefined;
+  }
+  return undefined;
+};
+
 const firstHeaderValue = (
   value: string | string[] | undefined,
 ): string | undefined => (Array.isArray(value) ? value[0] : value);
@@ -41,6 +54,11 @@ export const verifyAuthenticatedSession = async (
   context: Parameters<GetServerSideProps>[0],
   headers: Record<string, string>,
 ): Promise<boolean | null> => {
+  const hasFenceCredential =
+    Boolean(headers.Authorization) ||
+    /(?:^|;\s*)access_token=/i.test(headers.Cookie ?? '');
+  if (!hasFenceCredential) return false;
+
   const endpoint = sessionEndpoint(context);
   if (!endpoint) return null;
 
@@ -70,18 +88,38 @@ export const verifyAuthenticatedSession = async (
   }
 };
 
+export const sessionRequestHeaders = (
+  context: Parameters<GetServerSideProps>[0],
+): Record<string, string> => {
+  const headers: Record<string, string> = {};
+  const cookieHeader = context.req.headers.cookie;
+  const authorizationHeader = context.req.headers.authorization;
+
+  if (typeof cookieHeader === 'string' && cookieHeader) {
+    headers.Cookie = cookieHeader;
+  }
+  if (typeof authorizationHeader === 'string' && authorizationHeader) {
+    headers.Authorization = authorizationHeader;
+  } else {
+    // Credentials login stores its token in a frontend-only cookie. Fence does
+    // not recognize that cookie name, so SSR must send it as a Bearer token.
+    // A Fence access_token takes precedence when both login modes coexist.
+    const hasAccessToken = /(?:^|;\s*)access_token=/i.test(cookieHeader ?? '');
+    if (!hasAccessToken) {
+      const credentialsToken = cookieValue(cookieHeader, 'credentials_token');
+      if (credentialsToken) {
+        headers.Authorization = `Bearer ${credentialsToken}`;
+      }
+    }
+  }
+
+  return headers;
+};
+
 export const CalyprPageGetServerSideProps: GetServerSideProps<
   NavPageLayoutProps
 > = async (context) => {
-  const requestHeaders: Record<string, string> = {};
-  const cookieHeader = context.req.headers.cookie;
-  const authorizationHeader = context.req.headers.authorization;
-  if (typeof cookieHeader === 'string' && cookieHeader) {
-    requestHeaders.Cookie = cookieHeader;
-  }
-  if (typeof authorizationHeader === 'string' && authorizationHeader) {
-    requestHeaders.Authorization = authorizationHeader;
-  }
+  const requestHeaders = sessionRequestHeaders(context);
 
   const navigationRequestHeaders = {
     ...requestHeaders,

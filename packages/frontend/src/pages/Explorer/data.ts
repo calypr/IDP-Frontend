@@ -7,13 +7,11 @@ import {
   CohortPanelConfiguration,
 } from '../../features/CohortBuilder';
 import {
-  fetchJSONDataFromURL,
   GEN3_COMMONS_NAME,
   GEN3_LOOM_API,
   groupSharedFields,
-  HttpMethod,
+  isLoomDataType,
   SharedFieldMapping,
-  toLoomDataType,
 } from '@gen3/core';
 import { isArray } from 'lodash';
 import type { NavPageLayoutProps } from '../../features/Navigation';
@@ -29,58 +27,186 @@ const DefaultHeaderMetadata = {
   key: 'gen3-explorer-page',
 };
 
+const getErrorStatus = (error: unknown): number =>
+  typeof error === 'object' &&
+  error !== null &&
+  'status' in error &&
+  typeof error.status === 'number'
+    ? error.status
+    : 500;
+
+type LoomColumnsByExplorerType = Record<string, ReadonlySet<string>>;
+
+const GetLoomColumnsByExplorerType = async (
+  cohortBuilderConfiguration: CohortBuilderConfiguration,
+  requestHeaders: Record<string, string>,
+): Promise<LoomColumnsByExplorerType> => {
+  const tabs = cohortBuilderConfiguration?.explorerConfig ?? [];
+  const configuredDataTypes = Array.from(
+    new Set(tabs.map((tab) => tab.guppyConfig.dataType)),
+  );
+  const dataTypes = configuredDataTypes.filter(isLoomDataType);
+  if (dataTypes.length !== configuredDataTypes.length) {
+    throw new Error('Explorer configuration must use Loom data types');
+  }
+  const selections = dataTypes
+    .map(
+      (dataType, index) =>
+        `d${index}: dataframeDataset(input: { dataType: ${JSON.stringify(dataType)} }) { name columns { name } }`,
+    )
+    .join(' ');
+  const response = await fetch(`${GEN3_LOOM_API}/graphql/flat`, {
+    method: 'POST',
+    cache: 'no-store',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      ...requestHeaders,
+    },
+    body: JSON.stringify({
+      query: `query ExplorerDatasets { ${selections} }`,
+      variables: {},
+    }),
+  });
+  const payload = (await response.json()) as {
+    data?: Record<
+      string,
+      { name: string; columns: Array<{ name: string }> } | null
+    >;
+    errors?: ReadonlyArray<{ message: string }>;
+  };
+  if (!response.ok || payload.errors?.length) {
+    throw new Error(
+      payload.errors?.[0]?.message ??
+        `Loom dataset discovery failed with HTTP ${response.status}`,
+    );
+  }
+
+  return Object.fromEntries(
+    tabs.map((tab) => {
+      const dataType = tab.guppyConfig.dataType;
+      const datasetIndex = dataTypes.indexOf(dataType);
+      const dataset = payload.data?.[`d${datasetIndex}`];
+      if (!dataset) {
+        throw new Error(
+          `Loom dataset ${dataType} is not available`,
+        );
+      }
+      return [
+        dataType,
+        new Set(dataset.columns.map((column) => column.name)),
+      ];
+    }),
+  );
+};
+
+type ConfiguredField = {
+  readonly dataset: string;
+  readonly source: string;
+  readonly field: string;
+};
+
+const GetPanelFields = (
+  panel: CohortPanelConfiguration,
+  panelIndex: number,
+): ReadonlyArray<ConfiguredField> => {
+  const dataset = panel.guppyConfig.dataType;
+  const fields: ConfiguredField[] = [];
+  const add = (source: string, field: string | undefined) => {
+    if (field) fields.push({ dataset, source, field });
+  };
+  const addAll = (source: string, values: ReadonlyArray<string> | undefined) =>
+    values?.forEach((field) => add(source, field));
+
+  panel.filters?.tabs.forEach((tab, index) =>
+    addAll(`filters.tabs[${index}].fields`, tab.fields),
+  );
+  addAll(
+    'guppyConfig.accessibleFieldCheckList',
+    panel.guppyConfig.accessibleFieldCheckList,
+  );
+  add(
+    'guppyConfig.accessibleValidationField',
+    panel.guppyConfig.accessibleValidationField,
+  );
+  Object.keys(panel.charts ?? {}).forEach((field) => add('charts', field));
+  Object.keys(panel.chartsSection?.charts ?? {}).forEach((field) =>
+    add('chartsSection.charts', field),
+  );
+  addAll('table.fields', panel.table?.fields);
+  Object.entries(panel.table?.columns ?? {}).forEach(([field, column]) => {
+    add('table.columns', field);
+    add('table.columns.accessorPath', column.accessorPath);
+  });
+  panel.table?.subTables?.forEach((table, index) =>
+    addAll(`table.subTables[${index}].fields`, table.fields),
+  );
+  add('table.detailsConfig.idField', panel.table?.detailsConfig?.idField);
+  Object.keys(panel.preFilters ?? {}).forEach((field) => add('preFilters', field));
+  panel.buttons?.forEach((button, index) =>
+    addAll(
+      `buttons[${index}].actionArgs.fileFields`,
+      (
+        button.actionArgs as unknown as
+          | { fileFields?: ReadonlyArray<string> }
+          | undefined
+      )?.fileFields,
+    ),
+  );
+
+  return fields.map((field) => ({
+    ...field,
+    source: `explorerConfig[${panelIndex}].${field.source}`,
+  }));
+};
+
+/** Throws when a config references a column absent from its Loom dataset. */
+export const ValidateExplorerConfiguration = (
+  configuration: CohortBuilderConfiguration,
+  columnsByExplorerType: LoomColumnsByExplorerType,
+): void => {
+  const fields = configuration.explorerConfig.flatMap(GetPanelFields);
+  Object.entries(configuration.sharedFilters?.defined ?? {}).forEach(
+    ([name, mappings]) =>
+      mappings.forEach((mapping, index) =>
+        fields.push({
+          dataset: mapping.index,
+          source: `sharedFilters.defined.${name}[${index}]`,
+          field: mapping.field,
+        }),
+      ),
+  );
+  const missing = fields.filter(
+    ({ dataset, field }) => !columnsByExplorerType[dataset]?.has(field),
+  );
+  if (missing.length === 0) return;
+
+  throw new Error(
+    `Explorer configuration does not match Loom datasets:\n${missing
+      .map(({ dataset, source, field }) => `- ${dataset} ${source}: ${field}`)
+      .join('\n')}`,
+  );
+};
+
 const GetSharedFieldMapping = async (
   cohortBuilderConfiguration: CohortBuilderConfiguration,
+  columnsByExplorerType?: LoomColumnsByExplorerType,
 ) => {
   let sharedFiltersMap: SharedFieldMapping | null = null;
 
   if (cohortBuilderConfiguration?.sharedFilters) {
-    if (cohortBuilderConfiguration?.sharedFilters?.autoCreate) {
-      const tabs = cohortBuilderConfiguration?.explorerConfig ?? [];
-
-      try {
-        const dataTypes = Array.from(
-          new Set(tabs.map((tab) => toLoomDataType(tab.guppyConfig.dataType))),
-        );
-        const selections = dataTypes
-          .map(
-            (dataType, index) =>
-              `d${index}: dataframeDataset(input: { dataType: ${JSON.stringify(dataType)} }) { name columns { name } }`,
-          )
-          .join(' ');
-        const response = await fetchJSONDataFromURL<{
-          data?: Record<
-            string,
-            { name: string; columns: Array<{ name: string }> } | null
-          >;
-        }>(
-          `${GEN3_LOOM_API}/graphql/flat`,
-          true,
-          HttpMethod.POST,
-          JSON.stringify({
-            query: `query ExplorerDatasets { ${selections} }`,
-            variables: {},
-          }),
-        );
-        const fieldsByExplorerType = Object.fromEntries(
-          tabs.map((tab) => {
-            const loomType = toLoomDataType(tab.guppyConfig.dataType);
-            const datasetIndex = dataTypes.indexOf(loomType);
-            const dataset = response?.data?.[`d${datasetIndex}`];
-            return [
-              tab.guppyConfig.dataType,
-              dataset?.columns.map((column) => column.name) ?? [],
-            ];
-          }),
-        );
-        if (response?.data && Object.keys(fieldsByExplorerType).length > 0) {
-          sharedFiltersMap = groupSharedFields(fieldsByExplorerType);
-        }
-      } catch (err: unknown) {
-        if (err instanceof Error) {
-          console.warn('Unable to get Explorer field mapping from Loom:', err);
-        }
-      }
+    if (
+      cohortBuilderConfiguration?.sharedFilters?.autoCreate &&
+      columnsByExplorerType
+    ) {
+      sharedFiltersMap = groupSharedFields(
+        Object.fromEntries(
+          Object.entries(columnsByExplorerType).map(([dataType, columns]) => [
+            dataType,
+            Array.from(columns),
+          ]),
+        ),
+      );
     }
     if (cohortBuilderConfiguration?.sharedFilters?.defined) {
       sharedFiltersMap = cohortBuilderConfiguration?.sharedFilters?.defined;
@@ -110,6 +236,27 @@ const GetSharedFieldMapping = async (
   return sharedFiltersMap;
 };
 
+const PrepareExplorerConfiguration = async (
+  cohortBuilderConfiguration: CohortBuilderConfiguration,
+  requestHeaders: Record<string, string>,
+) => {
+  const columnsByExplorerType = await GetLoomColumnsByExplorerType(
+    cohortBuilderConfiguration,
+    requestHeaders,
+  );
+  ValidateExplorerConfiguration(
+    cohortBuilderConfiguration,
+    columnsByExplorerType,
+  );
+  return {
+    configuration: cohortBuilderConfiguration,
+    sharedFiltersMap: await GetSharedFieldMapping(
+      cohortBuilderConfiguration,
+      columnsByExplorerType,
+    ),
+  };
+};
+
 const DefaultAccessControlConfiguration: AccessControlConfiguration = {
   dataMode: GuppyDataAccessMode.REGULAR,
   tierLimit: -1,
@@ -123,6 +270,9 @@ export const ExplorerPageGetServerSideProps: GetServerSideProps<
   const requestHeaders: Record<string, string> = {};
   if (cookieHeader) {
     requestHeaders['Cookie'] = cookieHeader;
+  }
+  if (context.req.headers.authorization) {
+    requestHeaders['Authorization'] = context.req.headers.authorization;
   }
   try {
     const cohortBuilderConfiguration: CohortBuilderConfiguration =
@@ -143,25 +293,27 @@ export const ExplorerPageGetServerSideProps: GetServerSideProps<
       };
     }
 
-    const sharedFiltersMap = await GetSharedFieldMapping(
-      cohortBuilderConfiguration,
-    );
+    const { configuration, sharedFiltersMap } =
+      await PrepareExplorerConfiguration(
+        cohortBuilderConfiguration,
+        requestHeaders,
+      );
 
     return {
       props: {
         ...(await getNavPageLayoutPropsFromConfig(requestHeaders)),
         sharedFiltersMap: sharedFiltersMap,
-        tabsLayout: cohortBuilderConfiguration?.tabsLayout ?? 'left',
-        explorerConfig: cohortBuilderConfiguration.explorerConfig,
+        tabsLayout: configuration?.tabsLayout ?? 'left',
+        explorerConfig: configuration.explorerConfig,
         accessControl: {
           ...DefaultAccessControlConfiguration,
-          ...(cohortBuilderConfiguration.accessControl ?? {}),
+          ...(configuration.accessControl ?? {}),
         },
-        fileActions: cohortBuilderConfiguration.fileActions ?? null,
+        fileActions: configuration.fileActions ?? null,
       },
     };
   } catch (err: unknown) {
-    const status = (err as any).status || 500;
+    const status = getErrorStatus(err);
     context.res.statusCode = status;
     return {
       props: {
@@ -183,6 +335,9 @@ export const ExplorerPageGetServerSidePropsForConfigId: GetServerSideProps<
   if (cookieHeader) {
     requestHeaders['Cookie'] = cookieHeader;
   }
+  if (context.req.headers.authorization) {
+    requestHeaders['Authorization'] = context.req.headers.authorization;
+  }
 
   try {
     const cohortBuilderConfiguration: CohortBuilderConfiguration =
@@ -203,25 +358,27 @@ export const ExplorerPageGetServerSidePropsForConfigId: GetServerSideProps<
       };
     }
 
-    const sharedFiltersMap = await GetSharedFieldMapping(
-      cohortBuilderConfiguration,
-    );
+    const { configuration, sharedFiltersMap } =
+      await PrepareExplorerConfiguration(
+        cohortBuilderConfiguration,
+        requestHeaders,
+      );
 
     return {
       props: {
         ...(await getNavPageLayoutPropsFromConfig(requestHeaders)),
         sharedFiltersMap: sharedFiltersMap,
-        tabsLayout: cohortBuilderConfiguration?.tabsLayout ?? 'left',
-        explorerConfig: cohortBuilderConfiguration.explorerConfig,
+        tabsLayout: configuration?.tabsLayout ?? 'left',
+        explorerConfig: configuration.explorerConfig,
         accessControl: {
           ...DefaultAccessControlConfiguration,
-          ...(cohortBuilderConfiguration.accessControl ?? {}),
+          ...(configuration.accessControl ?? {}),
         },
-        fileActions: cohortBuilderConfiguration.fileActions ?? null,
+        fileActions: configuration.fileActions ?? null,
       },
     };
   } catch (err: unknown) {
-    const status = (err as any).status || 500;
+    const status = getErrorStatus(err);
     context.res.statusCode = status;
     return {
       props: {

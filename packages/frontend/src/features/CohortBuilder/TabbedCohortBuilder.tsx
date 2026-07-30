@@ -10,9 +10,8 @@ import {
   FacetDefinition,
   FacetType,
   isIntersection,
-  isExplorerDataType,
+  isLoomDataType,
   selectIndexFilters,
-  toLoomDataType,
   useCoreSelector,
   useGetLoomAggregationsQuery,
   useGetLoomCountQuery,
@@ -110,9 +109,7 @@ const TabbedCohortBuilder = ({
   const cohortFilters = useCoreSelector((state: CoreState) =>
     selectIndexFilters(state, index),
   );
-  const loomDataType = isExplorerDataType(index)
-    ? toLoomDataType(index)
-    : null;
+  const loomDataType = isLoomDataType(index) ? index : null;
   const loomFilters = useMemo(() => {
     try {
       return {

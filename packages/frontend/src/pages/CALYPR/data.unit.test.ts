@@ -12,7 +12,7 @@ jest.mock('../../lib/content', () => ({
   default: {},
 }));
 
-import { verifyAuthenticatedSession } from './data';
+import { sessionRequestHeaders, verifyAuthenticatedSession } from './data';
 
 const context = {
   req: {
@@ -49,11 +49,25 @@ describe('verifyAuthenticatedSession', () => {
       json: async () => ({ username: 'researcher@example.org' }),
     });
 
-    await expect(verifyAuthenticatedSession(context, {})).resolves.toBe(true);
+    await expect(
+      verifyAuthenticatedSession(context, {
+        Authorization: 'Bearer credentials-token',
+      }),
+    ).resolves.toBe(true);
     expect(global.fetch).toHaveBeenCalledWith(
       'https://commons.example/user/user',
-      expect.objectContaining({ cache: 'no-store' }),
+      expect.objectContaining({
+        cache: 'no-store',
+        headers: { Authorization: 'Bearer credentials-token' },
+      }),
     );
+  });
+
+  it('does not call Fence when the request has no Fence credential', async () => {
+    global.fetch = jest.fn();
+
+    await expect(verifyAuthenticatedSession(context, {})).resolves.toBe(false);
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 
   it('leaves the result unresolved when Fence is unavailable', async () => {
@@ -62,6 +76,55 @@ describe('verifyAuthenticatedSession', () => {
       status: 502,
     });
 
-    await expect(verifyAuthenticatedSession(context, {})).resolves.toBeNull();
+    await expect(
+      verifyAuthenticatedSession(context, { Cookie: 'access_token=current' }),
+    ).resolves.toBeNull();
+  });
+});
+
+describe('sessionRequestHeaders', () => {
+  it('converts a credentials login cookie to the Bearer header Fence expects', () => {
+    const credentialsContext = {
+      req: {
+        headers: {
+          cookie: 'theme=dark; credentials_token=header.payload.signature',
+        },
+      },
+    } as unknown as GetServerSidePropsContext;
+
+    expect(sessionRequestHeaders(credentialsContext)).toEqual({
+      Cookie: 'theme=dark; credentials_token=header.payload.signature',
+      Authorization: 'Bearer header.payload.signature',
+    });
+  });
+
+  it('does not replace an explicit Authorization header', () => {
+    const authorizedContext = {
+      req: {
+        headers: {
+          authorization: 'Bearer explicit',
+          cookie: 'credentials_token=cookie-token',
+        },
+      },
+    } as unknown as GetServerSidePropsContext;
+
+    expect(sessionRequestHeaders(authorizedContext).Authorization).toBe(
+      'Bearer explicit',
+    );
+  });
+
+  it('prefers a Fence access token over a credentials login cookie', () => {
+    const fenceContext = {
+      req: {
+        headers: {
+          cookie:
+            'access_token=fence-session; credentials_token=stale-credential',
+        },
+      },
+    } as unknown as GetServerSidePropsContext;
+
+    expect(sessionRequestHeaders(fenceContext)).toEqual({
+      Cookie: 'access_token=fence-session; credentials_token=stale-credential',
+    });
   });
 });

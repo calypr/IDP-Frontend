@@ -2,7 +2,7 @@ import useSWR from 'swr';
 import { AuthTokenData } from './types';
 import type { IncomingMessage } from 'http';
 import { getCookie } from 'cookies-next';
-import { decodeJwt, importSPKI, jwtVerify } from 'jose';
+import { decodeProtectedHeader, importSPKI, jwtVerify } from 'jose';
 import { isExpired, JWTPayloadAndUser } from '../../api/auth/sessionToken';
 import { fetchJWTKey } from '../../api/auth/';
 import { type LoginStatus, type JWTSessionStatus } from '@gen3/core';
@@ -45,12 +45,14 @@ interface AuthSessionResponse {
 export const getAuthSession = async (
   req: IncomingMessage,
 ): Promise<AuthSessionResponse> => {
-  const access_token = getCookie('access_token', { req });
+  const access_token = await getCookie('access_token', { req });
 
   if (access_token && typeof access_token === 'string') {
     if (access_token) {
       try {
-        const jwtKey = await fetchJWTKey();
+        const jwtKey = await fetchJWTKey(
+          decodeProtectedHeader(access_token).kid,
+        );
         if (!jwtKey) {
           return {
             status: 'not present',
@@ -58,8 +60,8 @@ export const getAuthSession = async (
         }
         // validate the token
         const publicKey = await importSPKI(jwtKey, 'RS256');
-        await jwtVerify(access_token, publicKey);
-        const decodedAccessToken = decodeJwt(access_token) as JWTPayloadAndUser;
+        const { payload } = await jwtVerify(access_token, publicKey);
+        const decodedAccessToken = payload as JWTPayloadAndUser;
 
         return {
           issued: decodedAccessToken.iat,

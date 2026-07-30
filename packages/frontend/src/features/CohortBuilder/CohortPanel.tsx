@@ -9,12 +9,11 @@ import {
   extractEnumFilterValue,
   FacetDefinition,
   FacetType,
-  isExplorerDataType,
   isIntersection,
+  isLoomDataType,
   selectIndexFilters,
   selectSharedFilters,
   useCoreSelector,
-  toLoomDataType,
   useGetLoomAggregationsQuery,
   useGetLoomCountQuery,
   useGetLoomDatasetQuery,
@@ -106,9 +105,7 @@ export const CohortPanel = ({
   }, [isSm, isMd, isXl]);
 
   const index = guppyConfig.dataType;
-  const loomDataType = isExplorerDataType(index)
-    ? toLoomDataType(index)
-    : null;
+  const loomDataType = isLoomDataType(index) ? index : null;
   const fields = useMemo(
     () => getAllFieldsFromFilterConfigs(filters?.tabs ?? []),
     [filters?.tabs],

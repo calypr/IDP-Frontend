@@ -116,6 +116,9 @@ export interface CohortBuilderConfiguration extends Gen3AppConfigData {
 
 export interface CohortBuilderProps
   extends Omit<CohortBuilderConfiguration, 'sharedFilters'> {
+  activeTab?: string | null;
+  hideTabList?: boolean;
+  onTabChange?: (value: string | null) => void;
   sharedFiltersMap: SharedFieldMapping | null;
 }
 

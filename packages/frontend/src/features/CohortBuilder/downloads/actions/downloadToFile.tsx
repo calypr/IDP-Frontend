@@ -1,4 +1,8 @@
-import { downloadFromLoomToBlob, LoomDownloadParams } from '@gen3/core';
+import {
+  downloadFromLoomToBlob,
+  isLoomDataType,
+  LoomDownloadParams,
+} from '@gen3/core';
 import { handleDownload } from './utils';
 
 export const downloadToFileAction = async (
@@ -8,6 +12,10 @@ export const downloadToFileAction = async (
   onAbort?: () => void,
   signal?: AbortSignal,
 ): Promise<void> => {
+  if (!isLoomDataType(params.type)) {
+    onError?.(new Error(`Unsupported Loom data type: ${params.type}`));
+    return;
+  }
   // Call the principal-scoped Loom export endpoint.
   await downloadFromLoomToBlob({
     parameters: params as LoomDownloadParams,

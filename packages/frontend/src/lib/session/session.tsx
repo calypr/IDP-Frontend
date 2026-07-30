@@ -394,9 +394,14 @@ export const SessionProvider = ({
     setIsUserVerificationPending(true);
 
     const verification = (async () => {
-      const hasBearerCredential = Boolean(getCookie('credentials_token'));
+      let hasBearerCredential = false;
 
       try {
+        // Synchronize browser authentication first. When a valid Fence
+        // access_token and an older credentials_token coexist, this removes
+        // the conflicting Bearer credential before /user/user is requested.
+        await getSession();
+        hasBearerCredential = Boolean(getCookie('credentials_token'));
         await getUserDetails().unwrap();
         homeUnauthorizedRef.current = false;
       } catch (error: unknown) {

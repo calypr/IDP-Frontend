@@ -1,4 +1,7 @@
-import { RenderFactoryTypedInstance, DefaultItemRenderer } from '../../../utils/RendererFactory';
+import {
+  RenderFactoryTypedInstance,
+  DefaultItemRenderer,
+} from '../../../utils/RendererFactory';
 import React, { ReactNode } from 'react';
 import { isArray } from 'lodash';
 import { Badge, Text } from '@mantine/core';
@@ -12,6 +15,22 @@ export type CellRendererFunction = (
   props: CellRendererFunctionProps,
   ...args: any[]
 ) => ReactNode;
+
+// TanStack logs an error before throwing when getValue() names a column that
+// is not present. Optional Explorer columns must be read without probing it.
+export const getSafeRowValue = (
+  row: CellRendererFunctionProps['row'],
+  columnId: string,
+): unknown => {
+  const original = row.original as Record<string, unknown> | undefined;
+  if (original && Object.prototype.hasOwnProperty.call(original, columnId)) {
+    return original[columnId];
+  }
+  return row
+    .getAllCells()
+    .find((cell) => cell.column.id === columnId)
+    ?.getValue();
+};
 
 // TODO need to type this
 export const RenderArrayCell: CellRendererFunction = ({
@@ -60,8 +79,13 @@ export const RenderArrayCellNegativePositive = ({
   return <span>value</span>;
 };
 
-const ValueCellRenderer = ({ cell }: CellRendererFunctionProps) => {
-  return <span>{cell.getValue() as ReactNode}</span>;
+export const ValueCellRenderer = ({ cell }: CellRendererFunctionProps) => {
+  const value = cell.getValue();
+  return (
+    <span>
+      {typeof value === 'boolean' ? String(value) : (value as ReactNode)}
+    </span>
+  );
 };
 
 const ArrayCellFunctionCatalog = {
@@ -88,10 +112,6 @@ const RenderLinkCell = (
   );
 };
 
-
-
-
-
 let instance: RenderFactoryTypedInstance<CellRendererFunctionProps>;
 
 export const ExplorerTableCellRendererFactory =
@@ -102,50 +122,41 @@ export const ExplorerTableCellRendererFactory =
     return instance;
   };
 
-
-
 export const RenderFileActions = (
   props: CellRendererFunctionProps,
   ...args: unknown[]
 ) => {
   const { cell, row } = props;
   const arg = (args[0] || {}) as Record<string, unknown>;
-  let fileActionsConfig = arg.fileActions as {
-    extensions: Record<string, string[]>;
-    actions: Record<string, string>;
-  } | undefined;
+  let fileActionsConfig = arg.fileActions as
+    | {
+        extensions: Record<string, string[]>;
+        actions: Record<string, string>;
+      }
+    | undefined;
 
   const fileActionsMap = arg.fileActionsMap as Record<string, any> | undefined;
 
   let projectId = '';
-  try {
-    const val = row.getValue('project_id');
-    if (typeof val === 'string') projectId = val;
-  } catch (e) {
-    if (row.original && typeof (row.original as any).project_id === 'string') {
-      projectId = (row.original as any).project_id;
-    }
-  }
+  const projectValue = getSafeRowValue(row, 'project_id');
+  if (typeof projectValue === 'string') projectId = projectValue;
 
-  if (!fileActionsConfig && fileActionsMap && projectId && fileActionsMap[projectId]) {
+  if (
+    !fileActionsConfig &&
+    fileActionsMap &&
+    projectId &&
+    fileActionsMap[projectId]
+  ) {
     fileActionsConfig = fileActionsMap[projectId];
   }
 
   let fileNameStr = '';
-  try {
-    const sourcePath = row.getValue('document_reference_source_path');
-    if (typeof sourcePath === 'string') fileNameStr = sourcePath;
-  } catch (e) {
-    // ignore if column doesn't exist
-  }
+  const sourcePath = getSafeRowValue(row, 'document_reference_source_path');
+  if (typeof sourcePath === 'string') fileNameStr = sourcePath;
 
   if (!fileNameStr) {
-    try {
-      const fn = row.getValue('file_name');
-      if (typeof fn === 'string') fileNameStr = fn;
-    } catch (e) {
-      // ignore
-    }
+    const fileName = getSafeRowValue(row, 'file_name');
+    if (typeof fileName === 'string') fileNameStr = fileName;
   }
 
   if (!fileNameStr) {
@@ -153,8 +164,11 @@ export const RenderFileActions = (
     fileNameStr = typeof cellRef === 'string' ? cellRef : '';
   }
 
-  const extension = fileNameStr.includes('.') ? fileNameStr.split('.').pop()?.toLowerCase() || '' : '';
-  const actionsList = fileActionsConfig?.extensions?.[extension] || fileActionsConfig?.extensions?.['default'] || ['file_download'];
+  const extension = fileNameStr.includes('.')
+    ? fileNameStr.split('.').pop()?.toLowerCase() || ''
+    : '';
+  const actionsList = fileActionsConfig?.extensions?.[extension] ||
+    fileActionsConfig?.extensions?.['default'] || ['file_download'];
 
   if (actionsList.length === 0) return <React.Fragment />;
 
@@ -163,13 +177,13 @@ export const RenderFileActions = (
       {actionsList.map((actionName, index) => {
         const factory = ExplorerTableCellRendererFactory();
         let actionRenderer: CellRendererFunction | undefined;
-        
+
         if (factory.rendererExists('link', actionName)) {
-           actionRenderer = factory.getRenderer('link', actionName);
+          actionRenderer = factory.getRenderer('link', actionName);
         } else if (factory.rendererExists('string', actionName)) {
-           actionRenderer = factory.getRenderer('string', actionName);
+          actionRenderer = factory.getRenderer('string', actionName);
         } else if (factory.rendererExists('value', actionName)) {
-           actionRenderer = factory.getRenderer('value', actionName);
+          actionRenderer = factory.getRenderer('value', actionName);
         }
 
         if (actionRenderer && actionRenderer !== DefaultItemRenderer) {

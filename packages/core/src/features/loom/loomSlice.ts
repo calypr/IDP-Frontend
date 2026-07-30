@@ -104,6 +104,15 @@ const normalizeAggregateResponse = (
   rows: shapeLoomRows(response.rows, response.columns),
 });
 
+export const normalizeLoomRowsGraphQLResponse = (response: {
+  dataframeRows: Omit<LoomRowsResponse, 'rows'> & { rows: unknown };
+}): LoomRowsResponse => normalizeRowsResponse(response.dataframeRows);
+
+export const normalizeLoomAggregateGraphQLResponse = (response: {
+  dataframeAggregate: Omit<LoomAggregateResponse, 'rows'> & { rows: unknown };
+}): LoomAggregateResponse =>
+  normalizeAggregateResponse(response.dataframeAggregate);
+
 export const loomTags = loomApi.enhanceEndpoints({
   addTagTypes: ['LOOM_DATASET', 'LOOM_ROWS', 'LOOM_AGGREGATE'],
 });
@@ -128,7 +137,7 @@ export const loomSlice = loomTags.injectEndpoints({
     }),
     getLoomRows: builder.query<LoomRowsResponse, LoomRowsRequest>({
       query: buildLoomRowsQuery,
-      transformResponse: normalizeRowsResponse,
+      transformResponse: normalizeLoomRowsGraphQLResponse,
       providesTags: (_result, _error, input) => [
         { type: 'LOOM_ROWS', id: input.dataType },
       ],
@@ -138,7 +147,7 @@ export const loomSlice = loomTags.injectEndpoints({
       LoomAggregateRequest
     >({
       query: buildLoomAggregateQuery,
-      transformResponse: normalizeAggregateResponse,
+      transformResponse: normalizeLoomAggregateGraphQLResponse,
       providesTags: (_result, _error, input) => [
         { type: 'LOOM_AGGREGATE', id: input.dataType },
       ],

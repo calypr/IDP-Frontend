@@ -16,7 +16,10 @@ import { useSession } from '../../lib/session/session';
 import { CohortBuilderProps } from '../../features/CohortBuilder';
 
 export const ExplorerMainContent = ({
+  activeTab,
   explorerConfig,
+  hideTabList,
+  onTabChange,
   tabsLayout,
   sharedFiltersMap,
   fileActions,
@@ -37,8 +40,11 @@ export const ExplorerMainContent = ({
   }
   return (
     <CohortBuilder
+      activeTab={activeTab}
       tabsLayout={tabsLayout}
       explorerConfig={explorerConfig}
+      hideTabList={hideTabList}
+      onTabChange={onTabChange}
       sharedFiltersMap={sharedFiltersMap}
       fileActions={fileActions}
     />

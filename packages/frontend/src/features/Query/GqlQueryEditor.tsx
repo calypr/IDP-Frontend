@@ -19,8 +19,7 @@ import {
   IconChevronDown,
 } from '@tabler/icons-react';
 import {
-  GEN3_GUPPY_API,
-  GEN3_GRIP_API,
+  GEN3_LOOM_API,
   selectHeadersWithCSRFToken,
   useCoreSelector,
   useGetCSRFQuery,
@@ -28,40 +27,193 @@ import {
 import Cookies from 'js-cookie';
 import { GqlQueryEditorProps } from './types';
 
-const guppyDefaultQuery = `query($filter: JSON) {
-  document_reference(filter: $filter, first: 10) {
-    document_reference_id
-    project_id
+type FhirQueryMode = 'fhirDataframe' | 'fhirGraph' | 'fhirFlat';
+
+const fhirDataframeDefaultQuery = `mutation RunFhirDataframe(
+  $input: FhirDataframeInput!
+  $limit: Int
+) {
+  runFhirDataframe(input: $input, limit: $limit) {
+    columns
+    rows
+    rowCount
   }
 }`;
 
-const guppyDefaultVariables = `{
-  "filter": {
-    "and": [
+const fhirDataframeDefaultVariables = `{
+  "limit": 10,
+  "input": {
+    "project": "HTAN_INT-BForePC",
+    "rootResourceType": "Patient",
+    "rootFilters": [
       {
-        "=": {
-          "auth_resource_path": "/programs/cbds/projects/git_drs_test"
-        }
+        "select": "identifier[].value",
+        "operator": "EXISTS",
+        "quantifier": "ANY",
+        "values": []
+      }
+    ],
+    "rootFields": [
+      {
+        "name": "id",
+        "selector": {
+          "valuePath": "id"
+        },
+        "valueMode": "AUTO"
+      },
+      {
+        "name": "gender",
+        "selector": {
+          "valuePath": "gender"
+        },
+        "valueMode": "AUTO"
       }
     ]
   }
 }`;
 
-const gripDefaultQuery = `query($filter: JSON) {
-  documentReference(filter: $filter, first: 10) {
+const fhirGraphDefaultQuery = `query DocumentReferenceToPatient(
+  $project: String!
+  $filters: [FhirFilterInput!]
+  $limit: Int = 10
+) {
+  DocumentReference(project: $project, filters: $filters, limit: $limit) {
     id
-    auth_resource_path
-  }
-}`;
-
-const gripDefaultVariables = `{
-  "filter": {
-    "=": {
-      "DocumentReference.auth_resource_path":
-        "/programs/cbds/projects/git_drs_test"
+    status
+    description
+    content {
+      attachment {
+        title
+        contentType
+        url
+      }
+    }
+    subject {
+      reference
+      resource(type: SPECIMEN, optional: true) {
+        ... on Specimen {
+          id
+          status
+          identifier { system value }
+          type {
+            coding { system code display }
+            text
+          }
+          subject {
+            reference
+            resource(type: PATIENT, optional: true) {
+              ... on Patient {
+                id
+                gender
+                birthDate
+                identifier { system value }
+                name { use family given }
+              }
+            }
+          }
+        }
+      }
     }
   }
 }`;
+
+const fhirGraphDefaultVariables = `{
+  "project": "HTAN_INT-BForePC",
+  "limit": 10,
+  "filters": [
+    {
+      "select": "identifier[].value",
+      "operator": "EXISTS",
+      "quantifier": "ANY",
+      "values": []
+    }
+  ]
+}`;
+
+const fhirFlatDefaultQuery = `query DocumentReferenceRows(
+  $dataType: String!
+  $input: DataframeRowsInput!
+) {
+  dataset: dataframeDataset(input: { dataType: $dataType }) {
+    name
+    state
+    rowCount
+    columns {
+      name
+      logicalType
+      nullable
+      repeated
+      filterable
+      sortable
+      aggregatable
+    }
+  }
+  rows: dataframeRows(input: $input) {
+    columns
+    rows
+    totalCount
+    pageInfo { hasNextPage endCursor }
+  }
+}`;
+
+const fhirFlatDefaultVariables = `{
+  "dataType": "DocumentReference",
+  "input": {
+    "dataType": "DocumentReference",
+    "columns": [
+      "document_reference_id"
+    ],
+    "filters": [],
+    "first": 25,
+    "sort": { "column": "document_reference_id", "desc": false }
+  }
+}`;
+
+const fhirQueryModeLabels: Record<FhirQueryMode, string> = {
+  fhirDataframe: 'Dataframe',
+  fhirGraph: 'Graph',
+  fhirFlat: 'Flat',
+};
+
+const fhirQueryDefaults: Record<FhirQueryMode, { query: string; variables: string }> = {
+  fhirDataframe: {
+    query: fhirDataframeDefaultQuery,
+    variables: fhirDataframeDefaultVariables,
+  },
+  fhirGraph: {
+    query: fhirGraphDefaultQuery,
+    variables: fhirGraphDefaultVariables,
+  },
+  fhirFlat: {
+    query: fhirFlatDefaultQuery,
+    variables: fhirFlatDefaultVariables,
+  },
+};
+
+const fhirQuerySchemaFields: Record<
+  FhirQueryMode,
+  { root: 'query' | 'mutation'; field: string }
+> = {
+  fhirDataframe: { root: 'mutation', field: 'runFhirDataframe' },
+  fhirGraph: { root: 'query', field: 'DocumentReference' },
+  fhirFlat: { root: 'query', field: 'dataframeRows' },
+};
+
+const fhirQueryModes: FhirQueryMode[] = ['fhirGraph', 'fhirFlat', 'fhirDataframe'];
+
+const asLoomEndpoint = (
+  configuredEndpoint: string | undefined,
+  surface: 'graph' | 'flat',
+): string => {
+  const normalized = configuredEndpoint?.replace(/\/+$/, '');
+  if (normalized?.match(/\/graphql\/(graph|flat)$/)) {
+    return normalized.replace(
+      /\/graphql\/(graph|flat)$/,
+      `/graphql/${surface}`,
+    );
+  }
+  return `${GEN3_LOOM_API.replace(/\/+$/, '')}/graphql/${surface}`;
+};
 
 const STACK_DRAGGER_PX = 8;
 const EDITOR_WORKSPACE_HEIGHT = 'calc(100vh - 10rem)';
@@ -120,19 +272,25 @@ const GqlQueryEditor = ({
   const { isLoading: isAuthLoading } = useGetCSRFQuery();
   const headers = useCoreSelector(selectHeadersWithCSRFToken);
   
-  const endpoints = useMemo(() => ({
-    flatModel: `${GEN3_GUPPY_API}/graphql`,
-    graphModel: `${GEN3_GRIP_API}/graphql`,
-    ...(graphQLEndpoint ? { custom: graphQLEndpoint } : {}),
-  }), [graphQLEndpoint]);
+  const endpoints = useMemo(() => {
+    // Only accept configured endpoints that use Loom's graph contract. Older
+    // commons may still provide a legacy Guppy endpoint in query.json; that
+    // endpoint must not silently become a FHIR mode.
+    const graphEndpoint = asLoomEndpoint(graphQLEndpoint, 'graph');
+    return {
+      // Dataframe execution is a mutation on Loom's graph endpoint; there is
+      // no separate /graphql/dataframe route.
+      fhirDataframe: graphEndpoint,
+      fhirGraph: graphEndpoint,
+      fhirFlat: asLoomEndpoint(graphEndpoint, 'flat'),
+    } satisfies Record<FhirQueryMode, string>;
+  }, [graphQLEndpoint]);
 
-  const [selectedEndpoint, setSelectedEndpoint] = useState(
-    graphQLEndpoint || endpoints.flatModel
-  );
+  const initialMode: FhirQueryMode = graphQLEndpoint ? 'fhirDataframe' : 'fhirFlat';
+  const [selectedMode, setSelectedMode] = useState<FhirQueryMode>(initialMode);
+  const selectedEndpoint = endpoints[selectedMode];
 
-  const [queryCode, setQueryCode] = useState(
-    selectedEndpoint === endpoints.graphModel ? gripDefaultQuery : guppyDefaultQuery
-  );
+  const [queryCode, setQueryCode] = useState(() => fhirQueryDefaults[initialMode].query);
   const [responseJson, setResponseJson] = useState('');
   const [isFetching, setIsFetching] = useState(false);
   const [executionError, setExecutionError] = useState<string | null>(null);
@@ -140,9 +298,7 @@ const GqlQueryEditor = ({
   const [schema, setSchema] = useState<GraphQLSchema | undefined>(undefined);
   const [schemaError, setSchemaError] = useState<string | null>(null);
 
-  const [variablesJson, setVariablesJson] = useState(
-    selectedEndpoint === endpoints.graphModel ? gripDefaultVariables : guppyDefaultVariables
-  );
+  const [variablesJson, setVariablesJson] = useState(() => fhirQueryDefaults[initialMode].variables);
 
   const clipboard = useClipboard({ timeout: 2000 });
   const [showDocs, setShowDocs] = useState(false);
@@ -260,18 +416,18 @@ const GqlQueryEditor = ({
     return () => observer.disconnect();
   }, [updateVisibleLineCounts]);
 
-  // Swap default queries and variables and reset docs when endpoint changes
+  // Swap default queries and variables and reset docs when the selected FHIR mode changes.
   useEffect(() => {
+    const defaults = fhirQueryDefaults[selectedMode];
     setDocHistory([]); // Reset documentation history when switching endpoints
     setSchema(undefined); // Clear old schema to show loading state
-    if (selectedEndpoint === endpoints.graphModel) {
-      setQueryCode(gripDefaultQuery);
-      setVariablesJson(gripDefaultVariables);
-    } else {
-      setQueryCode(guppyDefaultQuery);
-      setVariablesJson(guppyDefaultVariables);
-    }
-  }, [selectedEndpoint, endpoints.graphModel]);
+    setQueryCode(defaults.query);
+    setVariablesJson(defaults.variables);
+  }, [selectedMode]);
+
+  useEffect(() => {
+    setSelectedMode(graphQLEndpoint ? 'fhirDataframe' : 'fhirFlat');
+  }, [graphQLEndpoint]);
 
   // Fetch GraphQL schema for autocomplete
   useEffect(() => {
@@ -302,10 +458,21 @@ const GqlQueryEditor = ({
         if (result?.data && isMounted) {
           const clientSchema = buildClientSchema(result.data);
           setSchema(clientSchema);
+
+          const { root, field } = fhirQuerySchemaFields[selectedMode];
+          const fields = root === 'query'
+            ? clientSchema.getQueryType()?.getFields() || {}
+            : clientSchema.getMutationType()?.getFields() || {};
+          const requiredField = fields[field];
+          if (!requiredField) {
+            setSchemaError(
+              `This endpoint does not expose ${field}; deploy the current Loom GraphQL schema before running this mode`,
+            );
+          }
         }
       } catch (err: unknown) {
         if (isMounted) {
-           console.error('Schema Introspection Error:', err);
+           console.warn('Schema Introspection Error:', err);
            setSchemaError('Autocompletion disabled: Could not fetch schema');
            setSchema(undefined);
         }
@@ -317,7 +484,7 @@ const GqlQueryEditor = ({
     return () => {
       isMounted = false;
     };
-  }, [selectedEndpoint]);
+  }, [selectedEndpoint, selectedMode]);
 
   const executeQuery = async () => {
     setIsFetching(true);
@@ -336,8 +503,11 @@ const GqlQueryEditor = ({
         variables = JSON.parse(variablesJson);
         // Pretty print variables on execute
         setVariablesJson(JSON.stringify(variables, null, 2));
-      } catch {
-        console.warn('Invalid variables JSON');
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Invalid JSON';
+        setExecutionError(`Invalid variables JSON: ${message}`);
+        setResponseJson('');
+        return;
       }
 
       const response = await fetch(selectedEndpoint, {
@@ -350,17 +520,24 @@ const GqlQueryEditor = ({
         })
       });
 
-      if (!response.ok) {
-        const body = await response.text();
-        throw new Error(`API ${response.status}: ${body.slice(0, 100)}`);
-      }
-
-      const result = await response.json();
+      const result = await response.json().catch(() => ({
+        errors: [{ message: `API ${response.status}: the server returned an invalid JSON response` }],
+      }));
       setResponseJson(JSON.stringify(result, null, 2));
+
+      const graphQLErrors = Array.isArray(result?.errors) ? result.errors : [];
+      if (!response.ok || graphQLErrors.length > 0) {
+        const message = graphQLErrors
+          .map((error: { message?: unknown }) => String(error?.message || 'GraphQL request failed'))
+          .join('; ');
+        setExecutionError(`API ${response.status}: ${message}`);
+      }
     } catch (err: unknown) {
-      console.error('GraphQL Fetch Error:', err);
+      console.warn('GraphQL Fetch Error:', err);
       setExecutionError(err instanceof Error ? err.message : String(err));
-      setResponseJson('');
+      setResponseJson(JSON.stringify({
+        errors: [{ message: err instanceof Error ? err.message : String(err) }],
+      }, null, 2));
     } finally {
       setIsFetching(false);
     }
@@ -462,12 +639,16 @@ const GqlQueryEditor = ({
           {executionError && <Text size="xs" c="red.7" fw={500}>Error: {executionError}</Text>}
           <Select
             label=""
-            placeholder="Select Database Model"
-            value={selectedEndpoint}
-            onChange={(value) => setSelectedEndpoint(value || '')}
-            data={Object.entries(endpoints).map(([key, url]) => ({
-              value: url,
-              label: key === 'flatModel' ? 'Guppy (Flat Data)' : (key === 'graphModel' ? 'Grip (Graph Data)' : key),
+            placeholder="Select FHIR query mode"
+            value={selectedMode}
+            onChange={(value) => {
+              if (value && value in fhirQueryModeLabels) {
+                setSelectedMode(value as FhirQueryMode);
+              }
+            }}
+            data={fhirQueryModes.map((mode) => ({
+              value: mode,
+              label: fhirQueryModeLabels[mode],
             }))}
             style={{ width: '280px' }}
             size="xs"

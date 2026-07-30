@@ -1,5 +1,4 @@
 import type { AggregationsData, JSONObject } from '../../types';
-import type { FilterSet } from '../filters';
 
 export const LOOM_DATA_TYPES = [
   'DocumentReference',
@@ -11,13 +10,8 @@ export const LOOM_DATA_TYPES = [
 
 export type LoomDataType = (typeof LOOM_DATA_TYPES)[number];
 
-export type ExplorerDataType =
-  | 'file'
-  | 'document_reference'
-  | 'research_subject'
-  | 'specimen'
-  | 'medication_administration'
-  | 'group_member';
+export const isLoomDataType = (value: string): value is LoomDataType =>
+  (LOOM_DATA_TYPES as ReadonlyArray<string>).includes(value);
 
 export interface LoomDatasetRef {
   readonly dataType: LoomDataType;
@@ -112,9 +106,4 @@ export interface LoomApiError {
 export interface LoomQueryArgs {
   readonly query: string;
   readonly variables?: Record<string, unknown>;
-}
-
-export interface LoomFilterRequest {
-  readonly dataType: ExplorerDataType;
-  readonly filters?: FilterSet;
 }
