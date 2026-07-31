@@ -155,6 +155,22 @@ export const RenderFileActions = (
   if (typeof sourcePath === 'string') fileNameStr = sourcePath;
 
   if (!fileNameStr) {
+    const attachmentUrl = getSafeRowValue(
+      row,
+      'document_reference_content_attachment_url',
+    );
+    if (typeof attachmentUrl === 'string') fileNameStr = attachmentUrl;
+  }
+
+  if (!fileNameStr) {
+    const attachmentTitle = getSafeRowValue(
+      row,
+      'document_reference_content_attachment_title',
+    );
+    if (typeof attachmentTitle === 'string') fileNameStr = attachmentTitle;
+  }
+
+  if (!fileNameStr) {
     const fileName = getSafeRowValue(row, 'file_name');
     if (typeof fileName === 'string') fileNameStr = fileName;
   }
@@ -167,8 +183,12 @@ export const RenderFileActions = (
   const extension = fileNameStr.includes('.')
     ? fileNameStr.split('.').pop()?.toLowerCase() || ''
     : '';
-  const actionsList = fileActionsConfig?.extensions?.[extension] ||
-    fileActionsConfig?.extensions?.['default'] || ['file_download'];
+  const actionsList =
+    fileActionsConfig?.extensions?.[extension] ||
+    fileActionsConfig?.extensions?.['default'] ||
+    (arg.imageURL && ['tif', 'tiff'].includes(extension)
+      ? ['file_download', 'file_image']
+      : ['file_download']);
 
   if (actionsList.length === 0) return <React.Fragment />;
 
