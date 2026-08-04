@@ -89,11 +89,7 @@ const ProtectedContent = ({ children }: ProtectedContentProps) => {
   }
 
   if (stableStatus === 'issued') {
-    return (
-      <AccessGate onBlocked={handleBlocked}>
-        {children}
-      </AccessGate>
-    );
+    return <AccessGate onBlocked={handleBlocked}>{children}</AccessGate>;
   }
 
   if (pending) {

@@ -69,7 +69,6 @@ describe('verifyAuthenticatedSession', () => {
     await expect(verifyAuthenticatedSession(context, {})).resolves.toBe(false);
     expect(global.fetch).not.toHaveBeenCalled();
   });
-
   it('leaves the result unresolved when Fence is unavailable', async () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: false,

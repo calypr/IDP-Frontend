@@ -1,8 +1,5 @@
 import { GEN3_COMMONS_NAME, GEN3_FENCE_API } from '@gen3/core';
-import {
-  definePageLoader,
-  type ServerPageContext,
-} from '../../lib/pageLoader';
+import { definePageLoader, type ServerPageContext } from '../../lib/pageLoader';
 import { loadNavigationFromContext } from '../../lib/common/staticProps';
 import { type CalyprProps } from './types';
 import type { CalyprLandingPageProps } from './types';
@@ -22,7 +19,6 @@ const cookieValue = (
   }
   return undefined;
 };
-
 const firstHeaderValue = (
   value: string | string[] | undefined,
 ): string | undefined => (Array.isArray(value) ? value[0] : value);
@@ -61,7 +57,6 @@ export const verifyAuthenticatedSession = async (
     Boolean(headers.Authorization) ||
     /(?:^|;\s*)access_token=/i.test(headers.Cookie ?? '');
   if (!hasFenceCredential) return false;
-
   const endpoint = sessionEndpoint(context);
   if (!endpoint) return null;
 
@@ -97,7 +92,6 @@ export const sessionRequestHeaders = (
   const headers: Record<string, string> = {};
   const cookieHeader = context.req.headers.cookie;
   const authorizationHeader = context.req.headers.authorization;
-
   if (typeof cookieHeader === 'string' && cookieHeader) {
     headers.Cookie = cookieHeader;
   }
@@ -128,7 +122,9 @@ const calyprConfiguration = {
 
 const sessionState = new WeakMap<ServerPageContext, Promise<boolean | null>>();
 
-const loadSessionState = (context: ServerPageContext): Promise<boolean | null> => {
+const loadSessionState = (
+  context: ServerPageContext,
+): Promise<boolean | null> => {
   const existing = sessionState.get(context);
   if (existing) return existing;
 
@@ -165,7 +161,9 @@ export const CalyprPageGetServerSideProps =
     name: 'CALYPR',
     loadNavigation: loadCalyprNavigation,
     load: async (context) => ({
-      configuration: (await context.config.load(calyprConfiguration)) as CalyprProps,
+      configuration: (await context.config.load(
+        calyprConfiguration,
+      )) as CalyprProps,
       hasAuthenticatedSession: await loadSessionState(context),
     }),
     fallback: () => ({

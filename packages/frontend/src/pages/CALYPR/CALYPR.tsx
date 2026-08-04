@@ -43,7 +43,11 @@ const BannerPanel = ({
     </div>
   );
 };
-const CalyprPage = ({ headerProps, footerProps, pageProblems }: CalyprLandingPageProps) => {
+const CalyprPage = ({
+  headerProps,
+  footerProps,
+  pageProblems,
+}: CalyprLandingPageProps) => {
   const { status } = useSession(false);
 
   if (status === 'issued') {

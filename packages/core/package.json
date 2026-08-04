@@ -25,9 +25,9 @@
   },
   "scripts": {
     "lint": "eslint .",
-    "compile": "tsc",
+    "compile": "node ../../node_modules/@typescript/native/bin/tsc",
     "clean": "rm -rf dist",
-    "types": "tsc --emitDeclarationOnly --skipLibCheck",
+    "types": "node ../../node_modules/@typescript/native/bin/tsc --emitDeclarationOnly --skipLibCheck",
     "build": "npm run clean && npm run compile && rollup --config rollup.config.mjs",
     "build:clean": "npm run clean && npm run compile && npm run types && rollup --config rollup.config.mjs",
     "build:watch": "npm run compile && rollup --config rollup.config.mjs --watch",
