@@ -1,6 +1,7 @@
 import type { AggregationsData, JSONObject } from '../../types';
 
 export const LOOM_DATA_TYPES = [
+  'Patient',
   'DocumentReference',
   'ResearchSubject',
   'Specimen',
@@ -106,4 +107,18 @@ export interface LoomApiError {
 export interface LoomQueryArgs {
   readonly query: string;
   readonly variables?: Record<string, unknown>;
+}
+
+export interface LoomGraphQLResponse<T> {
+  readonly data?: T;
+  readonly errors?: ReadonlyArray<{
+    readonly message: string;
+    readonly extensions?: { readonly code?: string };
+  }>;
+}
+
+export interface LoomRequestOptions {
+  readonly endpoint?: string;
+  readonly headers?: Record<string, string>;
+  readonly signal?: AbortSignal;
 }

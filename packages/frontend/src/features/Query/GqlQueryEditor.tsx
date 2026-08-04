@@ -1,11 +1,37 @@
-import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
+import React, {
+  useState,
+  useMemo,
+  useRef,
+  useCallback,
+  useEffect,
+} from 'react';
 import CodeMirror from '@uiw/react-codemirror';
 import { graphql } from 'cm6-graphql';
 import { EditorView } from '@codemirror/view';
-import { getIntrospectionQuery, buildClientSchema, GraphQLSchema, parse, print } from 'graphql';
+import {
+  getIntrospectionQuery,
+  buildClientSchema,
+  GraphQLSchema,
+  parse,
+  print,
+} from 'graphql';
+import type { IntrospectionQuery } from 'graphql';
 import { autocompletion } from '@codemirror/autocomplete';
 import { useClipboard } from '@mantine/hooks';
-import { Text, Select, Box, Center, Loader, Button, ScrollArea, ActionIcon, Tooltip, Group, Divider, Badge } from '@mantine/core';
+import {
+  Text,
+  Select,
+  Box,
+  Center,
+  Loader,
+  Button,
+  ScrollArea,
+  ActionIcon,
+  Tooltip,
+  Group,
+  Divider,
+  Badge,
+} from '@mantine/core';
 import {
   IconPlayerPlay,
   IconBrush,
@@ -20,23 +46,24 @@ import {
 } from '@tabler/icons-react';
 import {
   GEN3_LOOM_API,
+  fetchLoomGraphQL,
   selectHeadersWithCSRFToken,
   useCoreSelector,
   useGetCSRFQuery,
 } from '@gen3/core';
-import Cookies from 'js-cookie';
 import { GqlQueryEditorProps } from './types';
 
 type FhirQueryMode = 'fhirDataframe' | 'fhirGraph' | 'fhirFlat';
 
 const fhirDataframeDefaultQuery = `mutation RunFhirDataframe(
   $input: FhirDataframeInput!
-  $limit: Int
+  $limit: Int = 10
 ) {
   runFhirDataframe(input: $input, limit: $limit) {
     columns
     rows
     rowCount
+    diagnostics { totalMs }
   }
 }`;
 
@@ -45,14 +72,7 @@ const fhirDataframeDefaultVariables = `{
   "input": {
     "project": "HTAN_INT-BForePC",
     "rootResourceType": "Patient",
-    "rootFilters": [
-      {
-        "select": "identifier[].value",
-        "operator": "EXISTS",
-        "quantifier": "ANY",
-        "values": []
-      }
-    ],
+    "rootFilters": [],
     "rootFields": [
       {
         "name": "id",
@@ -72,69 +92,35 @@ const fhirDataframeDefaultVariables = `{
   }
 }`;
 
-const fhirGraphDefaultQuery = `query DocumentReferenceToPatient(
-  $project: String!
-  $filters: [FhirFilterInput!]
-  $limit: Int = 10
+const fhirGraphDefaultQuery = `query FhirGraphExample(
+  $input: FhirGraphQueryInput!
 ) {
-  DocumentReference(project: $project, filters: $filters, limit: $limit) {
-    id
-    status
-    description
-    content {
-      attachment {
-        title
-        contentType
-        url
-      }
-    }
-    subject {
-      reference
-      resource(type: SPECIMEN, optional: true) {
-        ... on Specimen {
-          id
-          status
-          identifier { system value }
-          type {
-            coding { system code display }
-            text
-          }
-          subject {
-            reference
-            resource(type: PATIENT, optional: true) {
-              ... on Patient {
-                id
-                gender
-                birthDate
-                identifier { system value }
-                name { use family given }
-              }
-            }
-          }
-        }
-      }
+  fhirGraph(input: $input) {
+    sourceGeneration
+    returnedCount
+    pageInfo { hasMore }
+    paths {
+      terminalAlias
+      nodes { alias resourceType id resource }
+      relationships { alias label fromResourceType toResourceType }
     }
   }
 }`;
 
 const fhirGraphDefaultVariables = `{
-  "project": "HTAN_INT-BForePC",
-  "limit": 10,
-  "filters": [
-    {
-      "select": "identifier[].value",
-      "operator": "EXISTS",
-      "quantifier": "ANY",
-      "values": []
-    }
-  ]
+  "input": {
+    "project": "HTAN_INT-BForePC",
+    "rootResourceType": "Patient",
+    "rootFilters": [],
+    "traverse": [],
+    "limit": 10
+  }
 }`;
 
-const fhirFlatDefaultQuery = `query DocumentReferenceRows(
-  $dataType: String!
+const fhirFlatDefaultQuery = `query PatientRows(
   $input: DataframeRowsInput!
 ) {
-  dataset: dataframeDataset(input: { dataType: $dataType }) {
+  dataset: dataframeDataset(input: { dataType: "Patient" }) {
     name
     state
     rowCount
@@ -157,15 +143,9 @@ const fhirFlatDefaultQuery = `query DocumentReferenceRows(
 }`;
 
 const fhirFlatDefaultVariables = `{
-  "dataType": "DocumentReference",
   "input": {
-    "dataType": "DocumentReference",
-    "columns": [
-      "document_reference_id"
-    ],
-    "filters": [],
-    "first": 25,
-    "sort": { "column": "document_reference_id", "desc": false }
+    "dataType": "Patient",
+    "first": 25
   }
 }`;
 
@@ -175,7 +155,10 @@ const fhirQueryModeLabels: Record<FhirQueryMode, string> = {
   fhirFlat: 'Flat',
 };
 
-const fhirQueryDefaults: Record<FhirQueryMode, { query: string; variables: string }> = {
+const fhirQueryDefaults: Record<
+  FhirQueryMode,
+  { query: string; variables: string }
+> = {
   fhirDataframe: {
     query: fhirDataframeDefaultQuery,
     variables: fhirDataframeDefaultVariables,
@@ -195,11 +178,15 @@ const fhirQuerySchemaFields: Record<
   { root: 'query' | 'mutation'; field: string }
 > = {
   fhirDataframe: { root: 'mutation', field: 'runFhirDataframe' },
-  fhirGraph: { root: 'query', field: 'DocumentReference' },
+  fhirGraph: { root: 'query', field: 'fhirGraph' },
   fhirFlat: { root: 'query', field: 'dataframeRows' },
 };
 
-const fhirQueryModes: FhirQueryMode[] = ['fhirGraph', 'fhirFlat', 'fhirDataframe'];
+const fhirQueryModes: FhirQueryMode[] = [
+  'fhirGraph',
+  'fhirFlat',
+  'fhirDataframe',
+];
 
 const asLoomEndpoint = (
   configuredEndpoint: string | undefined,
@@ -254,24 +241,24 @@ const calculateVisibleLines = (node: HTMLElement | null): number => {
     sampleLine?.getBoundingClientRect().height ||
     Number.parseFloat(window.getComputedStyle(node).lineHeight) ||
     24;
-  const lineHeight = Math.max(MIN_CODEMIRROR_LINE_HEIGHT_PX, measuredLineHeight);
+  const lineHeight = Math.max(
+    MIN_CODEMIRROR_LINE_HEIGHT_PX,
+    measuredLineHeight,
+  );
   return Math.max(
     1,
-    Math.min(MAX_VISIBLE_FILL_LINES, Math.ceil(node.clientHeight / lineHeight))
+    Math.min(MAX_VISIBLE_FILL_LINES, Math.ceil(node.clientHeight / lineHeight)),
   );
 };
-
 
 /**
  * Custom modern GraphQL Editor Component replacing GraphiQL.
  * Built using @uiw/react-codemirror and cm6-graphql.
  */
-const GqlQueryEditor = ({
-  graphQLEndpoint,
-}: GqlQueryEditorProps) => {
+const GqlQueryEditor = ({ graphQLEndpoint }: GqlQueryEditorProps) => {
   const { isLoading: isAuthLoading } = useGetCSRFQuery();
   const headers = useCoreSelector(selectHeadersWithCSRFToken);
-  
+
   const endpoints = useMemo(() => {
     // Only accept configured endpoints that use Loom's graph contract. Older
     // commons may still provide a legacy Guppy endpoint in query.json; that
@@ -286,19 +273,25 @@ const GqlQueryEditor = ({
     } satisfies Record<FhirQueryMode, string>;
   }, [graphQLEndpoint]);
 
-  const initialMode: FhirQueryMode = graphQLEndpoint ? 'fhirDataframe' : 'fhirFlat';
+  const initialMode: FhirQueryMode = graphQLEndpoint
+    ? 'fhirDataframe'
+    : 'fhirFlat';
   const [selectedMode, setSelectedMode] = useState<FhirQueryMode>(initialMode);
   const selectedEndpoint = endpoints[selectedMode];
 
-  const [queryCode, setQueryCode] = useState(() => fhirQueryDefaults[initialMode].query);
+  const [queryCode, setQueryCode] = useState(
+    () => fhirQueryDefaults[initialMode].query,
+  );
   const [responseJson, setResponseJson] = useState('');
   const [isFetching, setIsFetching] = useState(false);
   const [executionError, setExecutionError] = useState<string | null>(null);
-  
+
   const [schema, setSchema] = useState<GraphQLSchema | undefined>(undefined);
   const [schemaError, setSchemaError] = useState<string | null>(null);
 
-  const [variablesJson, setVariablesJson] = useState(() => fhirQueryDefaults[initialMode].variables);
+  const [variablesJson, setVariablesJson] = useState(
+    () => fhirQueryDefaults[initialMode].variables,
+  );
 
   const clipboard = useClipboard({ timeout: 2000 });
   const [showDocs, setShowDocs] = useState(false);
@@ -343,7 +336,9 @@ const GqlQueryEditor = ({
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
     document.body.style.userSelect = 'none';
-    document.body.style.cursor = pane.includes('Width') ? 'col-resize' : 'row-resize';
+    document.body.style.cursor = pane.includes('Width')
+      ? 'col-resize'
+      : 'row-resize';
   };
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
@@ -351,18 +346,21 @@ const GqlQueryEditor = ({
 
     const containerRect = containerRef.current.getBoundingClientRect();
     const { docsWidth: dW, showDocs: sD } = sizingRef.current;
-    
+
     if (isResizingRef.current === 'docsWidth') {
-      const newWidth = ((e.clientX - containerRect.left) / containerRect.width) * 100;
+      const newWidth =
+        ((e.clientX - containerRect.left) / containerRect.width) * 100;
       setDocsWidth(Math.max(12, Math.min(45, newWidth)));
     } else if (isResizingRef.current === 'queryWidth') {
       const leftOffset = sD ? (dW * containerRect.width) / 100 : 0;
       const availableWidth = containerRect.width - leftOffset;
       if (availableWidth <= 0) return;
-      const newWidth = ((e.clientX - containerRect.left - leftOffset) / availableWidth) * 100;
+      const newWidth =
+        ((e.clientX - containerRect.left - leftOffset) / availableWidth) * 100;
       setQueryWidth(Math.max(25, Math.min(75, newWidth)));
     } else if (isResizingRef.current === 'variablesHeight') {
-      const rightRect = rightPanelRef.current?.getBoundingClientRect() ?? containerRect;
+      const rightRect =
+        rightPanelRef.current?.getBoundingClientRect() ?? containerRect;
       const newHeight = ((e.clientY - rightRect.top) / rightRect.height) * 100;
       setVariablesHeight(Math.max(1, Math.min(99, newHeight)));
     }
@@ -432,37 +430,23 @@ const GqlQueryEditor = ({
   // Fetch GraphQL schema for autocomplete
   useEffect(() => {
     let isMounted = true;
-    
+
     const fetchSchema = async () => {
       setSchemaError(null);
       try {
-        const token = Cookies.get('access_token') || Cookies.get('credentials_token') || Cookies.get('csrfToken');
-        const finalHeaders = {
-          ...headersRef.current,
-          'Content-Type': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-        };
-
-        const response = await fetch(selectedEndpoint, {
-          method: 'POST',
-          headers: finalHeaders as HeadersInit,
-          credentials: 'include',
-          body: JSON.stringify({ query: getIntrospectionQuery() })
-        });
-
-        if (!response.ok) {
-           throw new Error(`Failed to load schema: ${response.status}`);
-        }
-
-        const result = await response.json();
-        if (result?.data && isMounted) {
-          const clientSchema = buildClientSchema(result.data);
+        const result = await fetchLoomGraphQL<IntrospectionQuery>(
+          { query: getIntrospectionQuery() },
+          { endpoint: selectedEndpoint, headers: headersRef.current },
+        );
+        if (isMounted) {
+          const clientSchema = buildClientSchema(result);
           setSchema(clientSchema);
 
           const { root, field } = fhirQuerySchemaFields[selectedMode];
-          const fields = root === 'query'
-            ? clientSchema.getQueryType()?.getFields() || {}
-            : clientSchema.getMutationType()?.getFields() || {};
+          const fields =
+            root === 'query'
+              ? clientSchema.getQueryType()?.getFields() || {}
+              : clientSchema.getMutationType()?.getFields() || {};
           const requiredField = fields[field];
           if (!requiredField) {
             setSchemaError(
@@ -472,9 +456,9 @@ const GqlQueryEditor = ({
         }
       } catch (err: unknown) {
         if (isMounted) {
-           console.warn('Schema Introspection Error:', err);
-           setSchemaError('Autocompletion disabled: Could not fetch schema');
-           setSchema(undefined);
+          console.warn('Schema Introspection Error:', err);
+          setSchemaError('Autocompletion disabled: Could not fetch schema');
+          setSchema(undefined);
         }
       }
     };
@@ -490,14 +474,6 @@ const GqlQueryEditor = ({
     setIsFetching(true);
     setExecutionError(null);
     try {
-      const token = Cookies.get('access_token') || Cookies.get('credentials_token') || Cookies.get('csrfToken');
-      
-      const finalHeaders = {
-        ...headersRef.current,
-        'Content-Type': 'application/json',
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-      };
-
       let variables = {};
       try {
         variables = JSON.parse(variablesJson);
@@ -510,34 +486,26 @@ const GqlQueryEditor = ({
         return;
       }
 
-      const response = await fetch(selectedEndpoint, {
-        method: 'POST',
-        headers: finalHeaders as HeadersInit,
-        credentials: 'include',
-        body: JSON.stringify({ 
-          query: queryCode.trim(),
-          variables: variables
-        })
-      });
-
-      const result = await response.json().catch(() => ({
-        errors: [{ message: `API ${response.status}: the server returned an invalid JSON response` }],
-      }));
-      setResponseJson(JSON.stringify(result, null, 2));
-
-      const graphQLErrors = Array.isArray(result?.errors) ? result.errors : [];
-      if (!response.ok || graphQLErrors.length > 0) {
-        const message = graphQLErrors
-          .map((error: { message?: unknown }) => String(error?.message || 'GraphQL request failed'))
-          .join('; ');
-        setExecutionError(`API ${response.status}: ${message}`);
-      }
+      const result = await fetchLoomGraphQL<Record<string, unknown>>(
+        { query: queryCode.trim(), variables },
+        { endpoint: selectedEndpoint, headers: headersRef.current },
+      );
+      setResponseJson(JSON.stringify({ data: result }, null, 2));
     } catch (err: unknown) {
       console.warn('GraphQL Fetch Error:', err);
-      setExecutionError(err instanceof Error ? err.message : String(err));
-      setResponseJson(JSON.stringify({
+      const requestError = err as {
+        readonly data?: unknown;
+        readonly status?: number | string;
+      };
+      const response = requestError.data ?? {
         errors: [{ message: err instanceof Error ? err.message : String(err) }],
-      }, null, 2));
+      };
+      setExecutionError(
+        `${requestError.status ?? 'API'}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+      setResponseJson(JSON.stringify(response, null, 2));
     } finally {
       setIsFetching(false);
     }
@@ -564,7 +532,6 @@ const GqlQueryEditor = ({
 
   const variablesExtensions = useMemo(() => [paneOuterScrollTheme], []);
   const responseExtensions = useMemo(() => [paneOuterScrollTheme], []);
-
 
   if (isAuthLoading && !headers['X-CSRF-Token']) {
     return (
@@ -594,25 +561,30 @@ const GqlQueryEditor = ({
         height: EDITOR_WORKSPACE_HEIGHT,
       }}
     >
-      
       {/* Top Controls Bar */}
       <div className="flex items-center justify-between border-b border-gray-200 bg-gradient-to-r from-white via-white to-blue-50 px-4 py-2">
         <div className="flex items-center space-x-2">
-          <Badge color="primary.0" variant="light" size="sm" radius="sm" className="mr-2">
+          <Badge
+            color="primary.0"
+            variant="light"
+            size="sm"
+            radius="sm"
+            className="mr-2"
+          >
             GraphQL
           </Badge>
           <Text size="sm" fw={700} c="dark.8">
             Query Explorer
           </Text>
-          
+
           <Divider orientation="vertical" className="mx-2" />
 
           <Group gap="xs">
             <Tooltip label="Execute Query (Shift+Enter)">
-              <Button 
-                onClick={executeQuery} 
+              <Button
+                onClick={executeQuery}
                 loading={isFetching}
-                size="xs" 
+                size="xs"
                 color="primary.0"
                 leftSection={<IconPlayerPlay size={14} />}
               >
@@ -621,22 +593,40 @@ const GqlQueryEditor = ({
             </Tooltip>
 
             <Tooltip label="Prettify Query & Variables">
-              <ActionIcon onClick={prettifyCode} variant="outline" color="accent.0" size="sm">
+              <ActionIcon
+                onClick={prettifyCode}
+                variant="outline"
+                color="accent.0"
+                size="sm"
+              >
                 <IconBrush size={16} />
               </ActionIcon>
             </Tooltip>
 
             <Tooltip label="Toggle Schema Documentation">
-              <ActionIcon onClick={() => setShowDocs(!showDocs)} variant={showDocs ? "filled" : "outline"} color="accent.0" size="sm">
+              <ActionIcon
+                onClick={() => setShowDocs(!showDocs)}
+                variant={showDocs ? 'filled' : 'outline'}
+                color="accent.0"
+                size="sm"
+              >
                 <IconBook size={16} />
               </ActionIcon>
             </Tooltip>
           </Group>
         </div>
-        
+
         <div className="flex items-center space-x-3">
-          {schemaError && <Text size="xs" c="orange.7" fw={500}>{schemaError}</Text>}
-          {executionError && <Text size="xs" c="red.7" fw={500}>Error: {executionError}</Text>}
+          {schemaError && (
+            <Text size="xs" c="orange.7" fw={500}>
+              {schemaError}
+            </Text>
+          )}
+          {executionError && (
+            <Text size="xs" c="red.7" fw={500}>
+              Error: {executionError}
+            </Text>
+          )}
           <Select
             label=""
             placeholder="Select FHIR query mode"
@@ -662,45 +652,60 @@ const GqlQueryEditor = ({
         ref={containerRef}
         className={`relative flex min-h-0 flex-grow flex-row overflow-hidden ${isResizingRef.current ? 'select-none' : ''}`}
       >
-        
         {/* Left Side: Documentation Explorer */}
         {showDocs && (
           <>
-            <div 
+            <div
               className="slide-in-left flex flex-col overflow-hidden border-r border-gray-200 bg-gray-50"
               style={{ width: `${docsWidth}%` }}
             >
               <div className="px-3 py-2 bg-gray-100 border-b border-gray-200 text-xs text-gray-700 font-bold flex justify-between items-center">
                 <span>SCHEMA DOCUMENTATION</span>
-                <ActionIcon size="xs" variant="subtle" color="gray" onClick={() => setShowDocs(false)}><IconX size={14}/></ActionIcon>
+                <ActionIcon
+                  size="xs"
+                  variant="subtle"
+                  color="gray"
+                  onClick={() => setShowDocs(false)}
+                >
+                  <IconX size={14} />
+                </ActionIcon>
               </div>
-              
+
               <div className="p-2 border-b border-gray-200">
-                 <Select
-                    placeholder="Jump to type..."
-                    searchable
-                    size="xs"
-                    data={schema ? Object.keys(schema.getTypeMap()).filter(t => !t.startsWith('__')) : []}
-                    onChange={(val) => {
-                      if (val && schema) {
-                        const type = schema.getType(val);
-                        if (type) setDocHistory([{ name: val, type: getBaseType(type) }]);
-                      }
-                    }}
-                    leftSection={<IconSearch size={12} />}
-                 />
+                <Select
+                  placeholder="Jump to type..."
+                  searchable
+                  size="xs"
+                  data={
+                    schema
+                      ? Object.keys(schema.getTypeMap()).filter(
+                          (t) => !t.startsWith('__'),
+                        )
+                      : []
+                  }
+                  onChange={(val) => {
+                    if (val && schema) {
+                      const type = schema.getType(val);
+                      if (type)
+                        setDocHistory([{ name: val, type: getBaseType(type) }]);
+                    }
+                  }}
+                  leftSection={<IconSearch size={12} />}
+                />
               </div>
 
               <ScrollArea className="flex-grow">
                 {!schema ? (
-                  <Center className="h-full"><Loader size="xs" /></Center>
+                  <Center className="h-full">
+                    <Loader size="xs" />
+                  </Center>
                 ) : (
                   <div className="p-3">
                     {/* Navigation / Breadcrumbs */}
                     <div className="flex flex-wrap items-center gap-1 mb-3">
-                      <Button 
-                        variant="subtle" 
-                        size="compact-xs" 
+                      <Button
+                        variant="subtle"
+                        size="compact-xs"
                         color="primary.0"
                         onClick={() => setDocHistory([])}
                         className="px-1"
@@ -709,12 +714,21 @@ const GqlQueryEditor = ({
                       </Button>
                       {docHistory.map((item, idx) => (
                         <React.Fragment key={idx}>
-                          <IconChevronRight size={10} className="text-gray-400" />
-                          <Button 
-                            variant="subtle" 
-                            size="compact-xs" 
-                            color={idx === docHistory.length - 1 ? "gray" : "accent.0"}
-                            onClick={() => setDocHistory(docHistory.slice(0, idx + 1))}
+                          <IconChevronRight
+                            size={10}
+                            className="text-gray-400"
+                          />
+                          <Button
+                            variant="subtle"
+                            size="compact-xs"
+                            color={
+                              idx === docHistory.length - 1
+                                ? 'gray'
+                                : 'accent.0'
+                            }
+                            onClick={() =>
+                              setDocHistory(docHistory.slice(0, idx + 1))
+                            }
                             className="px-1"
                           >
                             {item.name}
@@ -725,83 +739,136 @@ const GqlQueryEditor = ({
 
                     {docHistory.length === 0 ? (
                       <div>
-                        <Text size="xs" fw={700} c="primary.0" className="uppercase mb-2 flex items-center gap-1">
+                        <Text
+                          size="xs"
+                          fw={700}
+                          c="primary.0"
+                          className="uppercase mb-2 flex items-center gap-1"
+                        >
                           <IconChevronDown size={12} /> Query Root
                         </Text>
                         <div className="space-y-1">
-                          {Object.values(schema.getQueryType()?.getFields() || {}).map(field => (
-                            <div 
-                              key={field.name} 
+                          {Object.values(
+                            schema.getQueryType()?.getFields() || {},
+                          ).map((field) => (
+                            <div
+                              key={field.name}
                               onClick={() => {
                                 const baseType = getBaseType(field.type);
-                                setDocHistory([{ name: field.name, type: baseType, title: field.name }]);
+                                setDocHistory([
+                                  {
+                                    name: field.name,
+                                    type: baseType,
+                                    title: field.name,
+                                  },
+                                ]);
                               }}
                               className="group flex cursor-pointer items-center justify-between border-b border-gray-100 p-1.5 text-xs last:border-0 hover:bg-primary-lightest"
                             >
-                              <span className="font-mono text-blue-800">{field.name}</span>
-                              <IconChevronRight size={12} className="text-gray-300 group-hover:text-primary" />
+                              <span className="font-mono text-blue-800">
+                                {field.name}
+                              </span>
+                              <IconChevronRight
+                                size={12}
+                                className="text-gray-300 group-hover:text-primary"
+                              />
                             </div>
                           ))}
                         </div>
                       </div>
                     ) : (
                       <div>
-                          <Text size="xs" fw={700} c="blue.7" className="mb-2 uppercase">
-                            {docHistory[docHistory.length - 1].name}
+                        <Text
+                          size="xs"
+                          fw={700}
+                          c="blue.7"
+                          className="mb-2 uppercase"
+                        >
+                          {docHistory[docHistory.length - 1].name}
+                        </Text>
+                        {docHistory[docHistory.length - 1].type.description && (
+                          <Text
+                            size="xs"
+                            color="dimmed"
+                            className="mb-4 italic"
+                          >
+                            {docHistory[docHistory.length - 1].type.description}
                           </Text>
-                          {docHistory[docHistory.length - 1].type.description && (
-                            <Text size="xs" color="dimmed" className="mb-4 italic">
-                              {docHistory[docHistory.length - 1].type.description}
+                        )}
+
+                        <Divider
+                          label="Fields"
+                          labelPosition="center"
+                          className="my-3"
+                        />
+
+                        <div className="divide-y divide-gray-100">
+                          {docHistory[docHistory.length - 1].type.getFields ? (
+                            Object.values(
+                              docHistory[
+                                docHistory.length - 1
+                              ].type.getFields(),
+                            ).map((f: any) => (
+                              <div
+                                key={f.name}
+                                className="py-2.5 flex flex-col min-w-0"
+                              >
+                                <div className="flex items-start justify-between gap-2 min-w-0">
+                                  <span className="font-mono text-xs font-bold text-indigo-900 break-all overflow-hidden min-w-0">
+                                    {f.name}
+                                  </span>
+                                  <Badge
+                                    size="xs"
+                                    variant="light"
+                                    color="accent.0 "
+                                    radius="xs"
+                                    className="cursor-pointer shrink-0 mt-0.5"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const baseType = getBaseType(f.type);
+                                      setDocHistory([
+                                        ...docHistory,
+                                        { name: baseType.name, type: baseType },
+                                      ]);
+                                    }}
+                                  >
+                                    {f.type.toString()}
+                                  </Badge>
+                                </div>
+                                {f.description && (
+                                  <div className="mt-1 text-xs text-gray-500 leading-snug break-words">
+                                    {f.description}
+                                  </div>
+                                )}
+                                {f.args?.length > 0 && (
+                                  <div className="mt-2 rounded-r-sm border-l-2 border-blue-100 bg-gray-50/50 py-1.5 pl-2">
+                                    <div className="mb-1 text-[9px] font-bold uppercase tracking-wider text-blue-400">
+                                      Arguments
+                                    </div>
+                                    {f.args.map((a: any) => (
+                                      <div
+                                        key={a.name}
+                                        className="text-[10px] text-gray-600 font-mono flex gap-1 flex-wrap"
+                                      >
+                                        <span className="text-orange-700 font-semibold">
+                                          {a.name}
+                                        </span>
+                                        :
+                                        <span className="text-gray-400">
+                                          {a.type.toString()}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            ))
+                          ) : (
+                            <Text size="xs" color="dimmed">
+                              This type has no fields (Scalar/Enum).
                             </Text>
                           )}
-
-                          <Divider label="Fields" labelPosition="center" className="my-3" />
-                          
-                          <div className="divide-y divide-gray-100">
-                             {docHistory[docHistory.length - 1].type.getFields ? (
-                               Object.values(docHistory[docHistory.length - 1].type.getFields()).map((f: any) => (
-                                 <div key={f.name} className="py-2.5 flex flex-col min-w-0">
-                                    <div className="flex items-start justify-between gap-2 min-w-0">
-                                      <span className="font-mono text-xs font-bold text-indigo-900 break-all overflow-hidden min-w-0">
-                                        {f.name}
-                                      </span>
-                                      <Badge 
-                                        size="xs" 
-                                        variant="light" 
-                                        color="accent.0 "
-                                        radius="xs" 
-                                        className="cursor-pointer shrink-0 mt-0.5"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          const baseType = getBaseType(f.type);
-                                          setDocHistory([...docHistory, { name: baseType.name, type: baseType }]);
-                                        }}
-                                      >
-                                        {f.type.toString()}
-                                      </Badge>
-                                    </div>
-                                    {f.description && (
-                                      <div className="mt-1 text-xs text-gray-500 leading-snug break-words">
-                                        {f.description}
-                                      </div>
-                                    )}
-                                    {f.args?.length > 0 && (
-                                      <div className="mt-2 rounded-r-sm border-l-2 border-blue-100 bg-gray-50/50 py-1.5 pl-2">
-                                         <div className="mb-1 text-[9px] font-bold uppercase tracking-wider text-blue-400">Arguments</div>
-                                         {f.args.map((a: any) => (
-                                           <div key={a.name} className="text-[10px] text-gray-600 font-mono flex gap-1 flex-wrap">
-                                              <span className="text-orange-700 font-semibold">{a.name}</span>: 
-                                              <span className="text-gray-400">{a.type.toString()}</span>
-                                           </div>
-                                         ))}
-                                      </div>
-                                    )}
-                                 </div>
-                               ))
-                             ) : (
-                               <Text size="xs" color="dimmed">This type has no fields (Scalar/Enum).</Text>
-                             )}
-                          </div>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -809,7 +876,7 @@ const GqlQueryEditor = ({
               </ScrollArea>
             </div>
             {/* Dragger 1 */}
-            <div 
+            <div
               className="w-1 bg-gray-200 hover:bg-primary cursor-col-resize z-10 transition-colors"
               onMouseDown={handleMouseDown('docsWidth')}
             />
@@ -817,39 +884,41 @@ const GqlQueryEditor = ({
         )}
 
         {/* Middle: CodeMirror Input */}
-        <div 
+        <div
           className="flex min-w-0 flex-col border-r border-gray-200 bg-white"
           style={{ width: centerPanelWidth }}
         >
-           <div className="px-3 py-2 bg-gray-50 border-b border-gray-100 text-xs text-gray-500 font-semibold flex justify-between">
-              <span>GraphQL Query</span>
-              {schema && <span className="font-normal text-green-600">Schema Loaded</span>}
-           </div>
-           <div
-             ref={queryEditorHostRef}
-             className="min-h-0 flex-1 overflow-y-scroll overflow-x-auto bg-white"
-             style={{ scrollbarGutter: 'stable' }}
-           >
-             <CodeMirror
-               value={paddedQueryCode}
-               extensions={queryExtensions}
-               onChange={(val) => setQueryCode(val)}
-               theme="light"
-               basicSetup={{
-                 lineNumbers: true,
-                 foldGutter: true,
-                 highlightActiveLine: true,
-                 bracketMatching: true,
-                 autocompletion: true,
-                 syntaxHighlighting: true,
-               }}
-               style={{ fontSize: '14px' }}
-             />
-           </div>
+          <div className="px-3 py-2 bg-gray-50 border-b border-gray-100 text-xs text-gray-500 font-semibold flex justify-between">
+            <span>GraphQL Query</span>
+            {schema && (
+              <span className="font-normal text-green-600">Schema Loaded</span>
+            )}
+          </div>
+          <div
+            ref={queryEditorHostRef}
+            className="min-h-0 flex-1 overflow-y-scroll overflow-x-auto bg-white"
+            style={{ scrollbarGutter: 'stable' }}
+          >
+            <CodeMirror
+              value={paddedQueryCode}
+              extensions={queryExtensions}
+              onChange={(val) => setQueryCode(val)}
+              theme="light"
+              basicSetup={{
+                lineNumbers: true,
+                foldGutter: true,
+                highlightActiveLine: true,
+                bracketMatching: true,
+                autocompletion: true,
+                syntaxHighlighting: true,
+              }}
+              style={{ fontSize: '14px' }}
+            />
+          </div>
         </div>
 
         {/* Dragger 2 */}
-        <div 
+        <div
           className="w-1 bg-gray-200 hover:bg-primary cursor-col-resize z-10 transition-colors"
           onMouseDown={handleMouseDown('queryWidth')}
         />
@@ -862,86 +931,100 @@ const GqlQueryEditor = ({
             gridTemplateRows: `${clampedVariablesHeight}% ${STACK_DRAGGER_PX}px ${clampedResponseHeight}%`,
           }}
         >
-           {/* Section 1: Variables / Filters Editor */}
-           <div
-              className="flex min-h-0 flex-col overflow-hidden border-b border-gray-200"
+          {/* Section 1: Variables / Filters Editor */}
+          <div className="flex min-h-0 flex-col overflow-hidden border-b border-gray-200">
+            <div className="px-3 py-2 bg-gray-50 border-b border-gray-100 text-xs text-gray-500 font-semibold flex justify-between">
+              <span>Query Variables (Filters)</span>
+              <Tooltip label="Copy Variables">
+                <ActionIcon
+                  onClick={() => clipboard.copy(variablesJson)}
+                  size="xs"
+                  variant="transparent"
+                  color={clipboard.copied ? 'green' : 'gray'}
+                >
+                  {clipboard.copied ? (
+                    <IconCheck size={12} />
+                  ) : (
+                    <IconCopy size={12} />
+                  )}
+                </ActionIcon>
+              </Tooltip>
+            </div>
+            <div
+              ref={variablesEditorHostRef}
+              className="min-h-0 flex-1 overflow-y-scroll overflow-x-auto"
+              style={{ scrollbarGutter: 'stable' }}
             >
-              <div className="px-3 py-2 bg-gray-50 border-b border-gray-100 text-xs text-gray-500 font-semibold flex justify-between">
-                  <span>Query Variables (Filters)</span>
-                  <Tooltip label="Copy Variables">
-                    <ActionIcon onClick={() => clipboard.copy(variablesJson)} size="xs" variant="transparent" color={clipboard.copied ? "green" : "gray"}>
-                      {clipboard.copied ? <IconCheck size={12}/> : <IconCopy size={12}/>}
-                    </ActionIcon>
-                  </Tooltip>
-              </div>
+              <CodeMirror
+                value={paddedVariablesJson}
+                extensions={variablesExtensions}
+                onChange={(val) => setVariablesJson(val)}
+                theme="light"
+                basicSetup={{
+                  lineNumbers: true,
+                  foldGutter: true,
+                  syntaxHighlighting: true,
+                }}
+                style={{ fontSize: '13px' }}
+              />
+            </div>
+          </div>
+
+          {/* Vertical Dragger */}
+          <div
+            className="bg-gray-200 hover:bg-primary cursor-row-resize z-10 transition-colors"
+            onMouseDown={handleMouseDown('variablesHeight')}
+          />
+
+          {/* Section 2: Response View */}
+          <div className="flex min-h-0 flex-col overflow-hidden bg-white">
+            <div className="px-3 py-2 bg-gray-50 border-b border-gray-100 text-xs text-gray-500 font-semibold flex justify-between">
+              <span>Response Data</span>
+              <Group gap="xs">
+                {isFetching && <Loader size="xs" color="gray" />}
+                <Tooltip label="Copy Response">
+                  <ActionIcon
+                    onClick={() => clipboard.copy(responseJson)}
+                    size="xs"
+                    variant="transparent"
+                    color={clipboard.copied ? 'green' : 'gray'}
+                  >
+                    {clipboard.copied ? (
+                      <IconCheck size={12} />
+                    ) : (
+                      <IconCopy size={12} />
+                    )}
+                  </ActionIcon>
+                </Tooltip>
+              </Group>
+            </div>
+
+            <div className="relative flex min-h-0 flex-1 flex-col">
+              {!responseJson && !executionError && !isFetching && (
+                <Center className="h-full w-full text-gray-400 absolute top-0 left-0 z-10 pointer-events-none">
+                  Hit &quot;Run&quot; to fetch results.
+                </Center>
+              )}
+
               <div
-                ref={variablesEditorHostRef}
+                ref={responseEditorHostRef}
                 className="min-h-0 flex-1 overflow-y-scroll overflow-x-auto"
                 style={{ scrollbarGutter: 'stable' }}
               >
                 <CodeMirror
-                  value={paddedVariablesJson}
-                  extensions={variablesExtensions}
-                  onChange={(val) => setVariablesJson(val)}
+                  value={paddedResponseJson}
+                  extensions={responseExtensions}
+                  readOnly={true}
                   theme="light"
                   basicSetup={{
                     lineNumbers: true,
                     foldGutter: true,
-                    syntaxHighlighting: true,
                   }}
                   style={{ fontSize: '13px' }}
                 />
               </div>
-           </div>
-
-           {/* Vertical Dragger */}
-           <div 
-              className="bg-gray-200 hover:bg-primary cursor-row-resize z-10 transition-colors"
-              onMouseDown={handleMouseDown('variablesHeight')}
-           />
-
-           {/* Section 2: Response View */}
-           <div
-              className="flex min-h-0 flex-col overflow-hidden bg-white"
-            >
-              <div className="px-3 py-2 bg-gray-50 border-b border-gray-100 text-xs text-gray-500 font-semibold flex justify-between">
-                  <span>Response Data</span>
-                  <Group gap="xs">
-                    {isFetching && <Loader size="xs" color="gray" />}
-                    <Tooltip label="Copy Response">
-                      <ActionIcon onClick={() => clipboard.copy(responseJson)} size="xs" variant="transparent" color={clipboard.copied ? "green" : "gray"}>
-                        {clipboard.copied ? <IconCheck size={12}/> : <IconCopy size={12}/>}
-                      </ActionIcon>
-                    </Tooltip>
-                  </Group>
-              </div>
-              
-              <div className="relative flex min-h-0 flex-1 flex-col">
-                {!responseJson && !executionError && !isFetching && (
-                  <Center className="h-full w-full text-gray-400 absolute top-0 left-0 z-10 pointer-events-none">
-                      Hit &quot;Run&quot; to fetch results.
-                  </Center>
-                )}
-
-                <div
-                  ref={responseEditorHostRef}
-                  className="min-h-0 flex-1 overflow-y-scroll overflow-x-auto"
-                  style={{ scrollbarGutter: 'stable' }}
-                >
-                   <CodeMirror
-                    value={paddedResponseJson}
-                    extensions={responseExtensions}
-                    readOnly={true}
-                    theme="light"
-                    basicSetup={{
-                      lineNumbers: true,
-                      foldGutter: true,
-                    }}
-                    style={{ fontSize: '13px' }}
-                  />
-                </div>
-              </div>
-           </div>
+            </div>
+          </div>
         </div>
       </div>
     </Box>

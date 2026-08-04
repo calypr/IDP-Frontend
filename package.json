@@ -83,6 +83,7 @@
     "@types/jest": "^30.0.0",
     "@types/node": "25.3.0",
     "@types/react": "^19.2.14",
+    "@typescript/native": "npm:typescript@^7.0.2",
     "@typescript-eslint/eslint-plugin": "^8.56.0",
     "@typescript-eslint/parser": "^8.56.0",
     "@welldone-software/why-did-you-render": "^10.0.1",
@@ -121,7 +122,7 @@
     "ts-json-schema-generator": "^2.5.0",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
-    "typescript": "^5.9.3",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
     "typescript-eslint": "^8.56.0"
   },
   "optionalDependencies": {

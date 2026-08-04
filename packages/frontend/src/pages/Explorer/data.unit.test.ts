@@ -33,7 +33,7 @@ const configuration: CohortBuilderConfiguration = {
           deceasedBoolean: { field: 'deceasedBoolean', title: 'Vital status' },
         },
       },
-      preFilters: { auth_resource_path: ['HTAN_INT-BForePC'] },
+      preFilters: { project_id: ['HTAN_INT-BForePC'] },
     },
   ],
   sharedFilters: {
@@ -47,7 +47,7 @@ const columns = {
   ResearchSubject: new Set([
     'identifier',
     'deceasedBoolean',
-    'auth_resource_path',
+    'project_id',
   ]),
 };
 

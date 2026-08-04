@@ -8,9 +8,11 @@ import {
 } from '../../features/CohortBuilder';
 import {
   GEN3_COMMONS_NAME,
-  GEN3_LOOM_API,
+  buildLoomDatasetColumnsQuery,
+  fetchLoomGraphQL,
   groupSharedFields,
   isLoomDataType,
+  LoomDataType,
   SharedFieldMapping,
 } from '@gen3/core';
 import { isArray } from 'lodash';
@@ -45,57 +47,42 @@ const GetLoomColumnsByExplorerType = async (
   const configuredDataTypes = Array.from(
     new Set(tabs.map((tab) => tab.guppyConfig.dataType)),
   );
-  const dataTypes = configuredDataTypes.filter(isLoomDataType);
+  const dataTypes = configuredDataTypes.filter(
+    isLoomDataType,
+  ) as LoomDataType[];
   if (dataTypes.length !== configuredDataTypes.length) {
     throw new Error('Explorer configuration must use Loom data types');
   }
-  const selections = dataTypes
-    .map(
-      (dataType, index) =>
-        `d${index}: dataframeDataset(input: { dataType: ${JSON.stringify(dataType)} }) { name columns { name } }`,
-    )
-    .join(' ');
-  const response = await fetch(`${GEN3_LOOM_API}/graphql/flat`, {
-    method: 'POST',
-    cache: 'no-store',
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      ...requestHeaders,
-    },
-    body: JSON.stringify({
-      query: `query ExplorerDatasets { ${selections} }`,
-      variables: {},
-    }),
-  });
-  const payload = (await response.json()) as {
-    data?: Record<
-      string,
-      { name: string; columns: Array<{ name: string }> } | null
-    >;
-    errors?: ReadonlyArray<{ message: string }>;
-  };
-  if (!response.ok || payload.errors?.length) {
-    throw new Error(
-      payload.errors?.[0]?.message ??
-        `Loom dataset discovery failed with HTTP ${response.status}`,
-    );
-  }
+  const payload = await fetchLoomGraphQL<
+    Record<string, { name: string; columns: Array<{ name: string }> } | null>
+  >(buildLoomDatasetColumnsQuery(dataTypes), { headers: requestHeaders });
+  console.info(
+    '[Explorer] Loom datasets',
+    Object.fromEntries(
+      dataTypes.map((dataType, index) => {
+        const dataset = payload[`d${index}`];
+        return [
+          dataType,
+          dataset
+            ? {
+                name: dataset.name,
+                columns: dataset.columns.map((column) => column.name),
+              }
+            : null,
+        ];
+      }),
+    ),
+  );
 
   return Object.fromEntries(
     tabs.map((tab) => {
       const dataType = tab.guppyConfig.dataType;
-      const datasetIndex = dataTypes.indexOf(dataType);
-      const dataset = payload.data?.[`d${datasetIndex}`];
+      const datasetIndex = configuredDataTypes.indexOf(dataType);
+      const dataset = payload[`d${datasetIndex}`];
       if (!dataset) {
-        throw new Error(
-          `Loom dataset ${dataType} is not available`,
-        );
+        throw new Error(`Loom dataset ${dataType} is not available`);
       }
-      return [
-        dataType,
-        new Set(dataset.columns.map((column) => column.name)),
-      ];
+      return [dataType, new Set(dataset.columns.map((column) => column.name))];
     }),
   );
 };
@@ -142,14 +129,15 @@ const GetPanelFields = (
     addAll(`table.subTables[${index}].fields`, table.fields),
   );
   add('table.detailsConfig.idField', panel.table?.detailsConfig?.idField);
-  Object.keys(panel.preFilters ?? {}).forEach((field) => add('preFilters', field));
+  Object.keys(panel.preFilters ?? {}).forEach((field) =>
+    add('preFilters', field),
+  );
   panel.buttons?.forEach((button, index) =>
     addAll(
       `buttons[${index}].actionArgs.fileFields`,
       (
         button.actionArgs as unknown as
-          | { fileFields?: ReadonlyArray<string> }
-          | undefined
+          { fileFields?: ReadonlyArray<string> } | undefined
       )?.fileFields,
     ),
   );
@@ -313,6 +301,7 @@ export const ExplorerPageGetServerSideProps: GetServerSideProps<
       },
     };
   } catch (err: unknown) {
+    console.error('Failed to load Explorer configuration:', err);
     const status = getErrorStatus(err);
     context.res.statusCode = status;
     return {
@@ -378,6 +367,7 @@ export const ExplorerPageGetServerSidePropsForConfigId: GetServerSideProps<
       },
     };
   } catch (err: unknown) {
+    console.error(`Failed to load Explorer config ${configId}:`, err);
     const status = getErrorStatus(err);
     context.res.statusCode = status;
     return {

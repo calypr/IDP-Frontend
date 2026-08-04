@@ -28,7 +28,7 @@ const CohortBuilderPage = ({
     typeof router.query.configId === 'string' ? router.query.configId : '';
   const isEmbedded = useIsEmbedded();
   const [activeExplorerTab, setActiveExplorerTab] = useState<string | null>(
-    explorerConfig[0]?.tabTitle ?? null,
+    explorerConfig?.[0]?.tabTitle ?? null,
   );
   const matchingProject = geckoProjects.find((candidate) => {
     const parts = candidate.resourcePath.split('/').filter(Boolean);
@@ -41,7 +41,7 @@ const CohortBuilderPage = ({
   const showTabsInToolbar = Boolean(organization && project && !isEmbedded);
 
   useEffect(() => {
-    setActiveExplorerTab(explorerConfig[0]?.tabTitle ?? null);
+    setActiveExplorerTab(explorerConfig?.[0]?.tabTitle ?? null);
   }, [configId, explorerConfig]);
 
   const explorerContent = (
@@ -85,7 +85,7 @@ const CohortBuilderPage = ({
               className="flex shrink-0 self-stretch gap-5 border-l border-slate-200 pl-5"
               role="tablist"
             >
-              {explorerConfig.map((panel) => {
+              {explorerConfig?.map((panel) => {
                 const isActive = activeExplorerTab === panel.tabTitle;
                 return (
                   <button

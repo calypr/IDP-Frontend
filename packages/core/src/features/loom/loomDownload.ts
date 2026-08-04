@@ -1,9 +1,9 @@
-import { getCookie } from 'cookies-next';
 import { GEN3_LOOM_API } from '../../constants';
 import { coreStore } from '../../store';
 import { selectCSRFToken } from '../user';
 import { isJSONObject, JSONObject } from '../../types';
 import { convertFilterSetToLoomFilters } from './filters';
+import { fetchLoomResponse } from './loomApi';
 import type { FilterSet } from '../filters';
 import type { LoomDataType, LoomSort } from './types';
 
@@ -30,7 +30,8 @@ const normalizeSort = (sort: unknown): LoomSort | undefined => {
   if (Array.isArray(sort)) {
     const first = sort[0];
     if (typeof first === 'object' && first !== null) {
-      const [column, direction] = Object.entries(first as Record<string, unknown>)[0] ?? [];
+      const [column, direction] =
+        Object.entries(first as Record<string, unknown>)[0] ?? [];
       if (column) return { column, desc: direction === 'desc' };
     }
     return undefined;
@@ -56,19 +57,13 @@ const fetchLoomExport = async (
   signal?: AbortSignal,
 ): Promise<Response> => {
   const csrfToken = selectCSRFToken(coreStore.getState());
-  const headers: Record<string, string> = {
-    Accept: 'application/octet-stream',
-    'Content-Type': 'application/json',
-    ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
-  };
-  if (process.env.NODE_ENV === 'development') {
-    const accessToken = getCookie('credentials_token');
-    if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
-  }
-  return fetch(`${GEN3_LOOM_API}/api/v1/dataframe/export`, {
+  return fetchLoomResponse(`${GEN3_LOOM_API}/api/v1/dataframe/export`, {
     method: 'POST',
-    credentials: 'include',
-    headers,
+    headers: {
+      Accept: 'application/octet-stream',
+      'Content-Type': 'application/json',
+      ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
+    },
     body: JSON.stringify(buildRequest(parameters)),
     signal,
   });
@@ -102,7 +97,9 @@ export const downloadJSONDataFromLoom = async ({
   parameters,
   onAbort = () => null,
   signal,
-}: Omit<DownloadFromLoomParams, 'onDone' | 'onError'>): Promise<JSONObject[]> => {
+}: Omit<DownloadFromLoomParams, 'onDone' | 'onError'>): Promise<
+  JSONObject[]
+> => {
   try {
     const response = await fetchLoomExport(
       { ...parameters, format: 'json' },

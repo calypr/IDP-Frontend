@@ -7,10 +7,6 @@ const path = require('path');
 
 const basePath = process.env.NEXT_PUBLIC_BASEPATH;
 const workspaceRoot = path.resolve(__dirname, '../..');
-const webpackAliases = {
-  '@gen3/core': path.join(workspaceRoot, 'packages/core/src/index.ts'),
-  '@gen3/frontend': path.join(workspaceRoot, 'packages/frontend/src/index.ts'),
-};
 const turbopackAliases = {
   '@gen3/core': 'packages/core/src/index.ts',
   '@gen3/frontend': 'packages/frontend/src/index.ts',
@@ -47,16 +43,6 @@ const nextConfig = {
   turbopack: {
     root: workspaceRoot,
     resolveAlias: turbopackAliases,
-  },
-  webpack: (config) => {
-    config.infrastructureLogging = {
-      level: 'error',
-    };
-    config.resolve.alias = {
-      ...config.resolve.alias,
-      ...webpackAliases,
-    };
-    return config;
   },
   async headers() {
     return [

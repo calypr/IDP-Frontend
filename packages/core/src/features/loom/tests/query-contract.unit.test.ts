@@ -10,6 +10,7 @@ import { isLoomDataType } from '../types';
 
 describe('Loom GraphQL request contracts', () => {
   it('uses canonical Loom data types', () => {
+    expect(isLoomDataType('Patient')).toBe(true);
     expect(isLoomDataType('DocumentReference')).toBe(true);
     expect(isLoomDataType('document_reference')).toBe(false);
 

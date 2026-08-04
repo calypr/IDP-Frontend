@@ -24,7 +24,7 @@ export class MicroserviceContent implements ContentStore {
         requestHeaders?.['host'] ||
         process.env.HOSTNAME ||
         'localhost:3000';
-      
+
       const protocol =
         hostHeader.includes('localhost') ||
         hostHeader.includes('127.0.0.1') ||
@@ -50,9 +50,17 @@ export class MicroserviceContent implements ContentStore {
       }
     }
 
+    this.log(
+      `Request auth cookie=${Boolean(finalHeaders.Cookie)} authorization=${Boolean(finalHeaders.Authorization)}`,
+    );
+
     const res = await fetch(targetUrl, {
       headers: finalHeaders, // Use the merged headers
     });
+
+    this.log(
+      `Response ${res.status} requestId=${res.headers.get('x-request-id') ?? 'none'}`,
+    );
 
     if (!res.ok) {
       const message =

@@ -35,6 +35,17 @@ export const buildLoomDatasetQuery = (dataType: string): LoomQueryArgs => ({
   variables: { dataType },
 });
 
+export const buildLoomDatasetColumnsQuery = (
+  dataTypes: ReadonlyArray<string>,
+): LoomQueryArgs => ({
+  query: `query LoomDatasetColumns { ${dataTypes
+    .map(
+      (dataType, index) =>
+        `d${index}: dataframeDataset(input: { dataType: ${JSON.stringify(dataType)} }) { name columns { name } }`,
+    )
+    .join(' ')} }`,
+});
+
 export const buildLoomRowsQuery = (input: LoomRowsRequest): LoomQueryArgs => ({
   query: `query LoomRows($input: DataframeRowsInput!) { dataframeRows(input: $input) { ${rowsFields} } }`,
   variables: {
@@ -123,8 +134,9 @@ export const loomSlice = loomTags.injectEndpoints({
       query: () => ({
         query: `query LoomDatasets { dataframeDatasets { ${datasetFields} } }`,
       }),
-      transformResponse: (response: { dataframeDatasets: Array<LoomDataset> }) =>
-        response.dataframeDatasets ?? [],
+      transformResponse: (response: {
+        dataframeDatasets: Array<LoomDataset>;
+      }) => response.dataframeDatasets ?? [],
       providesTags: ['LOOM_DATASET'],
     }),
     getLoomDataset: builder.query<LoomDataset | null, string>({
@@ -154,7 +166,9 @@ export const loomSlice = loomTags.injectEndpoints({
     }),
     getLoomCount: builder.query<number, LoomAggregateRequest>({
       query: buildLoomCountQuery,
-      transformResponse: (response: { dataframeAggregate: { rows: unknown } }) => {
+      transformResponse: (response: {
+        dataframeAggregate: { rows: unknown };
+      }) => {
         const rows = Array.isArray(response.dataframeAggregate?.rows)
           ? response.dataframeAggregate.rows
           : [];
@@ -191,9 +205,7 @@ export const loomSlice = loomTags.injectEndpoints({
             ),
             count:
               Number(
-                row.doc_count ??
-                  row.count ??
-                  row[value?.columns?.[1] ?? ''],
+                row.doc_count ?? row.count ?? row[value?.columns?.[1] ?? ''],
               ) || 0,
           }));
         });

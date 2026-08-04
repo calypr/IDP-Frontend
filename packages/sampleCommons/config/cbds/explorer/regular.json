@@ -60,7 +60,7 @@
     },
     "dropdowns": {},
     "guppyConfig": {
-      "dataType": "researchsubject",
+      "dataType": "Patient",
       "nodeCountTitle": "Research Subjects",
       "fieldMapping": []
     },
