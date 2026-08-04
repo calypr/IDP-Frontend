@@ -1,7 +1,6 @@
-import { getNavPageLayoutPropsFromConfig } from '@gen3/frontend';
 import type { NavPageLayoutProps } from '@gen3/frontend';
-import type { GetServerSideProps } from 'next';
 import { NavPageLayout } from '@gen3/frontend';
+import { defineSamplePageLoader } from '@/lib/content/pageLoader';
 import React, {
   useState,
   useEffect,
@@ -41,7 +40,7 @@ interface DetectedColumns {
   metadataCols: string[];
 }
 
-const UMAPViewer = ({ headerProps, footerProps }: NavPageLayoutProps) => {
+const UMAPViewer = ({ headerProps, footerProps, pageProblems }: NavPageLayoutProps) => {
   // State variables with defined types
   const [data, setData] = useState<UMAPPoint[]>([]);
   const [columns, setColumns] = useState<string[]>([]);
@@ -203,11 +202,7 @@ const UMAPViewer = ({ headerProps, footerProps }: NavPageLayoutProps) => {
             // Add all metadata
             detected.metadataCols.forEach((col) => {
               point.metadata[col] = row[col] as
-                | string
-                | number
-                | boolean
-                | null
-                | undefined;
+                string | number | boolean | null | undefined;
             });
 
             return point;
@@ -484,6 +479,7 @@ const UMAPViewer = ({ headerProps, footerProps }: NavPageLayoutProps) => {
   return (
     <NavPageLayout
       {...{ headerProps, footerProps }}
+      pageProblems={pageProblems}
       headerMetadata={{
         title: 'H5AD UMAP Viewer',
         content: 'Single-cell visualization',
@@ -679,14 +675,6 @@ const UMAPViewer = ({ headerProps, footerProps }: NavPageLayoutProps) => {
   );
 };
 
-export const getServerSideProps: GetServerSideProps<
-  NavPageLayoutProps
-> = async () => {
-  return {
-    props: {
-      ...(await getNavPageLayoutPropsFromConfig()),
-    },
-  };
-};
+export const getServerSideProps = defineSamplePageLoader('HFIVEAD');
 
 export default UMAPViewer;

@@ -12,7 +12,7 @@ import { NavPageLayout } from '../../features/Navigation';
 import { ProjectWorkspaceTabs } from '../../features/Navigation';
 import { ProtectedContent } from '../../components/Protected';
 import { useIsEmbedded } from '../../utils';
-import { getNavPageLayoutPropsFromConfig } from '../../lib/common/staticProps';
+import type { NavPageLayoutProps } from '../../features/Navigation';
 import {
   hasOrganizationMembership,
   hasProjectMembershipOrAccess,
@@ -24,7 +24,8 @@ import { useSession } from '../../lib/session/session';
 export const ProjectPresentationPage = ({
   headerProps,
   footerProps,
-}: Awaited<ReturnType<typeof getNavPageLayoutPropsFromConfig>>) => {
+  pageProblems,
+}: NavPageLayoutProps) => {
   const router = useRouter();
   const session = useSession(false);
   const sessionReady = !session.pending;
@@ -114,7 +115,7 @@ export const ProjectPresentationPage = ({
   return (
     <ProtectedContent>
       <NavPageLayout
-        {...{ headerProps, footerProps }}
+        {...{ headerProps, footerProps, pageProblems }}
         headerMetadata={{
           title: 'Project Presentation',
           content: 'Project presentation page',

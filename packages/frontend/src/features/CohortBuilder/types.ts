@@ -81,7 +81,7 @@ export interface CohortPanelConfiguration {
   buttons?: ReadonlyArray<DownloadButtonConfig>; // row of action buttons
   loginForDownload?: boolean; // login required for download
   sharedFiltersMap?: SharedFieldMapping;
-  preFilters?: Record<string, any>; // Tab-specific filters (e.g. { project_id: ["HTAN_INT-BForePC"] })
+  preFilters?: Record<string, any>; // Tab-specific filters (e.g. { project_id: ["PROGRAM-PROJECT"] })
 }
 
 export interface SharedFieldConfiguration {
@@ -114,8 +114,8 @@ export interface CohortBuilderConfiguration extends Gen3AppConfigData {
   fileActions?: FileActionsConfig;
 }
 
-export interface CohortBuilderProps
-  extends Omit<CohortBuilderConfiguration, 'sharedFilters'> {
+export interface CohortBuilderProps {
+  configuration: CohortBuilderConfiguration;
   activeTab?: string | null;
   hideTabList?: boolean;
   onTabChange?: (value: string | null) => void;

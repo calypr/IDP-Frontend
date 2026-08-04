@@ -180,6 +180,7 @@ const GitProjectPage = ({
   headerProps,
   footerProps,
   fileActions,
+  pageProblems,
 }: GitExplorerPageProps) => {
   const router = useRouter();
   const organization =
@@ -1383,7 +1384,7 @@ const GitProjectPage = ({
 
   return (
     <NavPageLayout
-      {...{ headerProps, footerProps }}
+      {...{ headerProps, footerProps, pageProblems }}
       headerMetadata={{
         content: `${organization}/${project}`,
         key: 'gecko-git-project',

@@ -3,6 +3,8 @@ import { TopBarProps } from './TopBar/TopBar';
 import { BannerProps } from './Banner';
 import { StylingOverrideWithMergeControl } from '../../types';
 import { FooterProps } from './Footer/types';
+import type { FileActionsConfig } from '../CohortBuilder/types';
+import type { PageLoadProblem } from '../../lib/pageLoader/types';
 
 export interface NavigationButtonProps {
   icon: string;
@@ -76,9 +78,7 @@ export interface HeaderProps {
   readonly siteProps?: CommonsData;
 }
 
-export interface MainContentProps extends HTMLAttributes<HTMLElement> {
-  fixed: boolean;
-}
+export type MainContentProps = Omit<HTMLAttributes<HTMLElement>, 'children'>;
 
 export interface NameAndIcon {
   readonly name?: string;
@@ -103,7 +103,9 @@ export interface UseResponsiveSidebarResult {
 export interface NavPageLayoutProps {
   headerProps: HeaderProps;
   footerProps: FooterProps;
-  mainProps?: Partial<MainContentProps & { fixed?: boolean }>;
+  mainProps?: MainContentProps;
+  pageProblems?: readonly PageLoadProblem[];
+  layoutMode?: PageLayoutMode;
   headerMetadata: HeaderMetadata & {
     title?: string;
     content?: string;
@@ -111,6 +113,8 @@ export interface NavPageLayoutProps {
   };
   CustomHeaderComponent?: ComponentType<HeaderProps>;
   CustomFooterComponent?: ComponentType<FooterProps>;
-  fileActions?: Record<string, string[]>;
+  fileActions?: FileActionsConfig;
   dynamicProps?: Record<string, any>;
 }
+
+export type PageLayoutMode = 'document' | 'viewport';

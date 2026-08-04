@@ -1,6 +1,12 @@
-import { getNavPageLayoutPropsFromConfig } from '../../../lib/common/staticProps';
+import { definePageLoader, type PageProps } from '../../../lib/pageLoader';
+import { loadNavigationFromContext } from '../../../lib/common/staticProps';
 
-export const AnalysisEditorPageGetServerSideProps = async () => {
+export const AnalysisEditorPageGetServerSideProps = definePageLoader<PageProps>({
+  name: 'AnalysisEditor',
+  loadNavigation: loadNavigationFromContext,
+  load: async () => ({}),
+});
+/*
   // const rootPath = `${GEN3_COMMONS_NAME}/`;
   // const filepath = 'user.yaml';
   // let data: Record<string, any> = {};
@@ -14,9 +20,4 @@ export const AnalysisEditorPageGetServerSideProps = async () => {
   //   }
   //   throw new Error(`Cannot process ${rootPath}${filepath}`);
   // }
-  return {
-    props: {
-      ...(await getNavPageLayoutPropsFromConfig()),
-    },
-  };
-};
+*/

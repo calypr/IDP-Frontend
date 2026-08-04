@@ -388,7 +388,7 @@ export const CohortPanel = ({
   }
 
   return (
-    <div className="flex flex-col mt-3 relative px-4 bg-base-lightest w-full">
+    <div className="relative mt-3 flex w-full flex-col bg-base-lightest px-4">
       {/* Main flex container for filters and content */}
       <div className="flex w-full">
         {/* Left panel for filters */}
@@ -413,7 +413,7 @@ export const CohortPanel = ({
         {/* Right panel for query expression + content */}
         <div
           id="cohort-builder-content"
-          className="flex flex-col md:w-3/4 lg:w-4/5 pl-4"
+          className="flex flex-col pl-4 md:w-3/4 lg:w-4/5"
         >
           {/* Put QueryExpression at the top of content panel */}
           <div className="mb-2">

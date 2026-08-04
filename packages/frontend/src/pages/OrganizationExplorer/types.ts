@@ -1,6 +1,6 @@
 import type { SyfonAccessMethod, SyfonIndexRecord } from '@gen3/core';
 import type { FileActionsConfig } from '../../features/CohortBuilder/types';
-import type { NavPageLayoutProps } from '../../features/Navigation';
+import type { PageProps } from '../../lib/pageLoader';
 
 export interface AccessibleOrganizationProject {
   readonly organization: string;
@@ -46,6 +46,6 @@ export interface RepoFileEntry {
 
 export type RepoListingEntry = RepoDirectoryEntry | RepoFileEntry;
 
-export type OrganizationExplorerPageProps = NavPageLayoutProps & {
+export type OrganizationExplorerPageProps = PageProps<{
   fileActions?: FileActionsConfig;
-};
+}>;

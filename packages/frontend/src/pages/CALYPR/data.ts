@@ -1,9 +1,12 @@
-import { GetServerSideProps } from 'next';
 import { GEN3_COMMONS_NAME, GEN3_FENCE_API } from '@gen3/core';
-import { getNavPageLayoutPropsFromConfig } from '../../lib/common/staticProps';
-import ContentSource from '../../lib/content';
+import {
+  definePageLoader,
+  type ServerPageContext,
+} from '../../lib/pageLoader';
+import { loadNavigationFromContext } from '../../lib/common/staticProps';
 import { type CalyprProps } from './types';
-import type { NavPageLayoutProps } from '../../features/Navigation';
+import type { CalyprLandingPageProps } from './types';
+import { LandingConfigurationSchema } from '../Landing/configurationSchema';
 
 const SESSION_CHECK_TIMEOUT_MS = 12_000;
 
@@ -24,7 +27,7 @@ const firstHeaderValue = (
   value: string | string[] | undefined,
 ): string | undefined => (Array.isArray(value) ? value[0] : value);
 
-const requestOrigin = (context: Parameters<GetServerSideProps>[0]): string => {
+const requestOrigin = (context: ServerPageContext['next']): string => {
   const forwardedProtocol = firstHeaderValue(
     context.req.headers['x-forwarded-proto'],
   );
@@ -37,7 +40,7 @@ const requestOrigin = (context: Parameters<GetServerSideProps>[0]): string => {
 };
 
 const sessionEndpoint = (
-  context: Parameters<GetServerSideProps>[0],
+  context: ServerPageContext['next'],
 ): string | undefined => {
   const fenceBase = GEN3_FENCE_API.replace(/\/$/, '');
   if (/^https?:\/\//i.test(fenceBase)) {
@@ -51,7 +54,7 @@ const sessionEndpoint = (
 };
 
 export const verifyAuthenticatedSession = async (
-  context: Parameters<GetServerSideProps>[0],
+  context: ServerPageContext['next'],
   headers: Record<string, string>,
 ): Promise<boolean | null> => {
   const hasFenceCredential =
@@ -89,7 +92,7 @@ export const verifyAuthenticatedSession = async (
 };
 
 export const sessionRequestHeaders = (
-  context: Parameters<GetServerSideProps>[0],
+  context: ServerPageContext['next'],
 ): Record<string, string> => {
   const headers: Record<string, string> = {};
   const cookieHeader = context.req.headers.cookie;
@@ -116,51 +119,57 @@ export const sessionRequestHeaders = (
   return headers;
 };
 
-export const CalyprPageGetServerSideProps: GetServerSideProps<
-  NavPageLayoutProps
-> = async (context) => {
-  const requestHeaders = sessionRequestHeaders(context);
+const calyprConfiguration = {
+  id: 'calypr-landing-page',
+  source: 'content' as const,
+  resolvePath: () => `${GEN3_COMMONS_NAME}/calyprLandingPage.json`,
+  schema: LandingConfigurationSchema,
+};
 
-  const navigationRequestHeaders = {
-    ...requestHeaders,
-    ...(context.req.headers.host ? { Host: context.req.headers.host } : {}),
-  };
+const sessionState = new WeakMap<ServerPageContext, Promise<boolean | null>>();
 
-  const [hasAuthenticatedSession, calyprConfig, initialNavPageLayoutProps] =
-    await Promise.all([
-      verifyAuthenticatedSession(context, requestHeaders),
-      ContentSource.getContentDatabase().get<CalyprProps>(
-        `${GEN3_COMMONS_NAME}/calyprLandingPage.json`,
-      ),
-      getNavPageLayoutPropsFromConfig(navigationRequestHeaders),
-    ]);
+const loadSessionState = (context: ServerPageContext): Promise<boolean | null> => {
+  const existing = sessionState.get(context);
+  if (existing) return existing;
 
-  let navPageLayoutProps = initialNavPageLayoutProps;
-  if (hasAuthenticatedSession !== true) {
-    const filteredItems = navPageLayoutProps.headerProps.topBar.items.filter(
-      (item: { href: string }) => item.href !== '/git',
-    );
-    navPageLayoutProps = {
-      ...navPageLayoutProps,
-      headerProps: {
-        ...navPageLayoutProps.headerProps,
-        topBar: {
-          ...navPageLayoutProps.headerProps.topBar,
-          items: filteredItems,
-        },
-      },
-    };
-  }
+  const request = verifyAuthenticatedSession(
+    context.next,
+    sessionRequestHeaders(context.next),
+  );
+  sessionState.set(context, request);
+  return request;
+};
 
-  if (!navPageLayoutProps) {
-    return { notFound: true };
-  }
+const loadCalyprNavigation = async (context: ServerPageContext) => {
+  const navigation = await loadNavigationFromContext(context);
+  const hasAuthenticatedSession = await loadSessionState(context);
+
+  if (hasAuthenticatedSession === true) return navigation;
 
   return {
-    props: {
-      ...navPageLayoutProps,
-      calyprConfig: calyprConfig ? calyprConfig : null,
-      hasAuthenticatedSession,
+    ...navigation,
+    headerProps: {
+      ...navigation.headerProps,
+      topBar: {
+        ...navigation.headerProps.topBar,
+        items: navigation.headerProps.topBar.items.filter(
+          (item: { href: string }) => item.href !== '/git',
+        ),
+      },
     },
   };
 };
+
+export const CalyprPageGetServerSideProps =
+  definePageLoader<CalyprLandingPageProps>({
+    name: 'CALYPR',
+    loadNavigation: loadCalyprNavigation,
+    load: async (context) => ({
+      configuration: (await context.config.load(calyprConfiguration)) as CalyprProps,
+      hasAuthenticatedSession: await loadSessionState(context),
+    }),
+    fallback: () => ({
+      configuration: null,
+      hasAuthenticatedSession: null,
+    }),
+  });

@@ -18,14 +18,14 @@ export const useGetCurrentCohort = () => {
 };
 
 const CohortBuilder = ({
+  configuration: explorerConfiguration,
   activeTab,
-  explorerConfig,
   hideTabList = false,
   onTabChange,
   sharedFiltersMap = null,
-  tabsLayout = 'left',
-  fileActions,
 }: CohortBuilderProps) => {
+  const { explorerConfig, tabsLayout = 'left', fileActions } =
+    explorerConfiguration;
   const dispatch = useCoreDispatch();
 
   const [isTransitioning, setIsTransitioning] = React.useState(false);

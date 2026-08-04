@@ -1,90 +1,78 @@
 import React from 'react';
 import dynamic from 'next/dynamic';
+import type { SharedFieldMapping } from '@gen3/core';
 import { NavPageLayout } from '../../features/Navigation';
+import PageLoadBoundary from '../../components/MessageCards/PageLoadBoundary';
+import type { PageLoadProblem } from '../../lib/pageLoader';
+import type { CohortBuilderConfiguration } from '../../features/CohortBuilder';
+import { useSession } from '../../lib/session/session';
 import { ExplorerPageProps } from './types';
-import { Center } from '@mantine/core';
-import ProtectedContent from '../../components/Protected/ProtectedContent';
 
 const CohortBuilder = dynamic(
   () => import('../../features/CohortBuilder/CohortBuilder'),
-  {
-    ssr: false,
-  },
+  { ssr: false },
 );
 
-import { useSession } from '../../lib/session/session';
-import { CohortBuilderProps } from '../../features/CohortBuilder';
+interface ExplorerMainContentProps {
+  configuration: CohortBuilderConfiguration | null;
+  activeTab?: string | null;
+  hideTabList?: boolean;
+  onTabChange?: (value: string | null) => void;
+  sharedFiltersMap: SharedFieldMapping | null;
+  pageProblems?: readonly PageLoadProblem[];
+}
 
 export const ExplorerMainContent = ({
+  configuration,
   activeTab,
-  explorerConfig,
   hideTabList,
   onTabChange,
-  tabsLayout,
   sharedFiltersMap,
-  fileActions,
-}: CohortBuilderProps) => {
+  pageProblems = [],
+}: ExplorerMainContentProps) => {
   const { status } = useSession();
-  
 
+  if (!configuration) return <PageLoadBoundary problems={pageProblems} />;
+  if (status !== 'issued') return null;
 
-  if (status !== 'issued') {
-    return null;
-  }
-  if (!explorerConfig) {
-    return (
-      <Center maw={400} h={100} mx="auto">
-        <div>Explorer config is not defined. Page disabled</div>
-      </Center>
-    );
-  }
   return (
     <CohortBuilder
+      configuration={configuration}
       activeTab={activeTab}
-      tabsLayout={tabsLayout}
-      explorerConfig={explorerConfig}
       hideTabList={hideTabList}
       onTabChange={onTabChange}
       sharedFiltersMap={sharedFiltersMap}
-      fileActions={fileActions}
     />
   );
 };
 
-import { useRouter } from 'next/router';
-
 const ExplorerPage = ({
   headerProps,
   footerProps,
-  explorerConfig,
+  configuration,
   headerMetadata,
-  tabsLayout,
   sharedFiltersMap,
-  fileActions,
-  errorStatus,
+  pageProblems,
 }: ExplorerPageProps): JSX.Element => {
-  const pageHeaderMetadata = {
-    title: 'Gen3 Explorer Page',
-    content: 'Explorer Page',
-    key: 'gen3-explorer-page',
-    ...(headerMetadata ? headerMetadata : {}),
-  };
-  const router = useRouter();
+  const pageHeaderMetadata =
+    headerMetadata ?? {
+      title: 'Gen3 Explorer Page',
+      content: 'Explorer Page',
+      key: 'gen3-explorer-page',
+    };
 
   return (
     <NavPageLayout
-      {...{ headerProps, footerProps }}
+      headerProps={headerProps}
+      footerProps={footerProps}
       headerMetadata={pageHeaderMetadata}
+      pageProblems={pageProblems}
     >
-      <ProtectedContent errorStatus={errorStatus}>
-        <ExplorerMainContent
-          key={router.asPath}
-          explorerConfig={explorerConfig}
-          tabsLayout={tabsLayout}
-          sharedFiltersMap={sharedFiltersMap}
-          fileActions={fileActions}
-        />
-      </ProtectedContent>
+      <ExplorerMainContent
+        configuration={configuration}
+        sharedFiltersMap={sharedFiltersMap}
+        pageProblems={pageProblems}
+      />
     </NavPageLayout>
   );
 };

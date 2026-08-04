@@ -9,7 +9,7 @@ import {
 import { MatchingTable } from '../../features/MatchingTable';
 import { NavPageLayout } from '../../features/Navigation';
 import ProtectedContent from '../../components/Protected/ProtectedContent';
-import { type NavPageLayoutProps } from '../../features/Navigation';
+import type { AppsPageProps } from '../Apps/types';
 import { type SummaryTableColumn } from '../../features/CohortBuilder/ExplorerTable/types';
 import {
   buildDeterministicFileActionsMap,
@@ -77,7 +77,8 @@ export const useFileTypesFiles = () => {
 const AvailableImagesPage = ({
   headerProps,
   footerProps,
-}: NavPageLayoutProps) => {
+  pageProblems,
+}: AppsPageProps) => {
   const { data, isLoading, isError } = useFileTypesFiles();
   const dispatch = useDispatch();
   const { data: configList } = useGetConfigListQuery();
@@ -179,6 +180,7 @@ const AvailableImagesPage = ({
   return (
     <NavPageLayout
       {...{ headerProps, footerProps }}
+      pageProblems={pageProblems}
       headerMetadata={{
         title: 'CALYPR Image Viewer Page',
         content: 'CALYPR Image Viewer Page',

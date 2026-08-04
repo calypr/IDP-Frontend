@@ -1,1 +1,1 @@
-export { default } from './Custom404Page';
+export { default, default as Custom404Page } from './Custom404Page';

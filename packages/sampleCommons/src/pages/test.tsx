@@ -4,10 +4,9 @@ import { useGeneralGQLQuery } from '@gen3/core';
 import {
   NavPageLayout,
   NavPageLayoutProps,
-  getNavPageLayoutPropsFromConfig,
   ErrorCard,
 } from '@gen3/frontend';
-import { GetServerSideProps } from 'next';
+import { defineSamplePageLoader } from '@/lib/content/pageLoader';
 import { useEffect } from 'react';
 import * as d3 from 'd3';
 
@@ -94,7 +93,7 @@ const isQueryResponse = (obj: any): obj is QueryResponse => {
     (obj.data === undefined || typeof obj.data === 'object')
   );
 };
-const D3Page = ({ headerProps, footerProps }: NavPageLayoutProps) => {
+const D3Page = ({ headerProps, footerProps, pageProblems }: NavPageLayoutProps) => {
   const { data, isLoading, isError } = useGeneralGQLQuery(
     countsQuery('product_notes_project_id'),
   );
@@ -211,6 +210,7 @@ const D3Page = ({ headerProps, footerProps }: NavPageLayoutProps) => {
       }}
       headerProps={headerProps}
       footerProps={footerProps}
+      pageProblems={pageProblems}
     >
       <svg ref={svgRef}></svg>
       <div ref={tooltipRef} className="tooltip"></div>{' '}
@@ -218,15 +218,6 @@ const D3Page = ({ headerProps, footerProps }: NavPageLayoutProps) => {
   );
 };
 
-// TODO: replace this with a custom getServerSideProps function
-export const getServerSideProps: GetServerSideProps<
-  NavPageLayoutProps
-> = async () => {
-  return {
-    props: {
-      ...(await getNavPageLayoutPropsFromConfig()),
-    },
-  };
-};
+export const getServerSideProps = defineSamplePageLoader('D3Test');
 
 export default D3Page;

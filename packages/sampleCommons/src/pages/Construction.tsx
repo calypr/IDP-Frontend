@@ -3,14 +3,14 @@ import { Center, Text, Paper } from '@mantine/core';
 import {
   NavPageLayout,
   NavPageLayoutProps,
-  getNavPageLayoutPropsFromConfig,
 } from '@gen3/frontend';
-import { GetServerSideProps } from 'next';
+import { defineSamplePageLoader } from '@/lib/content/pageLoader';
 
-const SamplePage = ({ headerProps, footerProps }: NavPageLayoutProps) => {
+const SamplePage = ({ headerProps, footerProps, pageProblems }: NavPageLayoutProps) => {
   return (
     <NavPageLayout
       {...{ headerProps, footerProps }}
+      pageProblems={pageProblems}
       headerMetadata={{
         title: 'Construction Page',
         content: 'Construction Page',
@@ -28,15 +28,6 @@ const SamplePage = ({ headerProps, footerProps }: NavPageLayoutProps) => {
   );
 };
 
-// TODO: replace this with a custom getServerSideProps function
-export const getServerSideProps: GetServerSideProps<
-  NavPageLayoutProps
-> = async () => {
-  return {
-    props: {
-      ...(await getNavPageLayoutPropsFromConfig()),
-    },
-  };
-};
+export const getServerSideProps = defineSamplePageLoader('Construction');
 
 export default SamplePage;

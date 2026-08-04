@@ -8,15 +8,10 @@ import {
   Image,
 } from '@mantine/core';
 import { CalyprLandingPageProps } from './types';
-import { LandingPageProps } from '../../components/Content/LandingPageContent';
 import { NavPageLayout } from '../../features/Navigation';
 import LoginMenu from '../../components/Login/LoginMenu';
 import AppsPage from '../Apps/Apps';
 import { useSession } from '../../lib/session/session';
-
-interface Props extends CalyprLandingPageProps {
-  landingPage: LandingPageProps;
-}
 
 const defaultClassNames = {
   label:
@@ -48,13 +43,14 @@ const BannerPanel = ({
     </div>
   );
 };
-const CalyprPage = ({ headerProps, footerProps }: Props) => {
+const CalyprPage = ({ headerProps, footerProps, pageProblems }: CalyprLandingPageProps) => {
   const { status } = useSession(false);
 
   if (status === 'issued') {
     return (
       <AppsPage
         {...{ headerProps, footerProps }}
+        pageProblems={pageProblems}
         headerMetadata={{
           title: 'CALYPR Projects',
           content: 'Project catalog',
@@ -66,7 +62,7 @@ const CalyprPage = ({ headerProps, footerProps }: Props) => {
 
   return (
     <NavPageLayout
-      {...{ headerProps, footerProps }}
+      {...{ headerProps, footerProps, pageProblems }}
       headerMetadata={{
         title: 'CALYPR Landing Page',
         content: 'Landing Page',

@@ -4,11 +4,10 @@ import { Paper, Button, Text, Modal, Grid, Pagination } from '@mantine/core';
 import {
   NavPageLayout,
   NavPageLayoutProps,
-  getNavPageLayoutPropsFromConfig,
 } from '@gen3/frontend';
 
 import { gripApiFetch, gripApiResponse } from '@gen3/core';
-import { GetServerSideProps } from 'next';
+import { defineSamplePageLoader } from '@/lib/content/pageLoader';
 
 interface EdgeData {
   PatientIdsWithEncounterEdge?: EncounterEdge[];
@@ -139,7 +138,7 @@ function MyModal({ text }: { text?: ModalType }) {
   );
 }
 
-const SamplePage = ({ headerProps, footerProps }: NavPageLayoutProps) => {
+const SamplePage = ({ headerProps, footerProps, pageProblems }: NavPageLayoutProps) => {
   const [state, setState] = useState<{
     encounterItems: EncounterEdge[];
     specimenItems: SpecimenEdge[];
@@ -265,6 +264,7 @@ const SamplePage = ({ headerProps, footerProps }: NavPageLayoutProps) => {
   return (
     <NavPageLayout
       {...{ headerProps, footerProps }}
+      pageProblems={pageProblems}
       headerMetadata={{
         title: 'CALYPR GRIPREF Page',
         content: 'CALYPR GRIPREF Page',
@@ -295,14 +295,6 @@ const SamplePage = ({ headerProps, footerProps }: NavPageLayoutProps) => {
   );
 };
 
-export const getServerSideProps: GetServerSideProps<
-  NavPageLayoutProps
-> = async (_context) => {
-  return {
-    props: {
-      ...(await getNavPageLayoutPropsFromConfig()),
-    },
-  };
-};
+export const getServerSideProps = defineSamplePageLoader('GRIPREF');
 
 export default SamplePage;

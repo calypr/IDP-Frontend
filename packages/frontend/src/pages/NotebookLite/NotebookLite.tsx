@@ -4,11 +4,12 @@ import { useRouter } from 'next/router';
 import NavPageLayout from '../../features/Navigation/NavPageLayout';
 import type { NavPageLayoutProps } from '../../features/Navigation';
 
-const NotebookLitePage = ({ headerProps, footerProps }: NavPageLayoutProps) => {
+const NotebookLitePage = ({ headerProps, footerProps, pageProblems }: NavPageLayoutProps) => {
   const router = useRouter();
   return (
     <NavPageLayout
       {...{ footerProps, headerProps }}
+      pageProblems={pageProblems}
       headerMetadata={{
         title: 'Gen3 Notebooks Lite Page',
         content: 'Notebooks Lite',

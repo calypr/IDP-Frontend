@@ -1,22 +1,22 @@
-import { GetServerSideProps } from 'next';
-import { getNavPageLayoutPropsFromConfig } from '../../lib/common/staticProps';
-import { type NavPageLayoutProps } from '../../features/Navigation';
-import { QueryProps } from '../Query/types';
-import ContentSource from '../../lib/content';
+import { definePageLoader } from '../../lib/pageLoader';
+import { loadNavigationFromContext } from '../../lib/common/staticProps';
 import { GEN3_COMMONS_NAME } from '@gen3/core';
+import { ProfileConfigurationSchema } from './configurationSchema';
+import type { ProfileConfig } from '../../components/Profile';
+import type { ConfigPageProps } from '../../lib/pageLoader';
 
-export const ProfilePageGetServerSideProps: GetServerSideProps<
-  NavPageLayoutProps
-> = async () => {
-  const profileConfig: QueryProps =
-    await ContentSource.getContentDatabase().get(
-      `${GEN3_COMMONS_NAME}/profile.json`,
-    );
+export type ProfilePageProps = ConfigPageProps<ProfileConfig>;
 
-  return {
-    props: {
-      ...(await getNavPageLayoutPropsFromConfig()),
-      ...{ profileConfig: profileConfig },
-    },
-  };
-};
+export const ProfilePageGetServerSideProps = definePageLoader<ProfilePageProps>({
+  name: 'Profile',
+  loadNavigation: loadNavigationFromContext,
+  load: async (context) => ({
+    configuration: await context.config.load({
+      id: 'profile',
+      source: 'content',
+      resolvePath: () => `${GEN3_COMMONS_NAME}/profile.json`,
+      schema: ProfileConfigurationSchema,
+    }),
+  }),
+  fallback: () => ({ configuration: null }),
+});

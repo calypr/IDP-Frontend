@@ -9,7 +9,7 @@ import { buildConfigFromTabs } from './utils';
 import { ConfiguratorPageProps, type Tab } from './types';
 import { GraphQLSchema } from 'graphql';
 
-const Configurator = ({ headerProps, footerProps }: ConfiguratorPageProps) => {
+const Configurator = ({ headerProps, footerProps, pageProblems }: ConfiguratorPageProps) => {
   const { sdata, sisLoading } = useGetSchemaQuery();
   const [tabs, setTabs] = useState<Tab[]>([]);
   const [allTabsTitle, setAllTabsTitle] = useState('');
@@ -65,6 +65,7 @@ const Configurator = ({ headerProps, footerProps }: ConfiguratorPageProps) => {
   return (
     <NavPageLayout
       {...{ headerProps, footerProps }}
+      pageProblems={pageProblems}
       headerMetadata={{
         title: 'Gen3 Explorer Builder Page',
         content: 'Explorer Builder Page',

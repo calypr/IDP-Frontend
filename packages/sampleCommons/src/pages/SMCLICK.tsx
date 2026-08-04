@@ -1,5 +1,4 @@
 import React from 'react';
-import { GetServerSideProps } from 'next';
 import { useRouter } from 'next/router';
 import { MantineProvider, Text, LoadingOverlay, Button } from '@mantine/core';
 import ReactECharts from 'echarts-for-react';
@@ -8,9 +7,9 @@ import {
   NavPageLayout,
   NavPageLayoutProps,
   ErrorCard,
-  getNavPageLayoutPropsFromConfig,
   ProtectedContent,
 } from '@gen3/frontend';
+import { defineSamplePageLoader } from '@/lib/content/pageLoader';
 
 import { fieldNameToTitle, useGeneralGQLQuery } from '@gen3/core';
 
@@ -20,6 +19,7 @@ import { fieldNameToTitle, useGeneralGQLQuery } from '@gen3/core';
 interface SamplePageProps {
   headerProps: any;
   footerProps: any;
+  pageProblems?: any;
 }
 
 interface HistogramData {
@@ -216,17 +216,25 @@ const ChartFromField = (
 ///////////////
 // COMPONENT //
 ///////////////
-const HorizontalBarChart = ({ headerProps, footerProps }: SamplePageProps) => {
+const HorizontalBarChart = ({
+  headerProps,
+  footerProps,
+  pageProblems,
+}: SamplePageProps) => {
   const router = useRouter();
 
   // TODO: refactor out into a config
   const chartResourceType = ['document_reference', 'research_subject'];
-  const chartFields = ['document_reference_assay', 'research_subject_condition_Diagnosis'];
+  const chartFields = [
+    'document_reference_assay',
+    'research_subject_condition_Diagnosis',
+  ];
   const chartTitles = ['Assay', 'Diagnosis'];
   const numChartCols = chartFields.length <= 3 ? chartFields.length : 3;
 
   return (
     <NavPageLayout
+      pageProblems={pageProblems}
       {...{ headerProps, footerProps }}
       headerMetadata={{
         title: 'CALYPR SMMART Report Page',
@@ -295,14 +303,6 @@ const HorizontalBarChart = ({ headerProps, footerProps }: SamplePageProps) => {
   );
 };
 
-export const getServerSideProps: GetServerSideProps<
-  NavPageLayoutProps
-> = async () => {
-  return {
-    props: {
-      ...(await getNavPageLayoutPropsFromConfig()),
-    },
-  };
-};
+export const getServerSideProps = defineSamplePageLoader('SMCLICK');
 
 export default HorizontalBarChart;

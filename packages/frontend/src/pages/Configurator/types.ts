@@ -1,4 +1,4 @@
-import { NavPageLayoutProps } from '../../features/Navigation';
+import type { ConfigPageProps } from '../../lib/pageLoader';
 import { GraphQLSchema } from 'graphql';
 
 export interface FieldReference {
@@ -14,7 +14,7 @@ export interface SchemaDefinition {
 }
 
 /* boiler plate */
-interface ConfiguratorConfig {
+export interface ConfiguratorConfig {
   readonly textBoxes: ReadonlyArray<{
     readonly box: string;
   }>;
@@ -24,7 +24,7 @@ export interface ConfiguratorProps {
   configuratorConfig?: ConfiguratorConfig;
 }
 
-export type ConfiguratorPageProps = NavPageLayoutProps & ConfiguratorProps;
+export type ConfiguratorPageProps = ConfigPageProps<ConfiguratorConfig>;
 
 /* Configurator Types */
 export type TableItem = {

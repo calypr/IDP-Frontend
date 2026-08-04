@@ -1,5 +1,5 @@
-import { NavPageLayoutProps } from '../../features/Navigation';
 import { Gen3AppConfigData } from '../../lib/content/types';
+import type { ConfigPageProps } from '../../lib/pageLoader';
 
 export interface SmmartConfig extends Gen3AppConfigData {
   readonly topText: ReadonlyArray<{
@@ -13,8 +13,4 @@ export interface SmmartConfig extends Gen3AppConfigData {
   }>;
 }
 
-export interface SmmartProps {
-  smmartConfig?: SmmartConfig;
-}
-
-export type SmmartLandingPageProps = NavPageLayoutProps & SmmartProps;
+export type SmmartLandingPageProps = ConfigPageProps<SmmartConfig>;

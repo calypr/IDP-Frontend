@@ -129,7 +129,7 @@ Gen3App.getInitialProps = async (
   const ctx = await App.getInitialProps(context);
 
   try {
-    const res = await loadContent();
+    const res = await loadContent(context);
     return {
       ...ctx,
       ...res,
@@ -139,22 +139,7 @@ Gen3App.getInitialProps = async (
       'Provider Wrapper error loading config',
       error instanceof Error ? error.message : String(error),
     );
+    throw error;
   }
-
-  // Return default values in case of an error
-  return {
-    ...ctx,
-    icons: [
-      {
-        prefix: 'gen3',
-        lastModified: 0,
-        icons: {},
-        width: 0,
-        height: 0,
-      },
-    ],
-    modalsConfig: {},
-    sessionConfig: {},
-  };
 };
 export default Gen3App;

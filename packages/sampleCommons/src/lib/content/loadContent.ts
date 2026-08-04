@@ -1,26 +1,56 @@
 import {
-  ContentSource,
+  createServerPageContext,
   Fonts,
   RegisteredIcons,
+  SessionConfiguration,
   TenStringArray,
 } from '@gen3/frontend';
 import { GEN3_COMMONS_NAME } from '@gen3/core';
+import type { AppContext } from 'next/app';
+import { z } from 'zod';
 
-export const loadContent = async () => {
-  const modals = await ContentSource.getContentDatabase().get(
-    `${GEN3_COMMONS_NAME}/modals.json`,
-  );
-  const session = await ContentSource.getContentDatabase().get(
-    `${GEN3_COMMONS_NAME}/session.json`,
-  );
+const ObjectConfigurationSchema = z.object({}).passthrough();
+const ThemeColorsSchema = z.record(
+  z.string(),
+  z.record(z.string(), z.string()),
+);
+const IconSchema = z
+  .object({
+    prefix: z.string(),
+    lastModified: z.number(),
+    icons: z.record(z.string(), z.object({}).passthrough()),
+  })
+  .passthrough();
 
-  const fonts = await ContentSource.getContentDatabase().get(
-    `${GEN3_COMMONS_NAME}/themeFonts.json`,
+export const loadContent = async (appContext: AppContext) => {
+  const context = createServerPageContext(
+    appContext.ctx as any,
+    async () => ({}),
   );
-
-  const themeColors = await ContentSource.getContentDatabase().get(
-    `${GEN3_COMMONS_NAME}/themeColors.json`,
-  );
+  const modals = await context.config.load({
+    id: 'modals',
+    source: 'content',
+    resolvePath: () => `${GEN3_COMMONS_NAME}/modals.json`,
+    schema: ObjectConfigurationSchema,
+  });
+  const session = await context.config.load({
+    id: 'session',
+    source: 'content',
+    resolvePath: () => `${GEN3_COMMONS_NAME}/session.json`,
+    schema: ObjectConfigurationSchema,
+  });
+  const fonts = await context.config.load({
+    id: 'themeFonts',
+    source: 'content',
+    resolvePath: () => `${GEN3_COMMONS_NAME}/themeFonts.json`,
+    schema: ObjectConfigurationSchema,
+  });
+  const themeColors = await context.config.load({
+    id: 'themeColors',
+    source: 'content',
+    resolvePath: () => `${GEN3_COMMONS_NAME}/themeColors.json`,
+    schema: ThemeColorsSchema,
+  });
 
   const colors = Object.fromEntries(
     Object.entries(themeColors).map(([key, values]) => {
@@ -29,16 +59,20 @@ export const loadContent = async () => {
     }),
   );
 
-  const icons = await ContentSource.getContentDatabase().getAll(
+  const icons = await context.content.getAll(
     `icons/`,
     '\\.json',
   );
 
   return {
     modalsConfig: modals,
-    sessionConfig: 'sessionConfig' in session ? session.sessionConfig : session,
-    themeFonts: fonts as Fonts,
+    sessionConfig: (
+      'sessionConfig' in session
+        ? (session as { sessionConfig: unknown }).sessionConfig
+        : session
+    ) as unknown as SessionConfiguration,
+    themeFonts: fonts as unknown as Fonts,
     colors: colors,
-    icons: icons as RegisteredIcons[],
+    icons: icons.map((icon) => IconSchema.parse(icon)) as unknown as RegisteredIcons[],
   };
 };

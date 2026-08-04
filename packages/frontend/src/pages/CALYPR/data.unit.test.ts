@@ -5,7 +5,7 @@ jest.mock('@gen3/core', () => ({
   GEN3_FENCE_API: '/user',
 }));
 jest.mock('../../lib/common/staticProps', () => ({
-  getNavPageLayoutPropsFromConfig: jest.fn(),
+  loadNavigationFromContext: jest.fn(),
 }));
 jest.mock('../../lib/content', () => ({
   __esModule: true,

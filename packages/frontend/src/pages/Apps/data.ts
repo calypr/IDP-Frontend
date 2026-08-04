@@ -1,13 +1,8 @@
-import { GetServerSideProps } from 'next';
-import { getNavPageLayoutPropsFromConfig } from '../../lib/common/staticProps';
-import type { NavPageLayoutProps } from '../../features/Navigation';
+import { definePageLoader, type PageProps } from '../../lib/pageLoader';
+import { loadNavigationFromContext } from '../../lib/common/staticProps';
 
-export const AppsPageGetServerSideProps: GetServerSideProps<
-  NavPageLayoutProps
-> = async () => {
-  return {
-    props: {
-      ...(await getNavPageLayoutPropsFromConfig()),
-    },
-  };
-};
+export const AppsPageGetServerSideProps = definePageLoader<PageProps>({
+  name: 'Apps',
+  loadNavigation: loadNavigationFromContext,
+  load: async () => ({}),
+});

@@ -99,9 +99,13 @@ export interface LoomAggregationsResponse {
 
 export interface LoomApiError {
   readonly status: number | 'CUSTOM_ERROR' | 'FETCH_ERROR';
+  readonly httpStatus?: number;
   readonly data?: unknown;
   readonly error?: string;
   readonly code?: string;
+  readonly requestId?: string;
+  readonly retryable?: boolean;
+  readonly fieldPath?: string | null;
 }
 
 export interface LoomQueryArgs {
@@ -111,14 +115,87 @@ export interface LoomQueryArgs {
 
 export interface LoomGraphQLResponse<T> {
   readonly data?: T;
-  readonly errors?: ReadonlyArray<{
-    readonly message: string;
-    readonly extensions?: { readonly code?: string };
-  }>;
+  readonly errors?: ReadonlyArray<LoomGraphQLError>;
 }
+
+export interface LoomGraphQLError {
+  readonly message: string;
+  readonly locations?: ReadonlyArray<{
+    readonly line: number;
+    readonly column: number;
+  }>;
+  readonly path?: ReadonlyArray<string | number>;
+  readonly extensions?: LoomGraphQLErrorExtensions;
+}
+
+export interface LoomGraphQLErrorExtensions {
+  readonly code?: string;
+  readonly requestId?: string;
+  readonly retryable?: boolean;
+  readonly fieldPath?: string | null;
+  readonly [key: string]: unknown;
+}
+
+export interface LoomRequestMeta {
+  readonly endpoint: string;
+  readonly status?: number;
+  readonly requestId?: string;
+}
+
+export interface LoomGraphQLRequestErrorOptions {
+  readonly status: number | 'CUSTOM_ERROR' | 'FETCH_ERROR';
+  readonly message: string;
+  readonly data?: unknown;
+  readonly code?: string;
+  readonly requestId?: string;
+  readonly retryable?: boolean;
+  readonly fieldPath?: string | null;
+  readonly httpStatus?: number;
+  readonly meta?: LoomRequestMeta;
+  readonly cause?: unknown;
+}
+
+export class LoomGraphQLRequestError extends Error implements LoomApiError {
+  readonly status: number | 'CUSTOM_ERROR' | 'FETCH_ERROR';
+  readonly data?: unknown;
+  readonly code?: string;
+  readonly requestId?: string;
+  readonly retryable: boolean;
+  readonly fieldPath?: string | null;
+  readonly httpStatus?: number;
+  readonly meta?: LoomRequestMeta;
+  readonly isLoomGraphQLRequestError = true;
+
+  constructor(options: LoomGraphQLRequestErrorOptions) {
+    super(options.message);
+    this.name = 'LoomGraphQLRequestError';
+    this.status = options.status;
+    this.data = options.data;
+    this.code = options.code;
+    this.requestId = options.requestId;
+    this.retryable = options.retryable ?? false;
+    this.fieldPath = options.fieldPath;
+    this.httpStatus = options.httpStatus;
+    this.meta = options.meta;
+
+    if (options.cause !== undefined) {
+      this.cause = options.cause;
+    }
+  }
+}
+
+export const isLoomGraphQLRequestError = (
+  error: unknown,
+): error is LoomGraphQLRequestError =>
+  error instanceof LoomGraphQLRequestError ||
+  (typeof error === 'object' &&
+    error !== null &&
+    'isLoomGraphQLRequestError' in error &&
+    (error as { isLoomGraphQLRequestError?: unknown })
+      .isLoomGraphQLRequestError === true);
 
 export interface LoomRequestOptions {
   readonly endpoint?: string;
-  readonly headers?: Record<string, string>;
+  readonly headers?: HeadersInit;
   readonly signal?: AbortSignal;
 }

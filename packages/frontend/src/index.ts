@@ -5,6 +5,7 @@ export * from './components/Modals';
 export * from './components/charts';
 export * from './components/facets';
 export * from './components/Protected';
+export * from './components/MessageCards';
 import { VerifyingAccessLoader } from './components/Protected';
 
 // features
@@ -24,8 +25,10 @@ import {
 } from './features/CohortBuilder';
 export * from './utils/';
 export * from './features/MatchingTable';
+export * from './lib/pageLoader';
+export * from './pageExports';
 
-import { getNavPageLayoutPropsFromConfig } from './lib/common/staticProps';
+import { loadNavigationFromContext } from './lib/common/staticProps';
 import ContentSource from './lib/content';
 import { type SessionConfiguration } from './lib/session/types';
 import { type Fonts, type RegisteredIcons } from './lib/content/types';
@@ -250,7 +253,7 @@ export {
   LoginPageGetServerSideProps,
   TailwindConfig,
   Gen3Provider,
-  getNavPageLayoutPropsFromConfig,
+  loadNavigationFromContext,
   AuthzPage,
   AdminAuthZPageGetServerSideProps,
   WorkspacePage,

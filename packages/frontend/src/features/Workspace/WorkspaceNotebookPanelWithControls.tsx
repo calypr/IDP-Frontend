@@ -9,7 +9,7 @@ import { useWorkspaceContext } from './WorkspaceProvider';
 import StatusAndControls from './StatusAndControls';
 
 const FULLSCREEN_STYLE =
-  'fixed top-0 left-0 w-full h-full flex flex-col flex-grow content-center items-center bg-base-lightest';
+  'fixed inset-0 z-50 min-h-[100dvh] w-full flex flex-col flex-1 content-center items-center bg-base-lightest';
 
 const WorkspaceNotebookPanelWithControls = () => {
   const { isFullscreen } = useWorkspaceStatusContext();
@@ -20,7 +20,7 @@ const WorkspaceNotebookPanelWithControls = () => {
       className={
         isFullscreen
           ? FULLSCREEN_STYLE
-          : 'flex flex-col grow w-full h-full relative'
+          : 'relative flex min-h-0 h-full w-full flex-1 flex-col'
       }
     >
       <ExternalLoginsStatus />

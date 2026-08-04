@@ -1,11 +1,10 @@
 import React from 'react';
 import { Center, Paper, Text } from '@mantine/core';
 import {
-  getNavPageLayoutPropsFromConfig,
   NavPageLayout,
   NavPageLayoutProps,
 } from '@gen3/frontend';
-import { GetServerSideProps } from 'next';
+import { defineSamplePageLoader } from '@/lib/content/pageLoader';
 
 const CustomHeader = () => {
   return (
@@ -23,10 +22,11 @@ const CustomFooter = () => {
   );
 };
 
-const SamplePage = ({ headerProps, footerProps }: NavPageLayoutProps) => {
+const SamplePage = ({ headerProps, footerProps, pageProblems }: NavPageLayoutProps) => {
   return (
     <NavPageLayout
       {...{ headerProps, footerProps }}
+      pageProblems={pageProblems}
       headerMetadata={{
         title: 'Gen3 Sample Page',
         content: 'Sample Data',
@@ -53,15 +53,6 @@ const SamplePage = ({ headerProps, footerProps }: NavPageLayoutProps) => {
   );
 };
 
-// TODO: replace this with a custom getServerSideProps function
-export const getServerSideProps: GetServerSideProps<
-  NavPageLayoutProps
-> = async () => {
-  return {
-    props: {
-      ...(await getNavPageLayoutPropsFromConfig()),
-    },
-  };
-};
+export const getServerSideProps = defineSamplePageLoader('SamplePage');
 
 export default SamplePage;

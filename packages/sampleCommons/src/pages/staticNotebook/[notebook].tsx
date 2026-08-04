@@ -1,17 +1,17 @@
 import React from 'react';
-import { GetServerSideProps } from 'next';
 import { NextRouter, useRouter } from 'next/dist/client/router';
 
 import {
-  getNavPageLayoutPropsFromConfig,
   NavPageLayout,
   NavPageLayoutProps,
   StaticNotebookIFrame,
 } from '@gen3/frontend';
+import { defineSamplePageLoader } from '@/lib/content/pageLoader';
 
 const StaticNotebookApp = ({
   headerProps,
   footerProps,
+  pageProblems,
 }: NavPageLayoutProps) => {
   const router = useRouter();
   const notebook = getNotebookName(router);
@@ -19,6 +19,7 @@ const StaticNotebookApp = ({
   return (
     <NavPageLayout
       {...{ headerProps, footerProps }}
+      pageProblems={pageProblems}
       headerMetadata={{
         title: 'Gen3 Static Notebook Page',
         content: 'Static Notebook',
@@ -38,23 +39,6 @@ const getNotebookName = (router: NextRouter): string => {
   return 'notFound';
 };
 
-export const getServerSideProps: GetServerSideProps<
-  NavPageLayoutProps
-> = async () => {
-  try {
-    return {
-      props: {
-        ...(await getNavPageLayoutPropsFromConfig()),
-      },
-    };
-  } catch (err) {
-    console.error(err);
-    return {
-      props: {
-        ...(await getNavPageLayoutPropsFromConfig()),
-      },
-    };
-  }
-};
+export const getServerSideProps = defineSamplePageLoader('StaticNotebook');
 
 export default StaticNotebookApp;

@@ -17,7 +17,7 @@ export const FiltersPanel = ({
   return (
     <div
       data-testid="filters-facets"
-      className="flex flex-col gap-y-4 h-full overflow-y-scroll px-4 pb-2 w-full"
+      className="flex h-full w-full flex-col gap-y-4 overflow-y-scroll px-4 pb-2"
     >
       {fields.map((facetDefinition) => {
         return createFacetCard({

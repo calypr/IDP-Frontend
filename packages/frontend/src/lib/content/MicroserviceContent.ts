@@ -1,6 +1,7 @@
 import { ContentStore } from './types'; // This must be updated to include the headers
 import { CALYPR_EXPLORER_CONFIG_API } from '@gen3/core';
 import { getCookie } from 'cookies-next'; // Still useful for client-side debugging/fallback
+import { ContentError } from './errors';
 
 export class MicroserviceContent implements ContentStore {
   private log(msg: string) {
@@ -54,9 +55,21 @@ export class MicroserviceContent implements ContentStore {
       `Request auth cookie=${Boolean(finalHeaders.Cookie)} authorization=${Boolean(finalHeaders.Authorization)}`,
     );
 
-    const res = await fetch(targetUrl, {
-      headers: finalHeaders, // Use the merged headers
-    });
+    let res: Response;
+    try {
+      res = await fetch(targetUrl, {
+        headers: finalHeaders,
+        cache: 'no-store',
+      });
+    } catch (cause) {
+      throw new ContentError(`Unable to reach configuration service`, {
+        kind: 'transport',
+        status: 502,
+        retryable: true,
+        path: url,
+        cause,
+      });
+    }
 
     this.log(
       `Response ${res.status} requestId=${res.headers.get('x-request-id') ?? 'none'}`,
@@ -67,9 +80,12 @@ export class MicroserviceContent implements ContentStore {
         res.status === 401
           ? `Unauthorized: ${url}`
           : `Microservice fetch failed: ${res.status} ${url}`;
-      const error = new Error(message);
-      (error as any).status = res.status;
-      throw error;
+      throw new ContentError(message, {
+        kind: 'http',
+        status: res.status,
+        requestId: res.headers.get('x-request-id') ?? undefined,
+        path: url,
+      });
     }
 
     const responseText = await res.text();
@@ -77,12 +93,17 @@ export class MicroserviceContent implements ContentStore {
       const data = JSON.parse(responseText);
       this.log('Success');
       return data as T;
-    } catch (e) {
-      const error = new Error(
+    } catch (cause) {
+      throw new ContentError(
         `Microservice fetch failed: Received non-JSON response with status ${res.status} from ${url}`,
+        {
+          kind: 'parse',
+          status: 502,
+          requestId: res.headers.get('x-request-id') ?? undefined,
+          path: url,
+          cause,
+        },
       );
-      (error as any).status = res.status;
-      throw error;
     }
   }
 

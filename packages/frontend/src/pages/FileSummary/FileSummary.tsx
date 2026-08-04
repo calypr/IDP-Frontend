@@ -60,7 +60,8 @@ import {
 export const FileSummaryPage = ({
   headerProps,
   footerProps,
-  filesummaryConfig,
+  pageProblems,
+  configuration,
 }: FileSummaryPageProps) => {
   const router = useRouter();
   const routeOrganization =
@@ -81,17 +82,17 @@ export const FileSummaryPage = ({
       return forcedProjectSelection;
     }
     return resolveProjectSelection({
-      defaultProject: filesummaryConfig?.defaultProject,
+      defaultProject: configuration?.defaultProject,
       options: projectOptions,
     });
   }, [
-    filesummaryConfig?.defaultProject,
+    configuration?.defaultProject,
     forcedProjectSelection,
     projectOptions,
   ]);
   const [selectedProject, setSelectedProject] = useState('');
   const [currentPath, setCurrentPath] = useState(
-    filesummaryConfig?.defaultPath?.trim() ?? '',
+    configuration?.defaultPath?.trim() ?? '',
   );
   const [hasCopiedStoragePath, setHasCopiedStoragePath] = useState(false);
   const [expandedChainIssueIds, setExpandedChainIssueIds] = useState<
@@ -254,7 +255,7 @@ export const FileSummaryPage = ({
     loadMore,
     refresh,
   } = useSyfonPathStorageSummary({
-    config: filesummaryConfig,
+    config: configuration ?? undefined,
     currentPath,
     exactRequest: exactStorageRequest ?? undefined,
     projectSelection: selectedProject,
@@ -267,7 +268,7 @@ export const FileSummaryPage = ({
     runAudit: runChainAudit,
     setAuditResult: setChainAuditResult,
   } = useSyfonStorageChain({
-    config: filesummaryConfig,
+    config: configuration ?? undefined,
     currentPath,
     projectSelection: selectedProject,
   });
@@ -281,7 +282,7 @@ export const FileSummaryPage = ({
     isApplying,
     isAuditing,
   } = useSyfonStorageCleanup({
-    config: filesummaryConfig,
+    config: configuration ?? undefined,
     currentPath,
     projectSelection: selectedProject,
   });
@@ -1151,7 +1152,7 @@ export const FileSummaryPage = ({
                   onChange={(value) => {
                     setSelectedProject(value ?? '');
                     setCurrentPath(
-                      filesummaryConfig?.defaultPath?.trim() ?? '',
+                      configuration?.defaultPath?.trim() ?? '',
                     );
                   }}
                   placeholder="Select a project"
@@ -1204,7 +1205,7 @@ export const FileSummaryPage = ({
                   </Stack>
                   <StorageBrowser
                     data={data}
-                    filesummaryConfig={filesummaryConfig}
+                    filesummaryConfig={configuration ?? undefined}
                     isLoadingMore={isLoadingMore}
                     largestRowSize={largestRowSize}
                     onLoadMore={() => {
@@ -1286,7 +1287,7 @@ export const FileSummaryPage = ({
 
   return (
     <NavPageLayout
-      {...{ headerProps, footerProps }}
+      {...{ headerProps, footerProps, pageProblems }}
       headerMetadata={{
         title: 'CALYPR Storage Monitor',
         content: 'Storage Monitor',

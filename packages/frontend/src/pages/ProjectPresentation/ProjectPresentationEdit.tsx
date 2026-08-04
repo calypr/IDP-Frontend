@@ -11,7 +11,7 @@ import { Alert, Center, Loader } from '@mantine/core';
 import { useRouter } from 'next/router';
 import { NavPageLayout } from '../../features/Navigation';
 import { ProtectedContent } from '../../components/Protected';
-import { getNavPageLayoutPropsFromConfig } from '../../lib/common/staticProps';
+import type { NavPageLayoutProps } from '../../features/Navigation';
 import {
   hasOrganizationMembership,
   hasProjectMembershipOrAccess,
@@ -24,7 +24,8 @@ import { useSession } from '../../lib/session/session';
 export const ProjectPresentationEditPage = ({
   headerProps,
   footerProps,
-}: Awaited<ReturnType<typeof getNavPageLayoutPropsFromConfig>>) => {
+  pageProblems,
+}: NavPageLayoutProps) => {
   const router = useRouter();
   const session = useSession(false);
   const sessionReady = !session.pending;
@@ -140,7 +141,7 @@ export const ProjectPresentationEditPage = ({
   return (
     <ProtectedContent>
       <NavPageLayout
-        {...{ headerProps, footerProps }}
+        {...{ headerProps, footerProps, pageProblems }}
         headerMetadata={{
           title: 'Project Page Editor',
           content: 'Project page editor',

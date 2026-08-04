@@ -76,6 +76,7 @@ const globals = {
   'cm6-graphql': 'cm6Graphql',
   'js-cookie': 'jsCookie',
   '@codemirror/autocomplete': 'codemirrorAutocomplete',
+  zod: 'zod',
 };
 
 const config = [

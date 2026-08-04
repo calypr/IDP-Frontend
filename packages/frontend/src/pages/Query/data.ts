@@ -1,21 +1,27 @@
-import { GetServerSideProps } from 'next';
-import { getNavPageLayoutPropsFromConfig } from '../../lib/common/staticProps';
-import ContentSource from '../../lib/content';
-import { type QueryProps } from './types';
-import { type NavPageLayoutProps } from '../../features/Navigation';
 import { GEN3_COMMONS_NAME } from '@gen3/core';
+import { normalizeQueryConfiguration } from '../../features/Query/config';
+import {
+  loadNavigationFromContext,
+} from '../../lib/common/staticProps';
+import { definePageLoader } from '../../lib/pageLoader';
+import { QueryConfigurationSchema } from './configurationSchema';
+import type { QueryPageLayoutProps } from './types';
 
-export const QueryPageGetServerSideProps: GetServerSideProps<
-  NavPageLayoutProps
-> = async () => {
-  const queryProps: QueryProps = await ContentSource.getContentDatabase().get(
-    `${GEN3_COMMONS_NAME}/query.json`,
-  );
-
-  return {
-    props: {
-      ...(await getNavPageLayoutPropsFromConfig()),
-      queryProps: queryProps,
-    },
-  };
+const QueryConfigurationDescriptor = {
+  id: 'query',
+  source: 'content' as const,
+  resolvePath: () => `${GEN3_COMMONS_NAME}/query.json`,
+  schema: QueryConfigurationSchema,
 };
+
+export const QueryPageGetServerSideProps =
+  definePageLoader<QueryPageLayoutProps>({
+  name: 'Query',
+  loadNavigation: loadNavigationFromContext,
+  load: async (context) => ({
+    configuration: normalizeQueryConfiguration(
+      await context.config.load(QueryConfigurationDescriptor),
+    ),
+  }),
+  fallback: () => ({ configuration: null }),
+  });

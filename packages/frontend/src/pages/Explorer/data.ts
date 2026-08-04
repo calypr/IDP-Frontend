@@ -1,47 +1,29 @@
-import { GetServerSideProps } from 'next';
-import { getNavPageLayoutPropsFromConfig } from '../../lib/common/staticProps';
-import ContentSource from '../../lib/content';
+import { definePageLoader } from '../../lib/pageLoader';
+import { loadNavigationFromContext } from '../../lib/common/staticProps';
 import {
   CohortBuilderConfiguration,
-  CohortBuilderProps,
   CohortPanelConfiguration,
 } from '../../features/CohortBuilder';
 import {
   GEN3_COMMONS_NAME,
   buildLoomDatasetColumnsQuery,
-  fetchLoomGraphQL,
   groupSharedFields,
   isLoomDataType,
   LoomDataType,
   SharedFieldMapping,
 } from '@gen3/core';
-import { isArray } from 'lodash';
-import type { NavPageLayoutProps } from '../../features/Navigation';
-import {
-  AccessControlConfiguration,
-  GuppyDataAccessMode,
-} from '../../features/CohortBuilder/types';
-import { microserviceDb } from '../../lib/content';
-
-const DefaultHeaderMetadata = {
-  title: 'Gen3 Explorer Page',
-  content: 'Explorer Page',
-  key: 'gen3-explorer-page',
-};
-
-const getErrorStatus = (error: unknown): number =>
-  typeof error === 'object' &&
-  error !== null &&
-  'status' in error &&
-  typeof error.status === 'number'
-    ? error.status
-    : 500;
+import type {
+  RequestBoundLoomClient,
+  ServerPageContext,
+} from '../../lib/pageLoader';
+import { ExplorerConfigurationSchema } from './configurationSchema';
+import type { ExplorerPageData } from './types';
 
 type LoomColumnsByExplorerType = Record<string, ReadonlySet<string>>;
 
 const GetLoomColumnsByExplorerType = async (
   cohortBuilderConfiguration: CohortBuilderConfiguration,
-  requestHeaders: Record<string, string>,
+  loom: RequestBoundLoomClient,
 ): Promise<LoomColumnsByExplorerType> => {
   const tabs = cohortBuilderConfiguration?.explorerConfig ?? [];
   const configuredDataTypes = Array.from(
@@ -53,9 +35,9 @@ const GetLoomColumnsByExplorerType = async (
   if (dataTypes.length !== configuredDataTypes.length) {
     throw new Error('Explorer configuration must use Loom data types');
   }
-  const payload = await fetchLoomGraphQL<
+  const payload = await loom.graphql<
     Record<string, { name: string; columns: Array<{ name: string }> } | null>
-  >(buildLoomDatasetColumnsQuery(dataTypes), { headers: requestHeaders });
+  >(buildLoomDatasetColumnsQuery(dataTypes));
   console.info(
     '[Explorer] Loom datasets',
     Object.fromEntries(
@@ -226,11 +208,11 @@ const GetSharedFieldMapping = async (
 
 const PrepareExplorerConfiguration = async (
   cohortBuilderConfiguration: CohortBuilderConfiguration,
-  requestHeaders: Record<string, string>,
+  loom: RequestBoundLoomClient,
 ) => {
   const columnsByExplorerType = await GetLoomColumnsByExplorerType(
     cohortBuilderConfiguration,
-    requestHeaders,
+    loom,
   );
   ValidateExplorerConfiguration(
     cohortBuilderConfiguration,
@@ -245,137 +227,53 @@ const PrepareExplorerConfiguration = async (
   };
 };
 
-const DefaultAccessControlConfiguration: AccessControlConfiguration = {
-  dataMode: GuppyDataAccessMode.REGULAR,
-  tierLimit: -1,
-  showAccessLevelControl: false,
+const normalizeExplorerConfiguration = (
+  rawConfiguration: unknown,
+): CohortBuilderConfiguration => {
+  const parsedConfiguration = ExplorerConfigurationSchema.parse(rawConfiguration);
+  return Array.isArray(parsedConfiguration)
+    ? {
+        explorerConfig: parsedConfiguration as unknown as CohortPanelConfiguration[],
+      }
+    : (parsedConfiguration as unknown as CohortBuilderConfiguration);
 };
 
-export const ExplorerPageGetServerSideProps: GetServerSideProps<
-  NavPageLayoutProps | CohortBuilderProps | { errorStatus?: number }
-> = async (context) => {
-  const cookieHeader = context.req.headers.cookie;
-  const requestHeaders: Record<string, string> = {};
-  if (cookieHeader) {
-    requestHeaders['Cookie'] = cookieHeader;
-  }
-  if (context.req.headers.authorization) {
-    requestHeaders['Authorization'] = context.req.headers.authorization;
-  }
-  try {
-    const cohortBuilderConfiguration: CohortBuilderConfiguration =
-      await ContentSource.getContentDatabase().get(
-        `${GEN3_COMMONS_NAME}/explorer.json`,
-        requestHeaders,
-      );
-
-    if (isArray(cohortBuilderConfiguration)) {
-      return {
-        props: {
-          ...(await getNavPageLayoutPropsFromConfig(requestHeaders)),
-          explorerConfig: cohortBuilderConfiguration,
-          headerMetadata: cohortBuilderConfiguration?.headerMetadata
-            ? cohortBuilderConfiguration.headerMetadata
-            : DefaultHeaderMetadata,
-        },
-      };
-    }
-
-    const { configuration, sharedFiltersMap } =
-      await PrepareExplorerConfiguration(
-        cohortBuilderConfiguration,
-        requestHeaders,
-      );
-
-    return {
-      props: {
-        ...(await getNavPageLayoutPropsFromConfig(requestHeaders)),
-        sharedFiltersMap: sharedFiltersMap,
-        tabsLayout: configuration?.tabsLayout ?? 'left',
-        explorerConfig: configuration.explorerConfig,
-        accessControl: {
-          ...DefaultAccessControlConfiguration,
-          ...(configuration.accessControl ?? {}),
-        },
-        fileActions: configuration.fileActions ?? null,
-      },
-    };
-  } catch (err: unknown) {
-    console.error('Failed to load Explorer configuration:', err);
-    const status = getErrorStatus(err);
-    context.res.statusCode = status;
-    return {
-      props: {
-        ...(await getNavPageLayoutPropsFromConfig(requestHeaders)),
-        explorerConfig: null,
-        errorStatus: status,
-      },
-    };
-  }
+const loadExplorerConfiguration = async (
+  context: ServerPageContext,
+  source: 'content' | 'gecko',
+): Promise<ExplorerPageData> => {
+  const configId =
+    typeof context.next.query.configId === 'string'
+      ? context.next.query.configId
+      : undefined;
+  const rawConfiguration = await context.config.load({
+    id: configId ? `explorer.${configId}` : 'explorer',
+    source,
+    resolvePath: () =>
+      configId
+        ? `explorer/${configId}`
+        : `${GEN3_COMMONS_NAME}/explorer.json`,
+    schema: ExplorerConfigurationSchema,
+  });
+  const configuration = normalizeExplorerConfiguration(rawConfiguration);
+  const { sharedFiltersMap } = await PrepareExplorerConfiguration(
+    configuration,
+    context.loom,
+  );
+  return { configuration, sharedFiltersMap };
 };
 
-export const ExplorerPageGetServerSidePropsForConfigId: GetServerSideProps<
-  NavPageLayoutProps | CohortBuilderProps | { errorStatus?: number }
-> = async (context) => {
-  const configId = context.query.configId as string;
+export const ExplorerPageGetServerSideProps = definePageLoader<ExplorerPageData>({
+  name: 'Explorer',
+  loadNavigation: loadNavigationFromContext,
+  load: (context) => loadExplorerConfiguration(context, 'content'),
+  fallback: () => ({ configuration: null, sharedFiltersMap: null }),
+});
 
-  const cookieHeader = context.req.headers.cookie;
-  const requestHeaders: Record<string, string> = {};
-  if (cookieHeader) {
-    requestHeaders['Cookie'] = cookieHeader;
-  }
-  if (context.req.headers.authorization) {
-    requestHeaders['Authorization'] = context.req.headers.authorization;
-  }
-
-  try {
-    const cohortBuilderConfiguration: CohortBuilderConfiguration =
-      await microserviceDb.get<CohortBuilderConfiguration>(
-        `explorer/${configId}`,
-        requestHeaders,
-      );
-
-    if (isArray(cohortBuilderConfiguration)) {
-      return {
-        props: {
-          ...(await getNavPageLayoutPropsFromConfig(requestHeaders)),
-          explorerConfig: cohortBuilderConfiguration,
-          headerMetadata: cohortBuilderConfiguration?.headerMetadata
-            ? cohortBuilderConfiguration.headerMetadata
-            : DefaultHeaderMetadata,
-        },
-      };
-    }
-
-    const { configuration, sharedFiltersMap } =
-      await PrepareExplorerConfiguration(
-        cohortBuilderConfiguration,
-        requestHeaders,
-      );
-
-    return {
-      props: {
-        ...(await getNavPageLayoutPropsFromConfig(requestHeaders)),
-        sharedFiltersMap: sharedFiltersMap,
-        tabsLayout: configuration?.tabsLayout ?? 'left',
-        explorerConfig: configuration.explorerConfig,
-        accessControl: {
-          ...DefaultAccessControlConfiguration,
-          ...(configuration.accessControl ?? {}),
-        },
-        fileActions: configuration.fileActions ?? null,
-      },
-    };
-  } catch (err: unknown) {
-    console.error(`Failed to load Explorer config ${configId}:`, err);
-    const status = getErrorStatus(err);
-    context.res.statusCode = status;
-    return {
-      props: {
-        ...(await getNavPageLayoutPropsFromConfig(requestHeaders)),
-        explorerConfig: null,
-        errorStatus: status,
-      },
-    };
-  }
-};
+export const ExplorerPageGetServerSidePropsForConfigId =
+  definePageLoader<ExplorerPageData>({
+    name: 'Explorer config',
+    loadNavigation: loadNavigationFromContext,
+    load: (context) => loadExplorerConfiguration(context, 'gecko'),
+    fallback: () => ({ configuration: null, sharedFiltersMap: null }),
+  });

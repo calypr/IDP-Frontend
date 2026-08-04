@@ -6,20 +6,39 @@ import { QueryPageLayoutProps } from './types';
 const QueryPage = ({
   headerProps,
   footerProps,
-  queryProps,
+  configuration,
+  pageProblems,
 }: QueryPageLayoutProps): JSX.Element => {
+  if (!configuration) {
+    return (
+      <NavPageLayout
+        {...{ headerProps, footerProps, pageProblems }}
+        layoutMode="viewport"
+        headerMetadata={{
+          title: 'Gen3 Query Page',
+          content: 'Query page',
+          key: 'gen3-query-page',
+        }}
+      >
+        <div className="flex h-full min-h-0 items-center justify-center p-8 text-red-700">
+          Query configuration is unavailable.
+        </div>
+      </NavPageLayout>
+    );
+  }
   return (
     <NavPageLayout
-      {...{ headerProps, footerProps }}
+      {...{ headerProps, footerProps, pageProblems }}
+      layoutMode="viewport"
       headerMetadata={{
         title: 'Gen3 Query Page',
         content: 'Query page',
         key: 'gen3-query-page',
-        ...(queryProps?.headerMetadata ? queryProps.headerMetadata : {}),
+        ...(configuration.headerMetadata ? configuration.headerMetadata : {}),
       }}
     >
       <div className="h-full min-h-0">
-        <QueryPanel graphQLEndpoint={queryProps.graphQLEndpoint} />
+        <QueryPanel configuration={configuration} />
       </div>
     </NavPageLayout>
   );

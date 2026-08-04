@@ -35,6 +35,7 @@ const isOrganizationMemberOrOwnerAction = (action: {
 const GitNewProjectPage = ({
   headerProps,
   footerProps,
+  pageProblems,
 }: GitExplorerPageProps) => {
   const router = useRouter();
   const { data: authzMapping = {} } = useGetAuthzMappingsQuery();
@@ -63,7 +64,7 @@ const GitNewProjectPage = ({
 
   return (
     <NavPageLayout
-      {...{ headerProps, footerProps }}
+      {...{ headerProps, footerProps, pageProblems }}
       headerMetadata={{
         content: 'Create Gecko project',
         key: 'gecko-git-new-project',

@@ -1,11 +1,12 @@
-import { NavPageLayoutProps } from '../../features/Navigation';
+import type { ConfigPageProps } from '../../lib/pageLoader';
 import {
-  type AnalysisToolConfiguration,
-  type AnalysisCenterSection,
+  type AnalysisCenterConfiguration,
+  type AnalysisCenterWithSectionsConfiguration,
 } from '../../features/Analysis/types';
 
-export interface AnalysisPageLayoutProps extends NavPageLayoutProps {
-  tools?: Array<AnalysisToolConfiguration>;
-  sections?: Array<AnalysisCenterSection>;
-  classNames?: Record<string, string>;
-}
+export type AnalysisConfiguration =
+  | AnalysisCenterConfiguration
+  | AnalysisCenterWithSectionsConfiguration;
+
+export type AnalysisPageProps = ConfigPageProps<AnalysisConfiguration>;
+export type AnalysisPageLayoutProps = AnalysisPageProps;

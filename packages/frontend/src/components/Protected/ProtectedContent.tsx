@@ -5,11 +5,8 @@ import { Text } from '@mantine/core';
 import { type JWTSessionStatus } from '@gen3/core';
 import { LoginView } from '../Modals/LoginModal';
 
-import Custom403Page from '../../pages/403/Custom403Page';
-
 export interface ProtectedContentProps {
   children?: ReactNode;
-  errorStatus?: number;
 }
 
 import { useGetAuthzMappingsQuery } from '@gen3/core';
@@ -24,7 +21,6 @@ const isAppHomePath = (path?: string): boolean =>
 
 const AccessGate = ({
   children,
-  errorStatus,
   onBlocked,
 }: ProtectedContentProps & { onBlocked: () => void }) => {
   const router = useRouter();
@@ -66,14 +62,10 @@ const AccessGate = ({
     return null; // Will unmount shortly because parent will pick up the blocked state
   }
 
-  if (errorStatus === 403) {
-    return <Custom403Page />;
-  }
-
   return <React.Fragment>{children}</React.Fragment>;
 };
 
-const ProtectedContent = ({ children, errorStatus }: ProtectedContentProps) => {
+const ProtectedContent = ({ children }: ProtectedContentProps) => {
   const router = useRouter();
   const [stableStatus, setStableStatus] = useState<
     JWTSessionStatus | undefined
@@ -98,7 +90,7 @@ const ProtectedContent = ({ children, errorStatus }: ProtectedContentProps) => {
 
   if (stableStatus === 'issued') {
     return (
-      <AccessGate errorStatus={errorStatus} onBlocked={handleBlocked}>
+      <AccessGate onBlocked={handleBlocked}>
         {children}
       </AccessGate>
     );

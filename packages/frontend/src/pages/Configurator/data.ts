@@ -1,21 +1,22 @@
-import { GetServerSideProps } from 'next';
 import { GEN3_COMMONS_NAME } from '@gen3/core';
-import { getNavPageLayoutPropsFromConfig } from '../../lib/common/staticProps';
-import ContentSource from '../../lib/content';
-import { type ConfiguratorProps } from './types';
-import type { NavPageLayoutProps } from '../../features/Navigation';
+import { definePageLoader } from '../../lib/pageLoader';
+import { loadNavigationFromContext } from '../../lib/common/staticProps';
+import { ConfiguratorConfigurationSchema } from './configurationSchema';
+import type { ConfiguratorConfig, ConfiguratorPageProps } from './types';
 
-export const ConfiguratorPageGetServerSideProps: GetServerSideProps<
-  NavPageLayoutProps
-> = async () => {
-  const configuratorConfig: ConfiguratorProps =
-    await ContentSource.getContentDatabase().get(
-      `${GEN3_COMMONS_NAME}/configurator.json`,
-    );
-  return {
-    props: {
-      ...(await getNavPageLayoutPropsFromConfig()),
-      configuratorConfig: configuratorConfig,
-    },
-  };
+const configuratorConfiguration = {
+  id: 'configurator',
+  source: 'content' as const,
+  resolvePath: () => `${GEN3_COMMONS_NAME}/configurator.json`,
+  schema: ConfiguratorConfigurationSchema,
 };
+
+export const ConfiguratorPageGetServerSideProps =
+  definePageLoader<ConfiguratorPageProps>({
+    name: 'Configurator',
+    loadNavigation: loadNavigationFromContext,
+    load: async (context) => ({
+      configuration: (await context.config.load(configuratorConfiguration)) as ConfiguratorConfig,
+    }),
+    fallback: () => ({ configuration: null }),
+  });
