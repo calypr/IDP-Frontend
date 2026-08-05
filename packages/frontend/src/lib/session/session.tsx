@@ -122,22 +122,6 @@ export const SessionContext = React.createContext<Session | undefined>(
   undefined,
 );
 
-/**
- *  Wwe eventually want to use the session token to determine if the user is logged in
- *  as opposed to the user status since that check will happen on the server using httpOnly cookies
- *  and verification of the session token
- */
-export const getSession = async () => {
-  try {
-    const res = await fetch('/api/auth/sessionToken', { cache: 'no-store' });
-    if (res.status === 200) {
-      return await res.json();
-    }
-  } catch (error) {
-    return { status: 'error' };
-  }
-};
-
 export const useSession = (
   required = false,
   onUnauthenticated?: () => void,
@@ -217,7 +201,7 @@ const UPDATE_SESSION_LIMIT = MinutesToMilliseconds(5);
  * and if their session is stale and logs them out if they do not preform an action in an alotted amount of time
  * @param children - Pass in a child session if one exists
  * @param session - Pass in a cached session if one exists
- * @param updateSessionTime - Interval of time between fetching session token
+ * @param updateSessionTime - Interval of time between refreshing the user session
  * @param inactiveTimeLimit - Amount of time user is allowed to be inactive before getting logged out if user is tabbed away from page
  * @param workspaceInactivityTimeLimit - Amount of time user is allowed to be inactive if user is tabbed into the site
  * @param logoutInactiveUsers - Whether to log out users that are determined to be inactive or not
@@ -394,14 +378,9 @@ export const SessionProvider = ({
     setIsUserVerificationPending(true);
 
     const verification = (async () => {
-      let hasBearerCredential = false;
+      const hasBearerCredential = Boolean(getCookie('credentials_token'));
 
       try {
-        // Synchronize browser authentication first. When a valid Fence
-        // access_token and an older credentials_token coexist, this removes
-        // the conflicting Bearer credential before /user/user is requested.
-        await getSession();
-        hasBearerCredential = Boolean(getCookie('credentials_token'));
         await getUserDetails().unwrap();
         homeUnauthorizedRef.current = false;
       } catch (error: unknown) {
