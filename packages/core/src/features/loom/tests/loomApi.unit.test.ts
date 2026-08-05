@@ -1,17 +1,7 @@
-import {
-  fetchGraphQL,
-  fetchLoomGraphQL,
-  loomBaseQuery,
-} from '../loomApi';
-import {
-  isLoomGraphQLRequestError,
-  LoomGraphQLRequestError,
-} from '../types';
+import { fetchGraphQL, fetchLoomGraphQL, loomBaseQuery } from '../loomApi';
+import { isLoomGraphQLRequestError, LoomGraphQLRequestError } from '../types';
 
-const jsonResponse = (
-  body: unknown,
-  init: ResponseInit = {},
-): Response =>
+const jsonResponse = (body: unknown, init: ResponseInit = {}): Response =>
   new Response(JSON.stringify(body), {
     status: 200,
     headers: { 'content-type': 'application/json', ...init.headers },
@@ -141,7 +131,9 @@ describe('Loom GraphQL transport', () => {
       ),
     );
 
-    await expect(fetchGraphQL({ query: 'query Broken { a6 }' })).rejects.toMatchObject({
+    await expect(
+      fetchGraphQL({ query: 'query Broken { a6 }' }),
+    ).rejects.toMatchObject({
       status: 'CUSTOM_ERROR',
       httpStatus: 200,
       code: 'BACKEND_UNAVAILABLE',
@@ -159,7 +151,9 @@ describe('Loom GraphQL transport', () => {
       }),
     );
 
-    await expect(fetchGraphQL({ query: 'query Broken { a0 }' })).rejects.toMatchObject({
+    await expect(
+      fetchGraphQL({ query: 'query Broken { a0 }' }),
+    ).rejects.toMatchObject({
       status: 502,
       httpStatus: 502,
       requestId: 'non-json-request-1',
@@ -170,10 +164,15 @@ describe('Loom GraphQL transport', () => {
 
   it('reports a successful response that is missing data', async () => {
     fetchMock.mockResolvedValue(
-      jsonResponse({}, { headers: { 'x-request-id': 'missing-data-request-1' } }),
+      jsonResponse(
+        {},
+        { headers: { 'x-request-id': 'missing-data-request-1' } },
+      ),
     );
 
-    await expect(fetchGraphQL({ query: 'query Missing { a0 }' })).rejects.toMatchObject({
+    await expect(
+      fetchGraphQL({ query: 'query Missing { a0 }' }),
+    ).rejects.toMatchObject({
       status: 'CUSTOM_ERROR',
       httpStatus: 200,
       requestId: 'missing-data-request-1',
@@ -196,9 +195,39 @@ describe('Loom GraphQL transport', () => {
     ).rejects.toBe(abortError);
   });
 
+  it('reports transport failures without logging request authentication', async () => {
+    fetchMock.mockRejectedValue(new TypeError('fetch failed'));
+
+    await expect(
+      fetchGraphQL(
+        { query: 'query Broken { a0 }' },
+        {
+          endpoint: 'http://revproxy-service/loom/graphql/flat',
+          headers: {
+            Authorization: 'Bearer secret-token',
+            Cookie: 'access_token=secret-token',
+          },
+        },
+      ),
+    ).rejects.toMatchObject({
+      status: 'FETCH_ERROR',
+      retryable: true,
+    });
+    expect(console.error).toHaveBeenCalledWith('[Loom] Transport failed', {
+      endpoint: 'http://revproxy-service/loom/graphql/flat',
+      error: 'fetch failed',
+    });
+    expect(
+      JSON.stringify((console.error as jest.Mock).mock.calls),
+    ).not.toContain('secret-token');
+  });
+
   it('returns request metadata from the RTK base query on success and failure', async () => {
     fetchMock.mockResolvedValueOnce(
-      jsonResponse({ data: { ok: true } }, { headers: { 'x-request-id': 'success-1' } }),
+      jsonResponse(
+        { data: { ok: true } },
+        { headers: { 'x-request-id': 'success-1' } },
+      ),
     );
 
     const baseQueryApi = {

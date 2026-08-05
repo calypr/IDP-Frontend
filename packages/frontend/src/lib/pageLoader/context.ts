@@ -1,5 +1,5 @@
 import type { GetServerSidePropsContext } from 'next';
-import { fetchGraphQL } from '@gen3/core';
+import { fetchGraphQL, GEN3_LOOM_API } from '@gen3/core';
 import ContentSource, { filesystemDb, microserviceDb } from '../content';
 import type { ContentDatabase } from '../content/ContentDatabase';
 import { isContentError } from '../content/errors';
@@ -44,8 +44,35 @@ export const resolveServerOrigin = (
   const host = headers['x-forwarded-host'] ?? headers.Host ?? 'localhost:3000';
   const protocol =
     headers['x-forwarded-proto'] ??
-    (host.includes('localhost') || host.includes('127.0.0.1') ? 'http' : 'https');
+    (host.includes('localhost') || host.includes('127.0.0.1')
+      ? 'http'
+      : 'https');
   return `${protocol.split(',')[0]}://${host.split(',')[0]}`;
+};
+
+const joinOriginAndPath = (origin: string, path: string): string =>
+  `${origin.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
+
+export const resolveServerServiceUrl = (
+  endpoint: string,
+  headers: Readonly<Record<string, string>>,
+): string => {
+  if (/^https?:\/\//i.test(endpoint)) return endpoint;
+
+  const internalOrigin = process.env.GEN3_INTERNAL_API?.trim();
+  return joinOriginAndPath(
+    internalOrigin || resolveServerOrigin(headers),
+    endpoint,
+  );
+};
+
+export const getServerServiceHeaders = (
+  headers: Readonly<Record<string, string>>,
+): Readonly<Record<string, string>> => {
+  const result: Record<string, string> = {};
+  if (headers.Cookie) result.Cookie = headers.Cookie;
+  if (headers.Authorization) result.Authorization = headers.Authorization;
+  return Object.freeze(result);
 };
 
 class BoundContentClient implements RequestBoundContentClient {
@@ -83,6 +110,7 @@ export const createServerPageContext = (
   loadNavigation: (context: ServerPageContext) => Promise<any>,
 ): ServerPageContext => {
   const headers = getServerRequestHeaders(next.req.headers);
+  const serviceHeaders = getServerServiceHeaders(headers);
   const content = new BoundContentClient(
     ContentSource.getContentDatabase(),
     headers,
@@ -136,12 +164,22 @@ export const createServerPageContext = (
     config,
     problems,
     loom: {
-      graphql: ({ query, variables, endpoint, signal }: Parameters<
-        RequestBoundLoomClient['graphql']
-      >[0]) =>
+      graphql: ({
+        query,
+        variables,
+        endpoint,
+        signal,
+      }: Parameters<RequestBoundLoomClient['graphql']>[0]) =>
         fetchGraphQL(
           { query, variables },
-          { endpoint, signal, headers: { ...headers } },
+          {
+            endpoint: resolveServerServiceUrl(
+              endpoint ?? `${GEN3_LOOM_API.replace(/\/+$/, '')}/graphql/flat`,
+              headers,
+            ),
+            signal,
+            headers: { ...serviceHeaders },
+          },
         ),
     },
     loadNavigation: () => loadNavigation(context),

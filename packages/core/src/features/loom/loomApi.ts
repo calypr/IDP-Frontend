@@ -106,7 +106,9 @@ const getFirstGraphQLError = (
 
   return {
     message:
-      typeof error.message === 'string' ? error.message : 'GraphQL request failed',
+      typeof error.message === 'string'
+        ? error.message
+        : 'GraphQL request failed',
     locations: Array.isArray(error.locations)
       ? (error.locations as LoomGraphQLError['locations'])
       : undefined,
@@ -193,6 +195,10 @@ const executeGraphQL = async <T>(
     });
   } catch (error: unknown) {
     if (isAbortError(error)) throw error;
+    console.error('[Loom] Transport failed', {
+      endpoint,
+      error: error instanceof Error ? error.message : String(error),
+    });
     throw new LoomGraphQLRequestError({
       status: 'FETCH_ERROR',
       message: error instanceof Error ? error.message : String(error),
@@ -296,10 +302,7 @@ export const loomBaseQuery: BaseQueryFn<
   // eslint-disable-next-line @typescript-eslint/no-empty-object-type
   {},
   LoomRequestMeta
-> = async (
-  { query, variables },
-  api,
-) => {
+> = async ({ query, variables }, api) => {
   const csrfToken = selectCSRFToken(api.getState() as CoreState);
   const endpoint = `${GEN3_LOOM_API}/graphql/flat`;
   try {
