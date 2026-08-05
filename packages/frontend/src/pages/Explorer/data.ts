@@ -8,18 +8,73 @@ import {
   GEN3_COMMONS_NAME,
   buildLoomDatasetColumnsQuery,
   groupSharedFields,
+  isLoomGraphQLRequestError,
   isLoomDataType,
   LoomDataType,
   SharedFieldMapping,
 } from '@gen3/core';
 import type {
   RequestBoundLoomClient,
+  PageLoadProblem,
   ServerPageContext,
 } from '../../lib/pageLoader';
 import { ExplorerConfigurationSchema } from './configurationSchema';
 import type { ExplorerPageData } from './types';
 
 type LoomColumnsByExplorerType = Record<string, ReadonlySet<string>>;
+
+export const getExplorerLoomProblem = (
+  error: unknown,
+): PageLoadProblem | null => {
+  if (!isLoomGraphQLRequestError(error)) return null;
+
+  switch (error.code) {
+    case 'DATASET_NOT_FOUND':
+      return {
+        severity: 'error',
+        source: 'loom',
+        status: 404,
+        code: error.code,
+        requestId: error.requestId,
+        retryable: true,
+        message:
+          'Explorer data has not been published yet. An administrator must publish the Loom dataset before this Explorer can be used.',
+      };
+    case 'FORBIDDEN':
+      return {
+        severity: 'error',
+        source: 'loom',
+        status: 403,
+        code: error.code,
+        requestId: error.requestId,
+        retryable: false,
+        message:
+          'You do not have permission to access the data configured for this Explorer.',
+      };
+    case 'BACKEND_UNAVAILABLE':
+      return {
+        severity: 'error',
+        source: 'loom',
+        status: 503,
+        code: error.code,
+        requestId: error.requestId,
+        retryable: true,
+        message:
+          'Explorer data is temporarily unavailable. Please try again shortly.',
+      };
+    default:
+      return {
+        severity: 'error',
+        source: 'loom',
+        status: typeof error.httpStatus === 'number' ? error.httpStatus : 502,
+        code: error.code,
+        requestId: error.requestId,
+        retryable: error.retryable,
+        message:
+          'Explorer data could not be loaded. Please try again or contact an administrator if the problem continues.',
+      };
+  }
+};
 
 const GetLoomColumnsByExplorerType = async (
   cohortBuilderConfiguration: CohortBuilderConfiguration,
@@ -119,7 +174,8 @@ const GetPanelFields = (
       `buttons[${index}].actionArgs.fileFields`,
       (
         button.actionArgs as unknown as
-          { fileFields?: ReadonlyArray<string> } | undefined
+          | { fileFields?: ReadonlyArray<string> }
+          | undefined
       )?.fileFields,
     ),
   );
@@ -230,10 +286,12 @@ const PrepareExplorerConfiguration = async (
 const normalizeExplorerConfiguration = (
   rawConfiguration: unknown,
 ): CohortBuilderConfiguration => {
-  const parsedConfiguration = ExplorerConfigurationSchema.parse(rawConfiguration);
+  const parsedConfiguration =
+    ExplorerConfigurationSchema.parse(rawConfiguration);
   return Array.isArray(parsedConfiguration)
     ? {
-        explorerConfig: parsedConfiguration as unknown as CohortPanelConfiguration[],
+        explorerConfig:
+          parsedConfiguration as unknown as CohortPanelConfiguration[],
       }
     : (parsedConfiguration as unknown as CohortBuilderConfiguration);
 };
@@ -250,25 +308,32 @@ const loadExplorerConfiguration = async (
     id: configId ? `explorer.${configId}` : 'explorer',
     source,
     resolvePath: () =>
-      configId
-        ? `explorer/${configId}`
-        : `${GEN3_COMMONS_NAME}/explorer.json`,
+      configId ? `explorer/${configId}` : `${GEN3_COMMONS_NAME}/explorer.json`,
     schema: ExplorerConfigurationSchema,
   });
   const configuration = normalizeExplorerConfiguration(rawConfiguration);
-  const { sharedFiltersMap } = await PrepareExplorerConfiguration(
-    configuration,
-    context.loom,
-  );
+  let sharedFiltersMap: SharedFieldMapping | null;
+  try {
+    ({ sharedFiltersMap } = await PrepareExplorerConfiguration(
+      configuration,
+      context.loom,
+    ));
+  } catch (error) {
+    const problem = getExplorerLoomProblem(error);
+    if (!problem) throw error;
+    context.problems.add(problem);
+    return { configuration: null, sharedFiltersMap: null };
+  }
   return { configuration, sharedFiltersMap };
 };
 
-export const ExplorerPageGetServerSideProps = definePageLoader<ExplorerPageData>({
-  name: 'Explorer',
-  loadNavigation: loadNavigationFromContext,
-  load: (context) => loadExplorerConfiguration(context, 'content'),
-  fallback: () => ({ configuration: null, sharedFiltersMap: null }),
-});
+export const ExplorerPageGetServerSideProps =
+  definePageLoader<ExplorerPageData>({
+    name: 'Explorer',
+    loadNavigation: loadNavigationFromContext,
+    load: (context) => loadExplorerConfiguration(context, 'content'),
+    fallback: () => ({ configuration: null, sharedFiltersMap: null }),
+  });
 
 export const ExplorerPageGetServerSidePropsForConfigId =
   definePageLoader<ExplorerPageData>({
