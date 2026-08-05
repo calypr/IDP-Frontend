@@ -25,9 +25,19 @@ const context = {
 
 describe('verifyAuthenticatedSession', () => {
   const originalFetch = global.fetch;
+  const originalInternalApi = process.env.GEN3_INTERNAL_API;
+
+  beforeEach(() => {
+    delete process.env.GEN3_INTERNAL_API;
+  });
 
   afterEach(() => {
     global.fetch = originalFetch;
+    if (originalInternalApi === undefined) {
+      delete process.env.GEN3_INTERNAL_API;
+    } else {
+      process.env.GEN3_INTERNAL_API = originalInternalApi;
+    }
     jest.restoreAllMocks();
   });
 
@@ -59,6 +69,27 @@ describe('verifyAuthenticatedSession', () => {
       expect.objectContaining({
         cache: 'no-store',
         headers: { Authorization: 'Bearer credentials-token' },
+      }),
+    );
+  });
+
+  it('uses the internal API origin for the server-side Fence check', async () => {
+    process.env.GEN3_INTERNAL_API = 'http://revproxy-service/';
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ username: 'researcher@example.org' }),
+    });
+
+    await expect(
+      verifyAuthenticatedSession(context, {
+        Cookie: 'access_token=current',
+      }),
+    ).resolves.toBe(true);
+    expect(global.fetch).toHaveBeenCalledWith(
+      'http://revproxy-service/user/user',
+      expect.objectContaining({
+        headers: { Cookie: 'access_token=current' },
       }),
     );
   });
@@ -124,6 +155,21 @@ describe('sessionRequestHeaders', () => {
 
     expect(sessionRequestHeaders(fenceContext)).toEqual({
       Cookie: 'access_token=fence-session; credentials_token=stale-credential',
+    });
+  });
+
+  it('prefers a Fence access token over an explicit stale Authorization header', () => {
+    const fenceContext = {
+      req: {
+        headers: {
+          authorization: 'Bearer stale-credential',
+          cookie: 'access_token=fence-session',
+        },
+      },
+    } as unknown as GetServerSidePropsContext;
+
+    expect(sessionRequestHeaders(fenceContext)).toEqual({
+      Cookie: 'access_token=fence-session',
     });
   });
 });

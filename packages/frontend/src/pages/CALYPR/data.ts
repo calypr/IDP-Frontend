@@ -43,6 +43,14 @@ const sessionEndpoint = (
     return `${fenceBase}/user`;
   }
 
+  const internalOrigin = process.env.GEN3_INTERNAL_API?.trim().replace(
+    /\/+$/,
+    '',
+  );
+  if (internalOrigin) {
+    return new URL(`${fenceBase}/user`, `${internalOrigin}/`).toString();
+  }
+
   const origin = requestOrigin(context);
   return origin
     ? new URL(`${fenceBase}/user`, `${origin}/`).toString()
@@ -92,16 +100,20 @@ export const sessionRequestHeaders = (
   const headers: Record<string, string> = {};
   const cookieHeader = context.req.headers.cookie;
   const authorizationHeader = context.req.headers.authorization;
+  const hasAccessToken = /(?:^|;\s*)access_token=/i.test(cookieHeader ?? '');
   if (typeof cookieHeader === 'string' && cookieHeader) {
     headers.Cookie = cookieHeader;
   }
-  if (typeof authorizationHeader === 'string' && authorizationHeader) {
+  if (
+    !hasAccessToken &&
+    typeof authorizationHeader === 'string' &&
+    authorizationHeader
+  ) {
     headers.Authorization = authorizationHeader;
   } else {
     // Credentials login stores its token in a frontend-only cookie. Fence does
     // not recognize that cookie name, so SSR must send it as a Bearer token.
     // A Fence access_token takes precedence when both login modes coexist.
-    const hasAccessToken = /(?:^|;\s*)access_token=/i.test(cookieHeader ?? '');
     if (!hasAccessToken) {
       const credentialsToken = cookieValue(cookieHeader, 'credentials_token');
       if (credentialsToken) {
