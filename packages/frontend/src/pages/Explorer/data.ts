@@ -23,6 +23,75 @@ import type { ExplorerPageData } from './types';
 
 type LoomColumnsByExplorerType = Record<string, ReadonlySet<string>>;
 
+type ExplorerRevisionDiagnostic = {
+  readonly code?: string;
+  readonly configPath?: string;
+  readonly message?: string;
+};
+
+type ResolvedExplorerRevision = {
+  readonly status?: string;
+  readonly configRevisionId?: string;
+  readonly config?: unknown;
+  readonly errors?: readonly ExplorerRevisionDiagnostic[];
+  readonly warnings?: readonly ExplorerRevisionDiagnostic[];
+  readonly acknowledgedOmissions?: readonly ExplorerRevisionDiagnostic[];
+};
+
+const resolvedRevisionProblem = (
+  diagnostic: ExplorerRevisionDiagnostic,
+  severity: 'warning' | 'error',
+): PageLoadProblem => ({
+  severity,
+  source: 'gecko',
+  status: severity === 'error' ? 409 : 200,
+  code: diagnostic.code,
+  configPath: diagnostic.configPath,
+  retryable: false,
+  message:
+    diagnostic.message ??
+    'The active Explorer revision contains a configuration diagnostic.',
+});
+
+export const resolveExplorerRevisionConfiguration = (
+  revision: ResolvedExplorerRevision,
+  addProblem: (problem: PageLoadProblem) => void,
+): unknown | null => {
+  const errors = revision.errors ?? [];
+  if (
+    !['VALID', 'VALID_WITH_OMISSIONS'].includes(revision.status ?? '') ||
+    errors.length > 0 ||
+    revision.config === undefined
+  ) {
+    if (errors.length > 0) {
+      errors.forEach((diagnostic) =>
+        addProblem(resolvedRevisionProblem(diagnostic, 'error')),
+      );
+    } else {
+      addProblem({
+        severity: 'error',
+        source: 'gecko',
+        status: revision.status === 'UNAVAILABLE' ? 503 : 409,
+        code: revision.status,
+        retryable: revision.status === 'UNAVAILABLE',
+        message:
+          revision.status === 'UNAVAILABLE'
+            ? 'No compatible Explorer revision is currently available.'
+            : 'The active Explorer revision is not valid for its Loom datasets.',
+      });
+    }
+    return null;
+  }
+
+  [
+    ...(revision.warnings ?? []),
+    ...(revision.acknowledgedOmissions ?? []),
+  ].forEach((diagnostic) =>
+    addProblem(resolvedRevisionProblem(diagnostic, 'warning')),
+  );
+  return revision.config;
+};
+
 export const getExplorerLoomProblem = (
   error: unknown,
 ): PageLoadProblem | null => {
@@ -304,13 +373,26 @@ const loadExplorerConfiguration = async (
     typeof context.next.query.configId === 'string'
       ? context.next.query.configId
       : undefined;
-  const rawConfiguration = await context.config.load({
-    id: configId ? `explorer.${configId}` : 'explorer',
-    source,
-    resolvePath: () =>
-      configId ? `explorer/${configId}` : `${GEN3_COMMONS_NAME}/explorer.json`,
-    schema: ExplorerConfigurationSchema,
-  });
+  const rawConfiguration =
+    source === 'gecko' && configId
+      ? resolveExplorerRevisionConfiguration(
+          await context.gecko.get<ResolvedExplorerRevision>(
+            `explorer/${configId}/resolved`,
+          ),
+          (problem) => context.problems.add(problem),
+        )
+      : await context.config.load({
+          id: configId ? `explorer.${configId}` : 'explorer',
+          source,
+          resolvePath: () =>
+            configId
+              ? `explorer/${configId}`
+              : `${GEN3_COMMONS_NAME}/explorer.json`,
+          schema: ExplorerConfigurationSchema,
+        });
+  if (rawConfiguration === null) {
+    return { configuration: null, sharedFiltersMap: null };
+  }
   const configuration = normalizeExplorerConfiguration(rawConfiguration);
   let sharedFiltersMap: SharedFieldMapping | null;
   try {

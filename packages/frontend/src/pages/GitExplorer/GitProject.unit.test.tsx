@@ -9,7 +9,6 @@ jest.mock('next/router', () => ({
 
 jest.mock('@gen3/core', () => ({
   SYFON_API: '/syfon',
-  mintSyfonObjectIdFromChecksum: jest.fn(),
   useGetConfigContentQuery: jest.fn(),
   useGetGeckoProjectsQuery: jest.fn(),
   useGetGeckoGitProjectsQuery: jest.fn(),
@@ -97,7 +96,6 @@ const { useIsEmbedded } = jest.requireMock('../../utils') as {
 };
 
 const coreMocks = jest.requireMock('@gen3/core') as {
-  mintSyfonObjectIdFromChecksum: jest.Mock;
   useGetConfigContentQuery: jest.Mock;
   useGetGeckoProjectsQuery: jest.Mock;
   useGetGeckoGitProjectsQuery: jest.Mock;
@@ -182,7 +180,6 @@ describe('GitProjectPage', () => {
       jest.fn(() => ({ unwrap: jest.fn().mockResolvedValue({}) })),
       { isLoading: false },
     ]);
-    coreMocks.mintSyfonObjectIdFromChecksum.mockResolvedValue('did-123');
   });
 
   afterEach(() => {
@@ -695,12 +692,8 @@ describe('GitProjectPage', () => {
 
     await act(async () => {});
 
-    expect(coreMocks.mintSyfonObjectIdFromChecksum).toHaveBeenCalledWith(
-      '0bfab2917ce05007ff6297c0ec93ef575209210e4ca998dbd243a270e2f9ca83',
-      ['/programs/Ellrott_Lab/projects/embedding_rotation'],
-    );
     expect(openSpy).toHaveBeenCalledWith(
-      '/image-viewer/view/did-123',
+      '/image-viewer/view/0bfab2917ce05007ff6297c0ec93ef575209210e4ca998dbd243a270e2f9ca83',
       '_blank',
       'noopener,noreferrer',
     );

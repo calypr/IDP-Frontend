@@ -23,7 +23,7 @@ import { TableIcons } from '../../../components/Tables/TableIcons';
 import type { ExplorerTableProps, SummaryTable } from './types';
 import { type TableDetailsPanelProps } from './ExploreTableDetails';
 import { DetailsModal, DetailsDrawer } from '../../../components/Details';
-import { createTableColumns } from './utils';
+import { createTableColumns, includeAvailableSha256 } from './utils';
 import SubtableStack from './SubTables/SubtableStack';
 import { JSONPath } from 'jsonpath-plus';
 import { StudyProvider } from '../../Study';
@@ -175,6 +175,10 @@ const ExplorerTable = ({
   } = useGetLoomDatasetQuery(loomDataType ?? 'DocumentReference', {
     skip: !loomDataType,
   });
+  const queryFields = useMemo(
+    () => includeAvailableSha256(fields, dataset?.columns),
+    [dataset?.columns, fields],
+  );
   const [cursorLedger, setCursorLedger] = useState<Record<number, string | null>>({
     0: null,
   });
@@ -201,7 +205,7 @@ const ExplorerTable = ({
   } = useGetLoomRowsQuery(
     {
       dataType: loomDataType ?? 'DocumentReference',
-      columns: fields,
+      columns: queryFields,
       filters: loomFilters.filters,
       first: pagination.pageSize,
       after: cursorLedger[pagination.pageIndex] ?? null,

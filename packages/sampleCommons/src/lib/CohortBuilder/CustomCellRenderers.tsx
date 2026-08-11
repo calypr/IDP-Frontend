@@ -65,12 +65,12 @@ const RenderFileDownloadLink = (
   return <span />;
 };
 
-const RenderFileImageLink = (
-  { cell }: CellRendererFunctionProps,
+export const RenderFileImageLink = (
+  { row }: CellRendererFunctionProps,
   ...args: unknown[]
 ) => {
   const arg0 = args[0] as Record<string, unknown>;
-  const fileId = cell?.getValue();
+  const fileId = getSafeRowValue(row, 'sha256');
   const imageBaseUrl =
     arg0?.actionUrl || arg0?.imageURL || '/image-viewer/view';
 
