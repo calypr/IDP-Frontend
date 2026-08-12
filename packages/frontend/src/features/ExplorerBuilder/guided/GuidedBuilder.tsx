@@ -1695,9 +1695,7 @@ export const GuidedBuilder = ({
       </aside>}
       </div>
 
-      {reviewOpen && <section aria-label="Rendered sample" className="scroll-mt-4 rounded-xl border border-blue-200 bg-blue-50 p-3 shadow-sm">
-        <div className="flex justify-end gap-2 pb-3"><button type="button" disabled={previewStatus === 'loading'} className="rounded bg-[#2f5aac] px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50" onClick={renderCurrentTable}>{previewStatus === 'loading' ? 'Rendering…' : 'Re-render rows'}</button>
-          <button type="button" aria-label="Hide rendered table" className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium" onClick={() => setReviewOpen(false)}>Hide table</button></div>
+      {reviewOpen && <section aria-label="Rendered sample" className="scroll-mt-4">
         {(() => {
           const tab = existingTabs.find((candidate) => candidate.output === workspaceName);
           const rawColumns: JSONValue[] = tab && Array.isArray(asRecord(tab.table).columns) ? asRecord(tab.table).columns as JSONValue[] : [];
@@ -1709,9 +1707,9 @@ export const GuidedBuilder = ({
           <ExplorerSamplePreview
           preview={preview}
           output={previewOutput}
-          onRetry={onRetryPreview}
           status={previewStatus}
           error={previewError}
+          minimal
           columnConfig={configuredColumns}
           editableHeaders={!disabled}
           onColumnLabelChange={(sourceName, label) => updateColumn(columnIndex(sourceName), 'label', label)}

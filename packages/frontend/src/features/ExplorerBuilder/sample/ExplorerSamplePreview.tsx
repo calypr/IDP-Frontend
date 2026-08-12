@@ -41,6 +41,8 @@ export interface ExplorerSamplePreviewProps {
   readonly onColumnLabelChange?: (sourceName: string, label: string) => void;
   readonly onColumnMove?: (sourceName: string, direction: -1 | 1) => void;
   readonly onColumnHide?: (sourceName: string) => void;
+  /** Builder embeds the table in its own workspace and does not need duplicate preview chrome. */
+  readonly minimal?: boolean;
 }
 
 const valueForCell = (value: unknown): string => {
@@ -118,6 +120,7 @@ export const ExplorerSamplePreview = ({
   onColumnLabelChange,
   onColumnMove,
   onColumnHide,
+  minimal = false,
 }: ExplorerSamplePreviewProps) => {
   const status = requestedStatus ?? (preview ? 'ready' : 'idle');
   const configs = columnConfig ?? configuredColumns ?? [];
@@ -136,9 +139,9 @@ export const ExplorerSamplePreview = ({
       aria-busy={status === 'loading'}
       aria-describedby="explorer-sample-preview-status"
       aria-label="Explorer sample preview"
-      className="my-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+      className={minimal ? 'overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm' : 'my-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm'}
     >
-      <div className="border-b border-slate-200 bg-slate-50/80 px-4 py-3 sm:px-5">
+      {!minimal && <div className="border-b border-slate-200 bg-slate-50/80 px-4 py-3 sm:px-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -188,7 +191,8 @@ export const ExplorerSamplePreview = ({
             {errorText}
           </p>
         )}
-      </div>
+      </div>}
+      {minimal && <p id="explorer-sample-preview-status" className="sr-only" role="status">{statusText}</p>}
 
       {status === 'loading' && !preview && (
         <div className="flex items-center gap-3 px-4 py-8 text-sm text-slate-600 sm:px-5" role="status">
