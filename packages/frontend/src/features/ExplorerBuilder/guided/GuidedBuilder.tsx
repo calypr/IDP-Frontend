@@ -789,6 +789,7 @@ export const GuidedBuilder = ({
   // change which node the panel is inspecting.
   const [inspectorOpen, setInspectorOpen] = useState(true);
   const [expandedPane, setExpandedPane] = useState<'graph' | 'columns'>();
+  const [tableNameDraft, setTableNameDraft] = useState<{ readonly kind: 'new' | 'duplicate'; readonly value: string }>();
   const [reviewOpen, setReviewOpen] = useState(false);
   // Every ingested relationship belongs in the graph. The user can judge its
   // relevance from the displayed link count instead of toggling a filter.
@@ -1436,6 +1437,34 @@ export const GuidedBuilder = ({
     setTableTitle(typeof candidate.name === 'string' ? titleFor(candidate.name) : tableTitle);
   };
 
+  const submitTableNameDraft = () => {
+    const draft = tableNameDraft;
+    const title = draft?.value.trim();
+    setTableNameDraft(undefined);
+    if (!draft || !title) return;
+    if (draft.kind === 'duplicate') {
+      if (!workspaceOutput || typeof workspaceOutput.name !== 'string') return;
+      const copyName = uniqueOutputName(
+        title.replace(/[^A-Za-z0-9_]/g, '_').replace(/^_+|_+$/g, '') || `${workspaceOutput.name}_copy`,
+        existingOutputs,
+      );
+      const sourceTab = existingTabs.find((tab) => tab.output === workspaceOutput.name);
+      setSelectedOutputName(copyName);
+      updateWorkspace([...existingOutputs, { ...workspaceOutput, name: copyName }], [...existingTabs, { ...(sourceTab ?? {}), id: outputId(copyName), title, output: copyName }]);
+      return;
+    }
+    const root = selectedRoot || availableRoots[0];
+    if (!root) return;
+    const node = projectMap.nodes.find((candidate) => candidate.resourceType === root);
+    const fields = defaultFields(node?.fields ?? [], root);
+    setSelectedRoot(root);
+    setSelectedNodeType(root);
+    setSelectedPath([]);
+    setSelectedFields(fields);
+    setTableTitle(title);
+    applyTable(fields, root, title, { ...selectedFieldsByNode, [root]: fields }, false, []);
+  };
+
   return (
     <section aria-label="Guided Explorer Builder" className="flex min-h-[38rem] flex-col gap-3">
       <header className="shrink-0">
@@ -1445,25 +1474,31 @@ export const GuidedBuilder = ({
               {existingOutputs.map((candidate) => <option key={String(candidate.name)} value={outputKey(candidate)}>{typeof candidate.name === 'string' ? titleFor(candidate.name) : 'Untitled'}</option>)}
             </select>
           </label>
-          <button type="button" disabled={disabled || availableRoots.length === 0} className="rounded-md border border-blue-300 px-3 py-1.5 text-sm font-medium text-blue-800 disabled:cursor-not-allowed disabled:opacity-50" onClick={() => {
-            const root = selectedRoot || availableRoots[0];
-            if (!root) return;
-            const node = projectMap.nodes.find((candidate) => candidate.resourceType === root);
-            const fields = defaultFields(node?.fields ?? [], root);
-            setSelectedRoot(root);
-            setSelectedNodeType(root);
-            setSelectedPath([]);
-            setSelectedFields(fields);
-            setTableTitle(`${titleFor(root)} ${existingOutputs.length + 1}`);
-            applyTable(fields, root, `${titleFor(root)} ${existingOutputs.length + 1}`, { ...selectedFieldsByNode, [root]: fields }, false, []);
-          }}>New table</button>
-          <button type="button" title="Duplicate table" aria-label="Duplicate table" disabled={disabled || !workspaceOutput} className="rounded-md border border-slate-200 p-2 text-slate-700 disabled:opacity-50" onClick={() => {
-            if (!workspaceOutput || typeof workspaceOutput.name !== 'string') return;
-            const copyName = uniqueOutputName(`${workspaceOutput.name}_copy`, existingOutputs);
-            const sourceTab = existingTabs.find((tab) => tab.output === workspaceOutput.name);
-            setSelectedOutputName(copyName);
-            updateWorkspace([...existingOutputs, { ...workspaceOutput, name: copyName }], [...existingTabs, { ...(sourceTab ?? {}), id: outputId(copyName), title: titleFor(copyName), output: copyName }]);
-          }}><IconCopy aria-hidden="true" size={18} /></button>
+          {tableNameDraft?.kind === 'new' ? <input
+            aria-label="New table name"
+            autoFocus
+            className="w-40 rounded-md border border-blue-300 bg-white px-3 py-1.5 text-sm text-slate-900 outline-none ring-blue-200 focus:ring-2"
+            onBlur={() => setTableNameDraft(undefined)}
+            onChange={(event) => setTableNameDraft({ kind: 'new', value: event.currentTarget.value })}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') submitTableNameDraft();
+              if (event.key === 'Escape') setTableNameDraft(undefined);
+            }}
+            placeholder="New table name"
+            value={tableNameDraft.value}
+          /> : <button type="button" disabled={disabled || availableRoots.length === 0} className="rounded-md border border-blue-300 px-3 py-1.5 text-sm font-medium text-blue-800 disabled:cursor-not-allowed disabled:opacity-50" onClick={() => setTableNameDraft({ kind: 'new', value: '' })}>New table</button>}
+          {tableNameDraft?.kind === 'duplicate' ? <input
+            aria-label="Duplicate table name"
+            autoFocus
+            className="w-40 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 outline-none ring-blue-200 focus:ring-2"
+            onBlur={() => setTableNameDraft(undefined)}
+            onChange={(event) => setTableNameDraft({ kind: 'duplicate', value: event.currentTarget.value })}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') submitTableNameDraft();
+              if (event.key === 'Escape') setTableNameDraft(undefined);
+            }}
+            value={tableNameDraft.value}
+          /> : <button type="button" title="Duplicate table" aria-label="Duplicate table" disabled={disabled || !workspaceOutput} className="rounded-md border border-slate-200 p-2 text-slate-700 disabled:opacity-50" onClick={() => setTableNameDraft({ kind: 'duplicate', value: `${workspaceOutput?.name ?? 'table'}_copy` })}><IconCopy aria-hidden="true" size={18} /></button>}
           <button type="button" title="Delete table" aria-label="Delete table" disabled={disabled || !workspaceName} className="rounded-md border border-slate-200 p-2 text-slate-700 disabled:opacity-50" onClick={() => {
             if (!workspaceName) return;
             const removedIndex = existingOutputs.findIndex((candidate) => candidate.name === workspaceName);
