@@ -246,6 +246,29 @@ const fieldName = (path: string, index: number, stableName?: string) => {
 const outputNameFor = (resourceType: string) =>
   resourceType.endsWith('s') ? resourceType : `${resourceType}s`;
 
+const uniqueOutputName = (
+  requested: string,
+  existing: ReadonlyArray<RecipeOutput>,
+) => {
+  const used = new Set(existing.map(outputKey).filter(Boolean));
+  if (!used.has(requested)) return requested;
+  let suffix = 2;
+  while (used.has(`${requested}_${suffix}`)) suffix += 1;
+  return `${requested}_${suffix}`;
+};
+
+/** Recipes must have unique physical output names. A previous draft could
+ * already be invalid, so normalize the complete document before preview. */
+const uniqueOutputNames = (outputs: ReadonlyArray<RecipeOutput>) => {
+  const result: RecipeOutput[] = [];
+  for (const output of outputs) {
+    const name = outputKey(output) || 'output';
+    const uniqueName = uniqueOutputName(name, result);
+    result.push(uniqueName === name ? output : { ...output, name: uniqueName });
+  }
+  return result;
+};
+
 const safeAlias = (resourceType: string, used: Set<string>) => {
   const base = resourceType.replace(/[^A-Za-z0-9]/g, '_').toLowerCase() || 'related';
   let alias = base;
@@ -1038,7 +1061,7 @@ export const GuidedBuilder = ({
   const workspaceOutput = activeOutput;
   const workspaceName = activeOutputName;
   const updateWorkspace = (outputs: ReadonlyArray<RecipeOutput>, tabs: ReadonlyArray<Record<string, JSONValue>>) => {
-    const nextRecipe = { ...recipe, recipeSchemaVersion: typeof recipe.recipeSchemaVersion === 'number' ? recipe.recipeSchemaVersion : 1, outputs: Array.from(outputs) };
+    const nextRecipe = { ...recipe, recipeSchemaVersion: typeof recipe.recipeSchemaVersion === 'number' ? recipe.recipeSchemaVersion : 1, outputs: uniqueOutputNames(outputs) };
     onRecipeChange(nextRecipe);
     onExplorerChange({ ...explorer, schemaVersion: 1, tabs: Array.from(tabs) });
     const previewName = activeOutputName && outputs.some((output) => output.name === activeOutputName)
@@ -1145,9 +1168,14 @@ export const GuidedBuilder = ({
     const fields = fieldsForRoot.filter((field) =>
       fieldsToUse.includes(field.fieldRef),
     );
-    const outputName = (titleToUse.trim() || outputNameFor(rootToUse))
+    const requestedOutputName = (titleToUse.trim() || outputNameFor(rootToUse))
       .replace(/[^A-Za-z0-9_]/g, '_')
       .replace(/^_+|_+$/g, '') || outputNameFor(rootToUse);
+    const replacementIndex = replaceActive && activeOutput ? existingOutputs.indexOf(activeOutput) : -1;
+    const outputName = uniqueOutputName(
+      requestedOutputName,
+      existingOutputs.filter((_, index) => index !== replacementIndex),
+    );
     const aliases = new Map<string, string>();
     const usedAliases = new Set<string>(['root']);
     const traversalByResource = new Map<string, { edge: FhirTraversalHint; parent?: string; alias: string }>();
@@ -1267,11 +1295,9 @@ export const GuidedBuilder = ({
         typeof recipe.recipeSchemaVersion === 'number'
           ? recipe.recipeSchemaVersion
           : 1,
-      outputs: (() => {
-        const replacementIndex = replaceActive && activeOutput ? existingOutputs.indexOf(activeOutput) : -1;
-        if (replacementIndex < 0) return [...existingOutputs, output];
-        return existingOutputs.map((candidate, index) => index === replacementIndex ? output : candidate);
-      })(),
+      outputs: uniqueOutputNames(replacementIndex < 0
+        ? [...existingOutputs, output]
+        : existingOutputs.map((candidate, index) => index === replacementIndex ? output : candidate)),
     };
     onRecipeChange(nextRecipe);
     setSelectedOutputName(outputName);
@@ -1431,7 +1457,7 @@ export const GuidedBuilder = ({
           }}>New table</button>
           <button type="button" title="Duplicate table" aria-label="Duplicate table" disabled={disabled || !workspaceOutput} className="rounded-md border border-slate-200 p-2 text-slate-700 disabled:opacity-50" onClick={() => {
             if (!workspaceOutput || typeof workspaceOutput.name !== 'string') return;
-            const copyName = `${workspaceOutput.name}_copy`;
+            const copyName = uniqueOutputName(`${workspaceOutput.name}_copy`, existingOutputs);
             const sourceTab = existingTabs.find((tab) => tab.output === workspaceOutput.name);
             setSelectedOutputName(copyName);
             updateWorkspace([...existingOutputs, { ...workspaceOutput, name: copyName }], [...existingTabs, { ...(sourceTab ?? {}), id: outputId(copyName), title: titleFor(copyName), output: copyName }]);
