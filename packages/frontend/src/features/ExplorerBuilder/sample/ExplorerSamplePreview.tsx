@@ -39,7 +39,8 @@ export interface ExplorerSamplePreviewProps {
   /** Render column labels as inputs directly above the live sample rows. */
   readonly editableHeaders?: boolean;
   readonly onColumnLabelChange?: (sourceName: string, label: string) => void;
-  readonly onColumnMove?: (sourceName: string, direction: -1 | 1) => void;
+  /** Move a visible column before the current target column. */
+  readonly onColumnReorder?: (sourceName: string, targetName: string) => void;
   readonly onColumnHide?: (sourceName: string) => void;
   /** Builder embeds the table in its own workspace and does not need duplicate preview chrome. */
   readonly minimal?: boolean;
@@ -118,7 +119,7 @@ export const ExplorerSamplePreview = ({
   selectedPathSummary,
   editableHeaders = false,
   onColumnLabelChange,
-  onColumnMove,
+  onColumnReorder,
   onColumnHide,
   minimal = false,
 }: ExplorerSamplePreviewProps) => {
@@ -133,6 +134,7 @@ export const ExplorerSamplePreview = ({
   const showTable = Boolean(preview && columns.length > 0);
   const statusText = statusTextFor(status, Boolean(preview), isStale);
   const errorText = error || 'Try running the sample again.';
+  const [draggedColumn, setDraggedColumn] = React.useState<string>();
 
   return (
     <section
@@ -233,14 +235,32 @@ export const ExplorerSamplePreview = ({
               <caption className="sr-only">Sample rows for {outputName}</caption>
               <thead className="sticky top-0 z-10 bg-slate-100 text-[11px] uppercase tracking-wide text-slate-600">
                 <tr>
-                  {columns.map((column, columnIndex) => (
-                    <th className="whitespace-nowrap border-b border-slate-200 px-4 py-2.5 font-semibold" key={column.sourceName} scope="col">
+                  {columns.map((column) => (
+                    <th
+                      className={`whitespace-nowrap border-b border-slate-200 px-4 py-2.5 font-semibold ${editableHeaders && onColumnReorder ? 'cursor-grab active:cursor-grabbing' : ''} ${draggedColumn === column.sourceName ? 'bg-blue-100 opacity-60' : ''}`}
+                      draggable={Boolean(editableHeaders && onColumnReorder)}
+                      key={column.sourceName}
+                      onDragEnd={() => setDraggedColumn(undefined)}
+                      onDragOver={(event) => {
+                        if (draggedColumn && draggedColumn !== column.sourceName) event.preventDefault();
+                      }}
+                      onDragStart={(event) => {
+                        setDraggedColumn(column.sourceName);
+                        event.dataTransfer.effectAllowed = 'move';
+                        event.dataTransfer.setData('text/plain', column.sourceName);
+                      }}
+                      onDrop={(event) => {
+                        event.preventDefault();
+                        const sourceName = event.dataTransfer.getData('text/plain') || draggedColumn;
+                        if (sourceName && sourceName !== column.sourceName) onColumnReorder?.(sourceName, column.sourceName);
+                        setDraggedColumn(undefined);
+                      }}
+                      scope="col"
+                    >
                       {editableHeaders ? <div className="min-w-44 space-y-1">
                         <input aria-label={`Column ${column.sourceName} display name`} className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs font-semibold normal-case tracking-normal text-slate-900" value={column.label} onChange={(event) => onColumnLabelChange?.(column.sourceName, event.currentTarget.value)} />
                         <div className="flex items-center gap-1 text-[10px] font-normal normal-case tracking-normal text-slate-500">
                           <code className="max-w-28 flex-1 truncate" title={column.sourceName}>{column.sourceName}</code>
-                          <button type="button" aria-label={`Move ${column.label} left`} disabled={columnIndex === 0} className="rounded border bg-white px-1 disabled:opacity-30" onClick={() => onColumnMove?.(column.sourceName, -1)}>←</button>
-                          <button type="button" aria-label={`Move ${column.label} right`} disabled={columnIndex === columns.length - 1} className="rounded border bg-white px-1 disabled:opacity-30" onClick={() => onColumnMove?.(column.sourceName, 1)}>→</button>
                           <button type="button" aria-label={`Hide ${column.label}`} className="rounded border bg-white px-1" onClick={() => onColumnHide?.(column.sourceName)}>Hide</button>
                         </div>
                       </div> : column.label}

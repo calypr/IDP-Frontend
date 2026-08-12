@@ -1110,14 +1110,16 @@ export const GuidedBuilder = ({
     updateWorkspace(nextOutputs, nextTabs);
   };
 
-  const reorderColumn = (index: number, direction: -1 | 1) => {
+  const reorderColumn = (sourceName: string, targetName: string) => {
     const tab = existingTabs.find((candidate) => candidate.output === workspaceName);
     if (!tab) return;
     const table = asRecord(tab.table);
     const columns = Array.isArray(table.columns) ? table.columns.map(asRecord) : [];
-    const target = index + direction;
-    if (target < 0 || target >= columns.length) return;
-    [columns[index], columns[target]] = [columns[target], columns[index]];
+    const sourceIndex = columns.findIndex((column) => column.field === sourceName);
+    const targetIndex = columns.findIndex((column) => column.field === targetName);
+    if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) return;
+    const [column] = columns.splice(sourceIndex, 1);
+    columns.splice(sourceIndex < targetIndex ? targetIndex - 1 : targetIndex, 0, column);
     updateWorkspace(existingOutputs, existingTabs.map((candidate) => candidate.output === workspaceName ? { ...candidate, table: { ...table, columns } } : candidate));
   };
 
@@ -1467,13 +1469,11 @@ export const GuidedBuilder = ({
 
   return (
     <section aria-label="Guided Explorer Builder" className="flex min-h-[38rem] flex-col gap-3">
-      <header className="shrink-0">
-        <div role="toolbar" aria-label="Table workspace" className="flex flex-nowrap items-center gap-2 overflow-x-auto rounded-lg border border-slate-200 bg-white p-2 shadow-sm">
-          <label className="flex shrink-0 items-center gap-1.5 text-xs font-semibold text-slate-600" htmlFor="builder-table-select">Table
-            <select id="builder-table-select" disabled={disabled || existingOutputs.length === 0} value={activeOutputName ?? ''} onChange={(event) => selectWorkspaceOutput(event.currentTarget.value)} className="max-w-52 rounded border border-slate-300 bg-white px-2 py-1.5 text-sm font-normal text-slate-900">
+      <header className="shrink-0 py-1">
+        <div role="toolbar" aria-label="Table workspace" className="flex flex-nowrap items-center gap-2 overflow-x-auto px-1">
+            <select aria-label="Select table" id="builder-table-select" disabled={disabled || existingOutputs.length === 0} value={activeOutputName ?? ''} onChange={(event) => selectWorkspaceOutput(event.currentTarget.value)} className="max-w-52 shrink-0 rounded border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900">
               {existingOutputs.map((candidate) => <option key={String(candidate.name)} value={outputKey(candidate)}>{typeof candidate.name === 'string' ? titleFor(candidate.name) : 'Untitled'}</option>)}
             </select>
-          </label>
           {tableNameDraft?.kind === 'new' ? <input
             aria-label="New table name"
             autoFocus
@@ -1739,7 +1739,7 @@ export const GuidedBuilder = ({
           columnConfig={configuredColumns}
           editableHeaders={!disabled}
           onColumnLabelChange={(sourceName, label) => updateColumn(columnIndex(sourceName), 'label', label)}
-          onColumnMove={(sourceName, direction) => reorderColumn(columnIndex(sourceName), direction)}
+          onColumnReorder={reorderColumn}
           onColumnHide={(sourceName) => updateColumn(columnIndex(sourceName), 'visible', false)}
           selectedPathSummary={[selectedRoot, ...selectedPath.map((edge) => edge.toType)]}
           /></>;
