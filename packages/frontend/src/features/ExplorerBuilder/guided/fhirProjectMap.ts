@@ -1,4 +1,4 @@
-import { GEN3_LOOM_API, fetchGraphQL } from '@gen3/core';
+import { GEN3_LOOM_API, fetchGraphQL, type RecipeColumnCandidate } from '@gen3/core';
 
 export interface FhirFieldHint {
   readonly fieldRef: string;
@@ -12,6 +12,8 @@ export interface FhirFieldHint {
     readonly sourcePath?: string;
     readonly valuePath?: string;
   };
+  /** Present only for the recipe-aware Loom candidate API. */
+  readonly recipeCandidate?: RecipeColumnCandidate;
 }
 
 export interface FhirTraversalHint {

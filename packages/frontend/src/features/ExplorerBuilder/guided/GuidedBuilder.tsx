@@ -13,10 +13,12 @@ import type {
   JSONValue,
   RecipeAuthoringDocument,
   RecipeDraftPreview,
+  RecipeColumnCandidate,
+  RecipeColumnCandidateConnection,
   SemanticConcept,
   SemanticConceptCatalog,
 } from '@gen3/core';
-import { fetchSemanticConceptCatalog } from '@gen3/core';
+import { fetchRecipeColumnCandidates, fetchSemanticConceptCatalog } from '@gen3/core';
 import {
   type FhirFieldHint,
   type FhirProjectMap,
@@ -29,6 +31,8 @@ import {
   familyLabel,
   conceptSelectionsFor,
   isPartialSemanticCatalog,
+  semanticCatalogAvailability,
+  semanticConceptDisambiguator,
   semanticConceptsFor,
   semanticFieldRefForPath,
   semanticFieldsFor,
@@ -239,6 +243,107 @@ const uniqueFieldNames = (fields: ReadonlyArray<FhirFieldHint>, resourceType: st
     used.add(name);
     return name;
   });
+};
+
+const candidateField = (candidate: RecipeColumnCandidate): FhirFieldHint => ({
+  fieldRef: candidate.id,
+  label: candidate.label,
+  // Keep the raw key in the picker. `valueSelector` may already be qualified
+  // with a traversal alias and is only appropriate when lowering the recipe.
+  path: candidate.rawKey || candidate.valueSelector,
+  columnName: candidate.publicName,
+  selector: { valuePath: candidate.valueSelector },
+  recipeCandidate: candidate,
+});
+
+const candidateNodePath = (
+  output: RecipeOutput | undefined,
+  resourceType: string,
+): ReadonlyArray<string> | undefined => {
+  if (!output || typeof output.rootResourceType !== 'string') return undefined;
+  if (output.rootResourceType === resourceType) return [];
+  const visit = (
+    traversals: ReadonlyArray<JSONValue>,
+    path: ReadonlyArray<string>,
+  ): ReadonlyArray<string> | undefined => {
+    for (const traversalValue of traversals) {
+      const traversal = asRecord(traversalValue);
+      const alias = typeof traversal.alias === 'string' ? traversal.alias : '';
+      const target = typeof traversal.toResourceType === 'string' ? traversal.toResourceType : '';
+      if (!alias || !target) continue;
+      const nextPath = [...path, alias];
+      if (target === resourceType) return nextPath;
+      const nested = Array.isArray(traversal.traversals)
+        ? visit(traversal.traversals, nextPath)
+        : undefined;
+      if (nested) return nested;
+    }
+    return undefined;
+  };
+  return visit(Array.isArray(output.traversals) ? output.traversals : [], []);
+};
+
+const selectedNativeCandidates = (
+  node: Record<string, JSONValue>,
+  candidates: ReadonlyArray<RecipeColumnCandidate>,
+  selected: ReadonlyArray<string>,
+): Record<string, JSONValue> => {
+  if (candidates.length === 0) return node;
+  // Once this node is controlled by the recipe-aware picker, its native
+  // declarations are the only selection source. Keeping the old root-level
+  // concept list here would make Loom compile the same selection twice.
+  const { conceptSelections: _legacyConceptSelections, ...nodeWithoutLegacySelections } = node;
+  const selectedCandidates = candidates.filter((candidate) => selected.includes(candidate.id));
+  const ordinary = selectedCandidates.filter((candidate) =>
+    candidate.familyKind === 'FIELD' || candidate.familyKind === 'CATALOG_PROJECTION',
+  );
+  const selectedByFamily = new Map<string, RecipeColumnCandidate[]>();
+  for (const candidate of selectedCandidates) {
+    const key = `${candidate.familyKind}:${candidate.familyName}`;
+    selectedByFamily.set(key, [...(selectedByFamily.get(key) ?? []), candidate]);
+  }
+  const candidatesByFamily = new Map<string, RecipeColumnCandidate[]>();
+  for (const candidate of candidates) {
+    const key = `${candidate.familyKind}:${candidate.familyName}`;
+    candidatesByFamily.set(key, [...(candidatesByFamily.get(key) ?? []), candidate]);
+  }
+  const updateFamily = (key: 'dynamicColumns' | 'pivots', kind: 'DYNAMIC' | 'PIVOT') =>
+    (Array.isArray(node[key]) ? node[key].map(asRecord) : []).map((family) => {
+      const name = typeof family.name === 'string' ? family.name : '';
+      const familyKey = `${kind}:${name}`;
+      if (!candidatesByFamily.has(familyKey)) return family;
+      return { ...family, columnMode: 'SELECTED', columns: (selectedByFamily.get(familyKey) ?? []).map((candidate) => candidate.selectionKey) };
+    });
+  const extensions = (Array.isArray(node.extensionColumns) ? node.extensionColumns.map(asRecord) : []).map((family) => {
+    const name = typeof family.name === 'string' ? family.name : '';
+    const familyKey = `EXTENSION:${name}`;
+    if (!candidatesByFamily.has(familyKey)) return family;
+    return {
+      ...family,
+      columnMode: 'SELECTED',
+      columns: (selectedByFamily.get(familyKey) ?? []).flatMap((candidate) => {
+        if (!candidate.extensionMapping) return [];
+        try {
+          const parsed: unknown = JSON.parse(candidate.extensionMapping);
+          return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? [parsed as JSONValue] : [];
+        } catch {
+          return [];
+        }
+      }),
+    };
+  });
+  // Catalog projections are discovery-only declarations. Once one of their
+  // leaves is chosen, lower all of the offered leaves as ordinary fields and
+  // remove the projection so it cannot rediscover extra columns later.
+  const controlsCatalogProjections = candidates.some((candidate) => candidate.familyKind === 'CATALOG_PROJECTION');
+  return {
+    ...nodeWithoutLegacySelections,
+    fields: ordinary.map((candidate) => ({ name: candidate.selectionKey, expr: { select: candidate.valueSelector } })),
+    ...(controlsCatalogProjections ? { catalogProjections: [] } : {}),
+    dynamicColumns: updateFamily('dynamicColumns', 'DYNAMIC'),
+    pivots: updateFamily('pivots', 'PIVOT'),
+    extensionColumns: extensions,
+  };
 };
 
 const mapFromRecipe = (document: RecipeAuthoringDocument): FhirProjectMap => {
@@ -600,7 +705,10 @@ export const GuidedBuilder = ({
     mapFromRecipe(recipe),
   );
   const [semanticCatalog, setSemanticCatalog] = useState<SemanticConceptCatalog | null>(null);
-  const [semanticCatalogState, setSemanticCatalogState] = useState<'loading' | 'ready' | 'unavailable'>('loading');
+  const [semanticCatalogState, setSemanticCatalogState] = useState<'loading' | 'ready' | 'empty' | 'unavailable'>('loading');
+  const [recipeCandidates, setRecipeCandidates] = useState<ReadonlyArray<RecipeColumnCandidate>>([]);
+  const [recipeCandidateConnection, setRecipeCandidateConnection] = useState<RecipeColumnCandidateConnection>();
+  const [recipeCandidateState, setRecipeCandidateState] = useState<'idle' | 'loading' | 'ready' | 'unavailable'>('idle');
   const [scanState, setScanState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [selectedRoot, setSelectedRoot] = useState(currentRoot);
   const [selectedOutputName, setSelectedOutputName] = useState<string | undefined>(outputKey(currentOutput));
@@ -617,6 +725,7 @@ export const GuidedBuilder = ({
   const [scanAttempt, setScanAttempt] = useState(0);
   const initializedDefaultProject = useRef('');
   const hydratedSelection = useRef('');
+  const hydratedCandidateSelection = useRef('');
   const selectedOutputIntent = useRef<string | undefined>(undefined);
   const [tableTitle, setTableTitle] = useState(
     typeof currentOutput?.name === 'string'
@@ -674,8 +783,8 @@ export const GuidedBuilder = ({
             returnedConceptCount: resources.reduce((count, resource) => count + resource.families.reduce((familyCount, family) => familyCount + family.concepts.length, 0), 0),
           },
         } : null;
-        setSemanticCatalog(merged && merged.resources.length > 0 ? merged : null);
-        setSemanticCatalogState(merged && merged.resources.length > 0 ? 'ready' : 'unavailable');
+        setSemanticCatalog(merged);
+        setSemanticCatalogState(semanticCatalogAvailability(merged));
       })
       .catch((error: unknown) => {
         if (error instanceof Error && error.name === 'AbortError') return;
@@ -741,10 +850,51 @@ export const GuidedBuilder = ({
 
   const activeOutput = existingOutputs.find((output) => outputKey(output) === selectedOutputName) ?? existingOutputs[0];
   const activeOutputName = outputKey(activeOutput);
+  const candidateResourceType = selectedNodeType || selectedRoot;
   const selectedOutputIsPending = Boolean(
     selectedOutputName &&
     !existingOutputs.some((output) => outputKey(output) === selectedOutputName),
   );
+
+  useEffect(() => {
+    const outputName = activeOutputName;
+    const nodePath = candidateNodePath(activeOutput, candidateResourceType);
+    if (!outputName || !nodePath) {
+      setRecipeCandidates([]);
+      setRecipeCandidateConnection(undefined);
+      setRecipeCandidateState('idle');
+      return undefined;
+    }
+    const controller = new AbortController();
+    setRecipeCandidateState('loading');
+    void fetchRecipeColumnCandidates(
+      `${organization}-${project}`,
+      recipe,
+      outputName,
+      nodePath,
+      controller.signal,
+    ).then((connection) => {
+      setRecipeCandidates(connection.nodes);
+      setRecipeCandidateConnection(connection);
+      setRecipeCandidateState('ready');
+    }).catch((error: unknown) => {
+      if (error instanceof Error && error.name === 'AbortError') return;
+      setRecipeCandidates([]);
+      setRecipeCandidateConnection(undefined);
+      setRecipeCandidateState('unavailable');
+    });
+    return () => controller.abort();
+  }, [activeOutput, activeOutputName, candidateResourceType, organization, project, recipe]);
+
+  useEffect(() => {
+    if (recipeCandidateState !== 'ready' || recipeCandidates.length === 0) return;
+    const selected = recipeCandidates.filter((candidate) => candidate.selected).map((candidate) => candidate.id).sort();
+    const identity = `${activeOutputName}:${selected.join(',')}`;
+    if (hydratedCandidateSelection.current === identity) return;
+    hydratedCandidateSelection.current = identity;
+    if (candidateResourceType === selectedRoot) setSelectedFields(selected);
+    setSelectedFieldsByNode((current) => ({ ...current, [candidateResourceType]: selected }));
+  }, [activeOutputName, candidateResourceType, recipeCandidateState, recipeCandidates, selectedRoot]);
 
   useEffect(() => {
     if (selectedOutputIsPending) return;
@@ -891,6 +1041,9 @@ export const GuidedBuilder = ({
   };
 
   const fieldsForResource = (resourceType: string): ReadonlyArray<FhirFieldHint> => {
+    if (resourceType === candidateResourceType && recipeCandidateState === 'ready' && recipeCandidates.length > 0) {
+      return recipeCandidates.map(candidateField);
+    }
     const semanticFields = semanticFieldsFor(semanticCatalog, resourceType);
     if (semanticFields.length > 0) return semanticFields;
     const node = projectMap.nodes.find((candidate) => candidate.resourceType === resourceType);
@@ -1004,7 +1157,7 @@ export const GuidedBuilder = ({
       };
     });
     const { conceptSelections: _oldRootConceptSelections, ...activeOutputWithoutConceptSelections } = activeOutput ?? {};
-    const output: RecipeOutput = {
+    const outputDraft: RecipeOutput = {
       ...activeOutputWithoutConceptSelections,
       name: outputName,
       rootResourceType: rootToUse,
@@ -1019,7 +1172,7 @@ export const GuidedBuilder = ({
         const existingRootTraversals = Array.isArray(activeOutput?.traversals) ? activeOutput.traversals.map(asRecord) : [];
         const buildTraversal = (type: string, item: { edge: FhirTraversalHint; parent?: string; alias: string }, existing?: Record<string, JSONValue>): Record<string, JSONValue> => {
           const { conceptSelections: _oldConceptSelections, ...existingWithoutConceptSelections } = existing ?? {};
-          return {
+          const traversalDraft: Record<string, JSONValue> = {
           ...existingWithoutConceptSelections,
           // `name` is the exact populated Loom edge label. It is not a
           // display label and must not be decorated with the target type.
@@ -1038,11 +1191,21 @@ export const GuidedBuilder = ({
             return buildTraversal(childType, child, oldChild);
           }),
           };
+          return type === candidateResourceType && recipeCandidateState === 'ready'
+            ? selectedNativeCandidates(traversalDraft, recipeCandidates, fieldMap[type] ?? [])
+            : traversalDraft;
         };
         const oldTraversal = existingRootTraversals.find((candidate) => candidate.name === traversal.edge.label && candidate.toResourceType === resourceType);
         return buildTraversal(resourceType, traversal, oldTraversal);
       }),
     };
+    // Recipe-aware candidates are the primary selection contract. They write
+    // the exact native family declarations Loom resolves; conceptSelections
+    // remain only for compatibility while a server without this endpoint is
+    // still in use.
+    const output: RecipeOutput = rootToUse === candidateResourceType && recipeCandidateState === 'ready'
+      ? selectedNativeCandidates(outputDraft, recipeCandidates, fieldsToUse)
+      : outputDraft;
     const nextRecipe: RecipeAuthoringDocument = {
       ...recipe,
       recipeSchemaVersion:
@@ -1329,8 +1492,8 @@ export const GuidedBuilder = ({
         </label>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <label className="sr-only" htmlFor="guided-field-search">Search populated fields</label>
-          <input id="guided-field-search" value={fieldSearch} onChange={(event) => setFieldSearch(event.currentTarget.value)} placeholder={semanticCatalogState === 'ready' ? 'Search concepts by name or example' : 'Search technical fields by name or path'} className="min-w-64 flex-1 rounded border border-slate-300 px-3 py-2 text-sm" />
-          {semanticCatalogState === 'ready' && <label className="flex items-center gap-1 text-xs text-slate-600"><input type="checkbox" checked={showTechnicalSource} onChange={(event) => setShowTechnicalSource(event.currentTarget.checked)} /> Show technical source</label>}
+          <input id="guided-field-search" value={fieldSearch} onChange={(event) => setFieldSearch(event.currentTarget.value)} placeholder={recipeCandidateState === 'ready' ? 'Search columns, codes, systems, URLs, or examples' : semanticCatalogState === 'ready' ? 'Search concepts by name or example' : 'Search technical fields by name or path'} className="min-w-64 flex-1 rounded border border-slate-300 px-3 py-2 text-sm" />
+          {(recipeCandidateState === 'ready' || semanticCatalogState === 'ready') && <label className="flex items-center gap-1 text-xs text-slate-600"><input type="checkbox" checked={showTechnicalSource} onChange={(event) => setShowTechnicalSource(event.currentTarget.checked)} /> Show technical source</label>}
           <button type="button" disabled={disabled || (!inspectorInQuery && !candidateEdge)} className="rounded border border-blue-300 px-2 py-1.5 text-xs text-blue-800" onClick={() => {
             const nextFields = defaultFields(fieldsForResource(inspectorType), inspectorType);
             const nextMap = { ...selectedFieldsByNode, [inspectorType]: nextFields };
@@ -1354,6 +1517,7 @@ export const GuidedBuilder = ({
               const allNodeFields = node?.fields ?? [];
               const semanticResource = semanticResourceFor(semanticCatalog, resourceType);
               const nodeFields = fieldsForResource(resourceType);
+              const hasRecipeCandidates = recipeCandidateState === 'ready' && resourceType === candidateResourceType && nodeFields.some((field) => field.recipeCandidate);
               const concepts = semanticConceptsFor(semanticCatalog, resourceType);
               const nodeSelected = resourceType === selectedRoot
                 ? selectedFields
@@ -1361,33 +1525,48 @@ export const GuidedBuilder = ({
               return <React.Fragment key={resourceType}><fieldset className="rounded border p-3">
                 <legend className="px-1 font-medium text-slate-800">{semanticResource?.label || titleFor(resourceType)} details {resourceType === selectedRoot ? '(row root)' : '(optional path)'}</legend>
                 <p className="mt-1 text-xs text-slate-500">
-                  {nodeSelected.length} selected · {nodeFields.length} {concepts.length > 0 ? 'researcher concepts' : 'technical fields'} available
+                  {nodeSelected.length} selected · {nodeFields.length} {hasRecipeCandidates ? 'recipe columns' : concepts.length > 0 ? 'researcher concepts' : 'technical fields'} available
                   {(semanticResource?.documentCount ?? node?.documentCount) ? ` · ${(semanticResource?.documentCount ?? node?.documentCount)?.toLocaleString()} populated records` : ''}
                 </p>
-                {concepts.length > 0 && <p className="mt-1 text-xs text-slate-500">Choose a plain-language concept. Loom retains its stable concept and rule identity for publication.</p>}
-                {semanticCatalog && isPartialSemanticCatalog(semanticCatalog) && <p className="mt-1 rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">This concept list is partial; some lower-ranked concepts may be omitted.</p>}
+                {hasRecipeCandidates && <p className="mt-1 text-xs text-slate-500">Choose exact value-bearing columns. Loom will persist each choice in this node’s native recipe family.</p>}
+                {hasRecipeCandidates && recipeCandidateConnection && !recipeCandidateConnection.completeness.complete && <p role="alert" className="mt-2 rounded border border-red-300 bg-red-50 p-2 text-xs text-red-950"><strong>Column discovery is incomplete.</strong> Refine this recipe family or raise its profiling bound before previewing or publishing.</p>}
+                {recipeCandidateState === 'unavailable' && resourceType === candidateResourceType && <p role="alert" className="mt-2 rounded border border-red-300 bg-red-50 p-2 text-xs text-red-950"><strong>The recipe-aware Loom column request failed.</strong> The legacy concept list is shown as a temporary fallback.</p>}
+                {concepts.length > 0 && !hasRecipeCandidates && <p className="mt-1 text-xs text-slate-500">Choose a plain-language concept. Loom retains its stable concept and rule identity for publication.</p>}
+                {concepts.length === 0 && !hasRecipeCandidates && semanticCatalogState === 'empty' && <p role="status" className="mt-2 rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-950"><strong>Loom returned no semantic concepts for this dataset generation.</strong> Technical FHIR fields are shown as a fallback. The project catalog must contain semantic observations before researcher-facing concept selection can be used.</p>}
+                {concepts.length === 0 && semanticCatalogState === 'ready' && <p role="status" className="mt-2 rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-950"><strong>No semantic concepts were returned for {titleFor(resourceType)}.</strong> Other resource types may have concepts. Technical FHIR fields are shown for this resource.</p>}
+                {semanticCatalogState === 'unavailable' && <p role="alert" className="mt-2 rounded border border-red-300 bg-red-50 p-2 text-xs text-red-950"><strong>The Loom semantic catalog request failed.</strong> Technical FHIR fields are shown as a fallback. Retry the project scan after checking authentication and the Loom service.</p>}
+                {semanticCatalog && !hasRecipeCandidates && isPartialSemanticCatalog(semanticCatalog) && <p className="mt-1 rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">This concept list is partial; some lower-ranked concepts may be omitted.</p>}
                 {allNodeFields.length > nodeFields.length && <p className="mt-1 text-xs text-slate-500">
                   {allNodeFields.length - nodeFields.length} structural field{allNodeFields.length - nodeFields.length === 1 ? '' : 's'} hidden; choose a leaf value for a usable column.
                 </p>}
                 <div className="mt-2 space-y-1">
               {nodeFields.filter((field) => {
                 const query = fieldSearch.trim().toLowerCase();
+                const recipeCandidate = field.recipeCandidate;
                 const concept = field.conceptId ? concepts.find((candidate) => candidate.id === field.conceptId) : undefined;
                 const examples = concept?.examples?.suppressed ? '' : (concept?.examples?.values ?? []).join(' ');
-                return !query || `${field.label ?? ''} ${shortFieldPath(field, resourceType)} ${examples}`.toLowerCase().includes(query);
+                return !query || `${field.label ?? ''} ${shortFieldPath(field, resourceType)} ${examples} ${recipeCandidate?.rawKey ?? ''} ${recipeCandidate?.rawSystem ?? ''} ${recipeCandidate?.rawCode ?? ''} ${recipeCandidate?.extensionUrl ?? ''} ${(recipeCandidate?.examples ?? []).join(' ')}`.toLowerCase().includes(query);
               }).sort((left, right) => {
                 const leftConcept = left.conceptId ? concepts.find((candidate) => candidate.id === left.conceptId) : undefined;
                 const rightConcept = right.conceptId ? concepts.find((candidate) => candidate.id === right.conceptId) : undefined;
-                return `${leftConcept?.family ?? 'technical'}:${left.label ?? left.fieldRef}`.localeCompare(`${rightConcept?.family ?? 'technical'}:${right.label ?? right.fieldRef}`);
+                return `${left.recipeCandidate?.familyName ?? leftConcept?.family ?? 'technical'}:${left.label ?? left.fieldRef}`.localeCompare(`${right.recipeCandidate?.familyName ?? rightConcept?.family ?? 'technical'}:${right.label ?? right.fieldRef}`);
               }).map((field, fieldIndex, visibleFields) => {
                 const checked = nodeSelected.includes(field.fieldRef);
+                const recipeCandidate = field.recipeCandidate;
                 const concept = field.conceptId ? concepts.find((candidate) => candidate.id === field.conceptId) : undefined;
                 const family = concept?.family ? semanticResource?.families.find((candidate) => candidate.id === concept.family) : undefined;
                 const previous = visibleFields[fieldIndex - 1];
                 const previousConcept = previous?.conceptId ? concepts.find((candidate) => candidate.id === previous.conceptId) : undefined;
-                const startsFamily = Boolean(concept && concept.family !== previousConcept?.family);
+                const startsFamily = Boolean((recipeCandidate && recipeCandidate.familyId !== previous?.recipeCandidate?.familyId) || (concept && concept.family !== previousConcept?.family));
+                const duplicateLabel = Boolean(concept && visibleFields.some((candidate) =>
+                  candidate.fieldRef !== field.fieldRef &&
+                  candidate.label?.trim().toLocaleLowerCase() === field.label?.trim().toLocaleLowerCase(),
+                ));
+                const conceptDisambiguator = concept
+                  ? semanticConceptDisambiguator(concept)
+                  : '';
                 return (
-                  <React.Fragment key={field.fieldRef}><>{startsFamily && <p className="pt-3 text-xs font-semibold uppercase tracking-wide text-slate-500">{familyLabel(concept?.family ?? 'technical', family?.label ?? (concept ? undefined : 'Technical fields'))}</p>}</><label className={`flex cursor-pointer items-start gap-2 rounded border p-2 ${checked ? 'border-blue-300 bg-blue-50' : 'border-slate-200'}`}>
+                  <React.Fragment key={field.fieldRef}><>{startsFamily && <p className="pt-3 text-xs font-semibold uppercase tracking-wide text-slate-500">{recipeCandidate?.familyName || familyLabel(concept?.family ?? 'technical', family?.label ?? (concept ? undefined : 'Technical fields'))}</p>}</><label className={`flex cursor-pointer items-start gap-2 rounded border p-2 ${checked ? 'border-blue-300 bg-blue-50' : 'border-slate-200'}`}>
                     <input
                       checked={checked}
                       disabled={disabled || (!inspectorInQuery && !candidateEdge)}
@@ -1402,7 +1581,7 @@ export const GuidedBuilder = ({
                       }}
                       type="checkbox"
                     />
-                    <span className="min-w-0"><span className="block text-sm font-medium text-slate-800">{field.label || titleFor(shortFieldPath(field, resourceType))}</span>{concept ? <><span className="block text-xs text-slate-500">{concept.column.logicalType || 'value'}{concept.column.repeated ? ' · repeated array' : ''}{concept.population?.recordCount !== undefined ? ` · ${concept.population.recordCount.toLocaleString()} records` : ''}</span>{concept.examples?.suppressed ? <span className="block text-xs text-slate-500">Examples withheld for safety{concept.examples.reason ? ` (${concept.examples.reason})` : ''}</span> : concept.examples?.values?.length ? <span className="block truncate text-xs text-slate-500">Examples: {concept.examples.values.join(', ')}</span> : null}</> : <span className="block text-xs text-slate-500">Technical field · {shortFieldPath(field, resourceType)}</span>}{concept && showTechnicalSource && <span className="block text-xs text-slate-400">Source: {concept.source?.system || 'unknown'} · rule {concept.ruleId} · {shortFieldPath(field, resourceType)}</span>}</span>
+                    <span className="min-w-0"><span className="block text-sm font-medium text-slate-800">{field.label || titleFor(shortFieldPath(field, resourceType))}</span>{recipeCandidate ? <><span className="block break-words text-xs font-medium text-slate-600">{recipeCandidate.rawSystem || recipeCandidate.rawCode || recipeCandidate.extensionUrl || recipeCandidate.rawKey}</span><span className="block text-xs text-slate-500">{recipeCandidate.valueType || 'value'}{recipeCandidate.cardinality === 'MANY' ? ' · repeated array' : ''}{recipeCandidate.population ? ` · ${recipeCandidate.population.toLocaleString()} records` : ''}</span>{recipeCandidate.examples.length > 0 && <span className="block truncate text-xs text-slate-500">Examples: {recipeCandidate.examples.join(', ')}</span>}{showTechnicalSource && <span className="block break-words text-xs text-slate-400">{recipeCandidate.familyKind} · {recipeCandidate.valueSelector}</span>}</> : concept ? <>{duplicateLabel && <span className="block break-words text-xs font-medium text-slate-600">From: {conceptDisambiguator || concept.id}</span>}<span className="block text-xs text-slate-500">{concept.column.logicalType || 'value'}{concept.column.repeated ? ' · repeated array' : ''}{concept.population?.recordCount !== undefined ? ` · ${concept.population.recordCount.toLocaleString()} records` : ''}</span>{concept.examples?.suppressed ? <span className="block text-xs text-slate-500">Examples withheld for safety{concept.examples.reason ? ` (${concept.examples.reason})` : ''}</span> : concept.examples?.values?.length ? <span className="block truncate text-xs text-slate-500">Examples: {concept.examples.values.join(', ')}</span> : null}</> : <span className="block text-xs text-slate-500">Technical field · {shortFieldPath(field, resourceType)}</span>}{concept && showTechnicalSource && <span className="block break-words text-xs text-slate-400">Source: {concept.source?.system || 'unknown'} · rule {concept.ruleId} · {conceptDisambiguator || shortFieldPath(field, resourceType)}</span>}</span>
                   </label></React.Fragment>
                 );
               })}

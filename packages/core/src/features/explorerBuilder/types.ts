@@ -130,6 +130,49 @@ export interface SemanticConceptCatalog {
   readonly diagnostics: ReadonlyArray<SemanticCatalogDiagnostic>;
 }
 
+/** A single, value-bearing column offered by Loom for one authored recipe family. */
+export interface RecipeColumnCandidate {
+  readonly id: string;
+  readonly output: string;
+  readonly nodePath: string;
+  readonly familyId: string;
+  readonly familyKind: 'FIELD' | 'CATALOG_PROJECTION' | 'DYNAMIC' | 'EXTENSION' | 'PIVOT' | string;
+  readonly familyName: string;
+  readonly patchPath: string;
+  readonly rawKey: string;
+  /** Exact native value to write to the family's columns declaration. */
+  readonly selectionKey: string;
+  readonly rawSystem: string;
+  readonly rawCode: string;
+  readonly extensionUrl: string;
+  readonly publicName: string;
+  readonly label: string;
+  readonly valueSelector: string;
+  readonly valueType: string;
+  readonly cardinality: string;
+  readonly population: number;
+  readonly examples: ReadonlyArray<string>;
+  readonly selected: boolean;
+  readonly complete: boolean;
+  readonly diagnostic: string;
+  /** Serialized native ExtensionColumnMapping when familyKind is EXTENSION. */
+  readonly extensionMapping?: string;
+}
+
+export interface RecipeColumnCandidateCompleteness {
+  readonly complete: boolean;
+  readonly totalCount: number;
+  readonly returnedCount: number;
+  readonly blockingDiagnosticCount: number;
+}
+
+export interface RecipeColumnCandidateConnection {
+  readonly nodes: ReadonlyArray<RecipeColumnCandidate>;
+  readonly pageInfo: Readonly<{ hasNextPage: boolean; endCursor?: string | null }>;
+  readonly completeness: RecipeColumnCandidateCompleteness;
+  readonly diagnostics: ReadonlyArray<SemanticCatalogDiagnostic>;
+}
+
 export interface PublishedOutputRef {
   readonly output: string;
   readonly materializationId: string;

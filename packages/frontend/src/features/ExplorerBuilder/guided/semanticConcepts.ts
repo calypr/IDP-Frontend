@@ -26,11 +26,45 @@ export const semanticResourceFor = (
 export const semanticConceptsFor = (
   catalog: SemanticConceptCatalog | null | undefined,
   resourceType: string,
-): ReadonlyArray<SemanticConcept> =>
-  semanticResourceFor(catalog, resourceType)?.families.flatMap((family) => family.concepts) ?? [];
+): ReadonlyArray<SemanticConcept> => {
+  const concepts = semanticResourceFor(catalog, resourceType)?.families
+    .flatMap((family) => family.concepts) ?? [];
+  const seen = new Set<string>();
+  return concepts.filter((concept) => {
+    if (seen.has(concept.id)) return false;
+    seen.add(concept.id);
+    return true;
+  });
+};
 
 export const familyLabel = (id: string, label?: string) =>
   label?.trim() || id.trim() || 'Other concepts';
+
+const compactPath = (value: unknown) =>
+  typeof value === 'string'
+    ? value.trim().replace(/^root\./i, '').replace(/^FHIR\./i, '')
+    : '';
+
+/**
+ * Return the shortest source description that distinguishes concepts which
+ * intentionally share a researcher-facing label. Loom concept identities are
+ * selector-based, so this never attempts to infer identity from the label.
+ */
+export const semanticConceptDisambiguator = (concept: SemanticConcept) => {
+  const sourcePath = compactPath(
+    concept.selector?.sourcePath || concept.source?.path || concept.source?.canonical,
+  );
+  const valuePath = compactPath(
+    concept.selector?.valuePath || concept.source?.valuePath,
+  );
+  const keySelector = compactPath(
+    concept.selector?.keySelector || concept.source?.keySelector,
+  );
+  const parts = [sourcePath, keySelector, valuePath].filter(
+    (part, index, values) => part && values.indexOf(part) === index,
+  );
+  return parts.join(' → ');
+};
 
 /** Convert a concept to the existing field shape used by table generation. */
 export const semanticFieldHint = (concept: SemanticConcept): FhirFieldHint => ({
@@ -93,3 +127,13 @@ export const fieldSelectionFor = (
 export const isPartialSemanticCatalog = (catalog: SemanticConceptCatalog | null | undefined) =>
   catalog?.completeness?.state === 'partial' ||
   catalog?.diagnostics.some((diagnostic) => diagnostic.code.toLowerCase().includes('partial') || diagnostic.code.toLowerCase().includes('limit')) === true;
+
+/** Distinguish a successful empty Loom catalog from a failed request. */
+export const semanticCatalogAvailability = (
+  catalog: SemanticConceptCatalog | null | undefined,
+): 'ready' | 'empty' =>
+  catalog?.resources.some((resource) =>
+    resource.families.some((family) => family.concepts.length > 0),
+  )
+    ? 'ready'
+    : 'empty';

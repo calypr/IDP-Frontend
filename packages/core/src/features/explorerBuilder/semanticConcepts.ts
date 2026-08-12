@@ -13,6 +13,8 @@ import type {
   SemanticConceptResource,
   SemanticConceptSelector,
   SemanticConceptSource,
+  RecipeColumnCandidate,
+  RecipeColumnCandidateConnection,
 } from './types';
 
 type RecordValue = Record<string, unknown>;
@@ -247,4 +249,47 @@ export const fetchSemanticConceptCatalog = async (
     { endpoint: `${GEN3_LOOM_API}/graphql/graph`, signal },
   );
   return normalizeSemanticConceptCatalog(response.dataframeBuilderSemanticCatalog ?? response.semanticConceptCatalog);
+};
+
+interface RecipeColumnCandidateResponse {
+  readonly dataframeRecipeColumnCandidates?: RecipeColumnCandidateConnection;
+}
+
+const columnCandidatesQuery = `query RecipeColumnCandidates($input: DataframeRecipeColumnCandidatesInput!) {
+  dataframeRecipeColumnCandidates(input: $input) {
+    nodes {
+      id output nodePath familyId familyKind familyName patchPath
+      rawKey selectionKey rawSystem rawCode extensionUrl publicName label valueSelector valueType cardinality
+      population examples selected complete diagnostic extensionMapping
+    }
+    pageInfo { hasNextPage endCursor }
+    completeness { complete totalCount returnedCount blockingDiagnosticCount }
+    diagnostics { severity code ruleId path message }
+  }
+}`;
+
+/** Fetch every recipe-authorized candidate for one output traversal node. */
+export const fetchRecipeColumnCandidates = async (
+  project: string,
+  recipe: unknown,
+  output: string,
+  nodePath: ReadonlyArray<string> = [],
+  signal?: AbortSignal,
+): Promise<RecipeColumnCandidateConnection> => {
+  const nodes: RecipeColumnCandidate[] = [];
+  let after: string | undefined;
+  let last: RecipeColumnCandidateConnection | undefined;
+  do {
+    const response = await fetchGraphQL<RecipeColumnCandidateResponse>(
+      { query: columnCandidatesQuery, variables: { input: { project, recipe, output, nodePath, first: 500, ...(after ? { after } : {}) } } },
+      { endpoint: `${GEN3_LOOM_API}/graphql/graph`, signal },
+    );
+    const connection = response.dataframeRecipeColumnCandidates;
+    if (!connection) throw new Error('Loom returned no recipe column candidate connection');
+    nodes.push(...connection.nodes);
+    last = connection;
+    after = connection.pageInfo.endCursor ?? undefined;
+  } while (last.pageInfo.hasNextPage && after);
+  if (!last) throw new Error('Loom returned no recipe column candidate connection');
+  return { ...last, nodes, completeness: { ...last.completeness, returnedCount: nodes.length } };
 };
