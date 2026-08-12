@@ -790,7 +790,9 @@ export const GuidedBuilder = ({
   const [inspectorOpen, setInspectorOpen] = useState(true);
   const [expandedPane, setExpandedPane] = useState<'graph' | 'columns'>();
   const [reviewOpen, setReviewOpen] = useState(false);
-  const [showSparseData, setShowSparseData] = useState(false);
+  // Every ingested relationship belongs in the graph. The user can judge its
+  // relevance from the displayed link count instead of toggling a filter.
+  const showSparseData = true;
   const [scanAttempt, setScanAttempt] = useState(0);
   const initializedDefaultProject = useRef('');
   const hydratedSelection = useRef('');
@@ -1125,7 +1127,7 @@ export const GuidedBuilder = ({
     const semanticFields = semanticFieldsFor(semanticCatalog, resourceType);
     if (semanticFields.length > 0) return semanticFields;
     const node = projectMap.nodes.find((candidate) => candidate.resourceType === resourceType);
-    return node ? dataFieldsFor(node.fields, resourceType) : [];
+    return node?.fields ?? [];
   };
 
   useEffect(() => {
@@ -1495,9 +1497,7 @@ export const GuidedBuilder = ({
             <h2 id="fhir-map-heading" className="text-lg font-semibold">Explore the populated dataset</h2>
             <p className="text-sm text-slate-600">Larger cards contain more records; thicker lines connect more data. Click a card to inspect its fields, then add it to the traversal.</p>
           </div>
-          <div className="flex flex-wrap items-center gap-3"><label className="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" checked={showSparseData} onChange={(event) => setShowSparseData(event.currentTarget.checked)} /> Show sparse relationships (fewer than 10 links)</label><span className="rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-600">
-            {scanState === 'loading' ? 'Scanning project…' : scanState === 'ready' ? `${projectMap.nodes.length} resource types found` : 'Using the current recipe as a guide'}
-          </span>{expandedPane === 'graph' && <button type="button" aria-label="Close expanded graph" className="rounded border border-slate-300 bg-white px-2 py-1 text-lg leading-none text-slate-700" onClick={() => setExpandedPane(undefined)}>×</button>}</div>
+          <div className="flex flex-wrap items-center gap-3">{expandedPane === 'graph' && <button type="button" aria-label="Close expanded graph" className="rounded border border-slate-300 bg-white px-2 py-1 text-lg leading-none text-slate-700" onClick={() => setExpandedPane(undefined)}>×</button>}</div>
           {scanState === 'error' && <button type="button" className="rounded border border-amber-300 bg-amber-50 px-3 py-1 text-sm text-amber-900" onClick={() => setScanAttempt((attempt) => attempt + 1)}>Retry scan</button>}
         </div>
         {availableRoots.length > 0 ? <>
@@ -1598,7 +1598,6 @@ export const GuidedBuilder = ({
             {(() => {
               const resourceType = selectedNodeType || selectedRoot;
               const node = projectMap.nodes.find((candidate) => candidate.resourceType === resourceType);
-              const allNodeFields = node?.fields ?? [];
               const semanticResource = semanticResourceFor(semanticCatalog, resourceType);
               const nodeFields = fieldsForResource(resourceType);
               const hasRecipeCandidates = recipeCandidateState === 'ready' && resourceType === candidateResourceType && nodeFields.some((field) => field.recipeCandidate);
@@ -1621,9 +1620,6 @@ export const GuidedBuilder = ({
                 {concepts.length === 0 && semanticCatalogState === 'ready' && <p role="status" className="mt-2 rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-950"><strong>No semantic concepts were returned for {titleFor(resourceType)}.</strong> Other resource types may have concepts. Technical FHIR fields are shown for this resource.</p>}
                 {semanticCatalogState === 'unavailable' && <p role="alert" className="mt-2 rounded border border-red-300 bg-red-50 p-2 text-xs text-red-950"><strong>The Loom semantic catalog request failed.</strong> Technical FHIR fields are shown as a fallback. Retry the project scan after checking authentication and the Loom service.</p>}
                 {semanticCatalog && !hasRecipeCandidates && isPartialSemanticCatalog(semanticCatalog) && <p className="mt-1 rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">This concept list is partial; some lower-ranked concepts may be omitted.</p>}
-                {allNodeFields.length > nodeFields.length && <p className="mt-1 text-xs text-slate-500">
-                  {allNodeFields.length - nodeFields.length} structural field{allNodeFields.length - nodeFields.length === 1 ? '' : 's'} hidden; choose a leaf value for a usable column.
-                </p>}
                 <div className={isExpandedColumnPanel ? 'mt-4 grid grid-cols-1 gap-x-8 gap-y-1 md:grid-cols-2 2xl:grid-cols-3' : 'mt-2'}>
               {nodeFields.filter((field) => {
                 const query = fieldSearch.trim().toLowerCase();
