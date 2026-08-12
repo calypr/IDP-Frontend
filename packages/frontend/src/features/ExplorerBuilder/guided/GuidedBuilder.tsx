@@ -1387,12 +1387,12 @@ export const GuidedBuilder = ({
 
   return (
     <section aria-label="Guided Explorer Builder" className="flex min-h-[38rem] flex-col gap-3">
-      <header className="shrink-0 rounded-lg border border-blue-100 bg-gradient-to-r from-blue-50 to-white p-2.5">
-        <div className="flex items-baseline gap-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-[#2f5aac]">Explorer Builder</p>
-          <h1 className="text-lg font-semibold text-slate-900">Build a table from this project&apos;s data</h1>
+      <header className="shrink-0 border-b border-slate-200 bg-white pb-3">
+        <div className="flex items-baseline gap-2 px-1">
+          <h1 className="text-lg font-semibold text-slate-900">Explorer Builder</h1>
         </div>
-        <div role="toolbar" aria-label="Table workspace" className="mt-2 flex flex-nowrap items-center gap-2 overflow-x-auto rounded-lg border border-slate-200 bg-white/90 p-2 shadow-sm">
+        <div role="toolbar" aria-label="Table workspace" className="mt-2 space-y-2 rounded-lg border border-slate-200 bg-slate-50/70 p-2">
+          <div className="flex flex-wrap items-center gap-2">
           <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Tables</span>
           {existingOutputs.map((candidate) => <button key={String(candidate.name)} type="button" className={`rounded-md px-3 py-1.5 text-sm ${candidate.name === activeOutput?.name ? 'bg-[#2f5aac] font-semibold text-white' : 'border border-slate-200 bg-white text-slate-700'}`} onClick={() => {
             const nextOutputName = outputKey(candidate);
@@ -1416,7 +1416,6 @@ export const GuidedBuilder = ({
             setSelectedFieldsByNode((current) => ({ ...current, [nextRoot]: nextFields }));
             setTableTitle(typeof candidate.name === 'string' ? titleFor(candidate.name) : tableTitle);
           }}>{typeof candidate.name === 'string' ? titleFor(candidate.name) : 'Untitled'}</button>)}
-          <span className="h-5 w-px bg-slate-200" aria-hidden="true" />
           <button type="button" disabled={disabled || availableRoots.length === 0} className="rounded-md border border-blue-300 px-3 py-1.5 text-sm font-medium text-blue-800 disabled:cursor-not-allowed disabled:opacity-50" onClick={() => {
             const root = selectedRoot || availableRoots[0];
             if (!root) return;
@@ -1429,6 +1428,8 @@ export const GuidedBuilder = ({
             setTableTitle(`${titleFor(root)} ${existingOutputs.length + 1}`);
             applyTable(fields, root, `${titleFor(root)} ${existingOutputs.length + 1}`, { ...selectedFieldsByNode, [root]: fields }, false, []);
           }}>New table</button>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 border-t border-slate-200 pt-2">
           <button type="button" disabled={disabled || !workspaceOutput} className="rounded-md border border-slate-200 px-3 py-1.5 text-sm" onClick={() => {
             if (!workspaceOutput || typeof workspaceOutput.name !== 'string') return;
             const copyName = `${workspaceOutput.name}_copy`;
@@ -1451,6 +1452,7 @@ export const GuidedBuilder = ({
           <button type="button" disabled={disabled || !selectedRoot || selectedFields.length === 0} className="rounded-md bg-green-700 px-4 py-1.5 text-sm font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:bg-slate-400" onClick={renderCurrentTable}>Render table <span className="ml-1 rounded-full bg-white/20 px-1.5 text-xs">{selectedQueryFieldCount}</span></button>
           {onSaveDraft && <button type="button" disabled={disabled} className="rounded-md border border-blue-300 bg-white px-3 py-1.5 text-sm font-medium text-blue-800" onClick={onSaveDraft}>Save draft</button>}
           {onMakeLive && <button type="button" disabled={disabled} className="rounded-md bg-[#2f5aac] px-3 py-1.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50" onClick={onMakeLive}>Make live</button>}
+          </div>
         </div>
       </header>
 
