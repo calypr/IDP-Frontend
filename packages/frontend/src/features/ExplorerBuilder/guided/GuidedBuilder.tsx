@@ -760,6 +760,7 @@ export const GuidedBuilder = ({
   // Keep it visible beside the graph on desktop; graph interactions simply
   // change which node the panel is inspecting.
   const [inspectorOpen, setInspectorOpen] = useState(true);
+  const [expandedPane, setExpandedPane] = useState<'graph' | 'columns'>();
   // Undefined means the initial, deliberately even split. A pixel width is
   // recorded only after the user drags the divider.
   const [columnPanelWidth, setColumnPanelWidth] = useState<number>();
@@ -1397,7 +1398,10 @@ export const GuidedBuilder = ({
       <header className="shrink-0 rounded-lg border border-blue-100 bg-gradient-to-r from-blue-50 to-white p-3">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <div><p className="text-xs font-semibold uppercase tracking-wide text-[#2f5aac]">Explorer Builder</p>
-          <h1 className="text-xl font-semibold text-slate-900">Build a table from this project&apos;s data</h1></div>
+          <h1 className="text-xl font-semibold text-slate-900">Build a table from this project&apos;s data</h1>
+          <label className="mt-2 block w-[min(24rem,100%)] text-xs font-semibold text-slate-700" htmlFor="builder-table-title">Table name
+            <input id="builder-table-title" disabled={disabled} className="mt-1 block w-full rounded border border-slate-300 bg-white px-3 py-1.5 text-sm font-normal text-slate-900" value={tableTitle} onChange={(event) => setTableTitle(event.currentTarget.value)} onBlur={() => applyTable(selectedFields, selectedRoot, tableTitle)} />
+          </label></div>
           <p className="max-w-2xl text-sm text-slate-600">Choose a starting point, inspect a related dataset, select its columns, then explicitly add it to the table.</p>
         </div>
         <div className="mt-3 flex items-center gap-2 text-xs font-semibold" aria-label="Builder steps">
@@ -1473,7 +1477,13 @@ export const GuidedBuilder = ({
           : 'grid grid-cols-1 gap-3'}
         style={inspectorOpen && columnPanelWidth !== undefined ? { '--column-selector-width': `${columnPanelWidth}px` } as React.CSSProperties : undefined}
       >
-      <section aria-labelledby="fhir-map-heading" className="relative flex h-[min(46dvh,34rem)] min-h-[28rem] min-w-0 flex-col rounded-lg border bg-white p-3 shadow-sm">
+      <section
+        aria-labelledby="fhir-map-heading"
+        aria-modal={expandedPane === 'graph' || undefined}
+        className={expandedPane === 'graph'
+          ? 'fixed inset-3 z-50 flex h-[calc(100dvh-1.5rem)] min-w-0 flex-col rounded-xl border bg-white p-4 shadow-2xl'
+          : 'relative flex h-[min(46dvh,34rem)] min-h-[28rem] min-w-0 flex-col rounded-lg border bg-white p-3 shadow-sm'}
+      >
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 id="fhir-map-heading" className="text-lg font-semibold">Explore the populated dataset</h2>
@@ -1481,7 +1491,7 @@ export const GuidedBuilder = ({
           </div>
           <div className="flex flex-wrap items-center gap-3"><label className="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" checked={showSparseData} onChange={(event) => setShowSparseData(event.currentTarget.checked)} /> Show sparse relationships (fewer than 10 links)</label><span className="rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-600">
             {scanState === 'loading' ? 'Scanning project…' : scanState === 'ready' ? `${projectMap.nodes.length} resource types found` : 'Using the current recipe as a guide'}
-          </span></div>
+          </span><button type="button" className="rounded border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700" onClick={() => setExpandedPane((pane) => pane === 'graph' ? undefined : 'graph')}>{expandedPane === 'graph' ? '× Close graph' : 'Expand graph'}</button></div>
           {scanState === 'error' && <button type="button" className="rounded border border-amber-300 bg-amber-50 px-3 py-1 text-sm text-amber-900" onClick={() => setScanAttempt((attempt) => attempt + 1)}>Retry scan</button>}
         </div>
         {availableRoots.length > 0 ? <>
@@ -1540,11 +1550,17 @@ export const GuidedBuilder = ({
         }}
         role="separator"
       ><span aria-hidden="true" className="absolute left-1/2 top-1/2 h-12 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-slate-400 group-hover:bg-white" /></button>}
-      {inspectorOpen && <aside aria-labelledby="fields-heading" className="h-[min(46dvh,34rem)] min-h-[28rem] overflow-y-auto rounded-lg border border-slate-200 bg-white p-4 shadow-sm xl:sticky xl:top-3">
+      {inspectorOpen && <aside
+        aria-labelledby="fields-heading"
+        aria-modal={expandedPane === 'columns' || undefined}
+        className={expandedPane === 'columns'
+          ? 'fixed inset-3 z-50 h-[calc(100dvh-1.5rem)] overflow-y-auto rounded-xl border border-slate-200 bg-white p-5 shadow-2xl'
+          : 'h-[min(46dvh,34rem)] min-h-[28rem] overflow-y-auto rounded-lg border border-slate-200 bg-white p-4 shadow-sm xl:sticky xl:top-3'}
+      >
         <div className="flex items-start justify-between gap-3">
         <div><h2 id="fields-heading" className="text-lg font-semibold">Choose {resourceLabel(selectedNodeType || selectedRoot)} columns</h2>
         <p className="mt-0.5 text-xs text-slate-600">Inspect first. The table changes only when you explicitly add this dataset.</p>
-        </div><button type="button" aria-label="Hide column selector" className="rounded border border-slate-200 px-2 py-1 text-slate-600" onClick={() => setInspectorOpen(false)}>×</button></div>
+        </div><div className="flex gap-1"><button type="button" className="rounded border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-700" onClick={() => setExpandedPane((pane) => pane === 'columns' ? undefined : 'columns')}>{expandedPane === 'columns' ? '× Close' : 'Expand'}</button><button type="button" aria-label="Hide column selector" className="rounded border border-slate-200 px-2 py-1 text-slate-600" onClick={() => setInspectorOpen(false)}>×</button></div></div>
         {!inspectorInQuery && <div className={`mt-3 rounded border p-2 text-xs ${candidateEdge ? 'border-green-300 bg-green-50 text-green-950' : 'border-violet-200 bg-violet-50 text-violet-950'}`}>
           {candidateEdge
             ? <><strong>Available next step:</strong> {resourceLabel(traversalEndpoint)} → {resourceLabel(inspectorType)}. Choose columns below, then add it.</>
@@ -1564,17 +1580,6 @@ export const GuidedBuilder = ({
           setSelectedFieldsByNode((current) => ({ ...current, [selectedNodeType]: nextFields }));
           applyTable(nextFields, selectedNodeType, `${titleFor(selectedNodeType)} overview`, { ...selectedFieldsByNode, [selectedNodeType]: nextFields }, true, []);
         }}>Start each row with {resourceLabel(selectedNodeType)}</button>}
-        <label className="mt-3 block max-w-xl text-sm font-medium text-slate-800" htmlFor="guided-table-title">
-          What should this table be called?
-          <input
-            className="mt-1 block w-full rounded border border-slate-300 px-3 py-2"
-            disabled={disabled}
-            id="guided-table-title"
-            onChange={(event) => setTableTitle(event.currentTarget.value)}
-            onBlur={() => applyTable(selectedFields, selectedRoot, tableTitle)}
-            value={tableTitle}
-          />
-        </label>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <label className="sr-only" htmlFor="guided-field-search">Search populated fields</label>
           <input id="guided-field-search" value={fieldSearch} onChange={(event) => setFieldSearch(event.currentTarget.value)} placeholder={recipeCandidateState === 'ready' ? 'Search columns, codes, systems, URLs, or examples' : semanticCatalogState === 'ready' ? 'Search concepts by name or example' : 'Search technical fields by name or path'} className="min-w-64 flex-1 rounded border border-slate-300 px-3 py-2 text-sm" />
@@ -1607,7 +1612,7 @@ export const GuidedBuilder = ({
               const nodeSelected = resourceType === selectedRoot
                 ? selectedFields
                 : (selectedFieldsByNode[resourceType] ?? defaultFields(nodeFields, resourceType));
-              return <React.Fragment key={resourceType}><fieldset className="rounded border p-3">
+              return <React.Fragment key={resourceType}><fieldset className="rounded-md border border-slate-200 p-2.5">
                 <legend className="px-1 font-medium text-slate-800">{semanticResource?.label || titleFor(resourceType)} details {resourceType === selectedRoot ? '(row root)' : '(optional path)'}</legend>
                 <p className="mt-1 text-xs text-slate-500">
                   {nodeSelected.length} selected · {nodeFields.length} {hasRecipeCandidates ? 'recipe columns' : concepts.length > 0 ? 'researcher concepts' : 'technical fields'} available
@@ -1624,7 +1629,7 @@ export const GuidedBuilder = ({
                 {allNodeFields.length > nodeFields.length && <p className="mt-1 text-xs text-slate-500">
                   {allNodeFields.length - nodeFields.length} structural field{allNodeFields.length - nodeFields.length === 1 ? '' : 's'} hidden; choose a leaf value for a usable column.
                 </p>}
-                <div className="mt-2 space-y-1">
+                <div className="mt-2">
               {nodeFields.filter((field) => {
                 const query = fieldSearch.trim().toLowerCase();
                 const recipeCandidate = field.recipeCandidate;
@@ -1651,7 +1656,7 @@ export const GuidedBuilder = ({
                   ? semanticConceptDisambiguator(concept)
                   : '';
                 return (
-                  <React.Fragment key={field.fieldRef}><>{startsFamily && <p className="pt-3 text-xs font-semibold uppercase tracking-wide text-slate-500">{recipeCandidate?.familyName || familyLabel(concept?.family ?? 'technical', family?.label ?? (concept ? undefined : 'Technical fields'))}</p>}</><label className={`flex cursor-pointer items-start gap-2 rounded border p-2 ${checked ? 'border-blue-300 bg-blue-50' : 'border-slate-200'}`}>
+                  <React.Fragment key={field.fieldRef}><>{startsFamily && <p className="pt-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{recipeCandidate?.familyName || familyLabel(concept?.family ?? 'technical', family?.label ?? (concept ? undefined : 'Technical fields'))}</p>}</><label className={`flex cursor-pointer items-start gap-2 border-b border-slate-100 px-1 py-1.5 ${checked ? 'bg-blue-50' : 'hover:bg-slate-50'}`}>
                     <input
                       checked={checked}
                       disabled={disabled || (!inspectorInQuery && !candidateEdge)}
@@ -1666,7 +1671,7 @@ export const GuidedBuilder = ({
                       }}
                       type="checkbox"
                     />
-                    <span className="min-w-0"><span className="block text-sm font-medium text-slate-800">{field.label || titleFor(shortFieldPath(field, resourceType))}</span>{recipeCandidate ? <><span className="block break-words text-xs font-medium text-slate-600">{recipeCandidate.rawSystem || recipeCandidate.rawCode || recipeCandidate.extensionUrl || recipeCandidate.rawKey}</span><span className="block text-xs text-slate-500">{recipeCandidate.valueType || 'value'}{recipeCandidate.cardinality === 'MANY' ? ' · repeated array' : ''}{recipeCandidate.population ? ` · ${recipeCandidate.population.toLocaleString()} records` : ''}</span>{recipeCandidate.examples.length > 0 && <span className="block truncate text-xs text-slate-500">Examples: {recipeCandidate.examples.join(', ')}</span>}{showTechnicalSource && <span className="block break-words text-xs text-slate-400">{recipeCandidate.familyKind} · {recipeCandidate.valueSelector}</span>}</> : concept ? <>{duplicateLabel && <span className="block break-words text-xs font-medium text-slate-600">From: {conceptDisambiguator || concept.id}</span>}<span className="block text-xs text-slate-500">{concept.column.logicalType || 'value'}{concept.column.repeated ? ' · repeated array' : ''}{concept.population?.recordCount !== undefined ? ` · ${concept.population.recordCount.toLocaleString()} records` : ''}</span>{concept.examples?.suppressed ? <span className="block text-xs text-slate-500">Examples withheld for safety{concept.examples.reason ? ` (${concept.examples.reason})` : ''}</span> : concept.examples?.values?.length ? <span className="block truncate text-xs text-slate-500">Examples: {concept.examples.values.join(', ')}</span> : null}</> : <span className="block text-xs text-slate-500">Technical field · {shortFieldPath(field, resourceType)}</span>}{concept && showTechnicalSource && <span className="block break-words text-xs text-slate-400">Source: {concept.source?.system || 'unknown'} · rule {concept.ruleId} · {conceptDisambiguator || shortFieldPath(field, resourceType)}</span>}</span>
+                    <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium text-slate-800" title={field.label || titleFor(shortFieldPath(field, resourceType))}>{field.label || titleFor(shortFieldPath(field, resourceType))}</span>{recipeCandidate ? <><span className="block truncate text-xs font-medium text-slate-600" title={recipeCandidate.rawSystem || recipeCandidate.rawCode || recipeCandidate.extensionUrl || recipeCandidate.rawKey}>{recipeCandidate.rawSystem || recipeCandidate.rawCode || recipeCandidate.extensionUrl || recipeCandidate.rawKey}</span><span className="block text-xs text-slate-500">{recipeCandidate.valueType || 'value'}{recipeCandidate.cardinality === 'MANY' ? ' · repeated' : ''}{recipeCandidate.population ? ` · ${recipeCandidate.population.toLocaleString()} records` : ''}</span>{recipeCandidate.examples.length > 0 && <span className="block truncate text-xs text-slate-500" title={recipeCandidate.examples.slice(0, 2).join(', ')}>Examples: {recipeCandidate.examples.slice(0, 2).join(', ')}{recipeCandidate.examples.length > 2 ? ` +${recipeCandidate.examples.length - 2}` : ''}</span>}{showTechnicalSource && <span className="block truncate text-xs text-slate-400" title={`${recipeCandidate.familyKind} · ${recipeCandidate.valueSelector}`}>{recipeCandidate.familyKind} · {recipeCandidate.valueSelector}</span>}</> : concept ? <>{duplicateLabel && <span className="block truncate text-xs font-medium text-slate-600" title={conceptDisambiguator || concept.id}>From: {conceptDisambiguator || concept.id}</span>}<span className="block text-xs text-slate-500">{concept.column.logicalType || 'value'}{concept.column.repeated ? ' · repeated' : ''}{concept.population?.recordCount !== undefined ? ` · ${concept.population.recordCount.toLocaleString()} records` : ''}</span>{concept.examples?.suppressed ? <span className="block text-xs text-slate-500">Examples withheld for safety{concept.examples.reason ? ` (${concept.examples.reason})` : ''}</span> : concept.examples?.values?.length ? <span className="block truncate text-xs text-slate-500" title={concept.examples.values.slice(0, 2).join(', ')}>Examples: {concept.examples.values.slice(0, 2).join(', ')}{concept.examples.values.length > 2 ? ` +${concept.examples.values.length - 2}` : ''}</span> : null}</> : <span className="block truncate text-xs text-slate-500" title={shortFieldPath(field, resourceType)}>Technical field · {shortFieldPath(field, resourceType)}</span>}{concept && showTechnicalSource && <span className="block truncate text-xs text-slate-400" title={`Source: ${concept.source?.system || 'unknown'} · rule ${concept.ruleId} · ${conceptDisambiguator || shortFieldPath(field, resourceType)}`}>Source: {concept.source?.system || 'unknown'} · rule {concept.ruleId} · {conceptDisambiguator || shortFieldPath(field, resourceType)}</span>}</span>
                   </label></React.Fragment>
                 );
               })}
@@ -1690,24 +1695,9 @@ export const GuidedBuilder = ({
       </aside>}
       </div>
 
-      {reviewOpen && <section aria-labelledby="review-heading" className="scroll-mt-4 rounded-xl border border-blue-200 bg-blue-50 p-5 shadow-sm">
-        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-blue-200 pb-3">
-          <div><p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Step 2 of 2</p><h2 id="review-heading" className="text-xl font-semibold">Rendered table</h2>
-          <p className="mt-1 text-sm text-slate-700">These are live sample rows returned by Loom. Edit the column headers directly above the data, reorder them, or hide columns you do not need.</p></div>
-          <div className="flex gap-2"><button type="button" disabled={previewStatus === 'loading'} className="rounded bg-[#2f5aac] px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50" onClick={renderCurrentTable}>{previewStatus === 'loading' ? 'Rendering…' : 'Re-render rows'}</button>
+      {reviewOpen && <section aria-label="Rendered sample" className="scroll-mt-4 rounded-xl border border-blue-200 bg-blue-50 p-3 shadow-sm">
+        <div className="flex justify-end gap-2 pb-3"><button type="button" disabled={previewStatus === 'loading'} className="rounded bg-[#2f5aac] px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50" onClick={renderCurrentTable}>{previewStatus === 'loading' ? 'Rendering…' : 'Re-render rows'}</button>
           <button type="button" aria-label="Hide rendered table" className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium" onClick={() => setReviewOpen(false)}>Hide table</button></div>
-        </div>
-        <div className="mt-4 grid gap-3 rounded-lg border border-blue-200 bg-white p-3 lg:grid-cols-[minmax(16rem,24rem)_1fr]">
-          <label className="text-sm font-semibold text-slate-800" htmlFor="rendered-table-title">Table name
-            <input id="rendered-table-title" disabled={disabled} className="mt-1 block w-full rounded border border-slate-300 px-3 py-2 font-normal" value={tableTitle} onChange={(event) => setTableTitle(event.currentTarget.value)} onBlur={renderCurrentTable} />
-          </label>
-          <div><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Rendered traversal</p>
-            <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
-              <span className="rounded bg-blue-100 px-2 py-1 font-semibold text-blue-950">{resourceLabel(selectedRoot)} · each row</span>
-              {selectedPath.map((edge) => <React.Fragment key={`rendered-${edgeId(edge)}`}><span aria-hidden="true" className="text-blue-500">→</span><span className="rounded bg-blue-50 px-2 py-1 text-blue-900">{resourceLabel(edge.toType)}</span></React.Fragment>)}
-            </div>
-          </div>
-        </div>
         {(() => {
           const tab = existingTabs.find((candidate) => candidate.output === workspaceName);
           const rawColumns: JSONValue[] = tab && Array.isArray(asRecord(tab.table).columns) ? asRecord(tab.table).columns as JSONValue[] : [];
