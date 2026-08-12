@@ -40,6 +40,19 @@ export const semanticConceptsFor = (
 export const familyLabel = (id: string, label?: string) =>
   label?.trim() || id.trim() || 'Other concepts';
 
+/** Recipe declaration names are stable implementation identifiers. Present
+ * them as plain language and drop generic lifecycle prefixes in the UI. */
+export const recipeFamilyLabel = (name: string) => {
+  const meaningful = name
+    .trim()
+    .replace(/^(?:(?:legacy|default|generated|auto)[_-]+)+/i, '')
+    .replace(/[_-]+/g, ' ')
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .trim();
+  if (!meaningful) return 'Recipe columns';
+  return meaningful.replace(/\b\w/g, (letter) => letter.toUpperCase());
+};
+
 const compactPath = (value: unknown) =>
   typeof value === 'string'
     ? value.trim().replace(/^root\./i, '').replace(/^FHIR\./i, '')

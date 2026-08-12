@@ -32,6 +32,7 @@ import {
   familyLabel,
   conceptSelectionsFor,
   isPartialSemanticCatalog,
+  recipeFamilyLabel,
   semanticCatalogAvailability,
   semanticConceptDisambiguator,
   semanticConceptsFor,
@@ -1631,7 +1632,7 @@ export const GuidedBuilder = ({
                   ? semanticConceptDisambiguator(concept)
                   : '';
                 return (
-                  <React.Fragment key={field.fieldRef}><>{startsFamily && <p className={`col-span-full pt-2 font-semibold uppercase tracking-wide text-slate-500 ${isExpandedColumnPanel ? 'text-sm' : 'text-xs'}`}>{recipeCandidate?.familyName || familyLabel(concept?.family ?? 'technical', family?.label ?? (concept ? undefined : 'Technical fields'))}</p>}</><label className={`flex cursor-pointer items-start gap-2 ${isExpandedColumnPanel ? 'min-h-24 rounded-lg border border-slate-200 px-3 py-3 shadow-sm' : 'border-b border-slate-100 px-1 py-1.5'} ${checked ? 'border-blue-300 bg-blue-50' : 'hover:bg-slate-50'}`}>
+                  <React.Fragment key={field.fieldRef}><>{startsFamily && <p className={`col-span-full pt-2 font-semibold uppercase tracking-wide text-slate-500 ${isExpandedColumnPanel ? 'text-sm' : 'text-xs'}`}>{recipeCandidate ? recipeFamilyLabel(recipeCandidate.familyName) : familyLabel(concept?.family ?? 'technical', family?.label ?? (concept ? undefined : 'Technical fields'))}</p>}</><label className={`flex cursor-pointer items-start gap-2 ${isExpandedColumnPanel ? 'min-h-24 rounded-lg border border-slate-200 px-3 py-3 shadow-sm' : 'border-b border-slate-100 px-1 py-1.5'} ${checked ? 'border-blue-300 bg-blue-50' : 'hover:bg-slate-50'}`}>
                     <input
                       checked={checked}
                       disabled={disabled || (!inspectorInQuery && !candidateEdge)}
