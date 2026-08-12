@@ -9,6 +9,7 @@ import {
   useReactFlow,
   type EdgeProps,
 } from '@xyflow/react';
+import { IconCopy, IconTrash } from '@tabler/icons-react';
 import type {
   ExplorerAuthoringDocument,
   JSONValue,
@@ -1319,7 +1320,7 @@ export const GuidedBuilder = ({
     setSelectedPath(nextPath);
     setSelectedFieldsByNode(nextFieldMap);
     setSelectedNodeType(nextEndpoint);
-    setInspectorOpen(false);
+    setInspectorOpen(true);
     const rendered = applyTable(
       selectedFields,
       selectedRoot,
@@ -1385,37 +1386,37 @@ export const GuidedBuilder = ({
     // eslint-disable-next-line reactHooks/exhaustive-deps
   }, [existingOutputs.length, hasEditableOutput, organization, project, projectMap, recipeSource, scanState, semanticCatalogState]);
 
+  const selectWorkspaceOutput = (nextOutputName: string) => {
+    const candidate = existingOutputs.find((output) => outputKey(output) === nextOutputName);
+    if (!candidate) return;
+    selectedOutputIntent.current = nextOutputName;
+    setSelectedOutputName(nextOutputName);
+    const nextRoot = typeof candidate.rootResourceType === 'string' ? candidate.rootResourceType : selectedRoot;
+    setSelectedRoot(nextRoot);
+    setSelectedNodeType(nextRoot);
+    const hydrated = hydrateRecipeTraversal(candidate, projectMap, nextRoot, semanticCatalog);
+    setSelectedPath(hydrated.path);
+    setSelectedFieldsByNode((current) => ({ ...current, ...hydrated.fieldsByNode }));
+    const conceptSelections = Array.isArray(candidate.conceptSelections) ? candidate.conceptSelections.map(asRecord) : [];
+    const nextFields = Array.isArray(candidate.fields) ? candidate.fields.map(asRecord).map((field) => {
+      const expr = asRecord(field.expr);
+      const semanticRef = recipeFieldRef(field, nextRoot, semanticCatalog, conceptSelections);
+      return semanticRef || (typeof expr.select === 'string' ? `${nextRoot}.${expr.select.replace(/^root\./, '')}` : '');
+    }).filter(Boolean) : [];
+    setSelectedFields(nextFields);
+    setSelectedFieldsByNode((current) => ({ ...current, [nextRoot]: nextFields }));
+    setTableTitle(typeof candidate.name === 'string' ? titleFor(candidate.name) : tableTitle);
+  };
+
   return (
     <section aria-label="Guided Explorer Builder" className="flex min-h-[38rem] flex-col gap-3">
-      <header className="shrink-0 border-b border-slate-200 bg-white pb-3">
-        <div className="flex items-baseline gap-2 px-1">
-          <h1 className="text-lg font-semibold text-slate-900">Explorer Builder</h1>
-        </div>
-        <div role="toolbar" aria-label="Table workspace" className="mt-2 space-y-2 rounded-lg border border-slate-200 bg-slate-50/70 p-2">
-          <div className="flex flex-wrap items-center gap-2">
-          <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Tables</span>
-          {existingOutputs.map((candidate) => <button key={String(candidate.name)} type="button" className={`rounded-md px-3 py-1.5 text-sm ${candidate.name === activeOutput?.name ? 'bg-[#2f5aac] font-semibold text-white' : 'border border-slate-200 bg-white text-slate-700'}`} onClick={() => {
-            const nextOutputName = outputKey(candidate);
-            selectedOutputIntent.current = nextOutputName;
-            setSelectedOutputName(nextOutputName);
-            const nextRoot = typeof candidate.rootResourceType === 'string' ? candidate.rootResourceType : selectedRoot;
-            setSelectedRoot(nextRoot);
-            setSelectedNodeType(nextRoot);
-            const hydrated = hydrateRecipeTraversal(candidate, projectMap, nextRoot, semanticCatalog);
-            setSelectedPath(hydrated.path);
-            setSelectedFieldsByNode((current) => ({ ...current, ...hydrated.fieldsByNode }));
-            const conceptSelections = Array.isArray(candidate.conceptSelections)
-              ? candidate.conceptSelections.map(asRecord)
-              : [];
-            const nextFields = Array.isArray(candidate.fields) ? candidate.fields.map(asRecord).map((field) => {
-              const expr = asRecord(field.expr);
-              const semanticRef = recipeFieldRef(field, nextRoot, semanticCatalog, conceptSelections);
-              return semanticRef || (typeof expr.select === 'string' ? `${nextRoot}.${expr.select.replace(/^root\./, '')}` : '');
-            }).filter(Boolean) : [];
-            setSelectedFields(nextFields);
-            setSelectedFieldsByNode((current) => ({ ...current, [nextRoot]: nextFields }));
-            setTableTitle(typeof candidate.name === 'string' ? titleFor(candidate.name) : tableTitle);
-          }}>{typeof candidate.name === 'string' ? titleFor(candidate.name) : 'Untitled'}</button>)}
+      <header className="shrink-0">
+        <div role="toolbar" aria-label="Table workspace" className="flex flex-nowrap items-center gap-2 overflow-x-auto rounded-lg border border-slate-200 bg-white p-2 shadow-sm">
+          <label className="flex shrink-0 items-center gap-1.5 text-xs font-semibold text-slate-600" htmlFor="builder-table-select">Table
+            <select id="builder-table-select" disabled={disabled || existingOutputs.length === 0} value={activeOutputName ?? ''} onChange={(event) => selectWorkspaceOutput(event.currentTarget.value)} className="max-w-52 rounded border border-slate-300 bg-white px-2 py-1.5 text-sm font-normal text-slate-900">
+              {existingOutputs.map((candidate) => <option key={String(candidate.name)} value={outputKey(candidate)}>{typeof candidate.name === 'string' ? titleFor(candidate.name) : 'Untitled'}</option>)}
+            </select>
+          </label>
           <button type="button" disabled={disabled || availableRoots.length === 0} className="rounded-md border border-blue-300 px-3 py-1.5 text-sm font-medium text-blue-800 disabled:cursor-not-allowed disabled:opacity-50" onClick={() => {
             const root = selectedRoot || availableRoots[0];
             if (!root) return;
@@ -1428,31 +1429,27 @@ export const GuidedBuilder = ({
             setTableTitle(`${titleFor(root)} ${existingOutputs.length + 1}`);
             applyTable(fields, root, `${titleFor(root)} ${existingOutputs.length + 1}`, { ...selectedFieldsByNode, [root]: fields }, false, []);
           }}>New table</button>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 border-t border-slate-200 pt-2">
-          <button type="button" disabled={disabled || !workspaceOutput} className="rounded-md border border-slate-200 px-3 py-1.5 text-sm" onClick={() => {
+          <button type="button" title="Duplicate table" aria-label="Duplicate table" disabled={disabled || !workspaceOutput} className="rounded-md border border-slate-200 p-2 text-slate-700 disabled:opacity-50" onClick={() => {
             if (!workspaceOutput || typeof workspaceOutput.name !== 'string') return;
             const copyName = `${workspaceOutput.name}_copy`;
             const sourceTab = existingTabs.find((tab) => tab.output === workspaceOutput.name);
             setSelectedOutputName(copyName);
             updateWorkspace([...existingOutputs, { ...workspaceOutput, name: copyName }], [...existingTabs, { ...(sourceTab ?? {}), id: outputId(copyName), title: titleFor(copyName), output: copyName }]);
-          }}>Duplicate</button>
-          <button type="button" disabled={disabled || !workspaceName} className="rounded-md border border-slate-200 px-3 py-1.5 text-sm" onClick={() => {
+          }}><IconCopy aria-hidden="true" size={18} /></button>
+          <button type="button" title="Delete table" aria-label="Delete table" disabled={disabled || !workspaceName} className="rounded-md border border-slate-200 p-2 text-slate-700 disabled:opacity-50" onClick={() => {
             if (!workspaceName) return;
             const removedIndex = existingOutputs.findIndex((candidate) => candidate.name === workspaceName);
             const remaining = existingOutputs.filter((candidate) => candidate.name !== workspaceName);
             setSelectedOutputName(outputKey(remaining[removedIndex] ?? remaining[removedIndex - 1] ?? remaining[0]));
             updateWorkspace(remaining, existingTabs.filter((tab) => tab.output !== workspaceName));
-          }}>Delete</button>
+          }}><IconTrash aria-hidden="true" size={18} /></button>
           <label className="ml-1 flex shrink-0 items-center gap-1.5 text-xs font-semibold text-slate-600" htmlFor="builder-table-title">Name
             <input id="builder-table-title" disabled={disabled} className="w-36 rounded border border-slate-300 bg-white px-2 py-1.5 text-sm font-normal text-slate-900" value={tableTitle} onChange={(event) => setTableTitle(event.currentTarget.value)} onBlur={() => applyTable(selectedFields, selectedRoot, tableTitle)} />
           </label>
           <span className="min-w-2 flex-1" />
-          <button type="button" className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700" onClick={() => setInspectorOpen((open) => !open)}>{inspectorOpen ? 'Hide columns' : 'Show columns'}</button>
           <button type="button" disabled={disabled || !selectedRoot || selectedFields.length === 0} className="rounded-md bg-green-700 px-4 py-1.5 text-sm font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:bg-slate-400" onClick={renderCurrentTable}>Render table <span className="ml-1 rounded-full bg-white/20 px-1.5 text-xs">{selectedQueryFieldCount}</span></button>
           {onSaveDraft && <button type="button" disabled={disabled} className="rounded-md border border-blue-300 bg-white px-3 py-1.5 text-sm font-medium text-blue-800" onClick={onSaveDraft}>Save draft</button>}
           {onMakeLive && <button type="button" disabled={disabled} className="rounded-md bg-[#2f5aac] px-3 py-1.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50" onClick={onMakeLive}>Make live</button>}
-          </div>
         </div>
       </header>
 
