@@ -1387,21 +1387,12 @@ export const GuidedBuilder = ({
 
   return (
     <section aria-label="Guided Explorer Builder" className="flex min-h-[38rem] flex-col gap-3">
-      <header className="shrink-0 rounded-lg border border-blue-100 bg-gradient-to-r from-blue-50 to-white p-3">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <div><p className="text-xs font-semibold uppercase tracking-wide text-[#2f5aac]">Explorer Builder</p>
-          <h1 className="text-xl font-semibold text-slate-900">Build a table from this project&apos;s data</h1>
-          <label className="mt-2 block w-[min(24rem,100%)] text-xs font-semibold text-slate-700" htmlFor="builder-table-title">Table name
-            <input id="builder-table-title" disabled={disabled} className="mt-1 block w-full rounded border border-slate-300 bg-white px-3 py-1.5 text-sm font-normal text-slate-900" value={tableTitle} onChange={(event) => setTableTitle(event.currentTarget.value)} onBlur={() => applyTable(selectedFields, selectedRoot, tableTitle)} />
-          </label></div>
-          <p className="max-w-2xl text-sm text-slate-600">Choose a starting point, inspect a related dataset, select its columns, then explicitly add it to the table.</p>
+      <header className="shrink-0 rounded-lg border border-blue-100 bg-gradient-to-r from-blue-50 to-white p-2.5">
+        <div className="flex items-baseline gap-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[#2f5aac]">Explorer Builder</p>
+          <h1 className="text-lg font-semibold text-slate-900">Build a table from this project&apos;s data</h1>
         </div>
-        <div className="mt-3 flex items-center gap-2 text-xs font-semibold" aria-label="Builder steps">
-          <span className="rounded-full bg-[#2f5aac] px-3 py-1 text-white">1 Build traversal</span>
-          <span aria-hidden="true" className="text-slate-400">→</span>
-          <span className="rounded-full border border-blue-300 bg-white px-3 py-1 text-blue-800">2 Render &amp; edit table</span>
-        </div>
-        <div role="toolbar" aria-label="Table workspace" className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-white/90 p-2 shadow-sm">
+        <div role="toolbar" aria-label="Table workspace" className="mt-2 flex flex-nowrap items-center gap-2 overflow-x-auto rounded-lg border border-slate-200 bg-white/90 p-2 shadow-sm">
           <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Tables</span>
           {existingOutputs.map((candidate) => <button key={String(candidate.name)} type="button" className={`rounded-md px-3 py-1.5 text-sm ${candidate.name === activeOutput?.name ? 'bg-[#2f5aac] font-semibold text-white' : 'border border-slate-200 bg-white text-slate-700'}`} onClick={() => {
             const nextOutputName = outputKey(candidate);
@@ -1452,7 +1443,10 @@ export const GuidedBuilder = ({
             setSelectedOutputName(outputKey(remaining[removedIndex] ?? remaining[removedIndex - 1] ?? remaining[0]));
             updateWorkspace(remaining, existingTabs.filter((tab) => tab.output !== workspaceName));
           }}>Delete</button>
-          <span className="flex-1" />
+          <label className="ml-1 flex shrink-0 items-center gap-1.5 text-xs font-semibold text-slate-600" htmlFor="builder-table-title">Name
+            <input id="builder-table-title" disabled={disabled} className="w-36 rounded border border-slate-300 bg-white px-2 py-1.5 text-sm font-normal text-slate-900" value={tableTitle} onChange={(event) => setTableTitle(event.currentTarget.value)} onBlur={() => applyTable(selectedFields, selectedRoot, tableTitle)} />
+          </label>
+          <span className="min-w-2 flex-1" />
           <button type="button" className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700" onClick={() => setInspectorOpen((open) => !open)}>{inspectorOpen ? 'Hide columns' : 'Show columns'}</button>
           <button type="button" disabled={disabled || !selectedRoot || selectedFields.length === 0} className="rounded-md bg-green-700 px-4 py-1.5 text-sm font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:bg-slate-400" onClick={renderCurrentTable}>Render table <span className="ml-1 rounded-full bg-white/20 px-1.5 text-xs">{selectedQueryFieldCount}</span></button>
           {onSaveDraft && <button type="button" disabled={disabled} className="rounded-md border border-blue-300 bg-white px-3 py-1.5 text-sm font-medium text-blue-800" onClick={onSaveDraft}>Save draft</button>}
