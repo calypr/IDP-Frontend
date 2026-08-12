@@ -259,8 +259,10 @@ export const ExplorerSamplePreview = ({
                 {rows.map((row, rowIndex) => (
                   <tr className="odd:bg-white even:bg-slate-50/70 hover:bg-blue-50/60" key={`sample-row-${rowIndex}`}>
                     {columns.map((column) => (
-                      <td className="max-w-[20rem] whitespace-nowrap border-b border-slate-100 px-4 py-2.5 text-slate-700" key={column.sourceName}>
-                        {valueForCell(row[column.sourceName])}
+                      <td className="w-56 max-w-56 overflow-hidden border-b border-slate-100 px-4 py-2.5 text-slate-700" key={column.sourceName}>
+                        <div className="truncate whitespace-nowrap" title={valueForCell(row[column.sourceName])}>
+                          {valueForCell(row[column.sourceName])}
+                        </div>
                       </td>
                     ))}
                   </tr>
