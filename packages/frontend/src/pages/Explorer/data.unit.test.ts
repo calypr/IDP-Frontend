@@ -17,7 +17,12 @@ jest.mock('../../lib/content', () => ({
   default: {},
 }));
 
-import { getExplorerLoomProblem, ValidateExplorerConfiguration } from './data';
+import {
+  getExplorerLoomProblem,
+  normalizeResolvedExplorerConfiguration,
+  pinResolvedConfiguration,
+  ValidateExplorerConfiguration,
+} from './data';
 import type { CohortBuilderConfiguration } from '../../features/CohortBuilder';
 
 const configuration: CohortBuilderConfiguration = {
@@ -112,4 +117,61 @@ describe('getExplorerLoomProblem', () => {
   it('does not convert non-Loom failures into Explorer availability cards', () => {
     expect(getExplorerLoomProblem(new Error('unexpected'))).toBeNull();
   });
+});
+
+describe('immutable release runtime pinning', () => {
+  it('adapts the frozen tabs document without using the legacy explorerConfig key', () => {
+    const normalized = normalizeResolvedExplorerConfiguration({
+      schemaVersion: 1,
+      tabs: [
+        {
+          id: 'patients',
+          title: 'Patients',
+          output: 'Patients',
+          table: {
+            columns: [{ field: 'id', label: 'Patient ID', visible: true }],
+          },
+        },
+      ],
+    });
+    expect(normalized.explorerConfig[0]).toMatchObject({
+      tabTitle: 'Patients',
+      guppyConfig: { dataType: 'Patients', output: 'Patients' },
+      table: {
+        fields: ['id'],
+        columns: { id: { field: 'id', title: 'Patient ID', visible: true } },
+      },
+    });
+  });
+
+  it('injects materialization IDs without retaining a current dataType selector', () => {
+    const { configuration } = pinResolvedConfiguration(configurationFixture(), {
+      status: 'VALID',
+      recipeName: 'project_recipe',
+      translationVersion: 'r000001_abcd',
+      outputs: {
+        ResearchSubject: {
+          materializationId: 'mat-1',
+          columns: [{ name: 'identifier' }],
+        },
+      },
+    });
+    const panel = configuration.explorerConfig[0];
+    expect(panel.guppyConfig.loomDataset).toEqual({
+      recipe: 'project_recipe',
+      translationVersion: 'r000001_abcd',
+      output: 'ResearchSubject',
+      materializationId: 'mat-1',
+    });
+  });
+});
+
+const configurationFixture = (): CohortBuilderConfiguration => ({
+  explorerConfig: [
+    {
+      tabTitle: 'Patient',
+      guppyConfig: { dataType: 'ResearchSubject' },
+      table: { enabled: true, fields: ['identifier'], columns: {} },
+    },
+  ],
 });

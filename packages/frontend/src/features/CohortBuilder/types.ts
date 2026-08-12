@@ -8,7 +8,7 @@ import { SummaryTable } from './ExplorerTable/types';
 import { FacetSortType, FieldToName } from '../../components/facets/types';
 import { DownloadButtonProps } from '../../components/Buttons/DropdownButtons';
 import { Dispatch, SetStateAction } from 'react';
-import { Modals, SharedFieldMapping } from '@gen3/core';
+import { LoomDatasetSelector, Modals, SharedFieldMapping } from '@gen3/core';
 import { StylingOverride } from '../../types/styling';
 import { Gen3AppConfigData } from '../../lib/content/types';
 import { FacetDefinition } from '@gen3/core';
@@ -45,6 +45,7 @@ export interface ManifestFieldsConfig {
 
 export interface DataTypeConfig {
   dataType: string;
+  loomDataset?: LoomDatasetSelector;
   nodeCountTitle?: string;
   accessibleFieldCheckList?: string[];
   accessibleValidationField?: string;
@@ -145,8 +146,10 @@ export type ActionButtonWithArgsFunction = (
   signal?: AbortSignal,
 ) => Promise<void>;
 
-export interface DownloadButtonPropsWithAction
-  extends Omit<DownloadButtonProps, 'action' | 'actionArgs'> {
+export interface DownloadButtonPropsWithAction extends Omit<
+  DownloadButtonProps,
+  'action' | 'actionArgs'
+> {
   actionFunction: ActionButtonWithArgsFunction;
   actionArgs: Record<string, any>;
 }

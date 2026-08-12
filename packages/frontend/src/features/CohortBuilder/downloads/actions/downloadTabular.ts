@@ -2,6 +2,7 @@ import {
   downloadJSONDataFromLoom,
   isLoomDataType,
   LoomDownloadParams,
+  LoomDatasetSelector,
 } from '@gen3/core';
 import { handleDownload } from './utils';
 import { jsonToCsv } from '../utils/jsonToCsv';
@@ -15,6 +16,7 @@ export interface DownloadTabularParams {
   filename?: string;
   accessibility?: any;
   sort?: any;
+  selector?: LoomDatasetSelector;
 }
 
 export const downloadTabularAction: ActionButtonWithArgsFunction = async (
@@ -32,17 +34,19 @@ export const downloadTabularAction: ActionButtonWithArgsFunction = async (
     filter,
     sort,
     filename,
+    selector,
   } = params as DownloadTabularParams;
   const downloadFilename = filename ?? `${type}_export.csv`;
   const dataType = resourceIndexType || type;
-  if (!isLoomDataType(dataType)) {
+  if (!selector && !isLoomDataType(dataType)) {
     onError?.(new Error(`Unsupported Loom data type: ${dataType}`));
     return;
   }
 
   const cohortFilterParams: LoomDownloadParams = {
     filter,
-    type: dataType,
+    type: !selector && isLoomDataType(dataType) ? dataType : undefined,
+    selector,
     fields: fileFields,
     sort,
     format: 'json',

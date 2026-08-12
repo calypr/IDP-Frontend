@@ -8,6 +8,7 @@ import {
   JSONObject,
   selectIndexFilters,
   useCoreSelector,
+  useGetLoomDatasetBySelectorQuery,
   useGetLoomDatasetQuery,
   useGetLoomRowsQuery,
 } from '@gen3/core';
@@ -48,6 +49,7 @@ const ExplorerTable = ({
   classNames,
   size = 'sm',
   fileActions,
+  loomDataset,
 }: ExplorerTableProps) => {
   const [pagination, setPagination] = useState<MRT_PaginationState>({
     pageIndex: 0,
@@ -155,6 +157,11 @@ const ExplorerTable = ({
   );
 
   const loomDataType = isLoomDataType(index) ? index : null;
+  const loomIdentity = loomDataset
+    ? ({ selector: loomDataset } as const)
+    : loomDataType
+      ? ({ dataType: loomDataType } as const)
+      : null;
   const loomFilters = useMemo(() => {
     try {
       return {
@@ -164,7 +171,8 @@ const ExplorerTable = ({
     } catch (error) {
       return {
         filters: [],
-        error: error instanceof Error ? error.message : 'Unsupported Loom filter',
+        error:
+          error instanceof Error ? error.message : 'Unsupported Loom filter',
       };
     }
   }, [cohortFilters]);
@@ -173,24 +181,41 @@ const ExplorerTable = ({
     isError: isDatasetError,
     isLoading: isDatasetLoading,
   } = useGetLoomDatasetQuery(loomDataType ?? 'DocumentReference', {
-    skip: !loomDataType,
+    skip: !loomDataType || Boolean(loomDataset),
   });
-  const queryFields = useMemo(
-    () => includeAvailableSha256(fields, dataset?.columns),
-    [dataset?.columns, fields],
+  const {
+    data: selectedDataset,
+    isError: isSelectedDatasetError,
+    isLoading: isSelectedDatasetLoading,
+  } = useGetLoomDatasetBySelectorQuery(
+    {
+      selector: loomDataset ?? {
+        recipe: '',
+        translationVersion: '',
+        output: '',
+      },
+    },
+    { skip: !loomDataset },
   );
-  const [cursorLedger, setCursorLedger] = useState<Record<number, string | null>>({
+  const activeDataset = loomDataset ? selectedDataset : dataset;
+  const queryFields = useMemo(
+    () => includeAvailableSha256(fields, activeDataset?.columns),
+    [activeDataset?.columns, fields],
+  );
+  const [cursorLedger, setCursorLedger] = useState<
+    Record<number, string | null>
+  >({
     0: null,
   });
   const querySignature = useMemo(
     () =>
       JSON.stringify({
-        loomDataType,
+        loomIdentity,
         loomFilters: loomFilters.filters,
         sorting,
         pageSize: pagination.pageSize,
       }),
-    [loomDataType, loomFilters.filters, sorting, pagination.pageSize],
+    [loomIdentity, loomFilters.filters, sorting, pagination.pageSize],
   );
   useEffect(() => {
     setCursorLedger({ 0: null });
@@ -204,7 +229,7 @@ const ExplorerTable = ({
     isFetching,
   } = useGetLoomRowsQuery(
     {
-      dataType: loomDataType ?? 'DocumentReference',
+      ...(loomIdentity ?? { dataType: 'DocumentReference' as const }),
       columns: queryFields,
       filters: loomFilters.filters,
       first: pagination.pageSize,
@@ -213,7 +238,7 @@ const ExplorerTable = ({
         ? { column: sorting[0].id, desc: sorting[0].desc }
         : undefined,
     },
-    { skip: !loomDataType || !!loomFilters.error },
+    { skip: !loomIdentity || !!loomFilters.error },
   );
   useEffect(() => {
     const nextCursor = loomRows?.pageInfo?.endCursor;
@@ -233,8 +258,7 @@ const ExplorerTable = ({
         | ((current: MRT_PaginationState) => MRT_PaginationState),
     ) => {
       setPagination((current) => {
-        const next =
-          typeof updater === 'function' ? updater(current) : updater;
+        const next = typeof updater === 'function' ? updater(current) : updater;
         return next.pageIndex === 0 || next.pageIndex in cursorLedger
           ? next
           : current;
@@ -398,29 +422,33 @@ const ExplorerTable = ({
           }
         : undefined,
   });
-  if (!loomDataType) {
+  if (!loomIdentity) {
     return <ErrorCard message={`Unsupported Explorer data type: ${index}`} />;
   }
   if (loomFilters.error) {
     return <ErrorCard message={loomFilters.error} />;
   }
-  if (isDatasetError) {
-    return <ErrorCard message="Unable to discover the authorized Loom dataset" />;
+  if (isDatasetError || isSelectedDatasetError) {
+    return (
+      <ErrorCard message="Unable to discover the authorized Loom dataset" />
+    );
   }
-  if (isDatasetLoading) {
+  if (isDatasetLoading || isSelectedDatasetLoading) {
     return (
       <div className="flex items-center justify-center w-full h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
       </div>
     );
   }
-  if (!dataset) {
-    return <ErrorCard message="No authorized Loom dataset is available for this Explorer tab" />;
+  if (!activeDataset) {
+    return (
+      <ErrorCard message="No authorized Loom dataset is available for this Explorer tab" />
+    );
   }
-  if (dataset.state !== 'READY') {
+  if (activeDataset.state !== 'READY') {
     return (
       <ErrorCard
-        message={`Loom dataset is ${dataset.state.toLowerCase()}${dataset.error ? `: ${dataset.error}` : ''}`}
+        message={`Loom dataset is ${activeDataset.state.toLowerCase()}${activeDataset.error ? `: ${activeDataset.error}` : ''}`}
       />
     );
   }
@@ -452,6 +480,7 @@ const ExplorerTable = ({
             classNames={tableConfig?.detailsConfig?.classNames}
             panelProps={{
               index,
+              loomDataset,
               tableConfig,
               ...(tableConfig?.detailsConfig?.params ?? {}),
               accessibility,

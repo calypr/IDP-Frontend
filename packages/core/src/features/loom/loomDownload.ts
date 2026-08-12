@@ -5,10 +5,12 @@ import { isJSONObject, JSONObject } from '../../types';
 import { convertFilterSetToLoomFilters } from './filters';
 import { fetchLoomResponse } from './loomApi';
 import type { FilterSet } from '../filters';
-import type { LoomDataType, LoomSort } from './types';
+import type { LoomDataType, LoomDatasetSelector, LoomSort } from './types';
+import { validateLoomDatasetSelector } from './types';
 
 export interface LoomDownloadParams {
-  readonly type: LoomDataType;
+  readonly type?: LoomDataType;
+  readonly selector?: LoomDatasetSelector;
   readonly fields: ReadonlyArray<string>;
   readonly filter?: FilterSet;
   readonly sort?: unknown;
@@ -43,14 +45,33 @@ const normalizeSort = (sort: unknown): LoomSort | undefined => {
   return undefined;
 };
 
-const buildRequest = (parameters: LoomDownloadParams) => ({
-  dataType: parameters.type,
-  columns: [...parameters.fields],
-  filters: convertFilterSetToLoomFilters(parameters.filter),
-  sort: normalizeSort(parameters.sort),
-  format: parameters.format.toUpperCase(),
-  filename: parameters.filename,
-});
+export const buildLoomDownloadRequest = (parameters: LoomDownloadParams) => {
+  if (!parameters.type && !parameters.selector) {
+    throw new Error('A Loom download requires a dataset identity.');
+  }
+  if (parameters.selector) {
+    const diagnostic = validateLoomDatasetSelector(parameters.selector);
+    if (diagnostic) throw new Error(diagnostic.message);
+  }
+  return {
+    ...(parameters.selector?.materializationId
+      ? { materializationId: parameters.selector.materializationId }
+      : parameters.selector
+        ? {
+            selector: {
+              recipe: parameters.selector.recipe,
+              translationVersion: parameters.selector.translationVersion,
+              output: parameters.selector.output,
+            },
+          }
+        : { dataType: parameters.type }),
+    columns: [...parameters.fields],
+    filters: convertFilterSetToLoomFilters(parameters.filter),
+    sort: normalizeSort(parameters.sort),
+    format: parameters.format.toUpperCase(),
+    filename: parameters.filename,
+  };
+};
 
 const fetchLoomExport = async (
   parameters: LoomDownloadParams,
@@ -64,7 +85,7 @@ const fetchLoomExport = async (
       'Content-Type': 'application/json',
       ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
     },
-    body: JSON.stringify(buildRequest(parameters)),
+    body: JSON.stringify(buildLoomDownloadRequest(parameters)),
     signal,
   });
 };

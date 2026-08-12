@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useGetGeckoProjectsQuery } from '@gen3/core';
 import {
   ExplorerMainContent,
+  ExplorerBuilderPage,
   ExplorerPageGetServerSidePropsForConfigId as getServerSideProps,
   ExplorerPageProps,
   NavPageLayout,
@@ -41,7 +43,7 @@ const CohortBuilderPage = ({
     setActiveExplorerTab(explorerConfig?.[0]?.tabTitle ?? null);
   }, [configId, explorerConfig]);
 
-  const explorerContent = (
+  const explorerContent = configuration ? (
     <ExplorerMainContent
       activeTab={showTabsInToolbar ? activeExplorerTab : undefined}
       configuration={configuration}
@@ -50,6 +52,12 @@ const CohortBuilderPage = ({
       sharedFiltersMap={sharedFiltersMap}
       pageProblems={pageProblems}
     />
+  ) : organization && project ? (
+    <ExplorerBuilderPage organization={organization} project={project} />
+  ) : (
+    <main className="mx-auto max-w-screen-2xl p-6">
+      <p role="status">Loading project Explorer tools…</p>
+    </main>
   );
 
   if (isEmbedded) {
@@ -65,7 +73,7 @@ const CohortBuilderPage = ({
         content: 'Cohort Builder',
         key: 'gen3-cohort-builder-page',
       }}
-      pageProblems={pageProblems}
+      pageProblems={configuration ? pageProblems : []}
     >
       <ProjectWorkspaceTabs
         activeTab="explorer"
@@ -98,6 +106,18 @@ const CohortBuilderPage = ({
                   </button>
                 );
               })}
+              <Link
+                aria-selected={!configuration}
+                className={`rounded-none border-0 border-b-2 bg-transparent px-0 pb-3 pt-3 text-sm font-semibold transition-colors ${
+                  configuration
+                    ? 'border-transparent text-slate-500 hover:text-slate-800'
+                    : 'border-[#2f5aac] text-[#2f5aac]'
+                }`}
+                href={`/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}/explorers/builder`}
+                role="tab"
+              >
+                Builder
+              </Link>
             </div>
           ) : null
         }

@@ -109,7 +109,10 @@ export const createServerPageContext = (
   next: GetServerSidePropsContext,
   loadNavigation: (context: ServerPageContext) => Promise<any>,
 ): ServerPageContext => {
-  const headers = getServerRequestHeaders(next.req.headers);
+  // Next calls _app.getInitialProps during client-side route transitions too.
+  // In that case the context has no Node request, so bind an anonymous/local
+  // context instead of crashing before the destination page can load.
+  const headers = getServerRequestHeaders(next.req?.headers ?? {});
   const serviceHeaders = getServerServiceHeaders(headers);
   const content = new BoundContentClient(
     ContentSource.getContentDatabase(),

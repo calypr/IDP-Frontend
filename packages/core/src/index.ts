@@ -55,6 +55,7 @@ export * from './features/syfon';
 export * from './features/workspace';
 export * from './features/grip';
 export * from './features/configurator';
+export * from './features/explorerBuilder';
 export * from './features/Directory';
 
 export {

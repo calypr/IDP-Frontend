@@ -7,4 +7,5 @@ export type * from './types';
 export {
   ExplorerPageGetServerSideProps,
   ExplorerPageGetServerSidePropsForConfigId,
+  ExplorerPageGetServerSidePropsForRelease,
 } from './data';

@@ -56,7 +56,10 @@ export const downloadToManifestAction = async (
     fileFields,
   } = params;
 
-  if (!isLoomDataType(params.type) || !isLoomDataType(resourceIndexType)) {
+  if (
+    (!params.selector && !isLoomDataType(params.type)) ||
+    !isLoomDataType(resourceIndexType)
+  ) {
     onError?.(
       new Error(
         `Unsupported Loom data type: ${params.type ?? resourceIndexType}`,
@@ -71,6 +74,7 @@ export const downloadToManifestAction = async (
   const cohortFilterParams: LoomDownloadParams = {
     filter: params.filter,
     type: params.type,
+    selector: params.selector,
     fields: params.fields,
     sort: params.sort,
     format: 'json',
@@ -169,7 +173,7 @@ export const downloadToManifestAction = async (
     resultManifest = resultManifest.filter(
       (x: JSONObject) => !!x[resourceIdField],
     );
-     
+
     resultManifest.forEach((x: JSONObject) => {
       if (typeof x[resourceIdField] === 'string') {
         x[resourceIdField] = [x[resourceIdField]];

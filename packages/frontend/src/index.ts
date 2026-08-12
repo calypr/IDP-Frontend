@@ -113,9 +113,10 @@ import {
 } from './pages/reports';
 
 import ExplorerPage, { ExplorerMainContent } from './pages/Explorer/Explorer';
+export * from './features/ExplorerBuilder';
 import {
   ExplorerPageGetServerSideProps,
-  ExplorerPageGetServerSidePropsForConfigId,
+  ExplorerPageGetServerSidePropsForRelease,
   type ExplorerPageProps,
 } from './pages/Explorer';
 
@@ -240,7 +241,7 @@ export {
   ExplorerPage,
   ExplorerMainContent,
   ExplorerPageGetServerSideProps,
-  ExplorerPageGetServerSidePropsForConfigId,
+  ExplorerPageGetServerSidePropsForRelease,
   RSReportsPageGetServerSideProps,
   ResearchSubjectDetailsPanel,
   MedicationAdministrationDetailPanel,

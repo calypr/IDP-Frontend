@@ -9,7 +9,9 @@ import type {
   LoomRowsRequest,
   LoomRowsResponse,
   LoomQueryArgs,
+  LoomDatasetIdentity,
 } from './types';
+import { loomDatasetIdentityKey, validateLoomDatasetSelector } from './types';
 
 const datasetFields = `
   id name revision state rowCount createdAt readyAt error
@@ -35,6 +37,30 @@ export const buildLoomDatasetQuery = (dataType: string): LoomQueryArgs => ({
   variables: { dataType },
 });
 
+const buildLoomIdentityInput = (identity: LoomDatasetIdentity) => {
+  if (identity.materializationId) return { materializationId: identity.materializationId };
+  if (!identity.selector) return { dataType: identity.dataType };
+  const diagnostic = validateLoomDatasetSelector(identity.selector);
+  if (diagnostic) throw new Error(diagnostic.message);
+  if (identity.selector.materializationId) {
+    return { materializationId: identity.selector.materializationId };
+  }
+  return {
+    selector: {
+      recipe: identity.selector.recipe,
+      translationVersion: identity.selector.translationVersion,
+      output: identity.selector.output,
+    },
+  };
+};
+
+export const buildLoomDatasetSelectorQuery = (
+  selector: LoomDatasetIdentity,
+): LoomQueryArgs => ({
+  query: `query LoomDataset($input: DataframeDatasetInput!) { dataframeDataset(input: $input) { ${datasetFields} } }`,
+  variables: { input: buildLoomIdentityInput(selector) },
+});
+
 export const buildLoomDatasetColumnsQuery = (
   dataTypes: ReadonlyArray<string>,
 ): LoomQueryArgs => ({
@@ -50,9 +76,12 @@ export const buildLoomRowsQuery = (input: LoomRowsRequest): LoomQueryArgs => ({
   query: `query LoomRows($input: DataframeRowsInput!) { dataframeRows(input: $input) { ${rowsFields} } }`,
   variables: {
     input: {
-      ...input,
+      ...buildLoomIdentityInput(input),
       columns: input.columns ? [...input.columns] : undefined,
       filters: input.filters ? [...input.filters] : undefined,
+      sort: input.sort,
+      first: input.first,
+      after: input.after,
     },
   },
 });
@@ -63,9 +92,11 @@ export const buildLoomAggregateQuery = (
   query: `query LoomAggregate($input: DataframeAggregateInput!) { dataframeAggregate(input: $input) { ${aggregateFields} } }`,
   variables: {
     input: {
-      ...input,
+      ...buildLoomIdentityInput(input),
       groupBy: input.groupBy ? [...input.groupBy] : undefined,
       filters: input.filters ? [...input.filters] : undefined,
+      operation: input.operation,
+      column: input.column,
     },
   },
 });
@@ -76,7 +107,7 @@ export const buildLoomCountQuery = (
   query: `query LoomCount($input: DataframeAggregateInput!) { dataframeAggregate(input: $input) { columns rows } }`,
   variables: {
     input: {
-      dataType: input.dataType,
+      ...buildLoomIdentityInput(input),
       filters: input.filters ? [...input.filters] : undefined,
       operation: 'COUNT',
     },
@@ -86,6 +117,28 @@ export const buildLoomCountQuery = (
 export const buildLoomAggregationsQuery = (
   input: LoomAggregationsRequest,
 ): LoomQueryArgs => {
+  if (input.selector) {
+    const variables: Record<string, unknown> = {};
+    const selections = input.fields
+      .map((field, index) => {
+        variables[`input${index}`] = {
+          ...buildLoomIdentityInput(input),
+          groupBy: [field],
+          filters: input.filters ? [...input.filters] : [],
+          operation: 'COUNT',
+          column: field,
+        };
+        return `a${index}: dataframeAggregate(input: $input${index}) { columns rows }`;
+      })
+      .join('\n');
+    const declarations = input.fields
+      .map((_, index) => `$input${index}: DataframeAggregateInput!`)
+      .join(', ');
+    return {
+      query: `query LoomAggregations(${declarations}) { ${selections} }`,
+      variables,
+    };
+  }
   const selections = input.fields
     .map(
       (field, index) =>
@@ -147,11 +200,22 @@ export const loomSlice = loomTags.injectEndpoints({
         { type: 'LOOM_DATASET', id: dataType },
       ],
     }),
+    getLoomDatasetBySelector: builder.query<
+      LoomDataset | null,
+      LoomDatasetIdentity
+    >({
+      query: buildLoomDatasetSelectorQuery,
+      transformResponse: (response: { dataframeDataset: LoomDataset | null }) =>
+        response.dataframeDataset,
+      providesTags: (_result, _error, identity) => [
+        { type: 'LOOM_DATASET', id: loomDatasetIdentityKey(identity) },
+      ],
+    }),
     getLoomRows: builder.query<LoomRowsResponse, LoomRowsRequest>({
       query: buildLoomRowsQuery,
       transformResponse: normalizeLoomRowsGraphQLResponse,
       providesTags: (_result, _error, input) => [
-        { type: 'LOOM_ROWS', id: input.dataType },
+        { type: 'LOOM_ROWS', id: loomDatasetIdentityKey(input) },
       ],
     }),
     getLoomAggregate: builder.query<
@@ -161,7 +225,7 @@ export const loomSlice = loomTags.injectEndpoints({
       query: buildLoomAggregateQuery,
       transformResponse: normalizeLoomAggregateGraphQLResponse,
       providesTags: (_result, _error, input) => [
-        { type: 'LOOM_AGGREGATE', id: input.dataType },
+        { type: 'LOOM_AGGREGATE', id: loomDatasetIdentityKey(input) },
       ],
     }),
     getLoomCount: builder.query<number, LoomAggregateRequest>({
@@ -181,7 +245,7 @@ export const loomSlice = loomTags.injectEndpoints({
         return 0;
       },
       providesTags: (_result, _error, input) => [
-        { type: 'LOOM_AGGREGATE', id: input.dataType },
+        { type: 'LOOM_AGGREGATE', id: loomDatasetIdentityKey(input) },
       ],
     }),
     getLoomAggregations: builder.query<
@@ -213,7 +277,7 @@ export const loomSlice = loomTags.injectEndpoints({
         return aggregations;
       },
       providesTags: (_result, _error, input) => [
-        { type: 'LOOM_AGGREGATE', id: input.dataType },
+        { type: 'LOOM_AGGREGATE', id: loomDatasetIdentityKey(input) },
       ],
     }),
   }),
@@ -222,6 +286,7 @@ export const loomSlice = loomTags.injectEndpoints({
 export const {
   useGetLoomDatasetsQuery,
   useGetLoomDatasetQuery,
+  useGetLoomDatasetBySelectorQuery,
   useGetLoomRowsQuery,
   useGetLoomAggregateQuery,
   useGetLoomCountQuery,

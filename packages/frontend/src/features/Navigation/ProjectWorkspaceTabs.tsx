@@ -1,8 +1,16 @@
 import React, { useMemo } from 'react';
 import Link from 'next/link';
-import { useGetAuthzMappingsQuery, userHasMethodForServiceOnResource } from '@gen3/core';
+import {
+  useGetAuthzMappingsQuery,
+  useGetExplorersQuery,
+  userHasMethodForServiceOnResource,
+} from '@gen3/core';
 
-type ProjectWorkspaceTabKey = 'git' | 'presentation' | 'explorer' | 'storage';
+type ProjectWorkspaceTabKey =
+  | 'git'
+  | 'presentation'
+  | 'explorer'
+  | 'storage';
 
 interface ProjectWorkspaceTabsProps {
   readonly activeTab: ProjectWorkspaceTabKey;
@@ -30,6 +38,12 @@ const ProjectWorkspaceTabs = ({
   toolbarContent,
 }: ProjectWorkspaceTabsProps) => {
   const { data: authzMapping = {} } = useGetAuthzMappingsQuery();
+  const { data: builderExplorers = [] } = useGetExplorersQuery(
+    { organization, project },
+    { skip: !organization || !project },
+  );
+  const hasConfiguredExplorer =
+    hasExplorerConfig || builderExplorers.length > 0;
 
   const hasGitAccess = useMemo(() => {
     if (!organization || !project) return false;
@@ -82,7 +96,10 @@ const ProjectWorkspaceTabs = ({
           label: 'Home',
           href: presentationBaseHref,
         },
-        ...(hasExplorerConfig && (hasReadAccess || activeTab === 'explorer')
+        ...(
+          hasConfiguredExplorer ||
+          hasGitAccess ||
+          activeTab === 'explorer'
           ? [
               {
                 key: 'explorer' as const,
@@ -113,7 +130,7 @@ const ProjectWorkspaceTabs = ({
     [
       explorerBaseHref,
       gitBaseHref,
-      hasExplorerConfig,
+      hasConfiguredExplorer,
       presentationBaseHref,
       storageBaseHref,
       hasReadAccess,

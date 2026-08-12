@@ -2,11 +2,16 @@ import {
   buildLoomAggregateQuery,
   buildLoomAggregationsQuery,
   buildLoomDatasetQuery,
+  buildLoomDatasetSelectorQuery,
   buildLoomRowsQuery,
   normalizeLoomAggregateGraphQLResponse,
   normalizeLoomRowsGraphQLResponse,
 } from '../loomSlice';
-import { isLoomDataType } from '../types';
+import {
+  isLoomDataType,
+  loomDatasetIdentityKey,
+  normalizeLegacyLoomOutput,
+} from '../types';
 
 describe('Loom GraphQL request contracts', () => {
   it('uses canonical Loom data types', () => {
@@ -17,6 +22,76 @@ describe('Loom GraphQL request contracts', () => {
     const request = buildLoomDatasetQuery('DocumentReference');
     expect(request.variables).toEqual({ dataType: 'DocumentReference' });
     expect(request.query).toContain('dataframeDataset');
+  });
+
+  it.each([
+    ['file', 'DocumentReference'],
+    ['document_reference', 'DocumentReference'],
+    ['research_subject', 'ResearchSubject'],
+    ['specimen', 'Specimen'],
+    ['medication_administration', 'MedicationAdministration'],
+    ['group_member', 'GroupMember'],
+    ['CustomOutput', 'CustomOutput'],
+  ])(
+    'normalizes legacy output %s without closing custom outputs',
+    (input, expected) => {
+      expect(normalizeLegacyLoomOutput(input)).toEqual({ output: expected });
+    },
+  );
+
+  it('reports unsupported aliases instead of falling back to DocumentReference', () => {
+    expect(normalizeLegacyLoomOutput('unknown_output').diagnostic?.code).toBe(
+      'UNSUPPORTED_LEGACY_OUTPUT',
+    );
+  });
+
+  it('builds and keys immutable materialization selectors', () => {
+    const identity = {
+      selector: {
+        recipe: 'project_recipe',
+        translationVersion: 'r000001_abcd',
+        output: 'CustomOutput',
+        materializationId: 'materialization-1',
+      },
+    } as const;
+    expect(buildLoomDatasetSelectorQuery(identity).variables).toEqual({
+      input: { materializationId: 'materialization-1' },
+    });
+    expect(loomDatasetIdentityKey(identity)).toContain('CustomOutput');
+    expect(loomDatasetIdentityKey(identity)).toContain('materialization-1');
+  });
+
+  it('keeps immutable recipe selectors nested in GraphQL input', () => {
+    expect(
+      buildLoomRowsQuery({
+        selector: {
+          recipe: 'project_recipe',
+          translationVersion: 'r000001_abcd',
+          output: 'CustomOutput',
+        },
+        columns: ['id'],
+      }).variables,
+    ).toMatchObject({
+      input: {
+        selector: {
+          recipe: 'project_recipe',
+          translationVersion: 'r000001_abcd',
+          output: 'CustomOutput',
+        },
+      },
+    });
+  });
+
+  it('supports direct materialization IDs for rows and single aggregates', () => {
+    expect(
+      buildLoomRowsQuery({ materializationId: 'mat-1', columns: ['id'] }).variables,
+    ).toMatchObject({ input: { materializationId: 'mat-1' } });
+    expect(
+      buildLoomAggregateQuery({
+        materializationId: 'mat-1',
+        operation: 'COUNT',
+      }).variables,
+    ).toMatchObject({ input: { materializationId: 'mat-1' } });
   });
 
   it('preserves opaque cursor pagination and sort variables', () => {

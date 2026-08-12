@@ -14,6 +14,85 @@ export type LoomDataType = (typeof LOOM_DATA_TYPES)[number];
 export const isLoomDataType = (value: string): value is LoomDataType =>
   (LOOM_DATA_TYPES as ReadonlyArray<string>).includes(value);
 
+export interface LoomDatasetSelector {
+  readonly recipe: string;
+  readonly translationVersion: string;
+  readonly output: string;
+  readonly materializationId?: string;
+}
+
+export interface LoomSelectorDiagnostic {
+  readonly code: 'UNSUPPORTED_LEGACY_OUTPUT' | 'INVALID_DATASET_SELECTOR';
+  readonly message: string;
+  readonly configPath?: string;
+}
+
+const LEGACY_LOOM_OUTPUTS: Readonly<Record<string, string>> = {
+  file: 'DocumentReference',
+  document_reference: 'DocumentReference',
+  research_subject: 'ResearchSubject',
+  specimen: 'Specimen',
+  medication_administration: 'MedicationAdministration',
+  group_member: 'GroupMember',
+};
+
+/** Normalizes only the legacy aliases. Arbitrary PascalCase output names pass through. */
+export const normalizeLegacyLoomOutput = (
+  value: string,
+): {
+  readonly output?: string;
+  readonly diagnostic?: LoomSelectorDiagnostic;
+} => {
+  const output =
+    LEGACY_LOOM_OUTPUTS[value] ??
+    (/^[A-Z][A-Za-z0-9]*$/.test(value) ? value : undefined);
+  return output
+    ? { output }
+    : {
+        diagnostic: {
+          code: 'UNSUPPORTED_LEGACY_OUTPUT',
+          message: `Unsupported Loom output: ${value}`,
+        },
+      };
+};
+
+export const validateLoomDatasetSelector = (
+  selector: LoomDatasetSelector,
+): LoomSelectorDiagnostic | undefined => {
+  if (selector.materializationId?.trim()) return undefined;
+  if (
+    selector.recipe.trim() &&
+    selector.translationVersion.trim() &&
+    selector.output.trim()
+  ) {
+    return undefined;
+  }
+  return {
+    code: 'INVALID_DATASET_SELECTOR',
+    message:
+      'A Loom selector requires a materialization ID or an exact recipe, translation version, and output.',
+  };
+};
+
+export type LoomDatasetIdentity =
+  | { readonly dataType: LoomDataType; readonly selector?: never; readonly materializationId?: never }
+  | { readonly dataType?: never; readonly selector: LoomDatasetSelector; readonly materializationId?: never }
+  | { readonly dataType?: never; readonly selector?: never; readonly materializationId: string };
+
+export const loomDatasetIdentityKey = (
+  identity: LoomDatasetIdentity,
+): string =>
+  identity.selector
+    ? [
+        identity.selector.recipe,
+        identity.selector.translationVersion,
+        identity.selector.output,
+        identity.selector.materializationId ?? '',
+      ].join('|')
+    : identity.materializationId
+      ? `materialization|${identity.materializationId}`
+      : `legacy|${identity.dataType}`;
+
 export interface LoomDatasetRef {
   readonly dataType: LoomDataType;
 }
@@ -52,14 +131,13 @@ export interface LoomSort {
   readonly desc?: boolean;
 }
 
-export interface LoomRowsRequest {
-  readonly dataType: LoomDataType;
+export type LoomRowsRequest = LoomDatasetIdentity & {
   readonly columns?: ReadonlyArray<string>;
   readonly filters?: ReadonlyArray<LoomFilter>;
   readonly sort?: LoomSort;
   readonly first?: number;
   readonly after?: string | null;
-}
+};
 
 export interface LoomRowsResponse {
   readonly materialization: LoomDataset;
@@ -72,13 +150,12 @@ export interface LoomRowsResponse {
   };
 }
 
-export interface LoomAggregateRequest {
-  readonly dataType: LoomDataType;
+export type LoomAggregateRequest = LoomDatasetIdentity & {
   readonly groupBy?: ReadonlyArray<string>;
   readonly filters?: ReadonlyArray<LoomFilter>;
   readonly operation: string;
   readonly column?: string;
-}
+};
 
 export interface LoomAggregateResponse {
   readonly materialization: LoomDataset;
@@ -86,11 +163,10 @@ export interface LoomAggregateResponse {
   readonly rows: ReadonlyArray<JSONObject>;
 }
 
-export interface LoomAggregationsRequest {
-  readonly dataType: LoomDataType;
+export type LoomAggregationsRequest = LoomDatasetIdentity & {
   readonly fields: ReadonlyArray<string>;
   readonly filters?: ReadonlyArray<LoomFilter>;
-}
+};
 
 export interface LoomAggregationsResponse {
   readonly materialization: LoomDataset | null;

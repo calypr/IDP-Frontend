@@ -11,6 +11,7 @@ import {
   isLoomGraphQLRequestError,
   isLoomDataType,
   LoomDataType,
+  LoomDatasetSelector,
   SharedFieldMapping,
 } from '@gen3/core';
 import type {
@@ -33,9 +34,62 @@ type ResolvedExplorerRevision = {
   readonly status?: string;
   readonly configRevisionId?: string;
   readonly config?: unknown;
+  readonly recipeName?: string;
+  readonly translationVersion?: string;
+  readonly outputs?: Readonly<
+    Record<
+      string,
+      {
+        readonly materializationId?: string;
+        readonly columns?: ReadonlyArray<{ readonly name: string }>;
+      }
+    >
+  >;
   readonly errors?: readonly ExplorerRevisionDiagnostic[];
   readonly warnings?: readonly ExplorerRevisionDiagnostic[];
   readonly acknowledgedOmissions?: readonly ExplorerRevisionDiagnostic[];
+};
+
+export const pinResolvedConfiguration = (
+  configuration: CohortBuilderConfiguration,
+  revision: ResolvedExplorerRevision,
+): {
+  readonly configuration: CohortBuilderConfiguration;
+  readonly columns: LoomColumnsByExplorerType;
+} => {
+  const recipe = revision.recipeName;
+  const translationVersion = revision.translationVersion;
+  if (!recipe || !translationVersion) {
+    throw new Error(
+      'Resolved Explorer release is missing its pinned recipe identity',
+    );
+  }
+  const columns: LoomColumnsByExplorerType = {};
+  const explorerConfig = configuration.explorerConfig.map((panel) => {
+    const outputCandidate = (panel.guppyConfig as { output?: unknown }).output;
+    const output =
+      typeof outputCandidate === 'string'
+        ? outputCandidate
+        : panel.guppyConfig.dataType;
+    const resolvedOutput = revision.outputs?.[output];
+    if (!resolvedOutput?.materializationId) {
+      throw new Error(`Resolved Explorer output ${output} is unavailable`);
+    }
+    const selector: LoomDatasetSelector = {
+      recipe,
+      translationVersion,
+      output,
+      materializationId: resolvedOutput.materializationId,
+    };
+    columns[panel.guppyConfig.dataType] = new Set(
+      (resolvedOutput.columns ?? []).map((column) => column.name),
+    );
+    return {
+      ...panel,
+      guppyConfig: { ...panel.guppyConfig, loomDataset: selector },
+    };
+  });
+  return { configuration: { ...configuration, explorerConfig }, columns };
 };
 
 const resolvedRevisionProblem = (
@@ -365,41 +419,156 @@ const normalizeExplorerConfiguration = (
     : (parsedConfiguration as unknown as CohortBuilderConfiguration);
 };
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+/**
+ * Immutable releases use the builder contract (`schemaVersion` + `tabs`).
+ * Legacy content callers continue through ExplorerConfigurationSchema above;
+ * this adapter is intentionally only used for resolved share releases.
+ */
+export const normalizeResolvedExplorerConfiguration = (
+  rawConfiguration: unknown,
+): CohortBuilderConfiguration => {
+  if (!isRecord(rawConfiguration) || rawConfiguration.schemaVersion !== 1) {
+    return normalizeExplorerConfiguration(rawConfiguration);
+  }
+  const rawTabs = Array.isArray(rawConfiguration.tabs)
+    ? rawConfiguration.tabs.filter(isRecord)
+    : [];
+  const explorerConfig = rawTabs.map((tab, index) => {
+    const output =
+      typeof tab.output === 'string' ? tab.output : `Output${index + 1}`;
+    const rawTable = isRecord(tab.table) ? tab.table : {};
+    const rawColumns = rawTable.columns;
+    const columnEntries: Array<[string, Record<string, unknown>]> = [];
+    if (Array.isArray(rawColumns)) {
+      rawColumns.filter(isRecord).forEach((column) => {
+        const field =
+          typeof column.field === 'string' ? column.field : undefined;
+        if (!field) return;
+        columnEntries.push([
+          field,
+          {
+            ...column,
+            field,
+            title:
+              typeof column.label === 'string'
+                ? column.label
+                : typeof column.title === 'string'
+                  ? column.title
+                  : field,
+          },
+        ]);
+      });
+    } else if (isRecord(rawColumns)) {
+      Object.entries(rawColumns).forEach(([field, column]) => {
+        if (isRecord(column)) columnEntries.push([field, column]);
+      });
+    }
+    const fields = Array.isArray(rawTable.fields)
+      ? rawTable.fields.filter(
+          (field): field is string => typeof field === 'string',
+        )
+      : columnEntries.map(([field]) => field);
+    const table = {
+      ...rawTable,
+      enabled: rawTable.enabled !== false,
+      fields,
+      columns: Object.fromEntries(columnEntries),
+    };
+    const rawGuppyConfig = isRecord(tab.guppyConfig) ? tab.guppyConfig : {};
+    return {
+      ...tab,
+      tabTitle:
+        typeof tab.title === 'string'
+          ? tab.title
+          : typeof tab.tabTitle === 'string'
+            ? tab.tabTitle
+            : output,
+      guppyConfig: {
+        ...rawGuppyConfig,
+        dataType: output,
+        output,
+      },
+      table,
+    } as unknown as CohortPanelConfiguration;
+  });
+  return { explorerConfig };
+};
+
 const loadExplorerConfiguration = async (
   context: ServerPageContext,
-  source: 'content' | 'gecko',
+  source: 'content' | 'config' | 'release',
 ): Promise<ExplorerPageData> => {
   const configId =
     typeof context.next.query.configId === 'string'
       ? context.next.query.configId
       : undefined;
-  const rawConfiguration =
-    source === 'gecko' && configId
-      ? resolveExplorerRevisionConfiguration(
-          await context.gecko.get<ResolvedExplorerRevision>(
-            `explorer/${configId}/resolved`,
-          ),
-          (problem) => context.problems.add(problem),
+  const releaseId =
+    typeof context.next.query.releaseId === 'string'
+      ? context.next.query.releaseId
+      : undefined;
+  if (source === 'release' && !releaseId) {
+    context.problems.add({
+      severity: 'error',
+      source: 'gecko',
+      status: 404,
+      code: 'RELEASE_ID_REQUIRED',
+      retryable: false,
+      message: 'An immutable Explorer release ID is required.',
+    });
+    return { configuration: null, sharedFiltersMap: null };
+  }
+  const resolvedRelease =
+    source === 'release' && releaseId
+      ? await context.gecko.get<ResolvedExplorerRevision>(
+          `explorer/releases/${releaseId}/resolved`,
         )
-      : await context.config.load({
-          id: configId ? `explorer.${configId}` : 'explorer',
-          source,
-          resolvePath: () =>
-            configId
-              ? `explorer/${configId}`
-              : `${GEN3_COMMONS_NAME}/explorer.json`,
-          schema: ExplorerConfigurationSchema,
-        });
+      : undefined;
+  let rawConfiguration: unknown;
+  if (resolvedRelease) {
+    rawConfiguration = resolveExplorerRevisionConfiguration(
+      resolvedRelease,
+      (problem) => context.problems.add(problem),
+    );
+  } else if (source === 'config' && configId) {
+    rawConfiguration = await context.config.optional({
+      id: `explorer.${configId}`,
+      source: 'gecko',
+      resolvePath: () => `explorer/${configId}`,
+      schema: ExplorerConfigurationSchema,
+    });
+  } else {
+    rawConfiguration = await context.config.load({
+      id: 'explorer',
+      source: 'content',
+      resolvePath: () => `${GEN3_COMMONS_NAME}/explorer.json`,
+      schema: ExplorerConfigurationSchema,
+    });
+  }
   if (rawConfiguration === null) {
     return { configuration: null, sharedFiltersMap: null };
   }
-  const configuration = normalizeExplorerConfiguration(rawConfiguration);
+  let configuration = resolvedRelease
+    ? normalizeResolvedExplorerConfiguration(rawConfiguration)
+    : normalizeExplorerConfiguration(rawConfiguration);
   let sharedFiltersMap: SharedFieldMapping | null;
   try {
-    ({ sharedFiltersMap } = await PrepareExplorerConfiguration(
-      configuration,
-      context.loom,
-    ));
+    if (resolvedRelease) {
+      const pinned = pinResolvedConfiguration(configuration, resolvedRelease);
+      configuration = pinned.configuration;
+      ValidateExplorerConfiguration(configuration, pinned.columns);
+      sharedFiltersMap = await GetSharedFieldMapping(
+        configuration,
+        pinned.columns,
+      );
+    } else {
+      ({ sharedFiltersMap } = await PrepareExplorerConfiguration(
+        configuration,
+        context.loom,
+      ));
+    }
   } catch (error) {
     const problem = getExplorerLoomProblem(error);
     if (!problem) throw error;
@@ -417,10 +586,18 @@ export const ExplorerPageGetServerSideProps =
     fallback: () => ({ configuration: null, sharedFiltersMap: null }),
   });
 
+export const ExplorerPageGetServerSidePropsForRelease =
+  definePageLoader<ExplorerPageData>({
+    name: 'Shared Explorer release',
+    loadNavigation: loadNavigationFromContext,
+    load: (context) => loadExplorerConfiguration(context, 'release'),
+    fallback: () => ({ configuration: null, sharedFiltersMap: null }),
+  });
+
 export const ExplorerPageGetServerSidePropsForConfigId =
   definePageLoader<ExplorerPageData>({
     name: 'Explorer config',
     loadNavigation: loadNavigationFromContext,
-    load: (context) => loadExplorerConfiguration(context, 'gecko'),
+    load: (context) => loadExplorerConfiguration(context, 'config'),
     fallback: () => ({ configuration: null, sharedFiltersMap: null }),
   });

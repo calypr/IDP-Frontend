@@ -158,4 +158,23 @@ describe('server page request context', () => {
       },
     );
   });
+
+  it('supports client-side app contexts without a Node request', async () => {
+    (fetchGraphQL as jest.Mock).mockResolvedValue({ ok: true });
+    const context = createServerPageContext(
+      {} as GetServerSidePropsContext,
+      jest.fn(),
+    );
+
+    await expect(
+      context.loom.graphql({ query: 'query Health { ok }' }),
+    ).resolves.toEqual({ ok: true });
+    expect(fetchGraphQL).toHaveBeenCalledWith(
+      { query: 'query Health { ok }' },
+      expect.objectContaining({
+        endpoint: 'http://localhost:3000/loom/graphql/flat',
+        headers: {},
+      }),
+    );
+  });
 });

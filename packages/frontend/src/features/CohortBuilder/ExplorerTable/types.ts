@@ -6,7 +6,7 @@ import {
   MRT_RowData,
   MRT_TableInstance,
 } from 'mantine-react-table';
-import { Accessibility, JSONObject } from '@gen3/core';
+import { Accessibility, JSONObject, LoomDatasetSelector } from '@gen3/core';
 import { ReactNode, RefObject } from 'react';
 import { CellRendererFunction } from './ExplorerTableCellRenderers';
 import { FileActionsConfig } from '../types';
@@ -81,6 +81,7 @@ export interface ExplorerTableProps {
   size?: string;
   classNames?: Partial<ExploreTableClassnames>;
   fileActions?: FileActionsConfig;
+  loomDataset?: LoomDatasetSelector;
 }
 
 export interface ExplorerTableColumnMRT {
