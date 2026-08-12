@@ -531,6 +531,7 @@ const FlowGraph = ({
   onNodeSelect,
   reachableEdgeIds,
   onEdgeSelect,
+  onPaneClick,
   showSparseData,
   disabled,
 }: {
@@ -542,6 +543,7 @@ const FlowGraph = ({
   readonly onNodeSelect: (resourceType: string) => void;
   readonly reachableEdgeIds: ReadonlySet<string>;
   readonly onEdgeSelect: (edge: FhirTraversalHint) => void;
+  readonly onPaneClick: () => void;
   readonly showSparseData: boolean;
   readonly disabled: boolean;
   readonly recipeSource?: 'platform-default' | 'project-draft';
@@ -670,6 +672,7 @@ const FlowGraph = ({
             const candidate = graph.edges.find((item) => edgeId(item) === edge.id);
             if (candidate) onEdgeSelect(candidate);
           }}
+          onPaneClick={onPaneClick}
           nodesConnectable={false}
           minZoom={0.2}
           maxZoom={2}
@@ -761,10 +764,6 @@ export const GuidedBuilder = ({
   // change which node the panel is inspecting.
   const [inspectorOpen, setInspectorOpen] = useState(true);
   const [expandedPane, setExpandedPane] = useState<'graph' | 'columns'>();
-  // Undefined means the initial, deliberately even split. A pixel width is
-  // recorded only after the user drags the divider.
-  const [columnPanelWidth, setColumnPanelWidth] = useState<number>();
-  const workspaceRef = useRef<HTMLDivElement>(null);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [showSparseData, setShowSparseData] = useState(false);
   const [scanAttempt, setScanAttempt] = useState(0);
@@ -777,23 +776,6 @@ export const GuidedBuilder = ({
       ? titleFor(currentOutput.name)
       : `${titleFor(currentRoot)} overview`,
   );
-  const beginColumnResize = (event: React.PointerEvent<HTMLButtonElement>) => {
-    if (window.innerWidth < 1280) return;
-    event.preventDefault();
-    const startX = event.clientX;
-    const hostWidth = workspaceRef.current?.getBoundingClientRect().width ?? window.innerWidth;
-    const startWidth = columnPanelWidth ?? Math.round((hostWidth - 12) / 2);
-    const maximum = Math.min(720, Math.max(384, hostWidth * 0.48));
-    const move = (pointer: PointerEvent) => {
-      setColumnPanelWidth(Math.min(maximum, Math.max(384, startWidth + startX - pointer.clientX)));
-    };
-    const finish = () => {
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', finish);
-    };
-    window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', finish, { once: true });
-  };
 
   useEffect(() => {
     const controller = new AbortController();
@@ -1468,15 +1450,7 @@ export const GuidedBuilder = ({
         </div>
       </header>
 
-      <div
-        ref={workspaceRef}
-        className={inspectorOpen
-          ? columnPanelWidth === undefined
-            ? 'grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_0.75rem_minmax(24rem,1fr)]'
-            : 'grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_0.75rem_var(--column-selector-width)]'
-          : 'grid grid-cols-1 gap-3'}
-        style={inspectorOpen && columnPanelWidth !== undefined ? { '--column-selector-width': `${columnPanelWidth}px` } as React.CSSProperties : undefined}
-      >
+      <div className={inspectorOpen ? 'grid grid-cols-1 gap-3 xl:grid-cols-2' : 'grid grid-cols-1 gap-3'}>
       <section
         aria-labelledby="fhir-map-heading"
         aria-modal={expandedPane === 'graph' || undefined}
@@ -1484,14 +1458,17 @@ export const GuidedBuilder = ({
           ? 'fixed inset-3 z-50 flex h-[calc(100dvh-1.5rem)] min-w-0 flex-col rounded-xl border bg-white p-4 shadow-2xl'
           : 'relative flex h-[min(46dvh,34rem)] min-h-[28rem] min-w-0 flex-col rounded-lg border bg-white p-3 shadow-sm'}
       >
-        <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className={`flex flex-wrap items-start justify-between gap-3 ${expandedPane === 'graph' ? '' : 'cursor-zoom-in'}`} onClick={(event) => {
+          if (expandedPane === 'graph' || (event.target as Element).closest('button, input, label')) return;
+          setExpandedPane('graph');
+        }}>
           <div>
             <h2 id="fhir-map-heading" className="text-lg font-semibold">Explore the populated dataset</h2>
             <p className="text-sm text-slate-600">Larger cards contain more records; thicker lines connect more data. Click a card to inspect its fields, then add it to the traversal.</p>
           </div>
           <div className="flex flex-wrap items-center gap-3"><label className="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" checked={showSparseData} onChange={(event) => setShowSparseData(event.currentTarget.checked)} /> Show sparse relationships (fewer than 10 links)</label><span className="rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-600">
             {scanState === 'loading' ? 'Scanning project…' : scanState === 'ready' ? `${projectMap.nodes.length} resource types found` : 'Using the current recipe as a guide'}
-          </span><button type="button" className="rounded border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700" onClick={() => setExpandedPane((pane) => pane === 'graph' ? undefined : 'graph')}>{expandedPane === 'graph' ? '× Close graph' : 'Expand graph'}</button></div>
+          </span>{expandedPane === 'graph' && <button type="button" aria-label="Close expanded graph" className="rounded border border-slate-300 bg-white px-2 py-1 text-lg leading-none text-slate-700" onClick={() => setExpandedPane(undefined)}>×</button>}</div>
           {scanState === 'error' && <button type="button" className="rounded border border-amber-300 bg-amber-50 px-3 py-1 text-sm text-amber-900" onClick={() => setScanAttempt((attempt) => attempt + 1)}>Retry scan</button>}
         </div>
         {availableRoots.length > 0 ? <>
@@ -1530,37 +1507,25 @@ export const GuidedBuilder = ({
             setSelectedNodeType(edge.toType);
             setInspectedEdge(edge);
             setInspectorOpen(true);
-          }} /></div>
+          }} onPaneClick={() => { if (expandedPane !== 'graph') setExpandedPane('graph'); }} /></div>
         </> : <p className="mt-4 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">No populated FHIR resources were found in this project yet. The graph will become available when populated data is present.</p>}
       </section>
 
-      {inspectorOpen && <button
-        type="button"
-        aria-label="Resize column selector"
-        aria-orientation="vertical"
-        aria-valuemin={384}
-        aria-valuemax={720}
-        aria-valuenow={columnPanelWidth ?? Math.round(((workspaceRef.current?.getBoundingClientRect().width ?? 0) - 12) / 2)}
-        className="group relative hidden cursor-col-resize touch-none rounded bg-slate-200 outline-none transition hover:bg-blue-400 focus:bg-blue-500 xl:block"
-        onPointerDown={beginColumnResize}
-        onKeyDown={(event) => {
-          const currentWidth = columnPanelWidth ?? Math.round(((workspaceRef.current?.getBoundingClientRect().width ?? 0) - 12) / 2);
-          if (event.key === 'ArrowLeft') setColumnPanelWidth(Math.min(720, currentWidth + 24));
-          if (event.key === 'ArrowRight') setColumnPanelWidth(Math.max(384, currentWidth - 24));
-        }}
-        role="separator"
-      ><span aria-hidden="true" className="absolute left-1/2 top-1/2 h-12 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-slate-400 group-hover:bg-white" /></button>}
       {inspectorOpen && <aside
         aria-labelledby="fields-heading"
         aria-modal={expandedPane === 'columns' || undefined}
+        onClick={(event) => {
+          if (expandedPane === 'columns' || (event.target as Element).closest('button, input, label, a')) return;
+          setExpandedPane('columns');
+        }}
         className={expandedPane === 'columns'
           ? 'fixed inset-3 z-50 h-[calc(100dvh-1.5rem)] overflow-y-auto rounded-xl border border-slate-200 bg-white p-5 shadow-2xl'
-          : 'h-[min(46dvh,34rem)] min-h-[28rem] overflow-y-auto rounded-lg border border-slate-200 bg-white p-4 shadow-sm xl:sticky xl:top-3'}
+          : 'h-[min(46dvh,34rem)] min-h-[28rem] cursor-zoom-in overflow-y-auto rounded-lg border border-slate-200 bg-white p-4 shadow-sm xl:sticky xl:top-3'}
       >
         <div className="flex items-start justify-between gap-3">
         <div><h2 id="fields-heading" className="text-lg font-semibold">Choose {resourceLabel(selectedNodeType || selectedRoot)} columns</h2>
         <p className="mt-0.5 text-xs text-slate-600">Inspect first. The table changes only when you explicitly add this dataset.</p>
-        </div><div className="flex gap-1"><button type="button" className="rounded border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-700" onClick={() => setExpandedPane((pane) => pane === 'columns' ? undefined : 'columns')}>{expandedPane === 'columns' ? '× Close' : 'Expand'}</button><button type="button" aria-label="Hide column selector" className="rounded border border-slate-200 px-2 py-1 text-slate-600" onClick={() => setInspectorOpen(false)}>×</button></div></div>
+        </div>{expandedPane === 'columns' && <button type="button" aria-label="Close expanded column selector" className="rounded border border-slate-200 px-2 py-1 text-lg leading-none text-slate-600" onClick={() => setExpandedPane(undefined)}>×</button>}</div>
         {!inspectorInQuery && <div className={`mt-3 rounded border p-2 text-xs ${candidateEdge ? 'border-green-300 bg-green-50 text-green-950' : 'border-violet-200 bg-violet-50 text-violet-950'}`}>
           {candidateEdge
             ? <><strong>Available next step:</strong> {resourceLabel(traversalEndpoint)} → {resourceLabel(inspectorType)}. Choose columns below, then add it.</>
