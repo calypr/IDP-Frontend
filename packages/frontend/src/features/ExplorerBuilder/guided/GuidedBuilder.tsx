@@ -778,6 +778,15 @@ export const GuidedBuilder = ({
   );
 
   useEffect(() => {
+    if (!expandedPane) return undefined;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setExpandedPane(undefined);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [expandedPane]);
+
+  useEffect(() => {
     const controller = new AbortController();
     setScanState('loading');
     // Loom's ingested graph/catalog identity is the established
