@@ -87,7 +87,9 @@ const GraphViewportFitter = ({
     const fit = () => {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
-        graph.fitView({ padding: 0.11, minZoom: 0.22, maxZoom: 1.15, duration: 160 });
+        // Favor legible cards on first load. Users can pan to surrounding
+        // resources; an unreadable all-nodes thumbnail is not useful.
+        graph.fitView({ padding: 0.06, minZoom: 0.38, maxZoom: 1.15, duration: 160 });
       });
     };
     const observer = new ResizeObserver(fit);
@@ -657,7 +659,7 @@ const FlowGraph = ({
         <GraphViewportFitter hostRef={graphViewportRef} graphIdentity={graphIdentity} />
         <ReactFlow
           fitView
-          fitViewOptions={{ padding: 0.16, minZoom: 0.18, maxZoom: 1.15 }}
+          fitViewOptions={{ padding: 0.06, minZoom: 0.38, maxZoom: 1.15 }}
           nodes={nodes}
           edges={edges}
           edgeTypes={edgeTypes}
@@ -669,7 +671,7 @@ const FlowGraph = ({
             if (candidate) onEdgeSelect(candidate);
           }}
           nodesConnectable={false}
-          minZoom={0.12}
+          minZoom={0.2}
           maxZoom={2}
           proOptions={{ hideAttribution: true }}
         >
@@ -758,7 +760,9 @@ export const GuidedBuilder = ({
   // Keep it visible beside the graph on desktop; graph interactions simply
   // change which node the panel is inspecting.
   const [inspectorOpen, setInspectorOpen] = useState(true);
-  const [columnPanelWidth, setColumnPanelWidth] = useState(480);
+  // Undefined means the initial, deliberately even split. A pixel width is
+  // recorded only after the user drags the divider.
+  const [columnPanelWidth, setColumnPanelWidth] = useState<number>();
   const workspaceRef = useRef<HTMLDivElement>(null);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [showSparseData, setShowSparseData] = useState(false);
@@ -776,8 +780,8 @@ export const GuidedBuilder = ({
     if (window.innerWidth < 1280) return;
     event.preventDefault();
     const startX = event.clientX;
-    const startWidth = columnPanelWidth;
     const hostWidth = workspaceRef.current?.getBoundingClientRect().width ?? window.innerWidth;
+    const startWidth = columnPanelWidth ?? Math.round((hostWidth - 12) / 2);
     const maximum = Math.min(720, Math.max(384, hostWidth * 0.48));
     const move = (pointer: PointerEvent) => {
       setColumnPanelWidth(Math.min(maximum, Math.max(384, startWidth + startX - pointer.clientX)));
@@ -1463,9 +1467,11 @@ export const GuidedBuilder = ({
       <div
         ref={workspaceRef}
         className={inspectorOpen
-          ? 'grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_0.75rem_var(--column-selector-width)]'
+          ? columnPanelWidth === undefined
+            ? 'grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_0.75rem_minmax(24rem,1fr)]'
+            : 'grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_0.75rem_var(--column-selector-width)]'
           : 'grid grid-cols-1 gap-3'}
-        style={inspectorOpen ? { '--column-selector-width': `${columnPanelWidth}px` } as React.CSSProperties : undefined}
+        style={inspectorOpen && columnPanelWidth !== undefined ? { '--column-selector-width': `${columnPanelWidth}px` } as React.CSSProperties : undefined}
       >
       <section aria-labelledby="fhir-map-heading" className="relative flex h-[min(46dvh,34rem)] min-h-[28rem] min-w-0 flex-col rounded-lg border bg-white p-3 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1524,12 +1530,13 @@ export const GuidedBuilder = ({
         aria-orientation="vertical"
         aria-valuemin={384}
         aria-valuemax={720}
-        aria-valuenow={columnPanelWidth}
+        aria-valuenow={columnPanelWidth ?? Math.round(((workspaceRef.current?.getBoundingClientRect().width ?? 0) - 12) / 2)}
         className="group relative hidden cursor-col-resize touch-none rounded bg-slate-200 outline-none transition hover:bg-blue-400 focus:bg-blue-500 xl:block"
         onPointerDown={beginColumnResize}
         onKeyDown={(event) => {
-          if (event.key === 'ArrowLeft') setColumnPanelWidth((width) => Math.min(720, width + 24));
-          if (event.key === 'ArrowRight') setColumnPanelWidth((width) => Math.max(384, width - 24));
+          const currentWidth = columnPanelWidth ?? Math.round(((workspaceRef.current?.getBoundingClientRect().width ?? 0) - 12) / 2);
+          if (event.key === 'ArrowLeft') setColumnPanelWidth(Math.min(720, currentWidth + 24));
+          if (event.key === 'ArrowRight') setColumnPanelWidth(Math.max(384, currentWidth - 24));
         }}
         role="separator"
       ><span aria-hidden="true" className="absolute left-1/2 top-1/2 h-12 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-slate-400 group-hover:bg-white" /></button>}
