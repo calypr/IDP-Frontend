@@ -1004,7 +1004,7 @@ export const GuidedBuilder = ({
     const rootConceptSelections = Array.isArray(activeOutput.conceptSelections)
       ? activeOutput.conceptSelections.map(asRecord)
       : [];
-    const rootFields = Array.isArray(activeOutput.fields)
+    const resolvedRootFields = Array.isArray(activeOutput.fields)
       ? activeOutput.fields.map(asRecord).map((field) => {
           const expr = asRecord(field.expr);
           const path = typeof expr.select === 'string' ? expr.select.replace(/^root\./, '') : '';
@@ -1012,6 +1012,18 @@ export const GuidedBuilder = ({
             .find((hint) => shortFieldPath(hint, root) === path)?.fieldRef ?? '');
         }).filter(Boolean)
       : [];
+    // A previewable Loom output requires a root projection. If a persisted
+    // expression cannot be mapped back to the current picker generation,
+    // recover with the normal root recommendation rather than leaving a
+    // traversal that the primary action can never render.
+    const rootFields = resolvedRootFields.length > 0
+      ? resolvedRootFields
+      : defaultFields(
+        semanticFieldsFor(semanticCatalog, root).length > 0
+          ? semanticFieldsFor(semanticCatalog, root)
+          : (projectMap.nodes.find((node) => node.resourceType === root)?.fields ?? []),
+        root,
+      );
     setSelectedOutputName(outputName);
     setSelectedRoot(root);
     setSelectedNodeType(root);
@@ -1035,6 +1047,10 @@ export const GuidedBuilder = ({
       : (selectedFieldsByNode[resourceType]?.length ?? 0)),
     0,
   );
+  const rootHasColumn = selectedFields.length > 0;
+  const renderDisabledReason = !rootHasColumn
+    ? `Choose at least one ${resourceLabel(selectedRoot)} row-start column before rendering.`
+    : undefined;
   const inspectorType = selectedNodeType || selectedRoot;
   const inspectorInQuery = selectedNodeTypes.includes(inspectorType);
   const traversalEndpoint = selectedPath.at(-1)?.toType ?? selectedRoot;
@@ -1511,7 +1527,7 @@ export const GuidedBuilder = ({
             value={tableNameDraft?.value ?? tableTitle}
           />
           <span className="min-w-2 flex-1" />
-          <button type="button" disabled={disabled || !selectedRoot || selectedFields.length === 0} className="rounded-md bg-green-700 px-4 py-1.5 text-sm font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:bg-slate-400" onClick={renderCurrentTable}>Render table <span className="ml-1 rounded-full bg-white/20 px-1.5 text-xs">{selectedQueryFieldCount}</span></button>
+          <button type="button" title={renderDisabledReason} disabled={disabled || !rootHasColumn} className="rounded-md bg-green-700 px-4 py-1.5 text-sm font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:bg-slate-400" onClick={renderCurrentTable}>Render table <span className="ml-1 rounded-full bg-white/20 px-1.5 text-xs">{selectedQueryFieldCount}</span></button>
           {onSaveDraft && <button type="button" disabled={disabled} className="rounded-md border border-blue-300 bg-white px-3 py-1.5 text-sm font-medium text-blue-800" onClick={onSaveDraft}>Save draft</button>}
           {onMakeLive && <button type="button" disabled={disabled} className="rounded-md bg-[#2f5aac] px-3 py-1.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50" onClick={onMakeLive}>Make live</button>}
         </div>
@@ -1593,10 +1609,7 @@ export const GuidedBuilder = ({
             ? <><strong>Available next step:</strong> {resourceLabel(traversalEndpoint)} → {resourceLabel(inspectorType)}. Choose columns below, then add it.</>
             : <>This dataset is not directly reachable from <strong>{resourceLabel(traversalEndpoint)}</strong>. Remove a traversal step above to choose a competing route, or start a new row root.</>}
         </div>}
-        {inspectorInQuery && inspectorType !== selectedRoot && <div className="mt-3 flex items-center justify-between gap-2 rounded border border-blue-200 bg-blue-50 p-2 text-xs text-blue-950">
-          <span><strong>Included in traversal.</strong> Field changes update this table.</span>
-          <button type="button" className="shrink-0 rounded border border-blue-300 bg-white px-2 py-1 font-semibold" onClick={renderCurrentTable}>Render table</button>
-        </div>}
+        {inspectorInQuery && inspectorType !== selectedRoot && <p className="mt-3 text-xs font-medium text-blue-800">Included in traversal.</p>}
         {selectedNodeType !== selectedRoot && <button type="button" disabled={disabled} className="mt-2 w-full rounded-md border border-violet-300 bg-white px-3 py-1.5 text-xs font-semibold text-violet-800 disabled:opacity-50" onClick={() => {
           const nextNode = projectMap.nodes.find((node) => node.resourceType === selectedNodeType);
           const nextFields = selectedFieldsByNode[selectedNodeType] ?? defaultFields(nextNode?.fields ?? [], selectedNodeType);
@@ -1708,13 +1721,13 @@ export const GuidedBuilder = ({
               })}
                 </div>
               </fieldset>
-              {!inspectorInQuery && candidateEdge && <button type="button" disabled={disabled || nodeSelected.length === 0 || selectedPath.length >= 4} className="w-full rounded-md bg-green-700 px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-400" onClick={() => {
+              {!inspectorInQuery && candidateEdge && <><button type="button" title={!rootHasColumn ? renderDisabledReason : undefined} disabled={disabled || !rootHasColumn || nodeSelected.length === 0 || selectedPath.length >= 4} className="w-full rounded-md bg-green-700 px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-400" onClick={() => {
                 const nextPath = [...selectedPath, candidateEdge];
                 const nextMap = { ...selectedFieldsByNode, [resourceType]: nodeSelected };
                 setSelectedPath(nextPath);
                 setSelectedFieldsByNode(nextMap);
                 applyTable(selectedFields, selectedRoot, tableTitle, nextMap, true, nextPath);
-              }}>Add {resourceLabel(resourceType)} to traversal · {nodeSelected.length} column{nodeSelected.length === 1 ? '' : 's'}</button>}
+              }}>Add {resourceLabel(resourceType)} to traversal · {nodeSelected.length} column{nodeSelected.length === 1 ? '' : 's'}</button>{!rootHasColumn && <p className="mt-2 text-xs text-amber-800">{renderDisabledReason}</p>}</>}
               </React.Fragment>;
             })()}
           </div>
