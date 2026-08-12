@@ -1614,6 +1614,13 @@ export const GuidedBuilder = ({
           <label className="sr-only" htmlFor="guided-field-search">Search populated fields</label>
           <input id="guided-field-search" value={fieldSearch} onChange={(event) => setFieldSearch(event.currentTarget.value)} placeholder={recipeCandidateState === 'ready' ? 'Search columns, codes, systems, URLs, or examples' : semanticCatalogState === 'ready' ? 'Search concepts by name or example' : 'Search technical fields by name or path'} className="min-w-64 flex-1 rounded border border-slate-300 px-3 py-2 text-sm" />
           {(recipeCandidateState === 'ready' || semanticCatalogState === 'ready') && <label className="flex items-center gap-1 text-xs text-slate-600"><input type="checkbox" checked={showTechnicalSource} onChange={(event) => setShowTechnicalSource(event.currentTarget.checked)} /> Show technical source</label>}
+          <button type="button" disabled={disabled || (!inspectorInQuery && !candidateEdge)} className="rounded border border-blue-300 bg-blue-50 px-2 py-1.5 text-xs font-semibold text-blue-800" onClick={() => {
+            const nextFields = fieldsForResource(inspectorType).map((field) => field.fieldRef);
+            const nextMap = { ...selectedFieldsByNode, [inspectorType]: nextFields };
+            if (inspectorType === selectedRoot) setSelectedFields(nextFields);
+            setSelectedFieldsByNode(nextMap);
+            if (inspectorInQuery) applyTable(inspectorType === selectedRoot ? nextFields : selectedFields, selectedRoot, tableTitle, nextMap);
+          }}>Select all</button>
           <button type="button" disabled={disabled || (!inspectorInQuery && !candidateEdge)} className="rounded border border-blue-300 px-2 py-1.5 text-xs text-blue-800" onClick={() => {
             const nextFields = defaultFields(fieldsForResource(inspectorType), inspectorType);
             const nextMap = { ...selectedFieldsByNode, [inspectorType]: nextFields };
