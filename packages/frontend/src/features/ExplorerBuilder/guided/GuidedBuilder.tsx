@@ -1531,7 +1531,6 @@ export const GuidedBuilder = ({
         }}>
           <div>
             <h2 id="fhir-map-heading" className="text-lg font-semibold">Explore the populated dataset</h2>
-            <p className="text-sm text-slate-600">Larger cards contain more records; thicker lines connect more data. Click a card to inspect its fields, then add it to the traversal.</p>
           </div>
           <div className="flex flex-wrap items-center gap-3">{expandedPane === 'graph' && <button type="button" aria-label="Close expanded graph" className="rounded border border-slate-300 bg-white px-2 py-1 text-lg leading-none text-slate-700" onClick={() => setExpandedPane(undefined)}>×</button>}</div>
           {scanState === 'error' && <button type="button" className="rounded border border-amber-300 bg-amber-50 px-3 py-1 text-sm text-amber-900" onClick={() => setScanAttempt((attempt) => attempt + 1)}>Retry scan</button>}
@@ -1553,8 +1552,6 @@ export const GuidedBuilder = ({
                 <button type="button" disabled={disabled} aria-label={`Remove ${resourceLabel(edge.toType)} and following traversal steps`} className="border-l border-blue-200 px-2 text-blue-700 hover:bg-blue-100 disabled:opacity-50" onClick={() => removeTraversalStep(index)}>Remove from here</button>
               </span>
             </React.Fragment>)}
-            <span className="ml-1 text-slate-600">Select a locked step to inspect it; remove from a step to backtrack.</span>
-            <span className="ml-auto text-slate-600"><strong className="text-green-700">NEXT</strong> = available · <strong className="text-blue-700">IN TABLE</strong> = locked · gray = unavailable from here</span>
           </nav>
           <div className="min-h-0 flex-1"><FlowGraph map={projectMap} root={selectedRoot} depth={4} selectedPath={selectedPath} selectedNodeType={selectedNodeType} reachableEdgeIds={reachableEdgeIds} showSparseData={showSparseData} disabled={disabled} onNodeSelect={(resourceType) => {
             const node = projectMap.nodes.find((candidate) => candidate.resourceType === resourceType);
