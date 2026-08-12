@@ -790,6 +790,7 @@ export const GuidedBuilder = ({
   const [inspectorOpen, setInspectorOpen] = useState(true);
   const [expandedPane, setExpandedPane] = useState<'graph' | 'columns'>();
   const [tableNameDraft, setTableNameDraft] = useState<{ readonly kind: 'new' | 'duplicate'; readonly value: string }>();
+  const tableNameInputRef = useRef<HTMLInputElement>(null);
   const [reviewOpen, setReviewOpen] = useState(false);
   // Every ingested relationship belongs in the graph. The user can judge its
   // relevance from the displayed link count instead of toggling a filter.
@@ -813,6 +814,12 @@ export const GuidedBuilder = ({
     window.addEventListener('keydown', closeOnEscape);
     return () => window.removeEventListener('keydown', closeOnEscape);
   }, [expandedPane]);
+
+  useEffect(() => {
+    if (!tableNameDraft) return;
+    tableNameInputRef.current?.focus();
+    tableNameInputRef.current?.select();
+  }, [tableNameDraft]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -1474,31 +1481,8 @@ export const GuidedBuilder = ({
             <select aria-label="Select table" id="builder-table-select" disabled={disabled || existingOutputs.length === 0} value={activeOutputName ?? ''} onChange={(event) => selectWorkspaceOutput(event.currentTarget.value)} className="max-w-52 shrink-0 rounded border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900">
               {existingOutputs.map((candidate) => <option key={String(candidate.name)} value={outputKey(candidate)}>{typeof candidate.name === 'string' ? titleFor(candidate.name) : 'Untitled'}</option>)}
             </select>
-          {tableNameDraft?.kind === 'new' ? <input
-            aria-label="New table name"
-            autoFocus
-            className="w-40 rounded-md border border-blue-300 bg-white px-3 py-1.5 text-sm text-slate-900 outline-none ring-blue-200 focus:ring-2"
-            onBlur={() => setTableNameDraft(undefined)}
-            onChange={(event) => setTableNameDraft({ kind: 'new', value: event.currentTarget.value })}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') submitTableNameDraft();
-              if (event.key === 'Escape') setTableNameDraft(undefined);
-            }}
-            placeholder="New table name"
-            value={tableNameDraft.value}
-          /> : <button type="button" disabled={disabled || availableRoots.length === 0} className="rounded-md border border-blue-300 px-3 py-1.5 text-sm font-medium text-blue-800 disabled:cursor-not-allowed disabled:opacity-50" onClick={() => setTableNameDraft({ kind: 'new', value: '' })}>New table</button>}
-          {tableNameDraft?.kind === 'duplicate' ? <input
-            aria-label="Duplicate table name"
-            autoFocus
-            className="w-40 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 outline-none ring-blue-200 focus:ring-2"
-            onBlur={() => setTableNameDraft(undefined)}
-            onChange={(event) => setTableNameDraft({ kind: 'duplicate', value: event.currentTarget.value })}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') submitTableNameDraft();
-              if (event.key === 'Escape') setTableNameDraft(undefined);
-            }}
-            value={tableNameDraft.value}
-          /> : <button type="button" title="Duplicate table" aria-label="Duplicate table" disabled={disabled || !workspaceOutput} className="rounded-md border border-slate-200 p-2 text-slate-700 disabled:opacity-50" onClick={() => setTableNameDraft({ kind: 'duplicate', value: `${workspaceOutput?.name ?? 'table'}_copy` })}><IconCopy aria-hidden="true" size={18} /></button>}
+          <button type="button" disabled={disabled || availableRoots.length === 0} className="rounded-md border border-blue-300 px-3 py-1.5 text-sm font-medium text-blue-800 disabled:cursor-not-allowed disabled:opacity-50" onMouseDown={(event) => event.preventDefault()} onClick={() => setTableNameDraft({ kind: 'new', value: '' })}>New table</button>
+          <button type="button" title="Duplicate table" aria-label="Duplicate table" disabled={disabled || !workspaceOutput} className="rounded-md border border-slate-200 p-2 text-slate-700 disabled:opacity-50" onMouseDown={(event) => event.preventDefault()} onClick={() => setTableNameDraft({ kind: 'duplicate', value: `${workspaceOutput?.name ?? 'table'}_copy` })}><IconCopy aria-hidden="true" size={18} /></button>
           <button type="button" title="Delete table" aria-label="Delete table" disabled={disabled || !workspaceName} className="rounded-md border border-slate-200 p-2 text-slate-700 disabled:opacity-50" onClick={() => {
             if (!workspaceName) return;
             const removedIndex = existingOutputs.findIndex((candidate) => candidate.name === workspaceName);
@@ -1506,9 +1490,26 @@ export const GuidedBuilder = ({
             setSelectedOutputName(outputKey(remaining[removedIndex] ?? remaining[removedIndex - 1] ?? remaining[0]));
             updateWorkspace(remaining, existingTabs.filter((tab) => tab.output !== workspaceName));
           }}><IconTrash aria-hidden="true" size={18} /></button>
-          <label className="ml-1 flex shrink-0 items-center gap-1.5 text-xs font-semibold text-slate-600" htmlFor="builder-table-title">Name
-            <input id="builder-table-title" disabled={disabled} className="w-36 rounded border border-slate-300 bg-white px-2 py-1.5 text-sm font-normal text-slate-900" value={tableTitle} onChange={(event) => setTableTitle(event.currentTarget.value)} onBlur={() => applyTable(selectedFields, selectedRoot, tableTitle)} />
-          </label>
+          <input
+            ref={tableNameInputRef}
+            aria-label={tableNameDraft?.kind === 'new' ? 'New table name' : tableNameDraft?.kind === 'duplicate' ? 'Duplicate table name' : 'Table name'}
+            className="shrink-0 rounded border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900"
+            disabled={disabled}
+            onBlur={() => {
+              if (tableNameDraft) setTableNameDraft(undefined);
+              else applyTable(selectedFields, selectedRoot, tableTitle);
+            }}
+            onChange={(event) => tableNameDraft
+              ? setTableNameDraft({ ...tableNameDraft, value: event.currentTarget.value })
+              : setTableTitle(event.currentTarget.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') tableNameDraft ? submitTableNameDraft() : applyTable(selectedFields, selectedRoot, tableTitle);
+              if (event.key === 'Escape' && tableNameDraft) setTableNameDraft(undefined);
+            }}
+            placeholder={tableNameDraft?.kind === 'new' ? 'New table name' : undefined}
+            style={{ width: `${Math.max(14, Math.min(40, (tableNameDraft?.value ?? tableTitle).length + 3))}ch` }}
+            value={tableNameDraft?.value ?? tableTitle}
+          />
           <span className="min-w-2 flex-1" />
           <button type="button" disabled={disabled || !selectedRoot || selectedFields.length === 0} className="rounded-md bg-green-700 px-4 py-1.5 text-sm font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:bg-slate-400" onClick={renderCurrentTable}>Render table <span className="ml-1 rounded-full bg-white/20 px-1.5 text-xs">{selectedQueryFieldCount}</span></button>
           {onSaveDraft && <button type="button" disabled={disabled} className="rounded-md border border-blue-300 bg-white px-3 py-1.5 text-sm font-medium text-blue-800" onClick={onSaveDraft}>Save draft</button>}

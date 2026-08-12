@@ -135,6 +135,7 @@ export const ExplorerSamplePreview = ({
   const statusText = statusTextFor(status, Boolean(preview), isStale);
   const errorText = error || 'Try running the sample again.';
   const [draggedColumn, setDraggedColumn] = React.useState<string>();
+  const [dropTargetColumn, setDropTargetColumn] = React.useState<string>();
 
   return (
     <section
@@ -237,12 +238,18 @@ export const ExplorerSamplePreview = ({
                 <tr>
                   {columns.map((column) => (
                     <th
-                      className={`whitespace-nowrap border-b border-slate-200 px-4 py-2.5 font-semibold ${editableHeaders && onColumnReorder ? 'cursor-grab active:cursor-grabbing' : ''} ${draggedColumn === column.sourceName ? 'bg-blue-100 opacity-60' : ''}`}
+                      className={`relative whitespace-nowrap border-b border-slate-200 px-4 py-2.5 font-semibold ${editableHeaders && onColumnReorder ? 'cursor-grab active:cursor-grabbing' : ''} ${draggedColumn === column.sourceName ? 'bg-blue-100 opacity-60' : ''} ${dropTargetColumn === column.sourceName ? 'before:absolute before:inset-y-1 before:left-0 before:z-20 before:w-1 before:rounded-full before:bg-blue-600' : ''}`}
                       draggable={Boolean(editableHeaders && onColumnReorder)}
                       key={column.sourceName}
-                      onDragEnd={() => setDraggedColumn(undefined)}
+                      onDragEnd={() => {
+                        setDraggedColumn(undefined);
+                        setDropTargetColumn(undefined);
+                      }}
                       onDragOver={(event) => {
-                        if (draggedColumn && draggedColumn !== column.sourceName) event.preventDefault();
+                        if (draggedColumn && draggedColumn !== column.sourceName) {
+                          event.preventDefault();
+                          setDropTargetColumn(column.sourceName);
+                        }
                       }}
                       onDragStart={(event) => {
                         setDraggedColumn(column.sourceName);
@@ -254,8 +261,10 @@ export const ExplorerSamplePreview = ({
                         const sourceName = event.dataTransfer.getData('text/plain') || draggedColumn;
                         if (sourceName && sourceName !== column.sourceName) onColumnReorder?.(sourceName, column.sourceName);
                         setDraggedColumn(undefined);
+                        setDropTargetColumn(undefined);
                       }}
                       scope="col"
+                      title={editableHeaders && onColumnReorder ? 'Drag to reorder. The blue line marks where this column will be inserted.' : undefined}
                     >
                       {editableHeaders ? <div className="min-w-44 space-y-1">
                         <input aria-label={`Column ${column.sourceName} display name`} className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs font-semibold normal-case tracking-normal text-slate-900" value={column.label} onChange={(event) => onColumnLabelChange?.(column.sourceName, event.currentTarget.value)} />
