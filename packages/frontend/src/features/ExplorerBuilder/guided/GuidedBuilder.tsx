@@ -6,6 +6,7 @@ import {
   MarkerType,
   ReactFlow,
   ReactFlowProvider,
+  useReactFlow,
   type EdgeProps,
 } from '@xyflow/react';
 import type {
@@ -68,6 +69,37 @@ const RoutedEdge = ({
 );
 
 const edgeTypes = { routed: RoutedEdge };
+
+/** Refit after a pane resize; React Flow resizes its canvas but does not
+ * automatically recompute the viewport that made the graph readable. */
+const GraphViewportFitter = ({
+  hostRef,
+  graphIdentity,
+}: {
+  readonly hostRef: React.RefObject<HTMLDivElement | null>;
+  readonly graphIdentity: string;
+}) => {
+  const graph = useReactFlow();
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return undefined;
+    let frame = 0;
+    const fit = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        graph.fitView({ padding: 0.11, minZoom: 0.22, maxZoom: 1.15, duration: 160 });
+      });
+    };
+    const observer = new ResizeObserver(fit);
+    observer.observe(host);
+    fit();
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, [graph, graphIdentity, hostRef]);
+  return null;
+};
 
 const asRecord = (value: JSONValue | undefined): Record<string, JSONValue> =>
   value && typeof value === 'object' && !Array.isArray(value)
@@ -512,6 +544,7 @@ const FlowGraph = ({
   readonly disabled: boolean;
   readonly recipeSource?: 'platform-default' | 'project-draft';
 }) => {
+  const graphViewportRef = useRef<HTMLDivElement>(null);
   const selectedSparseKey = selectedPath
     .filter((edge) => edge.edgeCount < 10)
     .map(edgeId)
@@ -616,10 +649,12 @@ const FlowGraph = ({
       return { stroke: selected ? '#2563eb' : reachable ? '#16a34a' : '#64748b', strokeWidth: selected ? weight + 2 : reachable ? weight + 1 : weight, opacity: selected || reachable ? 1 : 0.12 + 0.24 * Math.sqrt(edge.edgeCount / maxEdgeCount) };
     })(),
   }));
+  const graphIdentity = `${graph.nodes.map((node) => node.resourceType).sort().join(',')}|${graph.edges.map(edgeId).sort().join(',')}`;
   return (
     <>
-    <div aria-label="Populated FHIR relationship graph" className="relative mt-3 h-full min-h-0 w-full rounded-xl border border-slate-200 bg-slate-50 shadow-inner">
+    <div ref={graphViewportRef} aria-label="Populated FHIR relationship graph" className="relative mt-3 h-full min-h-0 w-full rounded-xl border border-slate-200 bg-slate-50 shadow-inner">
       <ReactFlowProvider>
+        <GraphViewportFitter hostRef={graphViewportRef} graphIdentity={graphIdentity} />
         <ReactFlow
           fitView
           fitViewOptions={{ padding: 0.16, minZoom: 0.18, maxZoom: 1.15 }}
@@ -723,6 +758,8 @@ export const GuidedBuilder = ({
   // Keep it visible beside the graph on desktop; graph interactions simply
   // change which node the panel is inspecting.
   const [inspectorOpen, setInspectorOpen] = useState(true);
+  const [columnPanelWidth, setColumnPanelWidth] = useState(480);
+  const workspaceRef = useRef<HTMLDivElement>(null);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [showSparseData, setShowSparseData] = useState(false);
   const [scanAttempt, setScanAttempt] = useState(0);
@@ -735,6 +772,23 @@ export const GuidedBuilder = ({
       ? titleFor(currentOutput.name)
       : `${titleFor(currentRoot)} overview`,
   );
+  const beginColumnResize = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (window.innerWidth < 1280) return;
+    event.preventDefault();
+    const startX = event.clientX;
+    const startWidth = columnPanelWidth;
+    const hostWidth = workspaceRef.current?.getBoundingClientRect().width ?? window.innerWidth;
+    const maximum = Math.min(720, Math.max(384, hostWidth * 0.48));
+    const move = (pointer: PointerEvent) => {
+      setColumnPanelWidth(Math.min(maximum, Math.max(384, startWidth + startX - pointer.clientX)));
+    };
+    const finish = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', finish);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', finish, { once: true });
+  };
 
   useEffect(() => {
     const controller = new AbortController();
@@ -1406,7 +1460,13 @@ export const GuidedBuilder = ({
         </div>
       </header>
 
-      <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(28rem,34rem)]">
+      <div
+        ref={workspaceRef}
+        className={inspectorOpen
+          ? 'grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_0.75rem_var(--column-selector-width)]'
+          : 'grid grid-cols-1 gap-3'}
+        style={inspectorOpen ? { '--column-selector-width': `${columnPanelWidth}px` } as React.CSSProperties : undefined}
+      >
       <section aria-labelledby="fhir-map-heading" className="relative flex h-[min(46dvh,34rem)] min-h-[28rem] min-w-0 flex-col rounded-lg border bg-white p-3 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -1458,6 +1518,21 @@ export const GuidedBuilder = ({
         </> : <p className="mt-4 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">No populated FHIR resources were found in this project yet. The graph will become available when populated data is present.</p>}
       </section>
 
+      {inspectorOpen && <button
+        type="button"
+        aria-label="Resize column selector"
+        aria-orientation="vertical"
+        aria-valuemin={384}
+        aria-valuemax={720}
+        aria-valuenow={columnPanelWidth}
+        className="group relative hidden cursor-col-resize touch-none rounded bg-slate-200 outline-none transition hover:bg-blue-400 focus:bg-blue-500 xl:block"
+        onPointerDown={beginColumnResize}
+        onKeyDown={(event) => {
+          if (event.key === 'ArrowLeft') setColumnPanelWidth((width) => Math.min(720, width + 24));
+          if (event.key === 'ArrowRight') setColumnPanelWidth((width) => Math.max(384, width - 24));
+        }}
+        role="separator"
+      ><span aria-hidden="true" className="absolute left-1/2 top-1/2 h-12 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-slate-400 group-hover:bg-white" /></button>}
       {inspectorOpen && <aside aria-labelledby="fields-heading" className="h-[min(46dvh,34rem)] min-h-[28rem] overflow-y-auto rounded-lg border border-slate-200 bg-white p-4 shadow-sm xl:sticky xl:top-3">
         <div className="flex items-start justify-between gap-3">
         <div><h2 id="fields-heading" className="text-lg font-semibold">Choose {resourceLabel(selectedNodeType || selectedRoot)} columns</h2>
