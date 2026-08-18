@@ -85,21 +85,6 @@ export const unwrapRepositoryExplorerResponse = (
   return value as RepositoryExplorerConfig;
 };
 
-const getFacetType = (column: LoomColumn): FacetDefinition['type'] => {
-  const type = `${column.logicalType} ${column.clickhouseType}`.toLowerCase();
-  if (type.includes('bool')) return 'toggle';
-  if (type.includes('date') || type.includes('time')) return 'datetime';
-  if (
-    type.includes('int') ||
-    type.includes('float') ||
-    type.includes('decimal') ||
-    type.includes('double') ||
-    type.includes('number')
-  )
-    return 'range';
-  return 'enum';
-};
-
 const getRepositoryDatasets = (
   deployed: RepositoryExplorerConfig,
 ): ReadonlyArray<LoomDataset> => {
@@ -349,18 +334,6 @@ const defaultConfigurationFromDatasets = (
     const datasetColumns = dataset.columns;
     const fields = datasetColumns.map((column) => column.name);
     columns[dataset.dataType] = new Set(fields);
-    const filterColumns = datasetColumns.filter((column) => column.filterable);
-    const fieldsConfig = Object.fromEntries(
-      filterColumns.map((column) => [
-        column.name,
-        {
-          field: column.name,
-          index: dataset.dataType,
-          label: column.name,
-          type: getFacetType(column),
-        } satisfies FacetDefinition,
-      ]),
-    );
 
     return {
       tabTitle: dataset.dataType,
@@ -380,19 +353,6 @@ const defaultConfigurationFromDatasets = (
           ]),
         ),
       },
-      ...(filterColumns.length > 0
-        ? {
-            filters: {
-              tabs: [
-                {
-                  title: 'Filters',
-                  fields: filterColumns.map((column) => column.name),
-                  fieldsConfig,
-                },
-              ],
-            },
-          }
-        : {}),
     } as CohortPanelConfiguration;
   });
 

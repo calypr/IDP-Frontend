@@ -1,4 +1,8 @@
-import type { AggregationsData, JSONObject } from '../../types';
+import type {
+  AggregationsData,
+  HistogramDataArray,
+  JSONObject,
+} from '../../types';
 
 export const LOOM_DATA_TYPES = [
   'Patient',
@@ -187,6 +191,51 @@ export type LoomAggregationsRequest = LoomDatasetIdentity & {
 export interface LoomAggregationsResponse {
   readonly materialization: LoomDataset | null;
   readonly data: AggregationsData;
+}
+
+export type LoomAggregationKind =
+  | 'TERMS'
+  | 'HISTOGRAM'
+  | 'DATE_HISTOGRAM'
+  | 'STATS'
+  | 'MISSING';
+
+/** A bounded, named aggregation supported by dataframeAggregations. */
+export interface LoomAggregationSpec {
+  readonly name: string;
+  readonly kind: LoomAggregationKind;
+  readonly column: string;
+  readonly size?: number;
+  readonly interval?: number;
+  readonly dateInterval?: number;
+  readonly excludeSelfFilter?: boolean;
+}
+
+export type LoomRichAggregationsRequest = LoomDatasetIdentity & {
+  readonly specs: ReadonlyArray<LoomAggregationSpec>;
+  readonly filters?: ReadonlyArray<LoomFilter>;
+};
+
+export interface LoomAggregationResult {
+  readonly name: string;
+  readonly kind: LoomAggregationKind;
+  readonly data: HistogramDataArray;
+  readonly missingCount: number;
+  readonly truncated: boolean;
+}
+
+export interface LoomRichAggregationsResponse {
+  readonly materialization: LoomDataset | null;
+  readonly aggregations: Readonly<Record<string, LoomAggregationResult>>;
+}
+
+/** Rows plus an optional bounded facet batch for one selector/filter snapshot. */
+export type LoomTableRenderRequest = LoomRowsRequest & {
+  readonly facets?: ReadonlyArray<LoomAggregationSpec>;
+};
+
+export interface LoomTableRenderResponse extends LoomRowsResponse {
+  readonly facets?: LoomRichAggregationsResponse;
 }
 
 export interface LoomApiError {

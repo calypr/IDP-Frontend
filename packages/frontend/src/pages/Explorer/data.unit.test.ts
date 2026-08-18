@@ -286,12 +286,7 @@ describe('ExplorerConfig V2 runtime translation', () => {
       loomProjectIds: ['program-project'],
     });
     expect(panel.table?.fields).toEqual(['id', 'race']);
-    expect(panel.filters?.tabs[0]).toMatchObject({
-      fields: ['race'],
-      fieldsConfig: {
-        race: { field: 'race', index: 'Patient', type: 'enum' },
-      },
-    });
+    expect(panel.filters).toBeUndefined();
     expect(columns.Patient).toEqual(new Set(['id', 'race']));
   });
 

@@ -4,6 +4,8 @@ import { useRouter } from 'next/router';
 import { Stack } from '@mantine/core';
 import {
   Accessibility,
+  AggregationsData,
+  buildLoomFacetPlan,
   CombineMode,
   convertFilterSetToLoomFilters,
   CoreState,
@@ -14,8 +16,7 @@ import {
   LoomDatasetSelector,
   selectIndexFilters,
   useCoreSelector,
-  useGetLoomAggregationsQuery,
-  useGetLoomCountQuery,
+  useGetLoomRichAggregationsQuery,
   usePrevious,
 } from '@gen3/core';
 import FacetTabs from '../../components/facets/FacetTabs';
@@ -129,16 +130,31 @@ const TabbedCohortBuilder = ({
       };
     }
   }, [cohortFilters]);
+  const activeTabFacets = useMemo(
+    () => (activeTab ? tabsConfig[activeTab]?.facets ?? [] : []),
+    [activeTab, tabsConfig],
+  );
+  const facetPlan = useMemo(
+    () =>
+      buildLoomFacetPlan(
+        activeTabFacets.map((field) => ({
+          field,
+          facetType: 'enum',
+          excludeSelfFilter: true,
+        })),
+      ),
+    [activeTabFacets],
+  );
   const {
-    data,
-    isSuccess,
+    data: richAggregationResponse,
+    isSuccess: isAggsSuccess,
     isFetching: isAggsQueryFetching,
     isError: isAggsQueryError,
-  } = useGetLoomAggregationsQuery(
+  } = useGetLoomRichAggregationsQuery(
     loomIdentity
       ? {
           ...loomIdentity,
-          fields: cohortBuilderFilters,
+          specs: facetPlan.specs,
           filters: loomFilters.filters,
         }
       : skipToken,
@@ -146,24 +162,45 @@ const TabbedCohortBuilder = ({
       skip:
         !loomIdentity ||
         !!loomFilters.error ||
-        cohortBuilderFilters.length === 0,
+        facetPlan.specs.length === 0,
     },
   );
-
-  const {
-    data: counts,
-    isSuccess: isCountSuccess,
-    isError,
-  } = useGetLoomCountQuery(
-    loomIdentity
-      ? {
-          ...loomIdentity,
-          filters: loomFilters.filters,
-          operation: 'COUNT',
+  const isSuccess = isAggsSuccess && Boolean(richAggregationResponse);
+  const data = useMemo<AggregationsData | undefined>(() => {
+    if (!richAggregationResponse) return undefined;
+    return Object.values(richAggregationResponse.aggregations).reduce(
+      (acc, aggregation) => {
+        const spec = facetPlan.specs.find(
+          (candidate) => candidate.name === aggregation.name,
+        );
+        if (spec) acc[spec.column] = aggregation.data;
+        return acc;
+      },
+      {} as AggregationsData,
+    );
+  }, [facetPlan.specs, richAggregationResponse]);
+  const facetMetadata = useMemo(() => {
+    if (!richAggregationResponse) return {};
+    return Object.values(richAggregationResponse.aggregations).reduce(
+      (acc, aggregation) => {
+        const spec = facetPlan.specs.find(
+          (candidate) => candidate.name === aggregation.name,
+        );
+        if (spec) {
+          acc[spec.column] = {
+            missingCount: aggregation.missingCount,
+            truncated: aggregation.truncated,
+            isPartial: aggregation.truncated || aggregation.missingCount > 0,
+          };
         }
-      : skipToken,
-    { skip: !loomIdentity || !!loomFilters.error },
-  );
+        return acc;
+      },
+      {} as Record<
+        string,
+        { missingCount: number; truncated: boolean; isPartial: boolean }
+      >,
+    );
+  }, [facetPlan.specs, richAggregationResponse]);
 
   const [facetDefinitions, setFacetDefinitions] = useState<
     Record<string, FacetDefinition>
@@ -186,13 +223,13 @@ const TabbedCohortBuilder = ({
 
   // Set the facet definitions based on the data only the first time the data is loaded
   useDeepCompareEffect(() => {
-    if (isSuccess && Object.keys(facetDefinitions).length === 0) {
-      const facetDefs = classifyFacets(data, index);
+    if (isSuccess && data) {
+      const facetDefs = classifyFacets(data ?? {}, index);
       setFacetDefinitions(facetDefs);
 
       // setup summary charts since nested fields can be listed by the split field nam
     }
-  }, [isSuccess, data, facetDefinitions, index]);
+  }, [isSuccess, data, index]);
 
   const getEnumFacetData = useDeepCompareCallback(
     (field: string) => {
@@ -219,9 +256,10 @@ const TabbedCohortBuilder = ({
         isSuccess: isSuccess,
         isFetching: isAggsQueryFetching,
         isError: isAggsQueryError,
+        ...facetMetadata[field],
       };
     },
-    [cohortFilters, data, isSuccess],
+    [cohortFilters, data, facetMetadata, isSuccess],
   );
 
   const getRangeFacetData = useDeepCompareCallback(
@@ -232,9 +270,10 @@ const TabbedCohortBuilder = ({
         isSuccess: isSuccess,
         isFetching: isAggsQueryFetching,
         isError: isAggsQueryError,
+        ...facetMetadata[field],
       };
     },
-    [data, cohortFilters.root, isSuccess],
+    [data, cohortFilters.root, facetMetadata, isSuccess],
   );
 
   const EnumHookInstances = {

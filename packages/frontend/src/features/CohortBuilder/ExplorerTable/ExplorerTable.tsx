@@ -8,8 +8,7 @@ import {
   JSONObject,
   selectIndexFilters,
   useCoreSelector,
-  useGetLoomDatasetBySelectorQuery,
-  useGetLoomRowsQuery,
+  useGetLoomTableRenderQuery,
 } from '@gen3/core';
 import {
   MantineReactTable,
@@ -50,6 +49,11 @@ const ExplorerTable = ({
   fileActions,
   loomDataset,
   loomProjectIds,
+  loomActiveDataset,
+  facetSpecs,
+  tableRenderSignature,
+  onTableRender,
+  onTableRenderState,
 }: ExplorerTableProps) => {
   const [pagination, setPagination] = useState<MRT_PaginationState>({
     pageIndex: 0,
@@ -156,9 +160,13 @@ const ExplorerTable = ({
     selectIndexFilters(state, index),
   );
 
-  const loomIdentity = loomDataset
-    ? ({ selector: loomDataset, projectIds: loomProjectIds } as const)
-    : null;
+  const loomIdentity = useMemo(
+    () =>
+      loomDataset
+        ? ({ selector: loomDataset, projectIds: loomProjectIds } as const)
+        : null,
+    [loomDataset, loomProjectIds],
+  );
   const loomFilters = useMemo(() => {
     try {
       return {
@@ -173,14 +181,7 @@ const ExplorerTable = ({
       };
     }
   }, [cohortFilters]);
-  const {
-    data: selectedDataset,
-    isError: isSelectedDatasetError,
-    isLoading: isSelectedDatasetLoading,
-  } = useGetLoomDatasetBySelectorQuery(
-    loomIdentity ?? skipToken,
-  );
-  const activeDataset = selectedDataset;
+  const activeDataset = loomActiveDataset;
   const queryFields = useMemo(
     () => includeAvailableSha256(fields, activeDataset?.columns),
     [activeDataset?.columns, fields],
@@ -197,8 +198,9 @@ const ExplorerTable = ({
         loomFilters: loomFilters.filters,
         sorting,
         pageSize: pagination.pageSize,
+        facetSpecs,
       }),
-    [loomIdentity, loomFilters.filters, sorting, pagination.pageSize],
+    [facetSpecs, loomIdentity, loomFilters.filters, sorting, pagination.pageSize],
   );
   useEffect(() => {
     setCursorLedger({ 0: null });
@@ -206,11 +208,11 @@ const ExplorerTable = ({
   }, [querySignature]);
 
   const {
-    data: loomRows,
+    data: tableRender,
     isLoading,
     isError: isRowsError,
     isFetching,
-  } = useGetLoomRowsQuery(
+  } = useGetLoomTableRenderQuery(
     loomIdentity
       ? {
           ...loomIdentity,
@@ -221,14 +223,26 @@ const ExplorerTable = ({
           sort: sorting[0]
             ? { column: sorting[0].id, desc: sorting[0].desc }
             : undefined,
+          facets:
+            pagination.pageIndex === 0 && facetSpecs?.length
+              ? facetSpecs
+              : undefined,
         }
       : skipToken,
     {
-      skip: !loomIdentity || !activeDataset || !!loomFilters.error,
+      skip: !loomIdentity || !!loomFilters.error,
     },
   );
   useEffect(() => {
-    const nextCursor = loomRows?.pageInfo?.endCursor;
+    if (tableRender && !isFetching) {
+      onTableRender?.(tableRender, tableRenderSignature);
+    }
+  }, [isFetching, onTableRender, tableRender, tableRenderSignature]);
+  useEffect(() => {
+    onTableRenderState?.({ isFetching, isError: isRowsError });
+  }, [isFetching, isRowsError, onTableRenderState]);
+  useEffect(() => {
+    const nextCursor = tableRender?.pageInfo?.endCursor;
     if (nextCursor) {
       setCursorLedger((current) =>
         current[pagination.pageIndex + 1] === nextCursor
@@ -236,7 +250,7 @@ const ExplorerTable = ({
           : { ...current, [pagination.pageIndex + 1]: nextCursor },
       );
     }
-  }, [loomRows, pagination.pageIndex]);
+  }, [pagination.pageIndex, tableRender]);
 
   const setTablePagination = useCallback(
     (
@@ -255,8 +269,8 @@ const ExplorerTable = ({
   );
 
   const data = useMemo<JSONObject[]>(
-    () => [...(loomRows?.rows ?? [])],
-    [loomRows?.rows],
+    () => [...(tableRender?.rows ?? [])],
+    [tableRender?.rows],
   );
   const isError = isRowsError;
 
@@ -267,14 +281,14 @@ const ExplorerTable = ({
     const totalRowCount = tableConfig?.pageLimit
       ? Math.min(
           pageLimit,
-          loomRows?.totalCount ?? activeDataset?.rowCount ?? pagination.pageSize,
+          tableRender?.totalCount ?? activeDataset?.rowCount ?? pagination.pageSize,
         )
-      : (loomRows?.totalCount ?? activeDataset?.rowCount ?? pagination.pageSize);
+      : (tableRender?.totalCount ?? activeDataset?.rowCount ?? pagination.pageSize);
     const limitLabel = tableConfig?.pageLimit
       ? (tableConfig?.pageLimit?.label ?? DEFAULT_PAGE_LIMIT_LABEL)
       : 'Rows per Page:';
     return { totalRowCount, limitLabel };
-  }, [tableConfig, data, pagination.pageSize, index]);
+  }, [activeDataset?.rowCount, pagination.pageSize, tableConfig, tableRender?.totalCount, index]);
   /**
    * mantine-react-table setup
    * @see https://www.mantine-react-table.com/docs/api/table-options
@@ -415,24 +429,7 @@ const ExplorerTable = ({
   if (loomFilters.error) {
     return <ErrorCard message={loomFilters.error} />;
   }
-  if (isSelectedDatasetError) {
-    return (
-      <ErrorCard message="Unable to discover the authorized Loom dataset" />
-    );
-  }
-  if (isSelectedDatasetLoading) {
-    return (
-      <div className="flex items-center justify-center w-full h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
-      </div>
-    );
-  }
-  if (!activeDataset) {
-    return (
-      <ErrorCard message="No authorized Loom dataset is available for this Explorer tab" />
-    );
-  }
-  if (activeDataset.state !== 'READY') {
+  if (activeDataset && activeDataset.state !== 'READY') {
     return (
       <ErrorCard
         message={`Loom dataset is ${activeDataset.state.toLowerCase()}${activeDataset.error ? `: ${activeDataset.error}` : ''}`}

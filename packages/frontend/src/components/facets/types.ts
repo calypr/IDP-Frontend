@@ -109,6 +109,8 @@ export interface FacetCommonHooks {
     facets: FacetDefinition[],
     queryOptions?: QueryOptions,
   ) => void;
+  /** Request data for a facet that was intentionally left out of the initial batch. */
+  demandFacet?: (field: string) => void;
 }
 
 export interface FacetDataHooks extends FacetCommonHooks {
@@ -170,6 +172,9 @@ export interface FacetResponse {
   readonly isSuccess: boolean;
   readonly isFetching: boolean;
   readonly error?: unknown;
+  readonly missingCount?: number;
+  readonly truncated?: boolean;
+  readonly isPartial?: boolean;
 }
 
 export interface EnumFacetResponse extends FacetResponse {

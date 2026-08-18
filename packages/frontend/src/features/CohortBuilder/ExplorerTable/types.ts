@@ -6,7 +6,14 @@ import {
   MRT_RowData,
   MRT_TableInstance,
 } from 'mantine-react-table';
-import { Accessibility, JSONObject, LoomDatasetSelector } from '@gen3/core';
+import {
+  Accessibility,
+  JSONObject,
+  LoomAggregationSpec,
+  LoomDataset,
+  LoomDatasetSelector,
+  LoomTableRenderResponse,
+} from '@gen3/core';
 import { ReactNode, RefObject } from 'react';
 import { CellRendererFunction } from './ExplorerTableCellRenderers';
 import { FileActionsConfig } from '../types';
@@ -83,6 +90,17 @@ export interface ExplorerTableProps {
   fileActions?: FileActionsConfig;
   loomDataset?: LoomDatasetSelector;
   loomProjectIds?: ReadonlyArray<string>;
+  loomActiveDataset?: LoomDataset | null;
+  facetSpecs?: ReadonlyArray<LoomAggregationSpec>;
+  tableRenderSignature?: string;
+  onTableRender?: (
+    response: LoomTableRenderResponse,
+    requestSignature?: string,
+  ) => void;
+  onTableRenderState?: (state: {
+    isFetching: boolean;
+    isError: boolean;
+  }) => void;
 }
 
 export interface ExplorerTableColumnMRT {

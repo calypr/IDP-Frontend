@@ -1,4 +1,24 @@
-import { normalizeCohortPanelForDataset } from './runtimeConfiguration';
+import {
+  hasUsableFilterConfiguration,
+  normalizeCohortPanelForDataset,
+} from './runtimeConfiguration';
+
+describe('hasUsableFilterConfiguration', () => {
+  it('only enables filter surfaces when a tab has a field', () => {
+    expect(hasUsableFilterConfiguration(undefined)).toBe(false);
+    expect(hasUsableFilterConfiguration({ tabs: [] })).toBe(false);
+    expect(
+      hasUsableFilterConfiguration({
+        tabs: [{ title: 'Filters', fields: [], fieldsConfig: {} }],
+      }),
+    ).toBe(false);
+    expect(
+      hasUsableFilterConfiguration({
+        tabs: [{ title: 'Filters', fields: ['status'], fieldsConfig: {} }],
+      }),
+    ).toBe(true);
+  });
+});
 
 describe('normalizeCohortPanelForDataset', () => {
   const columns = [

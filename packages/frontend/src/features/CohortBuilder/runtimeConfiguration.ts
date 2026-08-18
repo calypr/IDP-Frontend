@@ -136,6 +136,15 @@ const normalizeFilters = (
   };
 };
 
+export const hasUsableFilterConfiguration = (
+  filters: CohortPanelConfiguration['filters'],
+): boolean =>
+  Boolean(
+    filters?.tabs.some((tab) =>
+      tab.fields.some((field) => field.trim().length > 0),
+    ),
+  );
+
 const normalizeCharts = <T extends Record<string, unknown>>(
   charts: T | undefined,
   columns: ReadonlyArray<RuntimeColumn>,

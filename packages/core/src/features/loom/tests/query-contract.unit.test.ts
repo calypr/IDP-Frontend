@@ -4,10 +4,21 @@ import {
   buildLoomCountQuery,
   buildLoomDatasetQuery,
   buildLoomDatasetSelectorQuery,
+  buildLoomRichAggregationsQuery,
   buildLoomRowsQuery,
+  buildLoomTableRenderQuery,
   normalizeLoomAggregateGraphQLResponse,
+  normalizeLoomRichAggregationsGraphQLResponse,
   normalizeLoomRowsGraphQLResponse,
+  normalizeLoomTableRenderGraphQLResponse,
 } from '../loomSlice';
+import {
+  buildLoomFacetPlan,
+  canonicalizeLoomFilters,
+  LoomFacetCache,
+  loomFacetCacheKey,
+  loomFacetSpecName,
+} from '../facetPolicy';
 import { dataframeSelectorForRecipeOutput } from '../explorer';
 import { buildLoomDownloadRequest } from '../loomDownload';
 import {
@@ -234,6 +245,79 @@ describe('Loom GraphQL request contracts', () => {
     ).toThrow('Loom aggregations require at least one non-empty field');
   });
 
+  it('builds one bounded rich aggregation request', () => {
+    const request = buildLoomRichAggregationsQuery({
+      selector,
+      filters: [
+        { column: 'status', op: 'eq', value: 'active' },
+      ],
+      specs: [
+        {
+          name: 'status_values',
+          kind: 'TERMS',
+          column: 'status',
+          size: 25,
+          excludeSelfFilter: true,
+        },
+      ],
+    });
+
+    expect(request.query).toContain('dataframeAggregations');
+    expect(request.variables).toEqual({
+      input: {
+        selector,
+        filters: [{ column: 'status', op: 'eq', value: 'active' }],
+        specs: [
+          {
+            name: 'status_values',
+            kind: 'TERMS',
+            column: 'status',
+            size: 25,
+            excludeSelfFilter: true,
+          },
+        ],
+      },
+    });
+    expect(() =>
+      buildLoomRichAggregationsQuery({ selector, specs: [] }),
+    ).toThrow('Loom rich aggregations require at least one specification');
+  });
+
+  it('combines rows and facets only when facets are explicitly requested', () => {
+    const rowsOnly = buildLoomTableRenderQuery({
+      selector,
+      columns: ['id'],
+      first: 10,
+    });
+    expect(rowsOnly.query).toContain('dataframeRows');
+    expect(rowsOnly.query).not.toContain('dataframeAggregations');
+    expect(rowsOnly.variables).toEqual({
+      rows: {
+        selector,
+        columns: ['id'],
+        filters: undefined,
+        sort: undefined,
+        first: 10,
+        after: undefined,
+      },
+    });
+
+    const combined = buildLoomTableRenderQuery({
+      selector,
+      columns: ['id'],
+      facets: [{ name: 'status_values', kind: 'TERMS', column: 'status' }],
+    });
+    expect(combined.query).toContain('table: dataframeRows');
+    expect(combined.query).toContain('facets: dataframeAggregations');
+    expect(combined.variables).toMatchObject({
+      rows: { selector, columns: ['id'] },
+      facets: {
+        selector,
+        specs: [{ name: 'status_values', kind: 'TERMS', column: 'status' }],
+      },
+    });
+  });
+
   it('never serializes the retired materializationId or dataType request fields', () => {
     const requests = [
       buildLoomDatasetQuery(selector),
@@ -271,5 +355,133 @@ describe('Loom GraphQL request contracts', () => {
     });
 
     expect(response.rows).toEqual([{ status: 'active', count: '12' }]);
+  });
+
+  it('normalizes rich aggregation rows and preserves response metadata', () => {
+    const response = normalizeLoomRichAggregationsGraphQLResponse({
+      dataframeAggregations: {
+        materialization: null,
+        aggregations: [
+          {
+            name: 'status_values',
+            kind: 'TERMS',
+            columns: ['status', 'count'],
+            rows: [['active', '12']],
+            missingCount: 3,
+            truncated: true,
+          },
+        ],
+      },
+    });
+
+    expect(response.aggregations.status_values).toEqual({
+      name: 'status_values',
+      kind: 'TERMS',
+      data: [{ key: 'active', count: 12 }],
+      missingCount: 3,
+      truncated: true,
+    });
+  });
+
+  it('normalizes a unified table render response', () => {
+    const response = normalizeLoomTableRenderGraphQLResponse({
+      table: {
+        materialization: {} as never,
+        columns: ['id'],
+        rows: [['row-1']],
+        totalCount: 7,
+        pageInfo: { hasNextPage: false },
+      },
+      facets: {
+        materialization: null,
+        aggregations: [
+          {
+            name: 'status_values',
+            kind: 'TERMS',
+            columns: ['status', 'count'],
+            rows: [['active', 7]],
+          },
+        ],
+      },
+    });
+
+    expect(response.rows).toEqual([{ id: 'row-1' }]);
+    expect(response.totalCount).toBe(7);
+    expect(response.facets?.aggregations.status_values.data).toEqual([
+      { key: 'active', count: 7 },
+    ]);
+  });
+
+  it('canonicalizes filter order and creates stable facet cache keys', () => {
+    const first = [
+      { column: ' status ', op: 'eq', value: 'active' },
+      { column: 'id', op: 'IN', value: ['b', 'a'] },
+    ];
+    const second = [
+      { column: 'id', op: 'in', value: ['a', 'b'] },
+      { column: 'status', op: 'EQ', value: 'active' },
+    ];
+    expect(canonicalizeLoomFilters(first)).toEqual(
+      canonicalizeLoomFilters(second),
+    );
+    expect(loomFacetSpecName('patient.identifier')).toMatch(
+      /^facet__patient_identifier__[0-9a-f]{8}$/,
+    );
+    expect(
+      loomFacetCacheKey({
+        identity: { selector },
+        revision: 'revision-1',
+        spec: { name: 'status_values', kind: 'TERMS', column: 'status' },
+        filters: first,
+      }),
+    ).toBe(
+      loomFacetCacheKey({
+        identity: { selector },
+        revision: 'revision-1',
+        spec: { name: 'status_values', kind: 'TERMS', column: 'status' },
+        filters: second,
+      }),
+    );
+    expect(
+      loomFacetCacheKey({
+        identity: { selector },
+        revision: 'revision-1',
+        spec: { name: 'status_values', kind: 'TERMS', column: 'status' },
+      }),
+    ).not.toBe(
+      loomFacetCacheKey({
+        identity: { selector },
+        revision: 'revision-2',
+        spec: { name: 'status_values', kind: 'TERMS', column: 'status' },
+      }),
+    );
+  });
+
+  it('caps eager facets and leaves overflow demand-loadable', () => {
+    const plan = buildLoomFacetPlan(
+      Array.from({ length: 3 }, (_, index) => ({
+        field: `field_${index}`,
+        facetType: 'enum',
+      })),
+      2,
+    );
+    expect(plan.specs).toHaveLength(2);
+    expect(plan.eagerFields).toEqual(['field_0', 'field_1']);
+    expect(plan.lazyFields).toEqual(['field_2']);
+  });
+
+  it('bounds independent facet cache entries', () => {
+    const cache = new LoomFacetCache(1, 60_000);
+    const result = {
+      name: 'status_values',
+      kind: 'TERMS' as const,
+      data: [{ key: 'active', count: 1 }],
+      missingCount: 0,
+      truncated: false,
+    };
+    cache.set('first', result);
+    cache.set('second', { ...result, name: 'other_values' });
+    expect(cache.get('first')).toBeUndefined();
+    expect(cache.get('second')?.name).toBe('other_values');
   });
 });

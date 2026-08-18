@@ -5,9 +5,14 @@ import type {
   LoomAggregateRequest,
   LoomAggregateResponse,
   LoomAggregationsRequest,
+  LoomAggregationResult,
+  LoomRichAggregationsRequest,
+  LoomRichAggregationsResponse,
   LoomDataset,
   LoomRowsRequest,
   LoomRowsResponse,
+  LoomTableRenderRequest,
+  LoomTableRenderResponse,
   LoomQueryArgs,
   LoomDatasetIdentity,
   DataframeSelector,
@@ -147,6 +152,63 @@ export const buildLoomAggregationsQuery = (
   };
 };
 
+const richAggregationFields = `
+  materialization { id revision }
+  aggregations
+`;
+
+const buildRichAggregationInput = (input: LoomRichAggregationsRequest) => ({
+  ...buildLoomIdentityInput(input),
+  filters: input.filters ? [...input.filters] : [],
+  specs: input.specs.map((spec) => ({
+    name: spec.name,
+    kind: spec.kind,
+    column: spec.column,
+    ...(spec.size === undefined ? {} : { size: spec.size }),
+    ...(spec.interval === undefined ? {} : { interval: spec.interval }),
+    ...(spec.dateInterval === undefined
+      ? {}
+      : { dateInterval: spec.dateInterval }),
+    ...(spec.excludeSelfFilter === undefined
+      ? {}
+      : { excludeSelfFilter: spec.excludeSelfFilter }),
+  })),
+});
+
+export const buildLoomRichAggregationsQuery = (
+  input: LoomRichAggregationsRequest,
+): LoomQueryArgs => {
+  if (input.specs.length === 0) {
+    throw new Error('Loom rich aggregations require at least one specification');
+  }
+  return {
+    query: `query LoomRichAggregations($input: DataframeAggregationsInput!) { dataframeAggregations(input: $input) { ${richAggregationFields} } }`,
+    variables: { input: buildRichAggregationInput(input) },
+  };
+};
+
+export const buildLoomTableRenderQuery = (
+  input: LoomTableRenderRequest,
+): LoomQueryArgs => {
+  const rowsInput = buildLoomRowsQuery(input).variables?.input;
+  if (!input.facets || input.facets.length === 0) {
+    return {
+      query: `query LoomTableRender($rows: DataframeRowsInput!) { table: dataframeRows(input: $rows) { ${rowsFields} } }`,
+      variables: { rows: rowsInput },
+    };
+  }
+  return {
+    query: `query LoomTableRender($rows: DataframeRowsInput!, $facets: DataframeAggregationsInput!) { table: dataframeRows(input: $rows) { ${rowsFields} } facets: dataframeAggregations(input: $facets) { ${richAggregationFields} } }`,
+    variables: {
+      rows: rowsInput,
+      facets: buildRichAggregationInput({
+        ...input,
+        specs: input.facets,
+      }),
+    },
+  };
+};
+
 const normalizeRowsResponse = (
   response: Omit<LoomRowsResponse, 'rows'> & { rows: unknown },
 ): LoomRowsResponse => ({
@@ -169,6 +231,85 @@ export const normalizeLoomAggregateGraphQLResponse = (response: {
   dataframeAggregate: Omit<LoomAggregateResponse, 'rows'> & { rows: unknown };
 }): LoomAggregateResponse =>
   normalizeAggregateResponse(response.dataframeAggregate);
+
+const numericCount = (value: unknown): number => {
+  const result = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(result) ? result : 0;
+};
+
+const recordValue = (value: unknown): Record<string, unknown> | undefined =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+
+const normalizeRichAggregationResult = (
+  value: unknown,
+): LoomAggregationResult | undefined => {
+  const record = recordValue(value);
+  if (!record || typeof record.name !== 'string') return undefined;
+  const kind = String(record.kind ?? 'TERMS').toUpperCase() as LoomAggregationResult['kind'];
+  const columns = Array.isArray(record.columns)
+    ? record.columns.filter((column): column is string => typeof column === 'string')
+    : [];
+  const rows = Array.isArray(record.rows) ? record.rows : [];
+  const data = rows.map((row) => {
+    const shaped = shapeLoomRows([row], columns)[0] ?? {};
+    const key = shaped.key ?? shaped[columns[0] ?? 'key'];
+    const count = shaped.doc_count ?? shaped.count ?? shaped[columns[1] ?? 'count'];
+    return { key: toHistogramKey(key), count: numericCount(count) };
+  });
+  return {
+    name: record.name,
+    kind,
+    data,
+    missingCount: numericCount(record.missingCount),
+    truncated: record.truncated === true,
+  };
+};
+
+const normalizeRichAggregations = (
+  value: unknown,
+): Readonly<Record<string, LoomAggregationResult>> => {
+  const values = Array.isArray(value)
+    ? value
+    : recordValue(value)?.aggregations;
+  if (!Array.isArray(values)) return {};
+  return Object.fromEntries(
+    values
+      .map(normalizeRichAggregationResult)
+      .filter((item): item is LoomAggregationResult => Boolean(item))
+      .map((item) => [item.name, item]),
+  );
+};
+
+export const normalizeLoomRichAggregationsGraphQLResponse = (response: {
+  dataframeAggregations: {
+    materialization: LoomDataset | null;
+    aggregations: unknown;
+  };
+}): LoomRichAggregationsResponse => ({
+  materialization: response.dataframeAggregations.materialization,
+  aggregations: normalizeRichAggregations(
+    response.dataframeAggregations.aggregations,
+  ),
+});
+
+export const normalizeLoomTableRenderGraphQLResponse = (response: {
+  table: Omit<LoomRowsResponse, 'rows'> & { rows: unknown };
+  facets?: {
+    materialization: LoomDataset | null;
+    aggregations: unknown;
+  };
+}): LoomTableRenderResponse => ({
+  ...normalizeRowsResponse(response.table),
+  ...(response.facets
+    ? {
+        facets: normalizeLoomRichAggregationsGraphQLResponse({
+          dataframeAggregations: response.facets,
+        }),
+      }
+    : {}),
+});
 
 export const loomTags = loomApi.enhanceEndpoints({
   addTagTypes: ['LOOM_DATASET', 'LOOM_ROWS', 'LOOM_AGGREGATE'],
@@ -264,6 +405,27 @@ export const loomSlice = loomTags.injectEndpoints({
         { type: 'LOOM_AGGREGATE', id: loomDatasetIdentityKey(input) },
       ],
     }),
+    getLoomRichAggregations: builder.query<
+      LoomRichAggregationsResponse,
+      LoomRichAggregationsRequest
+    >({
+      query: buildLoomRichAggregationsQuery,
+      transformResponse: normalizeLoomRichAggregationsGraphQLResponse,
+      providesTags: (_result, _error, input) => [
+        { type: 'LOOM_AGGREGATE', id: loomDatasetIdentityKey(input) },
+      ],
+    }),
+    getLoomTableRender: builder.query<
+      LoomTableRenderResponse,
+      LoomTableRenderRequest
+    >({
+      query: buildLoomTableRenderQuery,
+      transformResponse: normalizeLoomTableRenderGraphQLResponse,
+      providesTags: (_result, _error, input) => [
+        { type: 'LOOM_ROWS', id: loomDatasetIdentityKey(input) },
+        { type: 'LOOM_AGGREGATE', id: loomDatasetIdentityKey(input) },
+      ],
+    }),
   }),
 });
 
@@ -274,4 +436,6 @@ export const {
   useGetLoomAggregateQuery,
   useGetLoomCountQuery,
   useGetLoomAggregationsQuery,
+  useGetLoomRichAggregationsQuery,
+  useGetLoomTableRenderQuery,
 } = loomSlice;

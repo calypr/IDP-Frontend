@@ -64,7 +64,16 @@ const FacetEnumList: React.FC<FacetEnumListProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   // const [combineMode, setCombineMode] = useState<'or' | 'and'>('or');
 
-  const { data, enumFilters, combineMode, isSuccess, error } =
+  const {
+    data,
+    enumFilters,
+    combineMode,
+    isSuccess,
+    error,
+    missingCount = 0,
+    truncated = false,
+    isPartial = false,
+  } =
     hooks.useGetFacetData(field);
   const [selectedEnums, setSelectedEnums] = useState(enumFilters ?? []);
   const totalCount = hooks?.useTotalCounts ? hooks.useTotalCounts() : 1;
@@ -286,7 +295,7 @@ const FacetEnumList: React.FC<FacetEnumListProps> = ({
     maxValuesToDisplay,
   ]);
 
-  if (facetChartData.filteredData.length == 0 && hideIfEmpty) {
+  if (facetChartData.filteredData.length == 0 && hideIfEmpty && isSuccess) {
     return null; // nothing to render if visibleItems == 0
   }
 
@@ -296,6 +305,12 @@ const FacetEnumList: React.FC<FacetEnumListProps> = ({
       aria-hidden={!showFilters}
     >
       {' '}
+      {isSuccess && (isPartial || truncated || missingCount > 0) && (
+        <div className="mx-4 mb-2 text-xs text-dimmed" role="status">
+          {truncated ? 'Showing the most common values.' : 'Some records have no value.'}
+          {missingCount > 0 ? ` Missing: ${missingCount.toLocaleString()}.` : ''}
+        </div>
+      )}
       {isSuccess && error ? (
         <div className="m-4 font-content pb-2">{BAD_DATA_MESSAGE}</div>
       ) : (

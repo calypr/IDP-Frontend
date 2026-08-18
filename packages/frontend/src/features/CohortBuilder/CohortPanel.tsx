@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { partial } from 'lodash';
 import { skipToken } from '@reduxjs/toolkit/query';
 import {
@@ -11,12 +11,16 @@ import {
   FacetDefinition,
   FacetType,
   isIntersection,
+  buildLoomFacetPlan,
+  LoomFacetCache,
+  loomFacetCacheKey,
+  LoomTableRenderResponse,
   selectIndexFilters,
   selectSharedFilters,
   useCoreSelector,
-  useGetLoomAggregationsQuery,
   useGetLoomCountQuery,
   useGetLoomDatasetBySelectorQuery,
+  useGetLoomRichAggregationsQuery,
 } from '@gen3/core';
 import { type CohortPanelConfiguration, type FileActionsConfig } from './types';
 import { type SummaryChart } from '../../components/charts/types';
@@ -60,7 +64,10 @@ import {
 } from './hooks';
 import DropdownPanel from '../../components/facets/Panels/DropdownPanel';
 import QueryExpression from './QueryExpression';
-import { normalizeCohortPanelForDataset } from './runtimeConfiguration';
+import {
+  hasUsableFilterConfiguration,
+  normalizeCohortPanelForDataset,
+} from './runtimeConfiguration';
 
 const EmptyData = {};
 
@@ -107,9 +114,48 @@ export const CohortPanel = ({
   const index = guppyConfig.dataType;
   const loomDataset = guppyConfig.loomDataset;
   const loomProjectIds = guppyConfig.loomProjectIds;
-  const loomIdentity = loomDataset
-    ? ({ selector: loomDataset, projectIds: loomProjectIds } as const)
-    : null;
+  const loomIdentity = useMemo(
+    () =>
+      loomDataset
+        ? ({ selector: loomDataset, projectIds: loomProjectIds } as const)
+        : null,
+    [loomDataset, loomProjectIds],
+  );
+  const usesTableRender = table?.enabled === true;
+  const {
+    data: fallbackDataset,
+    isError: isFallbackDatasetError,
+    isLoading: isFallbackDatasetLoading,
+  } = useGetLoomDatasetBySelectorQuery(loomIdentity ?? skipToken, {
+    skip: usesTableRender || !loomIdentity,
+  });
+  const [tableRender, setTableRender] = useState<LoomTableRenderResponse | null>(
+    null,
+  );
+  const [acceptedRenderSignature, setAcceptedRenderSignature] = useState('');
+  const renderSignatureRef = useRef('');
+  const [tableRenderState, setTableRenderState] = useState({
+    isFetching: false,
+    isError: false,
+  });
+  const facetCache = useRef(new LoomFacetCache());
+  const onTableRender = useCallback(
+    (response: LoomTableRenderResponse, requestSignature?: string) => {
+      const currentSignature = renderSignatureRef.current;
+      if (requestSignature && requestSignature !== currentSignature) return;
+      setTableRender((current) => ({
+        ...response,
+        facets: response.facets ?? current?.facets,
+      }));
+      setAcceptedRenderSignature(requestSignature ?? currentSignature);
+    },
+    [],
+  );
+  const onTableRenderState = useCallback(
+    (state: { isFetching: boolean; isError: boolean }) =>
+      setTableRenderState(state),
+    [],
+  );
 
   const [facetDefinitions, setFacetDefinitions] = useState<
     Record<string, FacetDefinition>
@@ -135,14 +181,7 @@ export const CohortPanel = ({
       };
     }
   }, [cohortFilters]);
-  const {
-    data: selectedDataset,
-    isError: isSelectedDatasetError,
-    isLoading: isSelectedDatasetLoading,
-  } = useGetLoomDatasetBySelectorQuery(
-    loomIdentity ?? skipToken,
-  );
-  const activeDataset = selectedDataset;
+  const activeDataset = tableRender?.materialization ?? fallbackDataset ?? null;
   const runtimePanel = useMemo(
     () =>
       normalizeCohortPanelForDataset(
@@ -174,6 +213,7 @@ export const CohortPanel = ({
   );
   const runtimeGuppyConfig = runtimePanel.guppyConfig;
   const runtimeFilters = runtimePanel.filters;
+  const hasConfiguredFilters = hasUsableFilterConfiguration(runtimeFilters);
   const runtimeCharts = runtimePanel.charts;
   const runtimeChartsSection = runtimePanel.chartsSection;
   const runtimeTable = runtimePanel.table;
@@ -201,34 +241,207 @@ export const CohortPanel = ({
     ],
     [runtimeChartsSection?.charts, runtimeCharts],
   );
+  const [demandedFacetFields, setDemandedFacetFields] = useState<string[]>([]);
+  const demandFacet = useCallback((field: string) => {
+    setDemandedFacetFields((current) =>
+      current.includes(field) ? current : [...current, field],
+    );
+  }, []);
   // Facets and charts use the same selector and active filters. Batch them
   // into one GraphQL document; Loom executes these as published ClickHouse
   // aggregates, not an on-the-fly dataframe build.
   const aggregationFields = useDeepCompareMemo(
-    () => [...new Set([...fields, ...chartKeys])],
-    [fields, chartKeys],
+    () => [...new Set([...chartKeys, ...demandedFacetFields, ...fields])],
+    [demandedFacetFields, fields, chartKeys],
   );
+  const facetConfig = useMemo(
+    () =>
+      (runtimeFilters?.tabs ?? []).reduce(
+        (acc: Record<string, FacetDefinition>, tab) => ({
+          ...acc,
+          ...tab.fieldsConfig,
+        }),
+        {},
+      ),
+    [runtimeFilters?.tabs],
+  );
+  const facetPlan = useDeepCompareMemo(() => {
+    const chartFieldSet = new Set(chartKeys);
+    return buildLoomFacetPlan(
+      aggregationFields.map((field) => {
+        const config = facetConfig[field];
+        const range = config?.range;
+        const span =
+          range && Number.isFinite(range.maximum - range.minimum)
+            ? range.maximum - range.minimum
+            : 0;
+        const facetType = config?.type;
+        const isRange =
+          facetType === 'range' ||
+          facetType === 'age' ||
+          facetType === 'year' ||
+          facetType === 'years' ||
+          facetType === 'days' ||
+          facetType === 'percent' ||
+          facetType === 'datetime';
+        const isDateRange = facetType === 'datetime';
+        return {
+          field,
+          facetType,
+          demand:
+            chartFieldSet.has(field) || demandedFacetFields.includes(field)
+              ? 'eager'
+              : undefined,
+          kind: isDateRange
+            ? 'DATE_HISTOGRAM'
+            : isRange
+              ? 'HISTOGRAM'
+              : 'TERMS',
+          ...(isDateRange
+            ? { dateInterval: 86400 }
+            : isRange
+              ? {
+                  interval:
+                    facetType === 'year' || facetType === 'years'
+                      ? 1
+                      : Math.max(1, span > 0 ? span / 20 : 1),
+                }
+            : {}),
+          size: 50,
+          excludeSelfFilter: !chartFieldSet.has(field),
+        };
+      }),
+    );
+  }, [aggregationFields, chartKeys, demandedFacetFields, facetConfig]);
   const {
-    data,
-    isSuccess,
-    isFetching: isAggsQueryFetching,
-    isError: isAggsQueryError,
-  } = useGetLoomAggregationsQuery(
+    data: fallbackRichAggregations,
+    isError: isFallbackAggregationsError,
+  } = useGetLoomRichAggregationsQuery(
     loomIdentity
       ? {
           ...loomIdentity,
-          fields: aggregationFields,
+          specs: facetPlan.specs,
           filters: effectiveLoomFilters.filters,
         }
       : skipToken,
     {
       skip:
-        aggregationFields.length === 0 ||
+        usesTableRender ||
         !loomIdentity ||
-        !activeDataset ||
+        !fallbackDataset ||
+        facetPlan.specs.length === 0 ||
         !!effectiveLoomFilters.error,
     },
   );
+  const renderSignature = useMemo(
+    () =>
+      JSON.stringify({
+        identity: loomIdentity,
+        filters: effectiveLoomFilters.filters,
+        facets: facetPlan.specs,
+      }),
+    [effectiveLoomFilters.filters, facetPlan.specs, loomIdentity],
+  );
+  renderSignatureRef.current = renderSignature;
+  useEffect(() => {
+    setTableRender(null);
+    setTableRenderState({ isFetching: false, isError: false });
+  }, [renderSignature]);
+  useEffect(() => {
+    if (
+      !loomIdentity ||
+      !tableRender?.facets ||
+      acceptedRenderSignature !== renderSignature
+    )
+      return;
+    Object.values(tableRender.facets.aggregations).forEach((aggregation) => {
+      const spec = facetPlan.specs.find(
+        (candidate) => candidate.name === aggregation.name,
+      );
+      if (spec) {
+        facetCache.current.set(
+          loomFacetCacheKey({
+            identity: loomIdentity,
+            revision: activeDataset?.revision,
+            spec,
+            filters: effectiveLoomFilters.filters,
+          }),
+          aggregation,
+        );
+      }
+    });
+  }, [
+    activeDataset?.revision,
+    effectiveLoomFilters.filters,
+    facetPlan.specs,
+    loomIdentity,
+    acceptedRenderSignature,
+    renderSignature,
+    tableRender,
+  ]);
+  const isAggsQueryError = usesTableRender
+    ? tableRenderState.isError
+    : isFallbackAggregationsError;
+  const facetResponse = usesTableRender
+    ? acceptedRenderSignature === renderSignature
+      ? tableRender?.facets
+      : undefined
+    : fallbackRichAggregations;
+  const data = useDeepCompareMemo(() => {
+    return facetPlan.specs.reduce((acc, spec) => {
+        const aggregation =
+          facetResponse?.aggregations[spec.name] ??
+          (loomIdentity
+            ? facetCache.current.get(
+                loomFacetCacheKey({
+                  identity: loomIdentity,
+                  revision: activeDataset?.revision,
+                  spec,
+                  filters: effectiveLoomFilters.filters,
+                }),
+              )
+            : undefined);
+        if (aggregation) acc[spec.column] = aggregation.data;
+        return acc;
+      },
+      {} as AggregationsData,
+    );
+  }, [
+    activeDataset?.revision,
+    effectiveLoomFilters.filters,
+    facetResponse,
+    facetPlan.specs,
+    loomIdentity,
+    acceptedRenderSignature,
+    renderSignature,
+    tableRender,
+  ]);
+  const isSuccess = Boolean(data && Object.keys(data).length > 0);
+  const facetMetadata = useDeepCompareMemo(() => {
+    if (!facetResponse) return {};
+    return Object.values(facetResponse.aggregations).reduce(
+      (acc, aggregation) => {
+        const spec = facetPlan.specs.find(
+          (candidate) => candidate.name === aggregation.name,
+        );
+        if (spec) {
+          acc[spec.column] = {
+            missingCount: aggregation.missingCount,
+            truncated: aggregation.truncated,
+            isPartial: aggregation.truncated || aggregation.missingCount > 0,
+          };
+        }
+        return acc;
+      },
+      {} as Record<
+        string,
+        { missingCount: number; truncated: boolean; isPartial: boolean }
+      >,
+    );
+  }, [
+    facetPlan.specs,
+    facetResponse,
+  ]);
   const chartData = data;
   const isChartSuccess = isSuccess;
 
@@ -276,19 +489,21 @@ export const CohortPanel = ({
         data: processBucketData(data?.[field]),
         enumFilters: filters,
         combineMode,
-        isSuccess,
+        isSuccess: isSuccess && Boolean(data?.[field]),
+        ...facetMetadata[field],
       };
     },
-    [cohortFilters.root, data, isSuccess],
+    [cohortFilters.root, data, facetMetadata, isSuccess],
   );
 
   const getRangeFacetData = useDeepCompareCallback(
     (field: string) => ({
       data: processRangeData(data?.[field]),
       filters: extractRangeValues(cohortFilters.root[field]),
-      isSuccess,
+      isSuccess: isSuccess && Boolean(data?.[field]),
+      ...facetMetadata[field],
     }),
-    [data, cohortFilters.root, isSuccess],
+    [cohortFilters.root, data, facetMetadata, isSuccess],
   );
 
   // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -303,6 +518,7 @@ export const CohortPanel = ({
           useClearFilter: partial(useClearFilters, index),
           useFilterExpanded: partial(useFilterExpandedState, index),
           useToggleExpandFilter: partial(useToggleExpandFilter, index),
+          demandFacet,
           useGetCombineMode: partial(useCohortFilterCombineState, index),
           useSetCombineMode: partial(useSetCohortFilterCombineState, index),
           useFieldNameToTitle,
@@ -313,6 +529,9 @@ export const CohortPanel = ({
           useUpdateFacetFilters: partial(useUpdateFilters, index),
           useGetFacetFilters: partial(useGetFacetFilters, index),
           useClearFilter: partial(useClearFilters, index),
+          useFilterExpanded: partial(useFilterExpandedState, index),
+          useToggleExpandFilter: partial(useToggleExpandFilter, index),
+          demandFacet,
           useFieldNameToTitle,
           useTotalCounts: undefined,
         },
@@ -321,6 +540,9 @@ export const CohortPanel = ({
           useUpdateFacetFilters: partial(useUpdateFilters, index),
           useGetFacetFilters: partial(useGetFacetFilters, index),
           useClearFilter: partial(useClearFilters, index),
+          useFilterExpanded: partial(useFilterExpandedState, index),
+          useToggleExpandFilter: partial(useToggleExpandFilter, index),
+          demandFacet,
           useFieldNameToTitle,
           useTotalCounts: undefined,
         },
@@ -331,28 +553,39 @@ export const CohortPanel = ({
           useClearFilter: partial(useClearFilters, index),
           useFilterExpanded: partial(useFilterExpandedState, index),
           useToggleExpandFilter: partial(useToggleExpandFilter, index),
+          demandFacet,
           useFieldNameToTitle,
           useTotalCounts: undefined,
         },
       };
-    }, [getEnumFacetData, getRangeFacetData, index]);
+    }, [demandFacet, getEnumFacetData, getRangeFacetData, index]);
 
   useDeepCompareEffect(() => {
-    if (isSuccess && data) {
-      const configFacetDefs = (runtimeFilters?.tabs ?? []).reduce(
-        (acc: Record<string, FacetDefinition>, tab) => ({
-          ...tab.fieldsConfig,
-          ...acc,
-        }),
+    if (isSuccess || fields.length > 0) {
+      const configFacetDefs = facetConfig;
+      const configuredFacetDefs = fields.reduce(
+        (acc: Record<string, FacetDefinition>, field) => {
+          const configured = configFacetDefs[field] ?? {};
+          acc[field] = {
+            ...configured,
+            field,
+            dataField: configured.dataField ?? field.split('.').at(-1) ?? field,
+            type: configured.type ?? 'enum',
+            index,
+            label: configured.label ?? field,
+          } as FacetDefinition;
+          return acc;
+        },
         {},
       );
-      const facetDefs = classifyFacets(
-        data,
+      const classifiedFacetDefs = classifyFacets(
+        data ?? {},
         index,
         runtimeGuppyConfig?.fieldMapping ?? [],
         configFacetDefs ?? {},
         sharedFiltersMap,
       );
+      const facetDefs = { ...configuredFacetDefs, ...classifiedFacetDefs };
       setFacetDefinitions(facetDefs);
 
       const chartDefinitions =
@@ -383,6 +616,8 @@ export const CohortPanel = ({
     runtimeChartsSection,
     runtimeFilters?.tabs,
     sharedFiltersMap,
+    fields,
+    facetConfig,
   ]);
 
   const columnTitles = useMemo(
@@ -400,10 +635,9 @@ export const CohortPanel = ({
   );
 
   const {
-    data: counts,
-    isFetching: isCountsFetching,
-    isSuccess: isCountSuccess,
-    isError: isCountsError,
+    data: fallbackCount,
+    isFetching: isFallbackCountFetching,
+    isError: isFallbackCountError,
   } = useGetLoomCountQuery(
     loomIdentity
       ? {
@@ -414,9 +648,21 @@ export const CohortPanel = ({
       : skipToken,
     {
       skip:
-        !loomIdentity || !activeDataset || !!effectiveLoomFilters.error,
+        usesTableRender ||
+        !loomIdentity ||
+        !fallbackDataset ||
+        !!effectiveLoomFilters.error,
     },
   );
+  const counts = usesTableRender
+    ? tableRender?.totalCount ?? activeDataset?.rowCount
+    : fallbackCount ?? activeDataset?.rowCount;
+  const isCountsFetching = usesTableRender
+    ? tableRenderState.isFetching
+    : isFallbackCountFetching;
+  const isCountsError = usesTableRender
+    ? tableRenderState.isError
+    : isFallbackCountError;
 
   if (!loomIdentity) {
     return (
@@ -428,24 +674,22 @@ export const CohortPanel = ({
   if (effectiveLoomFilters.error) {
     return <ErrorCard message={effectiveLoomFilters.error} />;
   }
-  if (isSelectedDatasetError) {
-    return (
-      <ErrorCard message="Unable to discover the authorized Loom dataset" />
-    );
+  if (!usesTableRender && isFallbackDatasetError) {
+    return <ErrorCard message="Unable to discover the authorized Loom dataset" />;
   }
-  if (isSelectedDatasetLoading) {
+  if (!usesTableRender && isFallbackDatasetLoading) {
     return (
       <div className="flex items-center justify-center w-full h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
       </div>
     );
   }
-  if (!activeDataset) {
+  if (!usesTableRender && !activeDataset) {
     return (
       <ErrorCard message="No authorized Loom dataset is available for this Explorer tab" />
     );
   }
-  if (activeDataset.state !== 'READY') {
+  if (activeDataset && activeDataset.state !== 'READY') {
     return (
       <ErrorCard
         message={`Loom dataset is ${activeDataset.state.toLowerCase()}${activeDataset.error ? `: ${activeDataset.error}` : ''}`}
@@ -456,28 +700,16 @@ export const CohortPanel = ({
     return <ErrorCard message="Unable to fetch data from server" />;
   }
 
-  // Show loading indicator if we don't have facet definitions yet but we're fetching
-  if (
-    Object.keys(facetDefinitions).length === 0 &&
-    (isAggsQueryFetching || isCountsFetching)
-  ) {
-    return (
-      <div className="flex items-center justify-center w-full h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-
   return (
     <div className="relative mt-3 flex w-full flex-col bg-base-lightest px-4">
       {/* Main flex container for filters and content */}
       <div className="flex w-full">
         {/* Left panel for filters */}
-        <div
-          id="cohort-builder-filters"
-          className="flex-shrink-0 md:w-1/4 lg:w-1/5"
-        >
-          {runtimeFilters?.tabs && (
+        {hasConfiguredFilters && runtimeFilters && (
+          <div
+            id="cohort-builder-filters"
+            className="flex-shrink-0 md:w-1/4 lg:w-1/5"
+          >
             <DropdownPanel
               index={index}
               filters={runtimeFilters}
@@ -488,18 +720,22 @@ export const CohortPanel = ({
               accessLevel={accessLevel}
               showAccessLevel={showAccessLevel}
             />
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Right panel for query expression + content */}
         <div
           id="cohort-builder-content"
-          className="flex flex-col pl-4 md:w-3/4 lg:w-4/5"
+          className={`flex flex-col ${
+            hasConfiguredFilters ? 'pl-4 md:w-3/4 lg:w-4/5' : 'w-full'
+          }`}
         >
           {/* Put QueryExpression at the top of content panel */}
-          <div className="mb-2">
-            <QueryExpression index={index} columnTitles={columnTitles} />
-          </div>
+          {hasConfiguredFilters && (
+            <div className="mb-2">
+              <QueryExpression index={index} columnTitles={columnTitles} />
+            </div>
+          )}
 
           <div className="flex justify-between my-2">
             <DownloadsPanel
@@ -548,6 +784,11 @@ export const CohortPanel = ({
                 index={index}
                 loomDataset={loomDataset}
                 loomProjectIds={loomProjectIds}
+                loomActiveDataset={activeDataset}
+                facetSpecs={facetPlan.specs}
+                tableRenderSignature={renderSignature}
+                onTableRender={onTableRender}
+                onTableRenderState={onTableRenderState}
                 tableConfig={runtimeTable}
                 accessibility={accessLevel}
                 fileActions={fileActions}
