@@ -305,6 +305,29 @@ const GqlQueryEditor = ({ configuration }: GqlQueryEditorProps) => {
       setResponseJson('');
       return;
     }
+    if (preset.schemaField === 'dataframeRows') {
+      const input = variables.input;
+      const selector =
+        input && typeof input === 'object' && !Array.isArray(input)
+          ? (input as Record<string, unknown>).selector
+          : undefined;
+      const completeSelector =
+        selector &&
+        typeof selector === 'object' &&
+        !Array.isArray(selector) &&
+        ['recipe', 'translationVersion', 'output'].every(
+          (field) =>
+            typeof (selector as Record<string, unknown>)[field] === 'string' &&
+            ((selector as Record<string, unknown>)[field] as string).trim(),
+        );
+      if (!completeSelector) {
+        setExecutionError(
+          'Loom dataframe requests require input.selector.recipe, input.selector.translationVersion, and input.selector.output from the published Explorer recipe.',
+        );
+        setResponseJson('');
+        return;
+      }
+    }
     let document;
     try {
       document = parse(queryCode.trim());

@@ -1,6 +1,6 @@
 jest.mock('@gen3/core', () => ({ fieldNameToTitle: jest.fn() }));
 
-import { includeAvailableSha256 } from './utils';
+import { includeAvailableSha256, publicLoomFields } from './utils';
 
 describe('includeAvailableSha256', () => {
   it('requests sha256 when Loom exposes it without adding a visible table field', () => {
@@ -28,5 +28,13 @@ describe('includeAvailableSha256', () => {
         { name: 'sha256' },
       ]),
     ).toEqual(['id', 'sha256']);
+  });
+});
+
+describe('publicLoomFields', () => {
+  it('does not expose Loom authorization or pagination columns', () => {
+    expect(
+      publicLoomFields(['id', 'auth_resource_path', '__loom_row_id', 'title']),
+    ).toEqual(['id', 'title']);
   });
 });

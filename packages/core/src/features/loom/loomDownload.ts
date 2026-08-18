@@ -5,12 +5,12 @@ import { isJSONObject, JSONObject } from '../../types';
 import { convertFilterSetToLoomFilters } from './filters';
 import { fetchLoomResponse } from './loomApi';
 import type { FilterSet } from '../filters';
-import type { LoomDataType, LoomDatasetSelector, LoomSort } from './types';
+import type { LoomDatasetSelector, LoomSort } from './types';
 import { validateLoomDatasetSelector } from './types';
 
 export interface LoomDownloadParams {
-  readonly type?: LoomDataType;
-  readonly selector?: LoomDatasetSelector;
+  readonly selector: LoomDatasetSelector;
+  readonly projectIds?: ReadonlyArray<string>;
   readonly fields: ReadonlyArray<string>;
   readonly filter?: FilterSet;
   readonly sort?: unknown;
@@ -46,25 +46,20 @@ const normalizeSort = (sort: unknown): LoomSort | undefined => {
 };
 
 export const buildLoomDownloadRequest = (parameters: LoomDownloadParams) => {
-  if (!parameters.type && !parameters.selector) {
-    throw new Error('A Loom download requires a dataset identity.');
-  }
-  if (parameters.selector) {
-    const diagnostic = validateLoomDatasetSelector(parameters.selector);
-    if (diagnostic) throw new Error(diagnostic.message);
-  }
+  const diagnostic = validateLoomDatasetSelector(parameters.selector);
+  if (diagnostic) throw new Error(diagnostic.message);
+  const projectIds = parameters.projectIds
+    ? [...new Set(parameters.projectIds.map((project) => project.trim()))]
+        .filter(Boolean)
+        .sort()
+    : [];
   return {
-    ...(parameters.selector?.materializationId
-      ? { materializationId: parameters.selector.materializationId }
-      : parameters.selector
-        ? {
-            selector: {
-              recipe: parameters.selector.recipe,
-              translationVersion: parameters.selector.translationVersion,
-              output: parameters.selector.output,
-            },
-          }
-        : { dataType: parameters.type }),
+    selector: {
+      recipe: parameters.selector.recipe,
+      translationVersion: parameters.selector.translationVersion,
+      output: parameters.selector.output,
+    },
+    ...(projectIds.length > 0 ? { projectIds } : {}),
     columns: [...parameters.fields],
     filters: convertFilterSetToLoomFilters(parameters.filter),
     sort: normalizeSort(parameters.sort),

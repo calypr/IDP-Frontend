@@ -4,7 +4,6 @@ import { NavPageLayout } from '../../features/Navigation';
 import { useGetSchemaQuery } from './hooks';
 import { FilterUnit } from './filterUnit';
 import TabBar from './TabBar';
-import ConfigControls from './ConfigControls';
 import { buildConfigFromTabs } from './utils';
 import { ConfiguratorPageProps, type Tab } from './types';
 import { GraphQLSchema } from 'graphql';
@@ -12,7 +11,6 @@ import { GraphQLSchema } from 'graphql';
 const Configurator = ({ headerProps, footerProps, pageProblems }: ConfiguratorPageProps) => {
   const { sdata, sisLoading } = useGetSchemaQuery();
   const [tabs, setTabs] = useState<Tab[]>([]);
-  const [allTabsTitle, setAllTabsTitle] = useState('');
   const [activeTab, setActiveTab] = useState('');
 
   const allTabsConfig = useMemo(() => buildConfigFromTabs(tabs), [tabs]);
@@ -55,12 +53,8 @@ const Configurator = ({ headerProps, footerProps, pageProblems }: ConfiguratorPa
   const resetTabs = () => {
     setTabs([]);
     setActiveTab('');
-    setAllTabsTitle('');
   };
 
-  const copyAllContent = () => {
-    navigator.clipboard.writeText(JSON.stringify(allTabsConfig, null, 2));
-  };
 
   return (
     <NavPageLayout
@@ -78,14 +72,6 @@ const Configurator = ({ headerProps, footerProps, pageProblems }: ConfiguratorPa
             <Text className="text-xl text-center m-2">
               Explorer Configuration Builder
             </Text>
-            <ConfigControls
-              tabs={tabs}
-              setTabs={setTabs}
-              setAllTabsTitle={setAllTabsTitle}
-              setActiveTab={setActiveTab}
-              onCopyConfig={copyAllContent}
-              onReset={resetTabs}
-            />
             <TabBar
               tabs={tabs}
               activeTab={activeTab}

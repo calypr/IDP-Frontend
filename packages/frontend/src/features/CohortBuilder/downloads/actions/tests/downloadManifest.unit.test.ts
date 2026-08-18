@@ -24,6 +24,11 @@ describe('downloadToManifestAction function', () => {
       referenceIdFieldInDataIndex: 'object_id',
       fileFields: [],
       resourceIdField: 'object_id',
+      selector: {
+        recipe: 'project_recipe',
+        translationVersion: 'r000001_abcd',
+        output: 'DocumentReference',
+      },
     };
 
     const done = jest.fn();
@@ -68,7 +73,7 @@ describe('downloadToManifestAction function', () => {
       signal: signal,
       parameters: {
         filter: params.filter,
-        type: params.type,
+        selector: params.selector,
         fields: [params.referenceIdFieldInDataIndex, ...params.fileFields],
         sort: params.sort,
         format: 'json',

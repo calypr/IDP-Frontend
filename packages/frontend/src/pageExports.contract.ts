@@ -7,7 +7,6 @@ import type {
   DictionaryPage,
   DiscoveryPage,
   ExplorerPage,
-  ExplorerPageGetServerSidePropsForRelease,
   GitLandingPage,
   LandingPage,
   LoginPage,
@@ -29,7 +28,6 @@ export interface PublicPageExportContract {
   DictionaryPage: typeof DictionaryPage;
   DiscoveryPage: typeof DiscoveryPage;
   ExplorerPage: typeof ExplorerPage;
-  ExplorerPageGetServerSidePropsForRelease: typeof ExplorerPageGetServerSidePropsForRelease;
   GitLandingPage: typeof GitLandingPage;
   LandingPage: typeof LandingPage;
   LoginPage: typeof LoginPage;

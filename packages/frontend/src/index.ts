@@ -26,6 +26,7 @@ import {
 export * from './utils/';
 export * from './features/MatchingTable';
 export * from './lib/pageLoader';
+export * from './lib/conformance/browserRuntime';
 export * from './pageExports';
 
 import { loadNavigationFromContext } from './lib/common/staticProps';
@@ -116,7 +117,6 @@ import ExplorerPage, { ExplorerMainContent } from './pages/Explorer/Explorer';
 export * from './features/ExplorerBuilder';
 import {
   ExplorerPageGetServerSideProps,
-  ExplorerPageGetServerSidePropsForRelease,
   type ExplorerPageProps,
 } from './pages/Explorer';
 
@@ -241,7 +241,6 @@ export {
   ExplorerPage,
   ExplorerMainContent,
   ExplorerPageGetServerSideProps,
-  ExplorerPageGetServerSidePropsForRelease,
   RSReportsPageGetServerSideProps,
   ResearchSubjectDetailsPanel,
   MedicationAdministrationDetailPanel,

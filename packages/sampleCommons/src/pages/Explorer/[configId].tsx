@@ -4,8 +4,7 @@ import { useRouter } from 'next/router';
 import { useGetGeckoProjectsQuery } from '@gen3/core';
 import {
   ExplorerMainContent,
-  ExplorerBuilderPage,
-  ExplorerPageGetServerSidePropsForConfigId as getServerSideProps,
+  ExplorerPageGetServerSideProps as getServerSideProps,
   ExplorerPageProps,
   NavPageLayout,
   ProjectWorkspaceTabs,
@@ -21,8 +20,13 @@ const CohortBuilderPage = ({
 }: ExplorerPageProps): JSX.Element => {
   const router = useRouter();
   const { data: geckoProjects = [] } = useGetGeckoProjectsQuery();
+  const problems = pageProblems ?? [];
   const configId =
     typeof router.query.configId === 'string' ? router.query.configId : '';
+  const explorerId =
+    typeof router.query.explorerId === 'string'
+      ? router.query.explorerId
+      : undefined;
   const isEmbedded = useIsEmbedded();
   const explorerConfig = configuration?.explorerConfig;
   const [activeExplorerTab, setActiveExplorerTab] = useState<string | null>(
@@ -37,6 +41,8 @@ const CohortBuilderPage = ({
     matchingProject?.resourcePath.split('/').filter(Boolean) ?? [];
   const organization = matchingProjectParts[1] ?? '';
   const project = matchingProjectParts[3] ?? '';
+  const explorerHref = `/Explorer/${encodeURIComponent(configId)}${explorerId ? `?explorerId=${encodeURIComponent(explorerId)}` : ''}`;
+  const builderHref = `/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}/explorers/builder${explorerId ? `?explorerId=${encodeURIComponent(explorerId)}` : ''}`;
   const showTabsInToolbar = Boolean(organization && project && !isEmbedded);
 
   useEffect(() => {
@@ -52,11 +58,21 @@ const CohortBuilderPage = ({
       sharedFiltersMap={sharedFiltersMap}
       pageProblems={pageProblems}
     />
-  ) : organization && project ? (
-    <ExplorerBuilderPage organization={organization} project={project} />
   ) : (
     <main className="mx-auto max-w-screen-2xl p-6">
-      <p role="status">Loading project Explorer tools…</p>
+      <p role="alert">
+        The published Explorer configuration could not be loaded. Open the
+        Builder to inspect or revise the draft.
+      </p>
+      {problems.length > 0 && (
+        <ul className="mt-3 list-disc pl-5 text-sm text-slate-700">
+          {problems.map((problem, index) => (
+            <li key={`${problem.code ?? 'problem'}-${index}`}>
+              {problem.message}
+            </li>
+          ))}
+        </ul>
+      )}
     </main>
   );
 
@@ -73,51 +89,62 @@ const CohortBuilderPage = ({
         content: 'Cohort Builder',
         key: 'gen3-cohort-builder-page',
       }}
-      pageProblems={configuration ? pageProblems : []}
+      pageProblems={problems}
     >
       <ProjectWorkspaceTabs
         activeTab="explorer"
         hasExplorerConfig={Boolean(organization && project)}
         organization={organization}
         project={project}
+        explorerHref={explorerHref}
         toolbarContent={
           showTabsInToolbar ? (
-            <div
-              aria-label="Explorer views"
-              className="flex shrink-0 self-stretch gap-5 border-l border-slate-200 pl-5"
-              role="tablist"
-            >
-              {explorerConfig?.map((panel) => {
-                const isActive = activeExplorerTab === panel.tabTitle;
-                return (
-                  <button
-                    aria-selected={isActive}
-                    className={`rounded-none border-0 border-b-2 bg-transparent px-0 pb-3 pt-3 text-sm font-semibold transition-colors ${
-                      isActive
-                        ? 'border-[#2f5aac] text-[#2f5aac]'
-                        : 'border-transparent text-slate-500 hover:text-slate-800'
-                    }`}
-                    key={panel.tabTitle}
-                    onClick={() => setActiveExplorerTab(panel.tabTitle)}
-                    role="tab"
-                    type="button"
-                  >
-                    {panel.tabTitle}
-                  </button>
-                );
-              })}
-              <Link
-                aria-selected={!configuration}
-                className={`rounded-none border-0 border-b-2 bg-transparent px-0 pb-3 pt-3 text-sm font-semibold transition-colors ${
-                  configuration
-                    ? 'border-transparent text-slate-500 hover:text-slate-800'
-                    : 'border-[#2f5aac] text-[#2f5aac]'
-                }`}
-                href={`/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}/explorers/builder`}
-                role="tab"
+            <div className="flex min-w-0 flex-1 items-center justify-between border-l border-slate-200 pl-5">
+              <div
+                aria-label="Explorer views"
+                className="flex min-w-0 shrink gap-5 overflow-x-auto"
+                role="tablist"
               >
-                Builder
-              </Link>
+                {explorerConfig?.map((panel) => {
+                  const isActive = activeExplorerTab === panel.tabTitle;
+                  return (
+                    <button
+                      aria-selected={isActive}
+                      className={`rounded-none border-0 border-b-2 bg-transparent px-0 pb-3 pt-3 text-sm font-semibold transition-colors ${
+                        isActive
+                          ? 'border-[#2f5aac] text-[#2f5aac]'
+                          : 'border-transparent text-slate-500 hover:text-slate-800'
+                      }`}
+                      key={panel.tabTitle}
+                      onClick={() => setActiveExplorerTab(panel.tabTitle)}
+                      role="tab"
+                      type="button"
+                    >
+                      {panel.tabTitle}
+                    </button>
+                  );
+                })}
+              </div>
+              <div
+                aria-label="Explorer workspace"
+                className="ml-auto flex shrink-0 self-stretch gap-5 border-l border-slate-200 pl-5"
+                role="tablist"
+              >
+                <span
+                  aria-selected="true"
+                  className="rounded-none border-0 border-b-2 border-[#2f5aac] bg-transparent px-0 pb-3 pt-3 text-sm font-semibold text-[#2f5aac]"
+                  role="tab"
+                >
+                  View
+                </span>
+                <Link
+                  className="rounded-none border-0 border-b-2 border-transparent bg-transparent px-0 pb-3 pt-3 text-sm font-semibold text-slate-500 hover:text-slate-800"
+                  href={builderHref}
+                  role="tab"
+                >
+                  Builder
+                </Link>
+              </div>
             </div>
           ) : null
         }

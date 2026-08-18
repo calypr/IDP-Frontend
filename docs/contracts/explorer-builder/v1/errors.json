@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "authorization": {"status": 404, "code": "NOT_FOUND", "diagnostics": [{"severity": "error", "code": "NOT_FOUND", "message": "The requested builder resource was not found."}]},
+  "unavailable": {"status": 200, "releaseStatus": "UNAVAILABLE", "diagnostics": [{"severity": "error", "code": "MATERIALIZATION_UNAVAILABLE", "message": "Published data is temporarily unavailable.", "retryable": true}]},
+  "infrastructure": {"status": 503, "code": "BACKEND_UNAVAILABLE", "requestId": "req-contract-1", "retryable": true, "diagnostics": [{"severity": "error", "code": "BACKEND_UNAVAILABLE", "message": "The builder backend is temporarily unavailable.", "retryable": true, "requestId": "req-contract-1"}]},
+  "limits": [
+    {"status": 400, "code": "INVALID_LIMIT", "retryable": false},
+    {"status": 422, "code": "PLAN_TOO_EXPENSIVE", "retryable": false},
+    {"status": 499, "code": "CLIENT_CANCELED", "retryable": false}
+  ]
+}

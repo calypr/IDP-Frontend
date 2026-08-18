@@ -3,6 +3,7 @@ import { createApi } from '@reduxjs/toolkit/query/react';
 import { getCookie } from 'cookies-next';
 import { GEN3_LOOM_API } from '../../constants';
 import { selectCSRFToken } from '../user/userSliceRTK';
+import { handleUnauthorizedStatus } from '../user/unauthorized';
 import { LoomGraphQLRequestError } from './types';
 import type { CoreState } from '../../reducers';
 import type {
@@ -94,6 +95,11 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const isAbortError = (error: unknown): boolean =>
   error instanceof Error && error.name === 'AbortError';
 
+const hasEmptyGraphQLOperation = (query: string): boolean =>
+  /^\s*(?:query|mutation|subscription)\s+[A-Za-z_][A-Za-z0-9_]*\s*\(\s*\)\s*\{\s*\}\s*$/.test(
+    query,
+  );
+
 const isRetryableHttpStatus = (status: number): boolean =>
   status === 408 || status === 425 || status === 429 || status >= 500;
 
@@ -134,6 +140,7 @@ const getGraphQLErrorFieldPath = (
 ): string | null | undefined => {
   const fieldPath = error?.extensions?.fieldPath;
   if (typeof fieldPath === 'string' || fieldPath === null) return fieldPath;
+  if (Array.isArray(fieldPath)) return fieldPath.filter(Boolean).join('.') || undefined;
   return error?.path?.length ? error.path.join('.') : undefined;
 };
 
@@ -153,20 +160,28 @@ const createGraphQLError = ({
   );
   const extensions = firstError?.extensions;
   const requestId = getGraphQLErrorRequestId(firstError, responseRequestId);
+  const unauthorized = response.status === 401;
   const status = response.ok ? 'CUSTOM_ERROR' : response.status;
   const retryable =
-    typeof extensions?.retryable === 'boolean'
+    unauthorized
+      ? false
+      : typeof extensions?.retryable === 'boolean'
       ? extensions.retryable
       : isRetryableHttpStatus(response.status);
 
   return new LoomGraphQLRequestError({
     status,
     httpStatus: response.status,
-    message:
-      firstError?.message ??
-      `Loom GraphQL request failed with HTTP ${response.status}`,
+    message: unauthorized
+      ? 'Your Loom session has expired. Sign in again to continue.'
+      : firstError?.message ??
+        `Loom GraphQL request failed with HTTP ${response.status}`,
     data: payload,
-    code: typeof extensions?.code === 'string' ? extensions.code : undefined,
+    code: unauthorized
+      ? 'AUTHENTICATION_REQUIRED'
+      : typeof extensions?.code === 'string'
+        ? extensions.code
+        : undefined,
     requestId,
     retryable,
     fieldPath: getGraphQLErrorFieldPath(firstError),
@@ -182,7 +197,16 @@ const executeGraphQL = async <T>(
   { query, variables }: LoomQueryArgs,
   options: LoomRequestOptions = {},
 ): Promise<GraphQLExecutionResult<T>> => {
-  const endpoint = options.endpoint ?? `${GEN3_LOOM_API}/graphql/flat`;
+  const endpoint = options.endpoint ?? `${GEN3_LOOM_API}/graphql/graph`;
+  if (!query.trim() || hasEmptyGraphQLOperation(query)) {
+    throw new LoomGraphQLRequestError({
+      status: 'CUSTOM_ERROR',
+      message: 'Loom GraphQL requests require at least one selected field',
+      code: 'INVALID_REQUEST',
+      retryable: false,
+      meta: { endpoint },
+    });
+  }
   let response: Response;
 
   try {
@@ -207,6 +231,12 @@ const executeGraphQL = async <T>(
       cause: error,
     });
   }
+
+  // Loom is authenticated through the same session as the rest of the app.
+  // Notify the session provider immediately so a browser 401 becomes the
+  // existing logged-out/login experience instead of an uncaught runtime
+  // error. This is a no-op during SSR.
+  handleUnauthorizedStatus(response.status);
 
   const responseRequestId = getResponseRequestId(response);
   const responseText = await response.text();
@@ -302,9 +332,9 @@ export const loomBaseQuery: BaseQueryFn<
   // eslint-disable-next-line @typescript-eslint/no-empty-object-type
   {},
   LoomRequestMeta
-> = async ({ query, variables }, api) => {
+> = async ({ query, variables, schema = 'graph' }, api) => {
   const csrfToken = selectCSRFToken(api.getState() as CoreState);
-  const endpoint = `${GEN3_LOOM_API}/graphql/flat`;
+  const endpoint = `${GEN3_LOOM_API}/graphql/${schema}`;
   try {
     const result = await executeGraphQL<unknown>(
       { query, variables },
@@ -359,7 +389,13 @@ export const loomBaseQuery: BaseQueryFn<
 export const loomApi = createApi({
   reducerPath: 'loom',
   baseQuery: loomBaseQuery,
-  tagTypes: ['LOOM_DATASET', 'LOOM_ROWS', 'LOOM_AGGREGATE'],
+  tagTypes: [
+    'LOOM_DATASET',
+    'LOOM_ROWS',
+    'LOOM_AGGREGATE',
+    'LOOM_EXPLORER',
+    'LOOM_EXPLORER_REVISION',
+  ],
   endpoints: () => ({}),
 });
 

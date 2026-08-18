@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { partial } from 'lodash';
+import { skipToken } from '@reduxjs/toolkit/query';
 import {
   Accessibility,
   AggregationsData,
@@ -10,14 +11,12 @@ import {
   FacetDefinition,
   FacetType,
   isIntersection,
-  isLoomDataType,
   selectIndexFilters,
   selectSharedFilters,
   useCoreSelector,
   useGetLoomAggregationsQuery,
   useGetLoomCountQuery,
   useGetLoomDatasetBySelectorQuery,
-  useGetLoomDatasetQuery,
 } from '@gen3/core';
 import { type CohortPanelConfiguration, type FileActionsConfig } from './types';
 import { type SummaryChart } from '../../components/charts/types';
@@ -105,13 +104,11 @@ export const CohortPanel = ({
   }, [isSm, isMd, isXl]);
 
   const index = guppyConfig.dataType;
-  const loomDataType = isLoomDataType(index) ? index : null;
   const loomDataset = guppyConfig.loomDataset;
+  const loomProjectIds = guppyConfig.loomProjectIds;
   const loomIdentity = loomDataset
-    ? ({ selector: loomDataset } as const)
-    : loomDataType
-      ? ({ dataType: loomDataType } as const)
-      : null;
+    ? ({ selector: loomDataset, projectIds: loomProjectIds } as const)
+    : null;
   const fields = useMemo(
     () => getAllFieldsFromFilterConfigs(filters?.tabs ?? []),
     [filters?.tabs],
@@ -142,60 +139,45 @@ export const CohortPanel = ({
     }
   }, [cohortFilters]);
   const {
-    data: dataset,
-    isError: isDatasetError,
-    isLoading: isDatasetLoading,
-  } = useGetLoomDatasetQuery(loomDataType ?? 'DocumentReference', {
-    skip: !loomDataType || Boolean(loomDataset),
-  });
-  const {
     data: selectedDataset,
     isError: isSelectedDatasetError,
     isLoading: isSelectedDatasetLoading,
   } = useGetLoomDatasetBySelectorQuery(
-    {
-      selector: loomDataset ?? {
-        recipe: '',
-        translationVersion: '',
-        output: '',
-      },
-    },
-    { skip: !loomDataset },
+    loomIdentity ?? skipToken,
   );
-  const activeDataset = loomDataset ? selectedDataset : dataset;
+  const activeDataset = selectedDataset;
 
+  const chartKeys = useDeepCompareMemo(
+    () => [...Object.keys(chartsSection?.charts ?? {}), ...Object.keys(charts)],
+    [chartsSection?.charts, charts],
+  );
+  // Facets and charts use the same selector and active filters. Batch them
+  // into one GraphQL document; Loom executes these as published ClickHouse
+  // aggregates, not an on-the-fly dataframe build.
+  const aggregationFields = useDeepCompareMemo(
+    () => [...new Set([...fields, ...chartKeys])],
+    [fields, chartKeys],
+  );
   const {
     data,
     isSuccess,
     isFetching: isAggsQueryFetching,
     isError: isAggsQueryError,
   } = useGetLoomAggregationsQuery(
+    loomIdentity
+      ? {
+          ...loomIdentity,
+          fields: aggregationFields,
+          filters: loomFilters.filters,
+        }
+      : skipToken,
     {
-      ...(loomIdentity ?? { dataType: 'DocumentReference' as const }),
-      fields,
-      filters: loomFilters.filters,
+      skip:
+        aggregationFields.length === 0 || !loomIdentity || !!loomFilters.error,
     },
-    { skip: !loomIdentity || !!loomFilters.error },
   );
-
-  const chartKeys = useDeepCompareMemo(
-    () => [...Object.keys(chartsSection?.charts ?? {}), ...Object.keys(charts)],
-    [chartsSection?.charts, charts],
-  );
-
-  const {
-    data: chartData,
-    isSuccess: isChartSuccess,
-    isFetching: isChartFetching,
-    isError: isChartError,
-  } = useGetLoomAggregationsQuery(
-    {
-      ...(loomIdentity ?? { dataType: 'DocumentReference' as const }),
-      fields: chartKeys,
-      filters: loomFilters.filters,
-    },
-    { skip: chartKeys.length === 0 || !loomIdentity || !!loomFilters.error },
-  );
+  const chartData = data;
+  const isChartSuccess = isSuccess;
 
   const cleanChartData = useDeepCompareMemo(() => {
     if (isChartSuccess && chartData) {
@@ -369,26 +351,32 @@ export const CohortPanel = ({
     isSuccess: isCountSuccess,
     isError: isCountsError,
   } = useGetLoomCountQuery(
-    {
-      ...(loomIdentity ?? { dataType: 'DocumentReference' as const }),
-      filters: loomFilters.filters,
-      operation: 'COUNT',
-    },
+    loomIdentity
+      ? {
+          ...loomIdentity,
+          filters: loomFilters.filters,
+          operation: 'COUNT',
+        }
+      : skipToken,
     { skip: !loomIdentity || !!loomFilters.error },
   );
 
   if (!loomIdentity) {
-    return <ErrorCard message={`Unsupported Explorer data type: ${index}`} />;
+    return (
+      <ErrorCard
+        message={`No published Loom dataset selector is available for Explorer output ${index}`}
+      />
+    );
   }
   if (loomFilters.error) {
     return <ErrorCard message={loomFilters.error} />;
   }
-  if (isDatasetError || isSelectedDatasetError) {
+  if (isSelectedDatasetError) {
     return (
       <ErrorCard message="Unable to discover the authorized Loom dataset" />
     );
   }
-  if (isDatasetLoading || isSelectedDatasetLoading) {
+  if (isSelectedDatasetLoading) {
     return (
       <div className="flex items-center justify-center w-full h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
@@ -466,6 +454,7 @@ export const CohortPanel = ({
               fields={table?.fields ?? []}
               filter={cohortFilters}
               loomDataset={loomDataset}
+              loomProjectIds={loomProjectIds}
             />
             <div className="flex justify-between flex-row items-center my-2">
               {Object.keys(summaryCharts).length !== 0 && (
@@ -501,6 +490,7 @@ export const CohortPanel = ({
               <ExplorerTable
                 index={index}
                 loomDataset={loomDataset}
+                loomProjectIds={loomProjectIds}
                 tableConfig={table}
                 accessibility={accessLevel}
                 fileActions={fileActions}

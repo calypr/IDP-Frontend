@@ -36,11 +36,7 @@ const graphQuery = `query FhirGraphExample($input: FhirGraphQueryInput!) {
   }
 }`;
 
-const flatQuery = `query PatientRows($input: DataframeRowsInput!) {
-  dataset: dataframeDataset(input: { dataType: "Patient" }) {
-    name state rowCount
-    columns { name logicalType nullable repeated filterable sortable aggregatable }
-  }
+const flatQuery = `query LoomRows($input: DataframeRowsInput!) {
   rows: dataframeRows(input: $input) {
     columns rows totalCount pageInfo { hasNextPage endCursor }
   }
@@ -86,7 +82,16 @@ const presetDefinitions: Record<QueryModePreset, PresetDefinition> = {
   },
   'loom-flat': {
     query: flatQuery,
-    variables: { input: { dataType: 'Patient', first: 25, filters: [] } },
+    // The Query editor exposes variables for manual editing. Keep the preset
+    // shape selector-only; execution validates that users provide the
+    // server-returned recipe identity before sending it to Loom.
+    variables: {
+      input: {
+        selector: { recipe: '', translationVersion: '', output: 'Patient' },
+        first: 25,
+        filters: [],
+      },
+    },
     schemaRoot: 'query',
     schemaField: 'dataframeRows',
     binding: 'loom-project-filter',

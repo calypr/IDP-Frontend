@@ -149,7 +149,7 @@ describe('server page request context', () => {
         variables: { project: 'example' },
       },
       {
-        endpoint: 'http://revproxy-service/loom/graphql/flat',
+        endpoint: 'http://revproxy-service/loom/graphql/graph',
         signal,
         headers: {
           Cookie: 'access_token=token',
@@ -172,7 +172,7 @@ describe('server page request context', () => {
     expect(fetchGraphQL).toHaveBeenCalledWith(
       { query: 'query Health { ok }' },
       expect.objectContaining({
-        endpoint: 'http://localhost:3000/loom/graphql/flat',
+        endpoint: 'http://localhost:3000/loom/graphql/graph',
         headers: {},
       }),
     );

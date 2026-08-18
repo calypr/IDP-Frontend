@@ -82,6 +82,7 @@ export interface ExplorerTableProps {
   classNames?: Partial<ExploreTableClassnames>;
   fileActions?: FileActionsConfig;
   loomDataset?: LoomDatasetSelector;
+  loomProjectIds?: ReadonlyArray<string>;
 }
 
 export interface ExplorerTableColumnMRT {

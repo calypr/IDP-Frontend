@@ -61,6 +61,17 @@ describe('Loom GraphQL transport', () => {
     ).resolves.toEqual({ ok: true });
   });
 
+  it('rejects empty GraphQL operations before sending them to Loom', async () => {
+    await expect(
+      fetchGraphQL({ query: 'query LoomAggregations() {  }' }),
+    ).rejects.toMatchObject({
+      code: 'INVALID_REQUEST',
+      retryable: false,
+      message: 'Loom GraphQL requests require at least one selected field',
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('exposes HTTP GraphQL errors with response and extension metadata', async () => {
     fetchMock.mockResolvedValue(
       jsonResponse(
@@ -104,11 +115,70 @@ describe('Loom GraphQL transport', () => {
         expect.objectContaining({ errors: expect.any(Array) }),
       );
       expect((error as LoomGraphQLRequestError).meta).toEqual({
-        endpoint: 'https://gen3.localhost.io/loom/graphql/flat',
+        endpoint: 'https://gen3.localhost.io/loom/graphql/graph',
         status: 503,
         requestId: 'graphql-request-1',
       });
     }
+  });
+
+  it('preserves HTTP 401 GraphQL metadata for the logged-out boundary', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(
+        {
+          errors: [
+            {
+              message: 'authentication required',
+              extensions: {
+                code: 'AUTHENTICATION_REQUIRED',
+                retryable: false,
+              },
+            },
+          ],
+        },
+        {
+          status: 401,
+          headers: { 'x-request-id': 'auth-graphql-request-1' },
+        },
+      ),
+    );
+
+    await expect(
+      fetchGraphQL({ query: 'query Protected { viewer }' }),
+    ).rejects.toMatchObject({
+      status: 401,
+      httpStatus: 401,
+      code: 'AUTHENTICATION_REQUIRED',
+      requestId: 'auth-graphql-request-1',
+      retryable: false,
+    });
+  });
+
+  it('normalizes an HTTP 401 into an authentication diagnostic', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(
+        {
+          errors: [
+            {
+              message: 'authorization required',
+              extensions: { code: 'UNAUTHENTICATED' },
+            },
+          ],
+        },
+        { status: 401, headers: { 'x-request-id': 'auth-request-1' } },
+      ),
+    );
+
+    await expect(
+      fetchGraphQL({ query: 'query Protected { viewer { id } }' }),
+    ).rejects.toMatchObject({
+      status: 401,
+      httpStatus: 401,
+      code: 'AUTHENTICATION_REQUIRED',
+      message: 'Your Loom session has expired. Sign in again to continue.',
+      requestId: 'auth-request-1',
+      retryable: false,
+    });
   });
 
   it('treats HTTP-200 GraphQL errors as custom errors', async () => {
@@ -140,6 +210,57 @@ describe('Loom GraphQL transport', () => {
       requestId: 'header-request-1',
       retryable: true,
       fieldPath: 'a6',
+    });
+  });
+
+  it('preserves Loom recipe validation field-path arrays', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({
+      data: null,
+      errors: [{
+        message: 'the request is invalid',
+        extensions: {
+          code: 'INVALID_REQUEST',
+          fieldPath: ['$.outputs[0].fields[1].name'],
+          details: { validationCode: 'duplicate_name' },
+        },
+      }],
+    }));
+
+    await expect(fetchGraphQL({ query: 'query BrokenRecipe { preview }' })).rejects.toMatchObject({
+      code: 'INVALID_REQUEST',
+      fieldPath: '$.outputs[0].fields[1].name',
+    });
+  });
+
+  it('keeps selector validation failures terminal and structured', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(
+        {
+          errors: [
+            {
+              message: 'selector.output is required',
+              extensions: {
+                code: 'INVALID_SELECTOR',
+                fieldPath: ['input', 'selector', 'output'],
+                retryable: false,
+              },
+            },
+          ],
+        },
+        { status: 422, headers: { 'x-request-id': 'selector-request-1' } },
+      ),
+    );
+
+    await expect(
+      fetchGraphQL({ query: 'query Rows { dataframeRows }' }),
+    ).rejects.toMatchObject({
+      status: 422,
+      httpStatus: 422,
+      code: 'INVALID_SELECTOR',
+      fieldPath: 'input.selector.output',
+      requestId: 'selector-request-1',
+      retryable: false,
+      message: 'selector.output is required',
     });
   });
 
@@ -244,6 +365,10 @@ describe('Loom GraphQL transport', () => {
         requestId: 'success-1',
       },
     });
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      'https://gen3.localhost.io/loom/graphql/graph',
+      expect.any(Object),
+    );
 
     fetchMock.mockResolvedValueOnce(
       jsonResponse(

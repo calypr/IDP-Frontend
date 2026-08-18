@@ -20,6 +20,7 @@ import {
   registerCohortBuilderDefaultPreviewRenderers,
   registerMetadataSchemaApp,
   registerCohortDiscoveryApp,
+  installBrowserRuntimeErrorCapture,
 } from '@gen3/frontend';
 
 import { registerDefaultRemoteSupport } from '@gen3/core';
@@ -85,6 +86,8 @@ const Gen3App = ({
   useEffect(() => {
     setIsClient(true); // Only on client-side
   }, []);
+
+  useEffect(() => installBrowserRuntimeErrorCapture(), []);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {

@@ -1,10 +1,9 @@
 import React, { useEffect, useMemo } from 'react';
+import { skipToken } from '@reduxjs/toolkit/query';
 import { LoadingOverlay, Stack, Table, Text } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import {
   convertFilterSetToLoomFilters,
-  isLoomDataType,
-  useGetLoomDatasetQuery,
   useGetLoomDatasetBySelectorQuery,
   useGetLoomRowsQuery,
 } from '@gen3/core';
@@ -16,6 +15,7 @@ import { JSONPath } from 'jsonpath-plus';
 import { isArray } from 'lodash';
 import { useStudyContext } from '../../../Study/StudyProvider';
 import { SinglePageStudyDetailsPanel } from '../../../Study';
+import { publicLoomFields } from '../utils';
 
 const ExtractData = (
   row: Record<string, any> | undefined,
@@ -43,6 +43,7 @@ export const QueryRowDetailsPanel = ({
   tableConfig,
   accessibility,
   loomDataset,
+  loomProjectIds,
 }: TableDetailsPanelProps) => {
   //const [queryGuppy, { data, isLoading, isError }] = useLazyGeneralGQLQuery();
   const idField = tableConfig.detailsConfig?.idField;
@@ -50,12 +51,9 @@ export const QueryRowDetailsPanel = ({
   const { setStudyDetails } = useStudyContext();
   const [opened, { open, close }] = useDisclosure(false);
 
-  const loomDataType = isLoomDataType(index) ? index : null;
   const loomIdentity = loomDataset
-    ? ({ selector: loomDataset } as const)
-    : loomDataType
-      ? ({ dataType: loomDataType } as const)
-      : null;
+    ? ({ selector: loomDataset, projectIds: loomProjectIds } as const)
+    : null;
   const loomFilters = useMemo(() => {
     if (!idField || !id) return { filters: [], error: null };
     try {
@@ -81,38 +79,26 @@ export const QueryRowDetailsPanel = ({
     }
   }, [id, idField]);
   const {
-    data: dataset,
-    isError: isDatasetError,
-    isLoading: isDatasetLoading,
-  } = useGetLoomDatasetQuery(loomDataType ?? 'DocumentReference', {
-    skip: !loomDataType || Boolean(loomDataset),
-  });
-  const {
     data: selectedDataset,
     isError: isSelectedDatasetError,
     isLoading: isSelectedDatasetLoading,
   } = useGetLoomDatasetBySelectorQuery(
-    {
-      selector: loomDataset ?? {
-        recipe: '',
-        translationVersion: '',
-        output: '',
-      },
-    },
-    { skip: !loomDataset },
+    loomIdentity ?? skipToken,
   );
-  const activeDataset = loomDataset ? selectedDataset : dataset;
+  const activeDataset = selectedDataset;
   const {
     data,
     isError: isRowsError,
     isFetching,
   } = useGetLoomRowsQuery(
-    {
-      ...(loomIdentity ?? { dataType: 'DocumentReference' as const }),
-      columns: tableConfig.fields as string[],
-      filters: loomFilters.filters,
-      first: 1,
-    },
+    loomIdentity
+      ? {
+          ...loomIdentity,
+          columns: publicLoomFields(tableConfig.fields),
+          filters: loomFilters.filters,
+          first: 1,
+        }
+      : skipToken,
     {
       skip: !loomIdentity || !idField || !id || !!loomFilters.error,
     },
@@ -134,15 +120,19 @@ export const QueryRowDetailsPanel = ({
   }
 
   if (!loomIdentity) {
-    return <ErrorCard message={`Unsupported Explorer data type: ${index}`} />;
+    return (
+      <ErrorCard
+        message={`No published Loom dataset selector is available for Explorer output ${index}`}
+      />
+    );
   }
   if (loomFilters.error) {
     return <ErrorCard message={loomFilters.error} />;
   }
-  if (isDatasetError || isSelectedDatasetError || isRowsError) {
+  if (isSelectedDatasetError || isRowsError) {
     return <ErrorCard message={'Error occurred while fetching data'} />;
   }
-  if (isDatasetLoading || isSelectedDatasetLoading) {
+  if (isSelectedDatasetLoading) {
     return <LoadingOverlay visible />;
   }
   if (!activeDataset || activeDataset.state !== 'READY') {

@@ -21,20 +21,28 @@ export const isRecordAny = (obj: unknown): obj is Record<string, any> => {
   return obj !== null && typeof obj === 'object';
 };
 
+export const publicLoomFields = (fields: ReadonlyArray<string>) =>
+  fields.filter(
+    (field) => field !== 'auth_resource_path' && !field.startsWith('__loom_'),
+  );
+
 export const includeAvailableSha256 = (
   fields: ReadonlyArray<string>,
   datasetColumns?: ReadonlyArray<{ name: string }>,
 ): ReadonlyArray<string> =>
-  datasetColumns?.some((column) => column.name === 'sha256') &&
-  !fields.includes('sha256')
-    ? [...fields, 'sha256']
-    : fields;
+  (() => {
+    const publicFields = publicLoomFields(fields);
+    return datasetColumns?.some((column) => column.name === 'sha256') &&
+      !publicFields.includes('sha256')
+      ? [...publicFields, 'sha256']
+      : publicFields;
+  })();
 
 export const createTableColumns = (
   tableConfig: TableColumnsAndFields,
   fileActions?: FileActionsConfig,
 ): ExplorerTableColumnMRT[] => {
-  return tableConfig.fields.map((field) => {
+  return publicLoomFields(tableConfig.fields).map((field) => {
     const columnDef = tableConfig?.columns?.[field];
 
     const cellRendererFunc = columnDef?.type
@@ -71,7 +79,7 @@ export const createArrayTableColumns = (
   root: string,
   tableConfig: TableColumnsAndFields,
 ): ExplorerTableColumnMRT[] => {
-  return tableConfig.fields.map((field) => {
+  return publicLoomFields(tableConfig.fields).map((field) => {
     const columnDef = tableConfig?.columns?.[field];
 
     const cellRendererFunc = columnDef?.type

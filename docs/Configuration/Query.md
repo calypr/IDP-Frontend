@@ -47,7 +47,7 @@ Supported services and presets are:
 
 - `loom-fhir-graph`: binds the selected `PROGRAM-PROJECT` to `input.project`.
 - `loom-fhir-dataframe`: binds the selected `PROGRAM-PROJECT` to `input.project`.
-- `loom-flat`: adds a `project_id EQ PROGRAM-PROJECT` filter to the flat input.
+- `loom-flat`: runs selector-based dataframe rows and adds a `project_id EQ PROGRAM-PROJECT` filter. Enter the published recipe selector in the variables editor before running.
 - `guppy-flat`: adds `auth_resource_path` using `/programs/PROGRAM/projects/PROJECT`.
 - `generic`: executes the configured query without automatic project binding.
 

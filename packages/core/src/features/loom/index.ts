@@ -4,3 +4,5 @@ export * from './loomDownload';
 export * from './filters';
 export * from './processing';
 export * from './types';
+export * from './explorer';
+export * from './explorerApi';

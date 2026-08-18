@@ -1,6 +1,5 @@
 import {
   downloadJSONDataFromLoom,
-  isLoomDataType,
   LoomDownloadParams,
   LoomDatasetSelector,
 } from '@gen3/core';
@@ -17,6 +16,7 @@ export interface DownloadTabularParams {
   accessibility?: any;
   sort?: any;
   selector?: LoomDatasetSelector;
+  projectIds?: ReadonlyArray<string>;
 }
 
 export const downloadTabularAction: ActionButtonWithArgsFunction = async (
@@ -28,25 +28,26 @@ export const downloadTabularAction: ActionButtonWithArgsFunction = async (
 ): Promise<void> => {
   // Cast the generic record to your specific interface for internal use
   const {
-    resourceIndexType,
     fileFields,
     type,
     filter,
     sort,
     filename,
     selector,
+    projectIds,
   } = params as DownloadTabularParams;
   const downloadFilename = filename ?? `${type}_export.csv`;
-  const dataType = resourceIndexType || type;
-  if (!selector && !isLoomDataType(dataType)) {
-    onError?.(new Error(`Unsupported Loom data type: ${dataType}`));
+  if (!selector) {
+    onError?.(
+      new Error('This download has no published Loom dataset selector.'),
+    );
     return;
   }
 
   const cohortFilterParams: LoomDownloadParams = {
     filter,
-    type: !selector && isLoomDataType(dataType) ? dataType : undefined,
     selector,
+    projectIds,
     fields: fileFields,
     sort,
     format: 'json',

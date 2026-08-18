@@ -1,8 +1,6 @@
 import {
   downloadFromLoomToBlob,
-  isLoomDataType,
   LoomDatasetSelector,
-  LoomDownloadParams,
 } from '@gen3/core';
 import { handleDownload } from './utils';
 
@@ -14,15 +12,20 @@ export const downloadToFileAction = async (
   signal?: AbortSignal,
 ): Promise<void> => {
   const selector = params.selector as LoomDatasetSelector | undefined;
-  if (!selector && !isLoomDataType(params.type)) {
-    onError?.(new Error(`Unsupported Loom data type: ${params.type}`));
+  if (!selector) {
+    onError?.(
+      new Error('This download has no published Loom dataset selector.'),
+    );
     return;
   }
   // Call the principal-scoped Loom export endpoint.
   await downloadFromLoomToBlob({
     parameters: {
-      ...(params as LoomDownloadParams),
-      type: selector ? undefined : params.type,
+      fields: params.fields ?? [],
+      filter: params.filter,
+      sort: params.sort,
+      format: params.format ?? 'json',
+      filename: params.filename,
       selector,
     },
     onDone: (data: Blob) => {

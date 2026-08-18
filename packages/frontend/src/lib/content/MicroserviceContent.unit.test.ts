@@ -1,5 +1,5 @@
 jest.mock('@gen3/core', () => ({
-  CALYPR_EXPLORER_CONFIG_API: '/gecko',
+  GEN3_GECKO_API: '/gecko',
 }));
 
 import {

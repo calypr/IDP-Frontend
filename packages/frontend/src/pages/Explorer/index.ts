@@ -4,8 +4,4 @@ export {
   ExplorerMainContent,
 } from './Explorer';
 export type * from './types';
-export {
-  ExplorerPageGetServerSideProps,
-  ExplorerPageGetServerSidePropsForConfigId,
-  ExplorerPageGetServerSidePropsForRelease,
-} from './data';
+export { ExplorerPageGetServerSideProps } from './data';

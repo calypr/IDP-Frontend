@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react';
 import {
   userHasMethodForServiceOnResource,
   useGetAuthzMappingsQuery,
-  useGetExplorersQuery,
+  useGetRepositoryExplorerConfigQuery,
 } from '@gen3/core';
 import ProjectWorkspaceTabs from './ProjectWorkspaceTabs';
 
@@ -16,7 +16,7 @@ jest.mock('next/link', () => ({
 
 jest.mock('@gen3/core', () => ({
   useGetAuthzMappingsQuery: jest.fn(),
-  useGetExplorersQuery: jest.fn(),
+  useGetRepositoryExplorerConfigQuery: jest.fn(),
   userHasMethodForServiceOnResource: jest.fn(),
 }));
 
@@ -36,11 +36,11 @@ const renderTabs = (hasExplorerConfig = false) => render(
 describe('ProjectWorkspaceTabs', () => {
   beforeEach(() => {
     (useGetAuthzMappingsQuery as jest.Mock).mockReturnValue({ data: {} });
-    (useGetExplorersQuery as jest.Mock).mockReturnValue({ data: [] });
+    (useGetRepositoryExplorerConfigQuery as jest.Mock).mockReturnValue({ data: null });
     mockedAuthorization.mockReturnValue(false);
   });
 
-  it('shows Explorer for an existing legacy or builder configuration', () => {
+  it('shows Explorer for an existing content or Loom configuration', () => {
     renderTabs(true);
     expect(screen.getByRole('tab', { name: 'Explorer' })).toHaveAttribute(
       'href',

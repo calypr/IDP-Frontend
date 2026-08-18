@@ -30,7 +30,11 @@ describe('Query presets', () => {
   it('adds exactly one Loom project_id EQ filter', () => {
     const variables = {
       input: {
-        dataType: 'Patient',
+        selector: {
+          recipe: 'project_recipe',
+          translationVersion: 'r000001_abcd',
+          output: 'Patient',
+        },
         filters: [
           { column: 'project_id', op: 'EQ', value: 'old' },
           { column: 'patient_gender', op: 'EQ', value: 'female' },
@@ -48,7 +52,16 @@ describe('Query presets', () => {
 
   it('binds multiple Loom projects using one IN filter', () => {
     const bound = applyProjectBinding(
-      { input: { dataType: 'Patient', filters: [] } },
+      {
+        input: {
+          selector: {
+            recipe: 'project_recipe',
+            translationVersion: 'r000001_abcd',
+            output: 'Patient',
+          },
+          filters: [],
+        },
+      },
       'loom-project-filter',
       ['PROGRAM-PROJECT-A', 'PROGRAM-PROJECT-B'],
     );

@@ -13,7 +13,10 @@ export interface GraphLayoutEdge {
 }
 
 export interface GraphLayoutResult {
-  readonly positions: ReadonlyMap<string, { readonly x: number; readonly y: number }>;
+  readonly positions: ReadonlyMap<
+    string,
+    { readonly x: number; readonly y: number }
+  >;
   readonly routes: ReadonlyMap<string, string>;
 }
 
@@ -23,31 +26,31 @@ const routePath = (
   section:
     | {
         readonly startPoint: { readonly x: number; readonly y: number };
-        readonly bendPoints?: ReadonlyArray<{ readonly x: number; readonly y: number }>;
+        readonly bendPoints?: ReadonlyArray<{
+          readonly x: number;
+          readonly y: number;
+        }>;
         readonly endPoint: { readonly x: number; readonly y: number };
       }
     | undefined,
-) => {
+): string | undefined => {
   if (!section) return undefined;
-  const points = [section.startPoint, ...(section.bendPoints ?? []), section.endPoint];
+  const points = [
+    section.startPoint,
+    ...(section.bendPoints ?? []),
+    section.endPoint,
+  ];
   return points
     .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`)
     .join(' ');
 };
 
-/**
- * Runs ELK's Sugiyama-style directed layout. The layered pipeline assigns
- * ranks, reduces crossings, balances nodes within ranks, and routes edges
- * orthogonally. Coordinates are deterministic for the same ordered graph.
- */
+/** Deterministic layered layout used by the PR #105 graph canvas. */
 export const layoutDatasetGraph = async (
   nodes: ReadonlyArray<GraphLayoutNode>,
   edges: ReadonlyArray<GraphLayoutEdge>,
 ): Promise<GraphLayoutResult> => {
-  if (nodes.length === 0) {
-    return { positions: new Map(), routes: new Map() };
-  }
-
+  if (nodes.length === 0) return { positions: new Map(), routes: new Map() };
   const input: ElkNode = {
     id: 'dataset-graph',
     layoutOptions: {
@@ -81,12 +84,23 @@ export const layoutDatasetGraph = async (
     })),
   };
   const graph = await elk.layout(input);
-
+  const children = graph.children ?? [];
+  const missingPosition = nodes.find((node) => {
+    const laidOut = children.find((candidate) => candidate.id === node.id);
+    return (
+      !laidOut || !Number.isFinite(laidOut.x) || !Number.isFinite(laidOut.y)
+    );
+  });
+  if (missingPosition) {
+    throw new Error(
+      `ELK returned no finite position for graph node ${missingPosition.id}.`,
+    );
+  }
   return {
     positions: new Map(
-      (graph.children ?? []).map((node) => [
+      children.map((node) => [
         node.id,
-        { x: node.x ?? 0, y: node.y ?? 0 },
+        { x: node.x as number, y: node.y as number },
       ]),
     ),
     routes: new Map(

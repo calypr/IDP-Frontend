@@ -1,10 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { Text } from '@mantine/core';
-import { useDispatch } from 'react-redux';
 import {
-  explorerConfigApi,
   useGeneralGQLQuery,
-  useGetConfigListQuery,
 } from '@gen3/core';
 import { MatchingTable } from '../../features/MatchingTable';
 import { NavPageLayout } from '../../features/Navigation';
@@ -12,9 +9,7 @@ import ProtectedContent from '../../components/Protected/ProtectedContent';
 import type { AppsPageProps } from '../Apps/types';
 import { type SummaryTableColumn } from '../../features/CohortBuilder/ExplorerTable/types';
 import {
-  buildDeterministicFileActionsMap,
   type FileActionsConfig,
-  sortConfigIds,
 } from './AvailableImages.utils';
 
 export const useFileTypesFiles = () => {
@@ -80,68 +75,10 @@ const AvailableImagesPage = ({
   pageProblems,
 }: AppsPageProps) => {
   const { data, isLoading, isError } = useFileTypesFiles();
-  const dispatch = useDispatch();
-  const { data: configList } = useGetConfigListQuery();
-  const [fileActionsMap, setFileActionsMap] = useState<
-    Record<string, FileActionsConfig>
-  >({});
-
-  useEffect(() => {
-    if (configList?.data && Array.isArray(configList.data)) {
-      const fetchConfigs = async () => {
-        const configResults = await Promise.all(
-          sortConfigIds(configList.data).map(async (configId: string) => {
-            try {
-              const result: any = await (dispatch as any)(
-                explorerConfigApi.endpoints.getConfigContent.initiate(configId),
-              ).unwrap();
-              const configData = result?.data;
-              if (configData?.fileActions) {
-                const projectIds = configData.preFilters?.project_id;
-                const normalizedProjectIds = Array.isArray(projectIds)
-                  ? projectIds.filter((projectId: unknown): projectId is string =>
-                      typeof projectId === 'string' && projectId.length > 0,
-                    )
-                  : [];
-
-                return {
-                  configId,
-                  fileActions: configData.fileActions as FileActionsConfig,
-                  projectIds:
-                    normalizedProjectIds.length > 0
-                      ? normalizedProjectIds
-                      : [configId],
-                };
-              }
-            } catch (error: unknown) {
-              console.error(
-                `Failed to fetch config ${configId}`,
-                error instanceof Error ? error.message : String(error),
-              );
-            }
-
-            return null;
-          }),
-        );
-
-        setFileActionsMap(
-          buildDeterministicFileActionsMap(
-            configResults.filter(
-              (
-                config,
-              ): config is {
-                configId: string;
-                fileActions: FileActionsConfig;
-                projectIds: Array<string>;
-              } => config !== null,
-            ),
-          ),
-        );
-      };
-
-      fetchConfigs();
-    }
-  }, [configList, dispatch]);
+  // Explorer configuration is Loom-owned; legacy Gecko config documents no
+  // longer provide image file actions. The page remains usable with its
+  // built-in actions until a dedicated image policy is introduced.
+  const fileActionsMap: Record<string, FileActionsConfig> = {};
 
   const imageViewerTableConfig: Record<string, SummaryTableColumn> = useMemo(
     () => ({

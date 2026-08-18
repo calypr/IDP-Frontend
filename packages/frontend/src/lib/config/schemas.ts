@@ -401,6 +401,14 @@ export const SubmissionConfigurationSchema = z
 export const TabbedCohortBuilderConfigurationSchema = z
   .object({
     index: z.string(),
+    loomDataset: z
+      .object({
+        recipe: z.string().min(1),
+        translationVersion: z.string().min(1),
+        output: z.string().min(1),
+      })
+      .passthrough()
+      .optional(),
     tabsConfiguration: z.record(
       z.string(),
       z

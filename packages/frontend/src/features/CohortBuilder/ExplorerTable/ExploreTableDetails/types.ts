@@ -8,6 +8,7 @@ export interface TableDetailsPanelProps extends DetailsPanelComponentProps {
   tableConfig: SummaryTable;
   accessibility: Accessibility;
   loomDataset?: LoomDatasetSelector;
+  loomProjectIds?: ReadonlyArray<string>;
 }
 
 export interface TableDetailsReportPanelProps extends DetailsPanelComponentProps {

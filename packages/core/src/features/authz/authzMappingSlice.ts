@@ -1,7 +1,5 @@
 import { gen3Api } from '../gen3';
 import { createSelector } from '@reduxjs/toolkit';
-import type { FetchBaseQueryError } from '@reduxjs/toolkit/query';
-import { QueryStatus } from '@reduxjs/toolkit/query';
 import {
   type AuthzMapping,
   AuthzOwnerMutationRequest,
@@ -17,7 +15,7 @@ import {
   type ServiceAndMethod,
 } from './types';
 import { GEN3_AUTHZ_API } from '../../constants';
-import { userAuthApi, selectUserDetailsFromState } from '../user/userSliceRTK';
+import { selectUserDetailsFromState } from '../user/userSliceRTK';
 import type { CoreState } from '../../reducers';
 
 const TAGS = 'authz';
@@ -83,62 +81,11 @@ export const authzApi = authzTags.injectEndpoints({
           };
         }
 
-        const cachedUserError = userDetailsState?.error;
-        if (
-          userDetailsState?.status === QueryStatus.rejected &&
-          cachedUserError &&
-          typeof cachedUserError === 'object' &&
-          'status' in cachedUserError &&
-          cachedUserError.status === 401
-        ) {
-          // An unauthenticated user has no authz mapping. Treat the cached 401
-          // as a terminal empty mapping instead of repeatedly dispatching the
-          // same Fence /user request from every authz consumer.
-          return { data: {} };
-        }
-
-        const userResult = await api.dispatch(
-          userAuthApi.endpoints.fetchUserDetails.initiate(undefined, {
-            forceRefetch: false,
-          }),
-        );
-
-        try {
-          if ('data' in userResult && userResult.data?.data) {
-            return {
-              data: normalizeFenceAuthzMapping(
-                userResult.data.data.authz ??
-                  userResult.data.data.project_access,
-              ),
-            };
-          }
-        } finally {
-          const unsubscribe =
-            'unsubscribe' in userResult ? userResult.unsubscribe : undefined;
-          if (typeof unsubscribe === 'function') {
-            unsubscribe();
-          }
-        }
-
-        const requestError =
-          'error' in userResult ? userResult.error : undefined;
-        const error: FetchBaseQueryError =
-          requestError &&
-          typeof requestError === 'object' &&
-          'status' in requestError
-            ? (requestError as FetchBaseQueryError)
-            : {
-                status: 'CUSTOM_ERROR',
-                error:
-                  requestError &&
-                  typeof requestError === 'object' &&
-                  'message' in requestError &&
-                  typeof requestError.message === 'string'
-                    ? requestError.message
-                    : 'Fence user details were unavailable',
-              };
-
-        return { error };
+        // SessionProvider owns the single Fence user check. Do not initiate a
+        // second /user/user request from the authz gate when that snapshot is
+        // not populated yet; an empty mapping is safe until the session gate
+        // has established an authenticated user.
+        return { data: {} };
       },
     }),
     getAuthzResources: builder.query<AuthzResourceResponse, void>({

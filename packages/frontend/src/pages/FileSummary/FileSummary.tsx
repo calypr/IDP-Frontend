@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import {
-  CALYPR_EXPLORER_CONFIG_API,
-  useGetConfigContentQuery,
+  GEN3_GECKO_API,
+  useGetRepositoryExplorerConfigQuery,
 } from '@gen3/core';
 import {
   ActionIcon,
@@ -145,7 +145,7 @@ export const FileSummaryPage = ({
       setIsProjectsLoading(true);
       try {
         const response = await fetch(
-          `${CALYPR_EXPLORER_CONFIG_API}/projects/summary`,
+          `${GEN3_GECKO_API}/projects/summary`,
           {
             credentials: 'include',
             method: 'GET',
@@ -203,16 +203,13 @@ export const FileSummaryPage = ({
     () => splitProjectSelectionValue(selectedProject),
     [selectedProject],
   );
-  const explorerConfigId = selectedProjectParts
-    ? `${selectedProjectParts.organization}-${selectedProjectParts.project}`
-    : '';
-  const { data: explorerConfigResponse } = useGetConfigContentQuery(
-    explorerConfigId,
+  const { data: explorer } = useGetRepositoryExplorerConfigQuery(
+    `${selectedProjectParts?.organization ?? ''}-${selectedProjectParts?.project ?? ''}`,
     {
-      skip: !explorerConfigId,
+      skip: !selectedProjectParts,
     },
   );
-  const hasExplorerConfig = Boolean(explorerConfigResponse?.data);
+  const hasExplorerConfig = Boolean(explorer);
   const breadcrumbSegments = useMemo(
     () => getPathSegments(currentPath),
     [currentPath],

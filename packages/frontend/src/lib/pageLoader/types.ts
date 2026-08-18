@@ -49,6 +49,7 @@ export interface RequestBoundLoomClient {
     endpoint?: string;
     signal?: AbortSignal;
   }): Promise<T>;
+  get<T>(path: string): Promise<T>;
 }
 
 export interface ConfigDescriptor<T> {

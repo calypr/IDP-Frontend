@@ -1,5 +1,5 @@
 import { ContentStore } from './types'; // This must be updated to include the headers
-import { CALYPR_EXPLORER_CONFIG_API } from '@gen3/core';
+import { GEN3_GECKO_API } from '@gen3/core';
 import { getCookie } from 'cookies-next'; // Still useful for client-side debugging/fallback
 import { ContentError } from './errors';
 
@@ -149,7 +149,7 @@ export class MicroserviceContent implements ContentStore {
   ): Promise<T> {
     const clean = filepath.replace(/^\/+/, '');
 
-    const url = `${CALYPR_EXPLORER_CONFIG_API}/${clean}`;
+    const url = `${GEN3_GECKO_API}/${clean}`;
     console.log('URL: ', url);
     return this.fetch<T>(url, headers);
   }

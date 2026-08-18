@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { skipToken } from '@reduxjs/toolkit/query';
 import { useRouter } from 'next/router';
 import { Stack } from '@mantine/core';
 import {
@@ -10,12 +11,11 @@ import {
   FacetDefinition,
   FacetType,
   isIntersection,
-  isLoomDataType,
+  LoomDatasetSelector,
   selectIndexFilters,
   useCoreSelector,
   useGetLoomAggregationsQuery,
   useGetLoomCountQuery,
-  useGetLoomDatasetQuery,
   usePrevious,
 } from '@gen3/core';
 import FacetTabs from '../../components/facets/FacetTabs';
@@ -80,11 +80,15 @@ export const calculateStickyHeaderHeight = (): number => {
 export interface TabbedCohortBuilderConfiguration {
   tabsConfiguration: TabbedCohortBuilderFacetConfig;
   index: string;
+  loomDataset?: LoomDatasetSelector;
+  loomProjectIds?: ReadonlyArray<string>;
 }
 
 const TabbedCohortBuilder = ({
   index,
   tabsConfiguration,
+  loomDataset,
+  loomProjectIds,
 }: TabbedCohortBuilderConfiguration) => {
   const tabsConfig = tabsConfiguration;
   const cohortBuilderFilters = [
@@ -109,7 +113,9 @@ const TabbedCohortBuilder = ({
   const cohortFilters = useCoreSelector((state: CoreState) =>
     selectIndexFilters(state, index),
   );
-  const loomDataType = isLoomDataType(index) ? index : null;
+  const loomIdentity = loomDataset
+    ? ({ selector: loomDataset, projectIds: loomProjectIds } as const)
+    : null;
   const loomFilters = useMemo(() => {
     try {
       return {
@@ -124,25 +130,24 @@ const TabbedCohortBuilder = ({
     }
   }, [cohortFilters]);
   const {
-    data: dataset,
-    isError: isDatasetError,
-    isLoading: isDatasetLoading,
-  } = useGetLoomDatasetQuery(loomDataType ?? 'DocumentReference', {
-    skip: !loomDataType,
-  });
-
-  const {
     data,
     isSuccess,
     isFetching: isAggsQueryFetching,
     isError: isAggsQueryError,
   } = useGetLoomAggregationsQuery(
+    loomIdentity
+      ? {
+          ...loomIdentity,
+          fields: cohortBuilderFilters,
+          filters: loomFilters.filters,
+        }
+      : skipToken,
     {
-    dataType: loomDataType ?? 'DocumentReference',
-    fields: cohortBuilderFilters,
-    filters: loomFilters.filters,
+      skip:
+        !loomIdentity ||
+        !!loomFilters.error ||
+        cohortBuilderFilters.length === 0,
     },
-    { skip: !loomDataType || !!loomFilters.error },
   );
 
   const {
@@ -150,12 +155,14 @@ const TabbedCohortBuilder = ({
     isSuccess: isCountSuccess,
     isError,
   } = useGetLoomCountQuery(
-    {
-      dataType: loomDataType ?? 'DocumentReference',
-      filters: loomFilters.filters,
-      operation: 'COUNT',
-    },
-    { skip: !loomDataType || !!loomFilters.error },
+    loomIdentity
+      ? {
+          ...loomIdentity,
+          filters: loomFilters.filters,
+          operation: 'COUNT',
+        }
+      : skipToken,
+    { skip: !loomIdentity || !!loomFilters.error },
   );
 
   const [facetDefinitions, setFacetDefinitions] = useState<
@@ -274,25 +281,16 @@ const TabbedCohortBuilder = ({
       };
     }, [getEnumFacetData, getRangeFacetData, index]);
 
-  if (!loomDataType) {
-    return <ErrorCard message={`Unsupported Explorer data type: ${index}`} />;
+  if (!loomIdentity) {
+    return (
+      <ErrorCard
+        message={`No published Loom dataset selector is available for Explorer output ${index}`}
+      />
+    );
   }
   if (loomFilters.error) {
     return <ErrorCard message={loomFilters.error} />;
   }
-  if (isDatasetError) {
-    return <ErrorCard message="Unable to discover the authorized Loom dataset" />;
-  }
-  if (isDatasetLoading) {
-    return <Stack align="center">Loading Loom dataset…</Stack>;
-  }
-  if (!dataset) {
-    return <ErrorCard message="No authorized Loom dataset is available for this Explorer tab" />;
-  }
-  if (dataset.state !== 'READY') {
-    return <ErrorCard message={`Loom dataset is ${dataset.state.toLowerCase()}${dataset.error ? `: ${dataset.error}` : ''}`} />;
-  }
-
   return (
     <Stack gap="xs" align="stretch" classNames={{ root: 'w-full' }}>
       <FacetTabs

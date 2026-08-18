@@ -14,12 +14,21 @@ export type LoomDataType = (typeof LOOM_DATA_TYPES)[number];
 export const isLoomDataType = (value: string): value is LoomDataType =>
   (LOOM_DATA_TYPES as ReadonlyArray<string>).includes(value);
 
-export interface LoomDatasetSelector {
+/**
+ * The only identity accepted by Loom dataframe operations.
+ *
+ * Materialization IDs and data types are server metadata/UI concepts, not
+ * dataframe request selectors. Keeping this type strict prevents those
+ * retired request shapes from re-entering through a new callsite.
+ */
+export interface DataframeSelector {
   readonly recipe: string;
   readonly translationVersion: string;
   readonly output: string;
-  readonly materializationId?: string;
 }
+
+/** Backwards-compatible name for consumers of the Loom-specific API. */
+export type LoomDatasetSelector = DataframeSelector;
 
 export interface LoomSelectorDiagnostic {
   readonly code: 'UNSUPPORTED_LEGACY_OUTPUT' | 'INVALID_DATASET_SELECTOR';
@@ -57,44 +66,53 @@ export const normalizeLegacyLoomOutput = (
 };
 
 export const validateLoomDatasetSelector = (
-  selector: LoomDatasetSelector,
+  selector: DataframeSelector,
 ): LoomSelectorDiagnostic | undefined => {
-  if (selector.materializationId?.trim()) return undefined;
+  const recipe = typeof selector.recipe === 'string' ? selector.recipe.trim() : '';
+  const translationVersion =
+    typeof selector.translationVersion === 'string'
+      ? selector.translationVersion.trim()
+      : '';
+  const output = typeof selector.output === 'string' ? selector.output.trim() : '';
   if (
-    selector.recipe.trim() &&
-    selector.translationVersion.trim() &&
-    selector.output.trim()
+    recipe &&
+    translationVersion &&
+    output
   ) {
     return undefined;
   }
   return {
     code: 'INVALID_DATASET_SELECTOR',
     message:
-      'A Loom selector requires a materialization ID or an exact recipe, translation version, and output.',
+      'A Loom dataframe selector requires an exact recipe, translation version, and output.',
   };
 };
 
-export type LoomDatasetIdentity =
-  | { readonly dataType: LoomDataType; readonly selector?: never; readonly materializationId?: never }
-  | { readonly dataType?: never; readonly selector: LoomDatasetSelector; readonly materializationId?: never }
-  | { readonly dataType?: never; readonly selector?: never; readonly materializationId: string };
+export type LoomDatasetIdentity = {
+  readonly selector: DataframeSelector;
+  /** Authoritative, narrowing-only project scope for a dataframe read. */
+  readonly projectIds?: ReadonlyArray<string>;
+};
 
 export const loomDatasetIdentityKey = (
   identity: LoomDatasetIdentity,
 ): string =>
-  identity.selector
-    ? [
-        identity.selector.recipe,
-        identity.selector.translationVersion,
-        identity.selector.output,
-        identity.selector.materializationId ?? '',
-      ].join('|')
-    : identity.materializationId
-      ? `materialization|${identity.materializationId}`
-      : `legacy|${identity.dataType}`;
+  [
+    identity.selector.recipe,
+    identity.selector.translationVersion,
+    identity.selector.output,
+    ...(identity.projectIds
+      ? [...new Set(identity.projectIds.map((project) => project.trim()))]
+          .filter(Boolean)
+          .sort()
+      : []),
+  ].join('|');
 
 export interface LoomDatasetRef {
-  readonly dataType: LoomDataType;
+  /** Logical output name used by the Explorer UI; V2 recipes may define custom outputs. */
+  readonly dataType: string;
+  /** Current immutable dataset identity used by dataframe operations. */
+  readonly selector?: DataframeSelector;
 }
 
 export interface LoomColumn {
@@ -187,6 +205,8 @@ export interface LoomApiError {
 export interface LoomQueryArgs {
   readonly query: string;
   readonly variables?: Record<string, unknown>;
+  /** Select Loom's graph schema. Dataframe operations use the flat schema. */
+  readonly schema?: 'flat' | 'graph';
 }
 
 export interface LoomGraphQLResponse<T> {
@@ -208,7 +228,7 @@ export interface LoomGraphQLErrorExtensions {
   readonly code?: string;
   readonly requestId?: string;
   readonly retryable?: boolean;
-  readonly fieldPath?: string | null;
+  readonly fieldPath?: string | ReadonlyArray<string> | null;
   readonly [key: string]: unknown;
 }
 

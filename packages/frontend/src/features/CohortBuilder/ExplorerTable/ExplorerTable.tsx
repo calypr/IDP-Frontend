@@ -1,15 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { skipToken } from '@reduxjs/toolkit/query';
 import { useDeepCompareMemo } from 'use-deep-compare';
 import {
   CoreState,
   convertFilterSetToLoomFilters,
-  isLoomDataType,
   isJSONValue,
   JSONObject,
   selectIndexFilters,
   useCoreSelector,
   useGetLoomDatasetBySelectorQuery,
-  useGetLoomDatasetQuery,
   useGetLoomRowsQuery,
 } from '@gen3/core';
 import {
@@ -50,6 +49,7 @@ const ExplorerTable = ({
   size = 'sm',
   fileActions,
   loomDataset,
+  loomProjectIds,
 }: ExplorerTableProps) => {
   const [pagination, setPagination] = useState<MRT_PaginationState>({
     pageIndex: 0,
@@ -156,12 +156,9 @@ const ExplorerTable = ({
     selectIndexFilters(state, index),
   );
 
-  const loomDataType = isLoomDataType(index) ? index : null;
   const loomIdentity = loomDataset
-    ? ({ selector: loomDataset } as const)
-    : loomDataType
-      ? ({ dataType: loomDataType } as const)
-      : null;
+    ? ({ selector: loomDataset, projectIds: loomProjectIds } as const)
+    : null;
   const loomFilters = useMemo(() => {
     try {
       return {
@@ -177,27 +174,13 @@ const ExplorerTable = ({
     }
   }, [cohortFilters]);
   const {
-    data: dataset,
-    isError: isDatasetError,
-    isLoading: isDatasetLoading,
-  } = useGetLoomDatasetQuery(loomDataType ?? 'DocumentReference', {
-    skip: !loomDataType || Boolean(loomDataset),
-  });
-  const {
     data: selectedDataset,
     isError: isSelectedDatasetError,
     isLoading: isSelectedDatasetLoading,
   } = useGetLoomDatasetBySelectorQuery(
-    {
-      selector: loomDataset ?? {
-        recipe: '',
-        translationVersion: '',
-        output: '',
-      },
-    },
-    { skip: !loomDataset },
+    loomIdentity ?? skipToken,
   );
-  const activeDataset = loomDataset ? selectedDataset : dataset;
+  const activeDataset = selectedDataset;
   const queryFields = useMemo(
     () => includeAvailableSha256(fields, activeDataset?.columns),
     [activeDataset?.columns, fields],
@@ -228,16 +211,18 @@ const ExplorerTable = ({
     isError: isRowsError,
     isFetching,
   } = useGetLoomRowsQuery(
-    {
-      ...(loomIdentity ?? { dataType: 'DocumentReference' as const }),
-      columns: queryFields,
-      filters: loomFilters.filters,
-      first: pagination.pageSize,
-      after: cursorLedger[pagination.pageIndex] ?? null,
-      sort: sorting[0]
-        ? { column: sorting[0].id, desc: sorting[0].desc }
-        : undefined,
-    },
+    loomIdentity
+      ? {
+          ...loomIdentity,
+          columns: queryFields,
+          filters: loomFilters.filters,
+          first: pagination.pageSize,
+          after: cursorLedger[pagination.pageIndex] ?? null,
+          sort: sorting[0]
+            ? { column: sorting[0].id, desc: sorting[0].desc }
+            : undefined,
+        }
+      : skipToken,
     { skip: !loomIdentity || !!loomFilters.error },
   );
   useEffect(() => {
@@ -271,7 +256,7 @@ const ExplorerTable = ({
     () => [...(loomRows?.rows ?? [])],
     [loomRows?.rows],
   );
-  const isError = isRowsError || isDatasetError;
+  const isError = isRowsError;
 
   const { totalRowCount, limitLabel } = useDeepCompareMemo(() => {
     const pageLimit =
@@ -280,9 +265,9 @@ const ExplorerTable = ({
     const totalRowCount = tableConfig?.pageLimit
       ? Math.min(
           pageLimit,
-          loomRows?.totalCount ?? dataset?.rowCount ?? pagination.pageSize,
+          loomRows?.totalCount ?? activeDataset?.rowCount ?? pagination.pageSize,
         )
-      : (loomRows?.totalCount ?? dataset?.rowCount ?? pagination.pageSize);
+      : (loomRows?.totalCount ?? activeDataset?.rowCount ?? pagination.pageSize);
     const limitLabel = tableConfig?.pageLimit
       ? (tableConfig?.pageLimit?.label ?? DEFAULT_PAGE_LIMIT_LABEL)
       : 'Rows per Page:';
@@ -428,12 +413,12 @@ const ExplorerTable = ({
   if (loomFilters.error) {
     return <ErrorCard message={loomFilters.error} />;
   }
-  if (isDatasetError || isSelectedDatasetError) {
+  if (isSelectedDatasetError) {
     return (
       <ErrorCard message="Unable to discover the authorized Loom dataset" />
     );
   }
-  if (isDatasetLoading || isSelectedDatasetLoading) {
+  if (isSelectedDatasetLoading) {
     return (
       <div className="flex items-center justify-center w-full h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
@@ -481,6 +466,7 @@ const ExplorerTable = ({
             panelProps={{
               index,
               loomDataset,
+              loomProjectIds,
               tableConfig,
               ...(tableConfig?.detailsConfig?.params ?? {}),
               accessibility,

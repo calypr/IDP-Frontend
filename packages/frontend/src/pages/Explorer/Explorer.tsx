@@ -3,6 +3,7 @@ import dynamic from 'next/dynamic';
 import type { SharedFieldMapping } from '@gen3/core';
 import { NavPageLayout } from '../../features/Navigation';
 import PageLoadBoundary from '../../components/MessageCards/PageLoadBoundary';
+import { ProtectedContent } from '../../components/Protected';
 import type { PageLoadProblem } from '../../lib/pageLoader';
 import type { CohortBuilderConfiguration } from '../../features/CohortBuilder';
 import { useSession } from '../../lib/session/session';
@@ -30,11 +31,32 @@ export const ExplorerMainContent = ({
   sharedFiltersMap,
   pageProblems = [],
 }: ExplorerMainContentProps) => {
-  const { status } = useSession();
-
   if (!configuration) return <PageLoadBoundary problems={pageProblems} />;
-  if (status !== 'issued') return null;
 
+  return (
+    <ProtectedContent>
+      <AuthenticatedExplorerContent
+        configuration={configuration}
+        activeTab={activeTab}
+        hideTabList={hideTabList}
+        onTabChange={onTabChange}
+        sharedFiltersMap={sharedFiltersMap}
+      />
+    </ProtectedContent>
+  );
+};
+
+const AuthenticatedExplorerContent = ({
+  configuration,
+  activeTab,
+  hideTabList,
+  onTabChange,
+  sharedFiltersMap,
+}: Omit<ExplorerMainContentProps, 'pageProblems' | 'configuration'> & {
+  configuration: CohortBuilderConfiguration;
+}) => {
+  const { status } = useSession();
+  if (status !== 'issued') return null;
   return (
     <CohortBuilder
       configuration={configuration}

@@ -1,6 +1,6 @@
 import type { Middleware, Reducer } from '@reduxjs/toolkit';
 import type { FetchBaseQueryError } from '@reduxjs/toolkit/query';
-import { CALYPR_EXPLORER_CONFIG_API, GEN3_API } from '../../constants';
+import { GEN3_GECKO_API, GEN3_API } from '../../constants';
 import { CoreState } from '../../reducers';
 import { resourcePathFromProjectID } from '../submission/authMappingUtils';
 import { gen3Api } from '../gen3';
@@ -576,7 +576,7 @@ export const geckoApi = geckoTaggedApi.injectEndpoints({
     getGeckoProjects: builder.query<Array<GeckoProjectRecord>, void>({
       providesTags: ['GeckoProjects'],
       query: () => ({
-        url: `${CALYPR_EXPLORER_CONFIG_API}/projects/list`,
+        url: `${GEN3_GECKO_API}/projects/list`,
         method: 'GET',
         credentials: 'include',
       }),
@@ -592,7 +592,7 @@ export const geckoApi = geckoTaggedApi.injectEndpoints({
       void
     >({
       query: () => ({
-        url: `${CALYPR_EXPLORER_CONFIG_API}/projects/summary`,
+        url: `${GEN3_GECKO_API}/projects/summary`,
         method: 'GET',
         credentials: 'include',
       }),
@@ -672,7 +672,7 @@ export const geckoApi = geckoTaggedApi.injectEndpoints({
     >({
       invalidatesTags: ['GeckoProjects', 'GeckoGitProjects'],
       query: ({ organization, project, configData }) => ({
-        url: `${CALYPR_EXPLORER_CONFIG_API}/projects/${encodeURIComponent(organization)}/${encodeURIComponent(project)}`,
+        url: `${GEN3_GECKO_API}/projects/${encodeURIComponent(organization)}/${encodeURIComponent(project)}`,
         method: 'PUT',
         body: configData,
         credentials: 'include',
@@ -800,7 +800,7 @@ export const geckoApi = geckoTaggedApi.injectEndpoints({
     >({
       invalidatesTags: ['GeckoProjects', 'GeckoGitProjects'],
       query: ({ organization, project }) => ({
-        url: `${CALYPR_EXPLORER_CONFIG_API}/projects/${encodeURIComponent(organization)}/${encodeURIComponent(project)}`,
+        url: `${GEN3_GECKO_API}/projects/${encodeURIComponent(organization)}/${encodeURIComponent(project)}`,
         method: 'DELETE',
         credentials: 'include',
       }),
@@ -822,7 +822,7 @@ export const geckoApi = geckoTaggedApi.injectEndpoints({
     >({
       invalidatesTags: ['GeckoProjects', 'GeckoGitProjects'],
       query: ({ organization }) => ({
-        url: `${CALYPR_EXPLORER_CONFIG_API}/projects/${encodeURIComponent(organization)}`,
+        url: `${GEN3_GECKO_API}/projects/${encodeURIComponent(organization)}`,
         method: 'DELETE',
         credentials: 'include',
       }),

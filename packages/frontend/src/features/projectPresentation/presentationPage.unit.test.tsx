@@ -5,7 +5,7 @@ import { ProjectPresentationPage } from '../../pages/ProjectPresentation/Project
 
 const useGetGeckoProjectsQueryMock = jest.fn();
 const useGetGeckoProjectSummaryQueryMock = jest.fn();
-const useGetConfigContentQueryMock = jest.fn();
+const useGetRepositoryExplorerConfigQueryMock = jest.fn();
 const useGetAuthzMappingsQueryMock = jest.fn();
 const useGetGeckoGitProjectPresentationConfigQueryMock = jest.fn();
 
@@ -16,8 +16,8 @@ jest.mock('@gen3/core', () => ({
     useGetGeckoProjectsQueryMock(...args),
   useGetGeckoProjectSummaryQuery: (...args: unknown[]) =>
     useGetGeckoProjectSummaryQueryMock(...args),
-  useGetConfigContentQuery: (...args: unknown[]) =>
-    useGetConfigContentQueryMock(...args),
+  useGetRepositoryExplorerConfigQuery: (...args: unknown[]) =>
+    useGetRepositoryExplorerConfigQueryMock(...args),
   useGetGeckoGitProjectPresentationConfigQuery: (...args: unknown[]) =>
     useGetGeckoGitProjectPresentationConfigQueryMock(...args),
 }));
@@ -101,7 +101,7 @@ describe('ProjectPresentationPage', () => {
     useGetAuthzMappingsQueryMock.mockReset();
     useGetGeckoProjectsQueryMock.mockReset();
     useGetGeckoProjectSummaryQueryMock.mockReset();
-    useGetConfigContentQueryMock.mockReset();
+    useGetRepositoryExplorerConfigQueryMock.mockReset();
     useGetGeckoGitProjectPresentationConfigQueryMock.mockReset();
     useSessionMock.mockReset();
 
@@ -119,7 +119,7 @@ describe('ProjectPresentationPage', () => {
       isLoading: false,
     });
 
-    useGetConfigContentQueryMock.mockReturnValue({
+    useGetRepositoryExplorerConfigQueryMock.mockReturnValue({
       data: undefined,
       isLoading: false,
       isError: true,
@@ -220,7 +220,7 @@ describe('ProjectPresentationPage', () => {
       </MantineProvider>,
     );
 
-    expect(useGetConfigContentQueryMock).toHaveBeenCalledWith(
+    expect(useGetRepositoryExplorerConfigQueryMock).toHaveBeenCalledWith(
       'HTAN_INT-BForePC',
       expect.objectContaining({ skip: true }),
     );

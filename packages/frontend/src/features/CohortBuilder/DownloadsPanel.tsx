@@ -101,6 +101,7 @@ interface DownloadsPanelProps {
   readonly filter: FilterSet;
   readonly sort?: string[];
   readonly loomDataset?: LoomDatasetSelector;
+  readonly loomProjectIds?: ReadonlyArray<string>;
 }
 
 const DownloadsPanel = ({
@@ -114,6 +115,7 @@ const DownloadsPanel = ({
   accessibility,
   sort,
   loomDataset,
+  loomProjectIds,
 }: DownloadsPanelProps): JSX.Element => {
   const isUserLoggedIn = useIsUserLoggedIn();
   const loginRequired = loginForDownload ? loginForDownload : false;
@@ -154,6 +156,7 @@ const DownloadsPanel = ({
             filter,
             accessibility: accessibility ?? Accessibility.ALL,
             selector: loomDataset,
+            projectIds: loomProjectIds,
             // sort: sort, // TODO add sort
           });
         },
@@ -193,6 +196,7 @@ const DownloadsPanel = ({
               filter,
               accessibility: accessibility ?? Accessibility.ALL,
               selector: loomDataset,
+              projectIds: loomProjectIds,
               // sort: sort, // TODO add sort
             }}
             key={button.title}

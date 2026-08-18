@@ -80,7 +80,10 @@ const CohortBuilder = ({
         <Tabs
           color="primary.4"
           variant={explorerConfig[0]?.tabType}
-          keepMounted={true}
+          // A panel owns several dataframe queries (facets, charts, count,
+          // and rows). Mount only the visible panel so opening Explorer does
+          // not query every configured output at once.
+          keepMounted={false}
           defaultValue={explorerConfig[0].tabTitle}
           onChange={onTabChange}
           value={activeTab}

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   useGetAuthzMappingsQuery,
-  useGetConfigContentQuery,
+  useGetRepositoryExplorerConfigQuery,
   useGetGeckoProjectSummaryQuery,
   useGetGeckoProjectsQuery,
   useGetGeckoGitProjectPresentationConfigQuery,
@@ -36,8 +36,6 @@ export const ProjectPresentationPage = ({
   const project =
     typeof router.query.project === 'string' ? router.query.project : '';
   const isEmbedded = useIsEmbedded();
-  const explorerConfigId =
-    organization && project ? `${organization}-${project}` : '';
   const { data: authzMapping = {}, isLoading: isAuthzLoading } =
     useGetAuthzMappingsQuery(undefined, { skip: !isAuthenticated });
   const canLikelyReadProjectScopedData =
@@ -47,11 +45,11 @@ export const ProjectPresentationPage = ({
 
   const { data: geckoProjects = [], isLoading: isProjectsLoading } =
     useGetGeckoProjectsQuery();
-  const { data: explorerConfigResponse } = useGetConfigContentQuery(
-    explorerConfigId,
+  const { data: explorer } = useGetRepositoryExplorerConfigQuery(
+    `${organization}-${project}`,
     {
       skip:
-        !explorerConfigId ||
+        !organization || !project ||
         !sessionReady ||
         !isAuthenticated ||
         isAuthzLoading ||
@@ -124,7 +122,7 @@ export const ProjectPresentationPage = ({
       >
         <ProjectWorkspaceTabs
           activeTab="presentation"
-          hasExplorerConfig={Boolean(explorerConfigResponse?.data)}
+          hasExplorerConfig={Boolean(explorer)}
           organization={organization}
           project={project}
         >

@@ -22,7 +22,7 @@ import {
 } from '@mantine/core';
 import {
   SYFON_API,
-  useGetConfigContentQuery,
+  useGetRepositoryExplorerConfigQuery,
   useLazyGetGeckoGitProjectFileQuery,
   useGetGeckoGitProjectsQuery,
   useGetGeckoGitProjectRefsQuery,
@@ -216,12 +216,10 @@ const GitProjectPage = ({
     isLoading: isStatusLoading,
     refetch: refetchGitProjects,
   } = useGetGeckoGitProjectsQuery();
-  const explorerConfigId =
-    organization && project ? `${organization}-${project}` : '';
-  const { data: explorerConfigResponse } = useGetConfigContentQuery(
-    explorerConfigId,
+  const { data: explorer } = useGetRepositoryExplorerConfigQuery(
+    `${organization}-${project}`,
     {
-      skip: !explorerConfigId,
+      skip: !organization || !project,
     },
   );
   const projectStatus = useMemo(
@@ -424,16 +422,8 @@ const GitProjectPage = ({
     organization,
     project,
   );
-  const hasExplorerConfig = useMemo(
-    () => Boolean(explorerConfigResponse?.data),
-    [explorerConfigResponse?.data],
-  );
-  const effectiveFileActions = useMemo(() => {
-    const explorerConfigData = explorerConfigResponse?.data as
-      | { fileActions?: FileActionsConfig }
-      | undefined;
-    return explorerConfigData?.fileActions ?? fileActions;
-  }, [explorerConfigResponse?.data, fileActions]);
+  const hasExplorerConfig = Boolean(explorer);
+  const effectiveFileActions: FileActionsConfig | undefined = fileActions;
   const gitProjectHref = useMemo(() => {
     const query = new URLSearchParams();
     if (effectiveRef) {

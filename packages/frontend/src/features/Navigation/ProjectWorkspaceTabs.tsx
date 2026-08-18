@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import Link from 'next/link';
 import {
   useGetAuthzMappingsQuery,
-  useGetExplorersQuery,
+  useGetRepositoryExplorerConfigQuery,
   userHasMethodForServiceOnResource,
 } from '@gen3/core';
 
@@ -38,12 +38,11 @@ const ProjectWorkspaceTabs = ({
   toolbarContent,
 }: ProjectWorkspaceTabsProps) => {
   const { data: authzMapping = {} } = useGetAuthzMappingsQuery();
-  const { data: builderExplorers = [] } = useGetExplorersQuery(
-    { organization, project },
-    { skip: !organization || !project },
+  const { data: repositoryExplorer } = useGetRepositoryExplorerConfigQuery(
+    `${organization}-${project}`, { skip: !organization || !project },
   );
   const hasConfiguredExplorer =
-    hasExplorerConfig || builderExplorers.length > 0;
+    hasExplorerConfig || Boolean(repositoryExplorer);
 
   const hasGitAccess = useMemo(() => {
     if (!organization || !project) return false;

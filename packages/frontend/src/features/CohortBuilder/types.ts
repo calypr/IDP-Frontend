@@ -46,6 +46,8 @@ export interface ManifestFieldsConfig {
 export interface DataTypeConfig {
   dataType: string;
   loomDataset?: LoomDatasetSelector;
+  /** Authoritative project scope for Loom dataframe reads. */
+  loomProjectIds?: ReadonlyArray<string>;
   nodeCountTitle?: string;
   accessibleFieldCheckList?: string[];
   accessibleValidationField?: string;

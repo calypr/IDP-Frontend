@@ -3,8 +3,8 @@ import {
   Equals,
   FilterSet,
   LoomDownloadParams,
+  LoomDatasetSelector,
   Includes,
-  isLoomDataType,
   JSONObject,
 } from '@gen3/core';
 import { handleDownload } from './utils';
@@ -38,6 +38,9 @@ export interface DownloadToManifestParams extends Record<string, any> {
   referenceIdFieldInDataIndex?: string;
   referenceIdFieldInResourceIndex?: string;
   fileFields?: string[];
+  selector?: LoomDatasetSelector;
+  resourceSelector?: LoomDatasetSelector;
+  projectIds?: ReadonlyArray<string>;
 }
 
 export const downloadToManifestAction = async (
@@ -56,14 +59,9 @@ export const downloadToManifestAction = async (
     fileFields,
   } = params;
 
-  if (
-    (!params.selector && !isLoomDataType(params.type)) ||
-    !isLoomDataType(resourceIndexType)
-  ) {
+  if (!params.selector) {
     onError?.(
-      new Error(
-        `Unsupported Loom data type: ${params.type ?? resourceIndexType}`,
-      ),
+      new Error('This manifest has no published Loom dataset selector.'),
     );
     return;
   }
@@ -73,8 +71,8 @@ export const downloadToManifestAction = async (
 
   const cohortFilterParams: LoomDownloadParams = {
     filter: params.filter,
-    type: params.type,
     selector: params.selector,
+    projectIds: params.projectIds,
     fields: params.fields,
     sort: params.sort,
     format: 'json',
@@ -114,6 +112,14 @@ export const downloadToManifestAction = async (
 
       if (onError) onError(resultErr);
     }
+    return;
+  }
+  if (!params.resourceSelector) {
+    onError?.(
+      new Error(
+        'This manifest requires a published selector for its resource dataset.',
+      ),
+    );
     return;
   }
   // join data from two different indices
@@ -158,7 +164,8 @@ export const downloadToManifestAction = async (
     let resultManifest = await downloadJSONDataFromLoom({
       parameters: {
         ...cohortFilterParams,
-        type: resourceIndexType,
+        selector: params.resourceSelector,
+        projectIds: params.projectIds,
         filter: refIdsFilter,
         fields: [
           referenceIdFieldInResourceIndex,
