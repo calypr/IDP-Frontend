@@ -48,18 +48,12 @@ const normalizeSort = (sort: unknown): LoomSort | undefined => {
 export const buildLoomDownloadRequest = (parameters: LoomDownloadParams) => {
   const diagnostic = validateLoomDatasetSelector(parameters.selector);
   if (diagnostic) throw new Error(diagnostic.message);
-  const projectIds = parameters.projectIds
-    ? [...new Set(parameters.projectIds.map((project) => project.trim()))]
-        .filter(Boolean)
-        .sort()
-    : [];
   return {
     selector: {
       recipe: parameters.selector.recipe,
       translationVersion: parameters.selector.translationVersion,
       output: parameters.selector.output,
     },
-    ...(projectIds.length > 0 ? { projectIds } : {}),
     columns: [...parameters.fields],
     filters: convertFilterSetToLoomFilters(parameters.filter),
     sort: normalizeSort(parameters.sort),

@@ -90,7 +90,10 @@ export const validateLoomDatasetSelector = (
 
 export type LoomDatasetIdentity = {
   readonly selector: DataframeSelector;
-  /** Authoritative, narrowing-only project scope for a dataframe read. */
+  /**
+   * Legacy compatibility field. Loom's dataframe GraphQL inputs do not accept
+   * projectIds, so request builders intentionally never serialize this value.
+   */
   readonly projectIds?: ReadonlyArray<string>;
 };
 
@@ -101,11 +104,6 @@ export const loomDatasetIdentityKey = (
     identity.selector.recipe,
     identity.selector.translationVersion,
     identity.selector.output,
-    ...(identity.projectIds
-      ? [...new Set(identity.projectIds.map((project) => project.trim()))]
-          .filter(Boolean)
-          .sort()
-      : []),
   ].join('|');
 
 export interface LoomDatasetRef {

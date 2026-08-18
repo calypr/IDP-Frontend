@@ -55,18 +55,12 @@ export const buildLoomDatasetQuery = (
 const buildLoomIdentityInput = (identity: LoomDatasetIdentity) => {
   const diagnostic = validateLoomDatasetSelector(identity.selector);
   if (diagnostic) throw new Error(diagnostic.message);
-  const projectIds = identity.projectIds
-    ? [...new Set(identity.projectIds.map((project) => project.trim()))]
-        .filter(Boolean)
-        .sort()
-    : [];
   return {
     selector: {
       recipe: identity.selector.recipe,
       translationVersion: identity.selector.translationVersion,
       output: identity.selector.output,
     },
-    ...(projectIds.length > 0 ? { projectIds } : {}),
   };
 };
 

@@ -17,6 +17,15 @@ import {
 } from './builderDomain';
 import type { CatalogCandidate } from './builderDomain';
 
+const graphField = (resourceType: string, id: string): CatalogCandidate => ({
+  id,
+  resourceType,
+  path: id,
+  label: id,
+  logicalType: 'string',
+  repeated: false,
+});
+
 const config: ExplorerConfigV2 = {
   apiVersion: 'loom.calypr.org/explorer-config/v2',
   kind: 'ExplorerConfig',
@@ -74,10 +83,21 @@ describe('ExplorerConfig V2 Builder domain', () => {
   it('removes zero-record and isolated resources from the traversal graph', () => {
     const filtered = filterLinkedGraph(
       [
-        { resourceType: 'Patient', label: 'People', count: 3, fields: [] },
-        { resourceType: 'Specimen', label: 'Biospecimens', count: 2, fields: [] },
+        {
+          resourceType: 'Patient',
+          label: 'People',
+          count: 3,
+          fields: [graphField('Patient', 'patient-id')],
+        },
+        {
+          resourceType: 'Specimen',
+          label: 'Biospecimens',
+          count: 2,
+          fields: [graphField('Specimen', 'specimen-id')],
+        },
         { resourceType: 'Organization', label: 'Organization', count: 4, fields: [] },
         { resourceType: 'Empty', label: 'Empty', count: 0, fields: [] },
+        { resourceType: 'NoFields', label: 'No fields', count: 4, fields: [] },
       ],
       [
         {
@@ -85,6 +105,12 @@ describe('ExplorerConfig V2 Builder domain', () => {
           source: 'Patient',
           target: 'Specimen',
           label: 'specimen',
+        },
+        {
+          id: 'Patient/no-fields/NoFields',
+          source: 'Patient',
+          target: 'NoFields',
+          label: 'no-fields',
         },
         {
           id: 'Empty/organization/Organization',
@@ -115,6 +141,34 @@ describe('ExplorerConfig V2 Builder domain', () => {
     );
   });
 
+  it('removes legacy column order metadata when hydrating a config', async () => {
+    const legacyConfig = {
+      ...config,
+      views: config.views.map((view) => ({
+        ...view,
+        table: {
+          ...view.table,
+          columns: view.table.columns.map((column, index) => ({
+            ...column,
+            order: index,
+          })),
+        },
+      })),
+    } as ExplorerConfigV2;
+
+    const loaded = await initialStateFromConfig(
+      'demo',
+      createBuilderSession('demo'),
+      legacyConfig,
+    );
+
+    expect(loaded.config?.views[0].table.columns[0]).toEqual({
+      column: 'id',
+      label: 'Person ID',
+      visible: true,
+    });
+  });
+
   it('hydrates tables and edits recipe/view presentation together', async () => {
     const loaded = await initialStateFromConfig(
       'demo',
@@ -134,7 +188,7 @@ describe('ExplorerConfig V2 Builder domain', () => {
       'Patient identifier',
     );
     expect(renamed.config?.recipe.outputs?.[0].fields?.[0].label).toBe(
-      'Patient identifier',
+      'Person ID',
     );
     const filtered = explorerBuilderReducer(renamed, {
       type: 'setFilter',
@@ -391,7 +445,11 @@ describe('ExplorerConfig V2 Builder domain', () => {
     });
     const traversal = selected.config?.recipe.outputs?.[0].traversals?.[0];
     expect(traversal?.fields?.[0]).toEqual(
-      expect.objectContaining({ name: 'Specimen__status', label: 'Status' }),
+      expect.objectContaining({
+        name: 'Specimen__status',
+        logicalType: 'string',
+        repeated: false,
+      }),
     );
     expect(JSON.stringify(selected.config)).not.toContain('specimen-status-id');
     expect(specimenAlias).toMatch(/^[a-z][a-z0-9_]*$/);
@@ -442,6 +500,37 @@ describe('ExplorerConfig V2 Builder domain', () => {
     expect(
       selected.config?.recipe.outputs?.[0].traversals?.[0].fields?.[0]?.name,
     ).toBe('Specimen__id');
+  });
+
+  it('normalizes catalog paths into executable recipe identifiers', async () => {
+    const loaded = await initialStateFromConfig(
+      'demo',
+      createBuilderSession('demo'),
+      config,
+    );
+    const selected = explorerBuilderReducer(loaded, {
+      type: 'setCandidate',
+      output: 'patients',
+      nodeKey: 'patients|root:Patient',
+      candidate: {
+        id: 'patient-category-system',
+        resourceType: 'Patient',
+        path: 'category[].coding[].system',
+        publicName: 'category[].coding[].system',
+        label: 'Category system',
+        logicalType: 'string',
+        repeated: false,
+      },
+      selected: true,
+    });
+
+    expect(selected.config?.recipe.outputs?.[0].fields?.[1]).toMatchObject({
+      name: 'category_coding_system',
+      expr: { select: 'root.category[].coding[].system' },
+    });
+    expect(selected.config?.views[0].table.columns[1].column).toBe(
+      'category_coding_system',
+    );
   });
 
   it('removes descendant presentation references with a traversal', async () => {

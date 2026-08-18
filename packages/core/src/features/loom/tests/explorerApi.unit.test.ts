@@ -419,6 +419,7 @@ describe('authenticated V2 Explorer lifecycle API', () => {
           project: 'org-project',
           explorerId: 'custom',
           config,
+          authResourcePath: '/programs/org/projects/project',
           expectedDraftVersion: 7,
           expectedDraftDigest: 'sha256:old',
         }),
@@ -426,7 +427,7 @@ describe('authenticated V2 Explorer lifecycle API', () => {
       .unwrap();
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining(
-        '/loom/api/v1/projects/org-project/explorers/custom/draft',
+        '/loom/api/v1/projects/org-project/explorers/custom/draft?auth_resource_path=%2Fprograms%2Forg%2Fprojects%2Fproject',
       ),
       expect.objectContaining({
         method: 'PUT',
@@ -551,6 +552,113 @@ describe('authenticated V2 Explorer lifecycle API', () => {
     expect(body.draftDigest).toBe('sha256:full-draft');
   });
 
+  it('strips Builder-only table metadata from Loom preview packets', async () => {
+    const configWithBuilderMetadata = {
+      ...config,
+      recipe: {
+        schemaVersion: 2,
+        outputs: [
+          {
+            name: 'people',
+            rootResourceType: 'Patient',
+            fields: [
+              {
+                name: 'id',
+                expr: { select: 'root.id' },
+                label: 'Person ID',
+                logicalType: 'string',
+                repeated: false,
+                selectionKey: 'Patient.id',
+              },
+              {
+                name: 'category[].coding[].system',
+                expr: { select: 'root.category[].coding[].system' },
+              },
+              { name: 'content[].attachment.url' },
+              { name: 'content[].attachment.extension[].valueUrl' },
+              { name: 'date' },
+              { name: 'legacy[].unresolvable' },
+            ],
+          },
+        ],
+      },
+      views: [
+        {
+          id: 'view-people',
+          title: 'People',
+          output: 'people',
+          table: {
+            columns: [
+              {
+                column: 'id',
+                label: 'Person ID',
+                visible: true,
+                order: 0,
+                filterable: true,
+                chartable: false,
+              },
+              { column: 'category[].coding[].system', visible: true },
+              {
+                column: 'content[].attachment.extension[].valueUrl',
+                visible: true,
+              },
+              { column: 'content_attachment_url', visible: true },
+              { column: 'date', visible: true },
+              { column: 'legacy[].unresolvable', visible: true },
+              { column: 'orphan_column', visible: true },
+            ],
+          },
+        },
+      ],
+    } as unknown as ExplorerConfigV2;
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          output: 'people',
+          columns: [],
+          rows: [],
+          rowCount: 0,
+        }),
+        { status: 200 },
+      ),
+    );
+
+    await store()
+      .dispatch(
+        loomExplorerApi.endpoints.previewExplorerDraft.initiate({
+          project: 'org-project',
+          explorerId: 'custom',
+          config: configWithBuilderMetadata,
+          output: 'people',
+          limit: 25,
+        }),
+      )
+      .unwrap();
+
+    const request = fetchMock.mock.calls[0];
+    const body = JSON.parse(String(request[1].body)) as {
+      config: ExplorerConfigV2;
+    };
+    expect(body.config.views[0].table.columns[0]).toEqual({
+      column: 'id',
+      label: 'Person ID',
+      visible: true,
+    });
+    expect(body.config.recipe.outputs?.[0].fields?.[0]).toEqual({
+      name: 'id',
+      expr: { select: 'root.id' },
+    });
+    expect(body.config.recipe.outputs?.[0].fields?.[1]).toEqual({
+      name: 'category_coding_system',
+      expr: { select: 'root.category[].coding[].system' },
+    });
+    expect(body.config.recipe.outputs?.[0].fields).toHaveLength(2);
+    expect(body.config.views[0].table.columns[1].column).toBe(
+      'category_coding_system',
+    );
+    expect(body.config.views[0].table.columns).toHaveLength(2);
+  });
+
   it('previews the repository default without interactive draft CAS data', async () => {
     const defaultConfig: ExplorerConfigV2 = {
       ...config,
@@ -589,7 +697,78 @@ describe('authenticated V2 Explorer lifecycle API', () => {
     expect(
       (body.config as { explorer?: { management?: string } }).explorer
         ?.management,
-    ).toBe('interactive');
+    ).toBe('repository');
+  });
+
+  it('reconciles logical root fields with Loom physical columns in one pass', async () => {
+    const rootConfig = {
+      ...config,
+      recipe: {
+        schemaVersion: 2,
+        outputs: [
+          {
+            name: 'files',
+            rootResourceType: 'DocumentReference',
+            fields: [
+              { name: 'title', expr: { select: 'root.title' } },
+              { name: 'date', expr: { select: 'root.date' } },
+              { name: 'legacy_catalog_field' },
+            ],
+          },
+        ],
+      },
+      views: [
+        {
+          id: 'view-files',
+          title: 'Files',
+          output: 'files',
+          table: {
+            columns: [
+              { column: 'document_reference_title', visible: true },
+              { column: 'date', visible: true },
+              { column: 'content_attachment_url', visible: true },
+            ],
+          },
+          filters: [{ column: 'date', label: 'Date' }],
+          charts: [{ column: 'content_attachment_url', type: 'fullPie' }],
+        },
+      ],
+    } as unknown as ExplorerConfigV2;
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          output: 'files',
+          columns: [],
+          rows: [],
+          rowCount: 0,
+        }),
+        { status: 200 },
+      ),
+    );
+
+    await store()
+      .dispatch(
+        loomExplorerApi.endpoints.previewExplorerDraft.initiate({
+          project: 'org-project',
+          explorerId: 'custom',
+          config: rootConfig,
+          output: 'files',
+          limit: 25,
+        }),
+      )
+      .unwrap();
+
+    const body = JSON.parse(String(fetchMock.mock.calls[0][1].body)) as {
+      config: ExplorerConfigV2;
+    };
+    expect(body.config.views[0].table.columns.map((column) => column.column)).toEqual([
+      'title',
+      'date',
+    ]);
+    expect(body.config.views[0].filters).toEqual([
+      { column: 'date', label: 'Date' },
+    ]);
+    expect(body.config.views[0].charts).toEqual([]);
   });
 
   it('normalizes the complete V2 publication response before returning it to the Builder', async () => {
@@ -624,20 +803,137 @@ describe('authenticated V2 Explorer lifecycle API', () => {
     expect(result.activeUrl).toContain('explorerId=custom');
   });
 
-  it('does not send writes for the repository default', async () => {
+  it('unwraps Loom publication state envelopes', async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          project: 'org-project',
+          explorerId: 'default',
+          publicationId: 'repository-revision-1',
+          activeUrl: '/Explorer/org-project',
+          state: {
+            project: 'org-project',
+            explorerId: 'default',
+            management: 'REPOSITORY',
+            activeConfig: config,
+            draftVersion: 4,
+            draftDigest: 'sha256:published',
+          },
+          materializations: [],
+          diagnostics: [],
+        }),
+        { status: 200 },
+      ),
+    );
+    const result = await store()
+      .dispatch(
+        loomExplorerApi.endpoints.publishExplorer.initiate({
+          project: 'org-project',
+          explorerId: 'default',
+          expectedDraftVersion: 3,
+          expectedDraftDigest: 'sha256:draft',
+        }),
+      )
+      .unwrap();
+    expect(result.management).toBe('REPOSITORY');
+    expect(result.activeConfig).toEqual(config);
+    expect(result.publicationId).toBe('repository-revision-1');
+    expect(result.activeUrl).toBe('/Explorer/org-project');
+  });
+
+  it('saves the repository default without interactive CAS controls', async () => {
+    const defaultConfig = {
+      ...config,
+      explorer: {
+        ...config.explorer,
+        id: 'default',
+        management: 'repository' as const,
+      },
+    };
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          project: 'org-project',
+          explorerId: 'default',
+          management: 'REPOSITORY',
+          activeConfig: defaultConfig,
+          draftVersion: 0,
+          draftDigest: '',
+        }),
+        { status: 200 },
+      ),
+    );
     const result = await store()
       .dispatch(
         loomExplorerApi.endpoints.saveExplorerDraft.initiate({
           project: 'org-project',
           explorerId: 'default',
-          config,
+          config: defaultConfig,
           expectedDraftVersion: 1,
+          expectedDraftDigest: 'sha256:base',
         }),
       )
-      .unwrap()
-      .catch((error) => error);
-    expect(result).toMatchObject({ code: 'REPOSITORY_READ_ONLY', status: 403 });
-    expect(fetchMock).not.toHaveBeenCalled();
+      .unwrap();
+    expect(result.explorerId).toBe('default');
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining(
+        '/loom/api/v1/projects/org-project/explorers/default/draft',
+      ),
+      expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify({
+          config: defaultConfig,
+          expectedDraftVersion: 1,
+          expectedDraftDigest: 'sha256:base',
+        }),
+      }),
+    );
+  });
+
+  it('publishes the repository default without interactive CAS controls', async () => {
+    const defaultConfig = {
+      ...config,
+      explorer: {
+        ...config.explorer,
+        id: 'default',
+        management: 'repository' as const,
+      },
+    };
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          project: 'org-project',
+          explorerId: 'default',
+          management: 'REPOSITORY',
+          activeConfig: defaultConfig,
+          activeUrl: '/Explorer/org-project',
+        }),
+        { status: 200 },
+      ),
+    );
+    const result = await store()
+      .dispatch(
+        loomExplorerApi.endpoints.publishExplorer.initiate({
+          project: 'org-project',
+          explorerId: 'default',
+          expectedDraftVersion: 2,
+          expectedDraftDigest: 'sha256:edited',
+        }),
+      )
+      .unwrap();
+    expect(result.explorerId).toBe('default');
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining(
+        '/loom/api/v1/projects/org-project/explorers/default/publish',
+      ),
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          expectedDraftVersion: 2,
+          expectedDraftDigest: 'sha256:edited',
+        }),
+      }),
+    );
   });
 
   it('returns a local validation diagnostic for an incomplete V2 packet', async () => {

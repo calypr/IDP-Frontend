@@ -1,9 +1,14 @@
 import { GEN3_LOOM_API } from '../../constants';
-import { loomApi, fetchGraphQL, fetchLoomResponse } from './loomApi';
+import { loomApi, fetchLoomResponse } from './loomApi';
 import { handleUnauthorizedStatus } from '../user/unauthorized';
 import { selectCSRFToken } from '../user/userSliceRTK';
 import type { CoreState } from '../../reducers';
-import { configForOutput, validateExplorerConfigV2 } from './explorer';
+import {
+  configForOutput,
+  sanitizeExplorerConfigForAuthoring,
+  sanitizeExplorerConfigForLoom,
+  validateExplorerConfigV2,
+} from './explorer';
 import type {
   ExplorerApiError,
   ExplorerAuthoringCandidate,
@@ -43,6 +48,9 @@ export interface CreateExplorerRequest {
 
 export interface SaveExplorerDraftRequest extends ExplorerProjectRef {
   readonly config: ExplorerConfigV2;
+  /** Canonical Fence resource path used by scoped Loom write authorization. */
+  readonly authResourcePath?: string;
+  /** All editable Explorer packets use CAS, including the repository default. */
   readonly expectedDraftVersion: number;
   readonly expectedDraftDigest?: string;
 }
@@ -51,14 +59,19 @@ export interface PreviewExplorerDraftRequest extends ExplorerProjectRef {
   readonly config: ExplorerConfigV2;
   readonly output: string;
   readonly limit: 10 | 25 | 50 | 100;
+  /** Canonical Fence resource path used by scoped Loom write authorization. */
+  readonly authResourcePath?: string;
   /** Optional for the repository default, which is not stored in the
    * interactive Explorer CAS store. */
   readonly draftDigest?: string;
 }
 
 export interface PublishExplorerRequest extends ExplorerProjectRef {
+  /** Canonical Fence resource path used by scoped Loom write authorization. */
+  readonly authResourcePath?: string;
+  /** Publish always activates the server-owned draft identified by CAS. */
   readonly expectedDraftVersion: number;
-  readonly expectedDraftDigest: string;
+  readonly expectedDraftDigest?: string;
 }
 
 export interface ExplorerPreview {
@@ -88,6 +101,13 @@ export interface ExplorerPublicationResult extends ExplorerState {
 
 const explorerRoot = (project: string) =>
   `${GEN3_LOOM_API}/api/v1/projects/${encodeURIComponent(project)}/explorers`;
+
+const withAuthResourcePath = (endpoint: string, authResourcePath?: string) => {
+  const path = authResourcePath?.trim();
+  if (!path) return endpoint;
+  const separator = endpoint.includes('?') ? '&' : '?';
+  return `${endpoint}${separator}auth_resource_path=${encodeURIComponent(path)}`;
+};
 
 const parseBody = async <T>(response: Response): Promise<T> => {
   const text = await response.text();
@@ -210,6 +230,7 @@ const errorFromUnknown = (
     readonly httpStatus?: number;
     readonly message?: string;
     readonly code?: string;
+    readonly endpoint?: string;
     readonly requestId?: string;
     readonly fieldPath?: string | null;
     readonly retryable?: boolean;
@@ -234,22 +255,13 @@ const errorFromUnknown = (
     status: typed.status ?? httpStatus ?? 'CUSTOM_ERROR',
     code,
     message,
-    endpoint: typed.meta?.endpoint ?? endpoint,
+    endpoint: typed.meta?.endpoint ?? typed.endpoint ?? endpoint,
     requestId: typed.requestId,
     fieldPath: typed.fieldPath,
     retryable: unauthorized ? false : typed.retryable,
     details: typed.details,
   };
 };
-
-const repositoryReadOnlyError = (): { readonly error: ExplorerApiError } => ({
-  error: {
-    status: 403,
-    code: 'REPOSITORY_READ_ONLY',
-    message:
-      'The repository default is read-only. Create a custom Explorer to save changes.',
-  },
-});
 
 const configValidationError = (
   config: unknown,
@@ -269,70 +281,6 @@ const configValidationError = (
     },
   };
 };
-
-const graphEndpoint = `${GEN3_LOOM_API}/graphql/graph`;
-
-interface IntrospectionFieldSelector {
-  readonly sourcePath?: string;
-  readonly valuePath?: string;
-  readonly where?: {
-    readonly path?: string;
-    readonly op?: string;
-    readonly value?: string;
-  };
-}
-
-interface IntrospectionField {
-  readonly resourceType?: string;
-  readonly fieldRef?: string;
-  readonly label?: string;
-  readonly path?: string;
-  readonly selector?: IntrospectionFieldSelector;
-  readonly kind?: string;
-  readonly docCount?: number;
-  readonly sampleCount?: number;
-  readonly distinctValues?: ReadonlyArray<string>;
-  readonly distinctTruncated?: boolean;
-  readonly pivotCandidate?: boolean;
-  readonly pivotKind?: string;
-  readonly pivotColumns?: ReadonlyArray<string>;
-  readonly pivotFamily?: string;
-  readonly defaultPivotColumnSelector?: IntrospectionFieldSelector;
-  readonly defaultPivotValueSelector?: IntrospectionFieldSelector;
-}
-
-interface IntrospectionTraversal {
-  readonly fromType?: string;
-  readonly label?: string;
-  readonly toType?: string;
-  readonly edgeCount?: number;
-}
-
-interface IntrospectionResource {
-  readonly resourceType?: string;
-  readonly fields?: ReadonlyArray<IntrospectionField>;
-  readonly pivotFields?: ReadonlyArray<IntrospectionField>;
-  readonly traversals?: ReadonlyArray<IntrospectionTraversal>;
-}
-
-interface IntrospectionRelatedResource {
-  readonly viaLabel?: string;
-  readonly edgeCount?: number;
-  readonly target?: IntrospectionResource;
-}
-
-interface IntrospectionPayload {
-  readonly dataframeBuilderIntrospection?: {
-    readonly project?: string;
-    readonly rootResourceType?: string;
-    readonly authResourcePaths?: ReadonlyArray<string>;
-    readonly root?: IntrospectionResource;
-    readonly relatedResources?: ReadonlyArray<IntrospectionRelatedResource>;
-    readonly traversals?: ReadonlyArray<IntrospectionTraversal>;
-    readonly fields?: ReadonlyArray<IntrospectionField>;
-    readonly pivotFields?: ReadonlyArray<IntrospectionField>;
-  };
-}
 
 interface AuthoringCatalogDiagnostic {
   readonly severity?: string;
@@ -430,69 +378,6 @@ interface AuthoringCatalogRESTPayload {
   };
   readonly diagnostics?: ReadonlyArray<AuthoringCatalogDiagnostic>;
 }
-
-const introspectionQuery = `query BuilderIntrospection($input: DataframeBuilderIntrospectionInput!) {
-  dataframeBuilderIntrospection(input: $input) {
-    project
-    rootResourceType
-    authResourcePaths
-    root {
-      resourceType
-      fields {
-        resourceType fieldRef label path kind docCount sampleCount distinctValues distinctTruncated
-        pivotCandidate pivotKind pivotColumns pivotFamily
-        selector { sourcePath valuePath where { path op value } }
-        defaultPivotColumnSelector { sourcePath valuePath where { path op value } }
-        defaultPivotValueSelector { sourcePath valuePath where { path op value } }
-      }
-      pivotFields {
-        resourceType fieldRef label path kind docCount sampleCount distinctValues distinctTruncated
-        pivotCandidate pivotKind pivotColumns pivotFamily
-        selector { sourcePath valuePath where { path op value } }
-        defaultPivotColumnSelector { sourcePath valuePath where { path op value } }
-        defaultPivotValueSelector { sourcePath valuePath where { path op value } }
-      }
-      traversals { fromType label toType edgeCount }
-    }
-    relatedResources {
-      viaLabel
-      edgeCount
-      target {
-        resourceType
-        fields {
-          resourceType fieldRef label path kind docCount sampleCount distinctValues distinctTruncated
-          pivotCandidate pivotKind pivotColumns pivotFamily
-          selector { sourcePath valuePath where { path op value } }
-          defaultPivotColumnSelector { sourcePath valuePath where { path op value } }
-          defaultPivotValueSelector { sourcePath valuePath where { path op value } }
-        }
-        pivotFields {
-          resourceType fieldRef label path kind docCount sampleCount distinctValues distinctTruncated
-          pivotCandidate pivotKind pivotColumns pivotFamily
-          selector { sourcePath valuePath where { path op value } }
-          defaultPivotColumnSelector { sourcePath valuePath where { path op value } }
-          defaultPivotValueSelector { sourcePath valuePath where { path op value } }
-        }
-        traversals { fromType label toType edgeCount }
-      }
-    }
-    traversals { fromType label toType edgeCount }
-    fields {
-      resourceType fieldRef label path kind docCount sampleCount distinctValues distinctTruncated
-      pivotCandidate pivotKind pivotColumns pivotFamily
-      selector { sourcePath valuePath where { path op value } }
-      defaultPivotColumnSelector { sourcePath valuePath where { path op value } }
-      defaultPivotValueSelector { sourcePath valuePath where { path op value } }
-    }
-    pivotFields {
-      resourceType fieldRef label path kind docCount sampleCount distinctValues distinctTruncated
-      pivotCandidate pivotKind pivotColumns pivotFamily
-      selector { sourcePath valuePath where { path op value } }
-      defaultPivotColumnSelector { sourcePath valuePath where { path op value } }
-      defaultPivotValueSelector { sourcePath valuePath where { path op value } }
-    }
-  }
-}`;
 
 const authoringDiagnostic = (
   diagnostic: AuthoringCatalogDiagnostic,
@@ -623,12 +508,11 @@ const catalogDigest = async (value: unknown): Promise<string> => {
 };
 
 /**
- * The supported authoring catalog returns opaque selection IDs and the
- * introspection query returns the raw selectors needed to author V2 fields.
- * Join those two surfaces by fieldRef so the browser never invents selectors
- * or candidate IDs.
+ * Normalize the supported REST catalog's value-bearing selections. The
+ * catalog owns opaque selection IDs and selectors; the browser must not invent
+ * either one.
  *
- * Keep this check deliberately narrow.  Repeated scalar values are valid
+ * Keep this check deliberately narrow. Repeated scalar values are valid
  * columns, as are native dynamic, extension, and pivot families whose value
  * type may be reported as `unknown` until compilation resolves it.
  */
@@ -642,21 +526,17 @@ const authoringCatalogColumnToCandidate = (
   resourceType: string,
   output: string,
   nodePath: ReadonlyArray<string>,
-  introspectionFields: ReadonlyArray<IntrospectionField>,
 ): ExplorerAuthoringCandidate | undefined => {
   const id = column.selectionId?.trim();
   const selectionKey = column.label?.trim();
-  const matchedField = introspectionFields.find(
-    (field) => field.fieldRef?.trim() === selectionKey,
-  );
   const path =
-    matchedField?.path?.trim() ||
+    column.description?.trim() ||
     (selectionKey?.includes('.')
       ? selectionKey.slice(selectionKey.indexOf('.') + 1)
       : selectionKey);
   if (!id || !path) return undefined;
   const valueType =
-    column.logicalType?.trim() || matchedField?.kind?.trim() || 'unknown';
+    column.logicalType?.trim() || 'unknown';
   if (isStructuralFieldCandidate(valueType)) return undefined;
   const cardinality = column.cardinality?.trim() || '';
   const repeated =
@@ -665,7 +545,6 @@ const authoringCatalogColumnToCandidate = (
       `${valueType} ${cardinality} ${path}`,
     );
   const label =
-    matchedField?.label?.trim() ||
     column.description?.trim() ||
     selectionKey ||
     path.split(/[./]/).filter(Boolean).at(-1) ||
@@ -674,7 +553,7 @@ const authoringCatalogColumnToCandidate = (
   const blockingDiagnostic = diagnostics.find(
     (diagnostic) => diagnostic.severity?.trim().toLowerCase() === 'error',
   );
-  const valueSelector = matchedField?.selector?.valuePath?.trim() || path;
+  const valueSelector = path;
   return {
     id,
     resourceType,
@@ -683,7 +562,7 @@ const authoringCatalogColumnToCandidate = (
     publicName: column.expectedPublicColumn?.trim() || path,
     logicalType: valueType,
     repeated,
-    populationCount: column.population ?? matchedField?.docCount,
+    populationCount: column.population,
     examples: column.examples,
     family: 'field',
     recommended: /(^|[._])id$/i.test(path),
@@ -698,7 +577,7 @@ const authoringCatalogColumnToCandidate = (
     familyKind: 'FIELD',
     nodePath,
     output,
-    population: column.population ?? matchedField?.docCount,
+    population: column.population,
     complete: !column.blocked && !blockingDiagnostic,
     diagnostic: blockingDiagnostic?.message?.trim() || undefined,
   };
@@ -893,7 +772,7 @@ export const loomExplorerApi = loomApi.injectEndpoints({
           if (invalidConfig) return invalidConfig;
         }
         const result = await requestJson<ExplorerState>(
-          explorerRoot(project),
+          withAuthResourcePath(explorerRoot(project), authResourcePath),
           {
             method: 'POST',
             signal: api.signal,
@@ -902,8 +781,9 @@ export const loomExplorerApi = loomApi.injectEndpoints({
               title,
               description,
               from,
-              authResourcePath,
-              ...(config ? { config } : {}),
+              ...(config
+                ? { config: sanitizeExplorerConfigForLoom(config) }
+                : {}),
             }),
           },
           selectCSRFToken(api.getState() as CoreState),
@@ -933,12 +813,12 @@ export const loomExplorerApi = loomApi.injectEndpoints({
           project,
           explorerId,
           config,
+          authResourcePath,
           expectedDraftVersion,
           expectedDraftDigest,
         },
         api,
       ) {
-        if (explorerId === 'default') return repositoryReadOnlyError();
         const invalidConfig = configValidationError(
           config,
           project,
@@ -946,14 +826,21 @@ export const loomExplorerApi = loomApi.injectEndpoints({
         );
         if (invalidConfig) return invalidConfig;
         const result = await requestJson<ExplorerState>(
-          `${explorerRoot(project)}/${encodeURIComponent(explorerId)}/draft`,
+          withAuthResourcePath(
+            `${explorerRoot(project)}/${encodeURIComponent(explorerId)}/draft`,
+            authResourcePath,
+          ),
           {
             method: 'PUT',
             signal: api.signal,
             body: JSON.stringify({
-              config,
-              expectedDraftVersion,
-              expectedDraftDigest,
+              config: sanitizeExplorerConfigForLoom(config),
+              ...(expectedDraftVersion === undefined
+                ? {}
+                : { expectedDraftVersion }),
+              ...(expectedDraftDigest === undefined
+                ? {}
+                : { expectedDraftDigest }),
             }),
           },
           selectCSRFToken(api.getState() as CoreState),
@@ -972,7 +859,15 @@ export const loomExplorerApi = loomApi.injectEndpoints({
       PreviewExplorerDraftRequest
     >({
       async queryFn(
-        { project, explorerId, config, output, limit, draftDigest },
+        {
+          project,
+          explorerId,
+          config,
+          output,
+          limit,
+          authResourcePath,
+          draftDigest,
+        },
         api,
       ) {
         const invalidConfig = configValidationError(
@@ -982,28 +877,21 @@ export const loomExplorerApi = loomApi.injectEndpoints({
         );
         if (invalidConfig) return invalidConfig;
         const scopedConfig = configForOutput(config, output);
-        // Loom's REST preview compiler is an interactive, non-persisting
-        // execution path even when the source packet is the read-only
-        // repository default. Keep the repository packet untouched in the
-        // Builder, but send the compiler the management envelope it accepts.
-        const previewConfig: ExplorerConfigV2 =
-          explorerId === 'default'
-            ? {
-                ...scopedConfig,
-                explorer: {
-                  ...scopedConfig.explorer,
-                  id: 'default',
-                  management: 'interactive',
-                },
-              }
-            : scopedConfig;
+        // Preview must preserve the server-owned Explorer identity. The
+        // repository default is now browser-editable, so changing its
+        // management mode to interactive creates a packet that does not match
+        // Loom's deployed identity.
+        const loomPreviewConfig = sanitizeExplorerConfigForLoom(scopedConfig);
         const result = await requestJson<ExplorerPreview>(
-          `${explorerRoot(project)}/${encodeURIComponent(explorerId)}/preview`,
+          withAuthResourcePath(
+            `${explorerRoot(project)}/${encodeURIComponent(explorerId)}/preview`,
+            authResourcePath,
+          ),
           {
             method: 'POST',
             signal: api.signal,
             body: JSON.stringify({
-              config: previewConfig,
+              config: loomPreviewConfig,
               output,
               limit,
               ...(draftDigest ? { draftDigest } : {}),
@@ -1069,18 +957,6 @@ export const loomExplorerApi = loomApi.injectEndpoints({
             ? collectTraversalNodes(selectedOutput)
             : [];
           const diagnostics: ExplorerDiagnostic[] = [];
-          const resourceHintsByType = new Map<
-            string,
-            {
-              readonly fields: Map<
-                string,
-                {
-                  readonly field: IntrospectionField;
-                  readonly family: ExplorerAuthoringCandidate['family'];
-                }
-              >;
-            }
-          >();
           const resourcesByType = new Map<
             string,
             { readonly resourceType: string; readonly label: string }
@@ -1089,13 +965,6 @@ export const loomExplorerApi = loomApi.injectEndpoints({
             string,
             ExplorerAuthoringCatalogResponse['relationships'][number]
           >();
-          // V2 authoring discovery is served by the REST catalog below. The
-          // retired GraphQL Builder introspection contract is intentionally
-          // never used as a fallback.
-          const queued = new Set<string>();
-          const queue: string[] = [];
-          let authResourcePaths: ReadonlyArray<string> | undefined;
-          let rootSucceeded = false;
 
           const addResource = (resourceType: string) => {
             if (!resourcesByType.has(resourceType))
@@ -1103,168 +972,11 @@ export const loomExplorerApi = loomApi.injectEndpoints({
                 resourceType,
                 label: resourceType,
               });
-            if (!resourceHintsByType.has(resourceType))
-              resourceHintsByType.set(resourceType, { fields: new Map() });
-          };
-          const addFields = (
-            resourceType: string,
-            fields: ReadonlyArray<IntrospectionField> | undefined,
-            family: ExplorerAuthoringCandidate['family'],
-          ) => {
-            if (!fields?.length) return;
-            addResource(resourceType);
-            const target = resourceHintsByType.get(resourceType);
-            if (!target) return;
-            for (const field of fields) {
-              const path = field.path?.trim() || field.fieldRef?.trim();
-              if (!path) {
-                diagnostics.push({
-                  severity: 'error',
-                  code: 'INVALID_INTROSPECTION_FIELD',
-                  message: `Loom returned a ${resourceType} field without a path or field reference.`,
-                });
-                continue;
-              }
-              target.fields.set(`${family}:${path}`, { field, family });
-            }
-          };
-          const addRelationship = (
-            source: string,
-            relationship: IntrospectionTraversal,
-          ) => {
-            const target = relationship.toType?.trim();
-            const label = relationship.label?.trim();
-            if (
-              !target ||
-              !label ||
-              (relationship.edgeCount !== undefined &&
-                relationship.edgeCount <= 0)
-            )
-              return;
-            addResource(source);
-            addResource(target);
-            const id = `${source}/${label}/${target}`;
-            relationshipsById.set(id, {
-              id,
-              source,
-              target,
-              label,
-              linkCount: relationship.edgeCount,
-              direction: 'outbound',
-            });
-            if (!queued.has(target)) {
-              queued.add(target);
-              queue.push(target);
-            }
           };
 
-          while (queue.length > 0) {
-            const resourceType = queue.shift() as string;
-            let response: IntrospectionPayload;
-            try {
-              response = await fetchGraphQL<IntrospectionPayload>(
-                {
-                  query: introspectionQuery,
-                  variables: {
-                    input: {
-                      project,
-                      rootResourceType: resourceType,
-                      includePivotOnlyFields: true,
-                      ...(datasetGeneration?.trim()
-                        ? { datasetGeneration: datasetGeneration.trim() }
-                        : {}),
-                      ...(authResourcePaths?.length
-                        ? { authResourcePaths }
-                        : {}),
-                    },
-                  },
-                },
-                { endpoint: graphEndpoint, signal: api.signal },
-              );
-            } catch (error) {
-              const failure = errorFromUnknown(
-                error,
-                graphEndpoint,
-                'INTROSPECTION_FAILED',
-              );
-              const message =
-                failure.message ?? `Loom could not introspect ${resourceType}.`;
-              if (resourceType === rootResourceType && !rootSucceeded)
-                throw error;
-              diagnostics.push({
-                severity: 'error',
-                code: failure.code ?? 'INTROSPECTION_FAILED',
-                message,
-                endpoint: failure.endpoint,
-                requestId: failure.requestId,
-                retryable: failure.retryable,
-              });
-              continue;
-            }
-            const introspection = response.dataframeBuilderIntrospection;
-            if (!introspection?.root) {
-              const error = new Error(
-                `Loom returned no introspection root for ${resourceType}.`,
-              );
-              if (resourceType === rootResourceType && !rootSucceeded)
-                throw error;
-              diagnostics.push({
-                severity: 'error',
-                code: 'INTROSPECTION_ROOT_MISSING',
-                message: error.message,
-              });
-              continue;
-            }
-            rootSucceeded = rootSucceeded || resourceType === rootResourceType;
-            if (!authResourcePaths && introspection.authResourcePaths?.length)
-              authResourcePaths = introspection.authResourcePaths;
-            const resolvedType =
-              introspection.rootResourceType?.trim() || resourceType;
-            addResource(resolvedType);
-            addFields(
-              resolvedType,
-              [
-                ...(introspection.root.fields ?? []),
-                ...(introspection.fields ?? []),
-              ],
-              'field',
-            );
-            addFields(
-              resolvedType,
-              [
-                ...(introspection.root.pivotFields ?? []),
-                ...(introspection.pivotFields ?? []),
-              ],
-              'pivot',
-            );
-            const traversals = [
-              ...(introspection.root.traversals ?? []),
-              ...(introspection.traversals ?? []),
-            ];
-            for (const relationship of traversals)
-              addRelationship(
-                relationship.fromType?.trim() || resolvedType,
-                relationship,
-              );
-            for (const related of introspection.relatedResources ?? []) {
-              const target = related.target?.resourceType?.trim();
-              const label = related.viaLabel?.trim();
-              if (!target || !label) continue;
-              addResource(target);
-              addFields(target, related.target?.fields, 'field');
-              addFields(target, related.target?.pivotFields, 'pivot');
-              addRelationship(resolvedType, {
-                fromType: resolvedType,
-                toType: target,
-                label,
-                edgeCount: related.edgeCount,
-              });
-            }
-          }
-
-          // Graph introspection describes topology and raw selectors. The
-          // supported authoring catalog supplies the opaque selection IDs and
-          // immutable snapshot token used by the REST compile endpoint.
+          // V2 authoring discovery is served by the supported REST catalog.
+          // It supplies the project graph, opaque selection IDs, and immutable
+          // snapshot token used by the REST compile endpoint.
           const nodesByPath = new Map<
             string,
             {
@@ -1276,10 +988,6 @@ export const loomExplorerApi = loomApi.injectEndpoints({
             const key = node.nodePath.join('/');
             if (!nodesByPath.has(key)) nodesByPath.set(key, node);
           }
-          // The supported authoring catalog supplies the project-wide graph,
-          // opaque selection IDs, and the immutable snapshot used by REST
-          // compilation. Introspection above supplies raw selectors for the
-          // currently reachable nodes.
           const supportedCatalog = await fetchExplorerAuthoringCatalog(
             project,
             requestedExplorerId || 'default',
@@ -1362,10 +1070,6 @@ export const loomExplorerApi = loomApi.injectEndpoints({
           for (const node of nodesByPath.values()) {
             const catalogNodes = catalogNodesByResource.get(node.resourceType);
             if (!catalogNodes) continue;
-            const introspectionFields = [
-              ...(resourceHintsByType.get(node.resourceType)?.fields.values() ??
-                []),
-            ].map(({ field }) => field);
             for (const catalogNode of catalogNodes) {
               for (const column of catalogNode.columns ?? []) {
                 const normalized = authoringCatalogColumnToCandidate(
@@ -1373,7 +1077,6 @@ export const loomExplorerApi = loomApi.injectEndpoints({
                   node.resourceType,
                   output,
                   node.nodePath,
-                  introspectionFields,
                 );
                 if (!normalized) continue;
                 candidatesByKey.set(
@@ -1387,7 +1090,6 @@ export const loomExplorerApi = loomApi.injectEndpoints({
           const digestInput = {
             project,
             output,
-            authResourcePaths,
             resources: [...resourcesByType.values()],
             relationships: [...relationshipsById.values()],
             candidates,
@@ -1424,7 +1126,9 @@ export const loomExplorerApi = loomApi.injectEndpoints({
         } catch (error) {
           const failure = errorFromUnknown(
             error,
-            graphEndpoint,
+            `${explorerRoot(project)}/${encodeURIComponent(
+              requestedExplorerId || 'default',
+            )}/authoring/catalog`,
             'CATALOG_DISCOVERY_FAILED',
           );
           return {
@@ -1464,6 +1168,7 @@ export const loomExplorerApi = loomApi.injectEndpoints({
           config,
           snapshotToken,
           selectedCandidateIdsByNode,
+          authResourcePath,
           expectedDraftVersion,
           expectedDraftDigest,
         },
@@ -1476,13 +1181,16 @@ export const loomExplorerApi = loomApi.injectEndpoints({
         );
         if (invalidConfig) return invalidConfig;
         const result = await requestJson<ExplorerAuthoringCompileResponse>(
-          `${explorerRoot(project)}/${encodeURIComponent(explorerId)}/authoring/compile`,
+          withAuthResourcePath(
+            `${explorerRoot(project)}/${encodeURIComponent(explorerId)}/authoring/compile`,
+            authResourcePath,
+          ),
           {
             method: 'POST',
             signal: api.signal,
             body: JSON.stringify({
               output,
-              config,
+              config: sanitizeExplorerConfigForAuthoring(config),
               snapshotToken,
               selectedCandidateIdsByNode,
               expectedDraftVersion,
@@ -1501,21 +1209,52 @@ export const loomExplorerApi = loomApi.injectEndpoints({
       PublishExplorerRequest
     >({
       async queryFn(
-        { project, explorerId, expectedDraftVersion, expectedDraftDigest },
+        {
+          project,
+          explorerId,
+          authResourcePath,
+          expectedDraftVersion,
+          expectedDraftDigest,
+        },
         api,
       ) {
-        if (explorerId === 'default') return repositoryReadOnlyError();
         const result = await requestJson<ExplorerPublicationResult>(
-          `${explorerRoot(project)}/${encodeURIComponent(explorerId)}/publish`,
+          withAuthResourcePath(
+            `${explorerRoot(project)}/${encodeURIComponent(explorerId)}/publish`,
+            authResourcePath,
+          ),
           {
             method: 'POST',
             signal: api.signal,
-            body: JSON.stringify({ expectedDraftVersion, expectedDraftDigest }),
+            body: JSON.stringify({
+              ...(expectedDraftVersion === undefined
+                ? {}
+                : { expectedDraftVersion }),
+              ...(expectedDraftDigest === undefined
+                ? {}
+                : { expectedDraftDigest }),
+            }),
           },
           selectCSRFToken(api.getState() as CoreState),
         );
         if (result.error) return { error: result.error };
-        const value = result.data as ExplorerPublicationResult;
+        const payload = result.data as unknown;
+        // Loom returns the lifecycle state inside a publication envelope. Keep
+        // accepting the older flat response shape while preferring the
+        // server-owned state whenever it is present.
+        const value = (
+          isRecord(payload) && isRecord(payload.state)
+            ? {
+                ...payload.state,
+                activeUrl: payload.activeUrl ?? payload.state.activeUrl,
+                publicationId:
+                  payload.publicationId ?? payload.state.publicationId,
+                shareUrl: payload.shareUrl ?? payload.state.shareUrl,
+                materializations:
+                  payload.materializations ?? payload.state.materializations,
+              }
+            : payload
+        ) as ExplorerPublicationResult;
         const normalized = normalizeExplorerState(value, project, explorerId);
         return {
           data: {

@@ -82,27 +82,38 @@ describe('Loom GraphQL request contracts', () => {
     expect(loomDatasetIdentityKey(identity)).toContain('r000001_abcd');
   });
 
-  it('serializes canonical project scope on every dataframe request', () => {
+  it('does not serialize the unsupported legacy project scope field', () => {
     const identity = { selector, projectIds: ['project-b', 'project-a', 'project-b'] } as const;
     expect(buildLoomDatasetSelectorQuery(identity).variables).toEqual({
-      input: { selector, projectIds: ['project-a', 'project-b'] },
+      input: { selector },
     });
     expect(buildLoomRowsQuery({ ...identity, columns: ['id'] }).variables).toMatchObject({
-      input: { projectIds: ['project-a', 'project-b'] },
+      input: { selector },
     });
     expect(buildLoomAggregateQuery({ ...identity, operation: 'COUNT' }).variables).toMatchObject({
-      input: { projectIds: ['project-a', 'project-b'] },
+      input: { selector },
     });
     expect(buildLoomCountQuery({ ...identity, operation: 'COUNT' }).variables).toMatchObject({
-      input: { projectIds: ['project-a', 'project-b'] },
+      input: { selector },
     });
     expect(buildLoomAggregationsQuery({ ...identity, fields: ['status'] }).variables).toMatchObject({
-      input0: { projectIds: ['project-a', 'project-b'] },
+      input0: { selector },
     });
     expect(buildLoomDownloadRequest({ ...identity, fields: ['id'], format: 'csv' })).toMatchObject({
-      projectIds: ['project-a', 'project-b'],
+      selector,
     });
-    expect(loomDatasetIdentityKey(identity)).toContain('project-a|project-b');
+    expect(JSON.stringify(identity)).toContain('projectIds');
+    expect(JSON.stringify([
+      buildLoomDatasetSelectorQuery(identity),
+      buildLoomRowsQuery({ ...identity, columns: ['id'] }),
+      buildLoomAggregateQuery({ ...identity, operation: 'COUNT' }),
+      buildLoomCountQuery({ ...identity, operation: 'COUNT' }),
+      buildLoomAggregationsQuery({ ...identity, fields: ['status'] }),
+      buildLoomDownloadRequest({ ...identity, fields: ['id'], format: 'csv' }),
+    ])).not.toContain('projectIds');
+    expect(loomDatasetIdentityKey(identity)).toBe(
+      loomDatasetIdentityKey({ selector }),
+    );
   });
 
   it('keeps immutable recipe selectors nested in GraphQL input', () => {

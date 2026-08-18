@@ -158,6 +158,72 @@ describe('ExplorerConfig V2 runtime translation', () => {
     });
   });
 
+  it('accepts stale Builder field references and falls back to published columns', () => {
+    const { configuration } = loomRepositoryConfigConfiguration({
+      project: 'program-project',
+      explorerId: 'default',
+      management: 'REPOSITORY',
+      updatedAt: '2026-08-17T00:00:00Z',
+      activeConfig: {
+        apiVersion: 'loom.calypr.org/explorer-config/v2',
+        kind: 'ExplorerConfig',
+        project: 'program-project',
+        explorer: { id: 'default', title: 'Example', management: 'repository' },
+        recipe: {
+          recipeName: 'project_recipe',
+          translationVersion: 'r000001_abcd',
+          outputs: [{ name: 'Patient' }],
+        },
+        views: [
+          {
+            id: 'patient-view',
+            title: 'People',
+            output: 'Patient',
+            table: { columns: [{ column: 'identifier', label: 'ID', visible: true }] },
+            filters: [{ column: 'identifier', label: 'ID' }],
+          },
+        ],
+        sharedFilters: {
+          cohort: [{ output: 'Patient', column: 'identifier' }],
+        },
+      },
+      materializations: [
+        {
+          outputId: 'Patient',
+          output: 'Patient',
+          materializationId: 'patient-materialization',
+          columns: [
+            {
+              name: 'id',
+              clickhouseType: 'String',
+              logicalType: 'string',
+              nullable: false,
+              repeated: false,
+              filterable: false,
+              sortable: true,
+              aggregatable: false,
+            },
+            {
+              name: 'status',
+              clickhouseType: 'String',
+              logicalType: 'string',
+              nullable: true,
+              repeated: false,
+              filterable: true,
+              sortable: true,
+              aggregatable: true,
+            },
+          ],
+        },
+      ],
+    } as unknown as RepositoryExplorerConfig);
+
+    const panel = configuration.explorerConfig[0];
+    expect(panel.table?.fields).toEqual(['id', 'status']);
+    expect(panel.table?.columns.identifier).toBeUndefined();
+    expect(panel.filters?.tabs[0]?.fields).toEqual(['status']);
+  });
+
   it('builds the repository default presentation from live Loom datasets', () => {
     const deployed = {
       project: 'program-project',

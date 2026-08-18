@@ -15,7 +15,7 @@ import { JSONPath } from 'jsonpath-plus';
 import { isArray } from 'lodash';
 import { useStudyContext } from '../../../Study/StudyProvider';
 import { SinglePageStudyDetailsPanel } from '../../../Study';
-import { publicLoomFields } from '../utils';
+import { includeAvailableSha256 } from '../utils';
 
 const ExtractData = (
   row: Record<string, any> | undefined,
@@ -94,13 +94,21 @@ export const QueryRowDetailsPanel = ({
     loomIdentity
       ? {
           ...loomIdentity,
-          columns: publicLoomFields(tableConfig.fields),
+          columns: includeAvailableSha256(
+            tableConfig.fields,
+            activeDataset?.columns,
+          ),
           filters: loomFilters.filters,
           first: 1,
         }
       : skipToken,
     {
-      skip: !loomIdentity || !idField || !id || !!loomFilters.error,
+      skip:
+        !loomIdentity ||
+        !activeDataset ||
+        !idField ||
+        !id ||
+        !!loomFilters.error,
     },
   );
 

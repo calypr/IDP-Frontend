@@ -31,7 +31,12 @@ export const includeAvailableSha256 = (
   datasetColumns?: ReadonlyArray<{ name: string }>,
 ): ReadonlyArray<string> =>
   (() => {
-    const publicFields = publicLoomFields(fields);
+    const available = datasetColumns
+      ? new Set(datasetColumns.map((column) => column.name))
+      : undefined;
+    const publicFields = publicLoomFields(fields).filter(
+      (field) => !available || available.has(field),
+    );
     return datasetColumns?.some((column) => column.name === 'sha256') &&
       !publicFields.includes('sha256')
       ? [...publicFields, 'sha256']

@@ -46,7 +46,7 @@ const ProjectExplorerBuilder = ({
             <div className="flex w-full items-center gap-4">
               <div
                 id="explorer-builder-toolbar-host"
-                className="min-w-0 flex-1"
+                className="min-w-0 flex-1 border-l border-slate-200 pl-4"
               />
               <div
                 aria-label="Explorer workspace"

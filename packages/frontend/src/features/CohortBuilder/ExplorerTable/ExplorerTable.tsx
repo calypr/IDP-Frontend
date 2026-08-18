@@ -223,7 +223,9 @@ const ExplorerTable = ({
             : undefined,
         }
       : skipToken,
-    { skip: !loomIdentity || !!loomFilters.error },
+    {
+      skip: !loomIdentity || !activeDataset || !!loomFilters.error,
+    },
   );
   useEffect(() => {
     const nextCursor = loomRows?.pageInfo?.endCursor;

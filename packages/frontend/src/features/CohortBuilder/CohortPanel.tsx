@@ -60,6 +60,7 @@ import {
 } from './hooks';
 import DropdownPanel from '../../components/facets/Panels/DropdownPanel';
 import QueryExpression from './QueryExpression';
+import { normalizeCohortPanelForDataset } from './runtimeConfiguration';
 
 const EmptyData = {};
 
@@ -109,10 +110,6 @@ export const CohortPanel = ({
   const loomIdentity = loomDataset
     ? ({ selector: loomDataset, projectIds: loomProjectIds } as const)
     : null;
-  const fields = useMemo(
-    () => getAllFieldsFromFilterConfigs(filters?.tabs ?? []),
-    [filters?.tabs],
-  );
 
   const [facetDefinitions, setFacetDefinitions] = useState<
     Record<string, FacetDefinition>
@@ -146,10 +143,63 @@ export const CohortPanel = ({
     loomIdentity ?? skipToken,
   );
   const activeDataset = selectedDataset;
+  const runtimePanel = useMemo(
+    () =>
+      normalizeCohortPanelForDataset(
+        {
+          guppyConfig,
+          tabTitle,
+          chartsSection,
+          charts,
+          filters,
+          table,
+          dropdowns,
+          buttons,
+          loginForDownload,
+        },
+        activeDataset?.columns,
+      ),
+    [
+      activeDataset?.columns,
+      buttons,
+      charts,
+      chartsSection,
+      dropdowns,
+      filters,
+      guppyConfig,
+      loginForDownload,
+      tabTitle,
+      table,
+    ],
+  );
+  const runtimeGuppyConfig = runtimePanel.guppyConfig;
+  const runtimeFilters = runtimePanel.filters;
+  const runtimeCharts = runtimePanel.charts;
+  const runtimeChartsSection = runtimePanel.chartsSection;
+  const runtimeTable = runtimePanel.table;
+  const fields = useMemo(
+    () => getAllFieldsFromFilterConfigs(runtimeFilters?.tabs ?? []),
+    [runtimeFilters?.tabs],
+  );
+  const effectiveLoomFilters = useMemo(() => {
+    if (!activeDataset) return loomFilters;
+    const available = new Set(
+      activeDataset.columns.map((column) => column.name),
+    );
+    return {
+      ...loomFilters,
+      filters: loomFilters.filters.filter((filter) =>
+        available.has(filter.column),
+      ),
+    };
+  }, [activeDataset, loomFilters]);
 
   const chartKeys = useDeepCompareMemo(
-    () => [...Object.keys(chartsSection?.charts ?? {}), ...Object.keys(charts)],
-    [chartsSection?.charts, charts],
+    () => [
+      ...Object.keys(runtimeChartsSection?.charts ?? {}),
+      ...Object.keys(runtimeCharts ?? {}),
+    ],
+    [runtimeChartsSection?.charts, runtimeCharts],
   );
   // Facets and charts use the same selector and active filters. Batch them
   // into one GraphQL document; Loom executes these as published ClickHouse
@@ -168,12 +218,15 @@ export const CohortPanel = ({
       ? {
           ...loomIdentity,
           fields: aggregationFields,
-          filters: loomFilters.filters,
+          filters: effectiveLoomFilters.filters,
         }
       : skipToken,
     {
       skip:
-        aggregationFields.length === 0 || !loomIdentity || !!loomFilters.error,
+        aggregationFields.length === 0 ||
+        !loomIdentity ||
+        !activeDataset ||
+        !!effectiveLoomFilters.error,
     },
   );
   const chartData = data;
@@ -286,7 +339,7 @@ export const CohortPanel = ({
 
   useDeepCompareEffect(() => {
     if (isSuccess && data) {
-      const configFacetDefs = (filters?.tabs ?? []).reduce(
+      const configFacetDefs = (runtimeFilters?.tabs ?? []).reduce(
         (acc: Record<string, FacetDefinition>, tab) => ({
           ...tab.fieldsConfig,
           ...acc,
@@ -296,13 +349,14 @@ export const CohortPanel = ({
       const facetDefs = classifyFacets(
         data,
         index,
-        guppyConfig?.fieldMapping ?? [],
+        runtimeGuppyConfig?.fieldMapping ?? [],
         configFacetDefs ?? {},
         sharedFiltersMap,
       );
       setFacetDefinitions(facetDefs);
 
-      const chartDefinitions = chartsSection?.charts ?? charts;
+      const chartDefinitions =
+        runtimeChartsSection?.charts ?? runtimeCharts ?? {};
       const summaryCharts = Object.keys(chartDefinitions).reduce(
         (acc, field) => {
           let chartField = field;
@@ -324,17 +378,17 @@ export const CohortPanel = ({
     isSuccess,
     data,
     index,
-    guppyConfig.fieldMapping,
-    charts,
-    chartsSection,
-    filters?.tabs,
+    runtimeGuppyConfig.fieldMapping,
+    runtimeCharts,
+    runtimeChartsSection,
+    runtimeFilters?.tabs,
     sharedFiltersMap,
   ]);
 
   const columnTitles = useMemo(
     () =>
-      table?.columns
-        ? Object.entries(table.columns).reduce(
+      runtimeTable?.columns
+        ? Object.entries(runtimeTable.columns).reduce(
             (acc, [field, column]) => ({
               ...acc,
               [field]: column.title,
@@ -342,7 +396,7 @@ export const CohortPanel = ({
             {},
           )
         : {},
-    [table?.columns],
+    [runtimeTable?.columns],
   );
 
   const {
@@ -354,11 +408,14 @@ export const CohortPanel = ({
     loomIdentity
       ? {
           ...loomIdentity,
-          filters: loomFilters.filters,
+          filters: effectiveLoomFilters.filters,
           operation: 'COUNT',
         }
       : skipToken,
-    { skip: !loomIdentity || !!loomFilters.error },
+    {
+      skip:
+        !loomIdentity || !activeDataset || !!effectiveLoomFilters.error,
+    },
   );
 
   if (!loomIdentity) {
@@ -368,8 +425,8 @@ export const CohortPanel = ({
       />
     );
   }
-  if (loomFilters.error) {
-    return <ErrorCard message={loomFilters.error} />;
+  if (effectiveLoomFilters.error) {
+    return <ErrorCard message={effectiveLoomFilters.error} />;
   }
   if (isSelectedDatasetError) {
     return (
@@ -420,10 +477,10 @@ export const CohortPanel = ({
           id="cohort-builder-filters"
           className="flex-shrink-0 md:w-1/4 lg:w-1/5"
         >
-          {filters?.tabs && (
+          {runtimeFilters?.tabs && (
             <DropdownPanel
               index={index}
-              filters={filters}
+              filters={runtimeFilters}
               tabTitle={tabTitle}
               facetDefinitions={facetDefinitions}
               facetDataHooks={facetDataHooks}
@@ -451,7 +508,7 @@ export const CohortPanel = ({
               loginForDownload={loginForDownload}
               index={index}
               totalCount={counts ?? 0}
-              fields={table?.fields ?? []}
+                fields={runtimeTable?.fields ?? []}
               filter={cohortFilters}
               loomDataset={loomDataset}
               loomProjectIds={loomProjectIds}
@@ -485,13 +542,13 @@ export const CohortPanel = ({
             />
           )}
 
-          {table?.enabled && (
+          {runtimeTable?.enabled && (
             <div className="mt-2 flex flex-col">
               <ExplorerTable
                 index={index}
                 loomDataset={loomDataset}
                 loomProjectIds={loomProjectIds}
-                tableConfig={table}
+                tableConfig={runtimeTable}
                 accessibility={accessLevel}
                 fileActions={fileActions}
               />

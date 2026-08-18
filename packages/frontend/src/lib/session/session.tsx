@@ -67,6 +67,27 @@ export const requestSessionLogout = ({
   );
 };
 
+/**
+ * Synchronize the browser's authentication cookies before asking Fence for
+ * the current user. The server-side session endpoint removes a stale
+ * credentials_token when a valid Fence access_token is already present, so a
+ * development build does not send the stale bearer token to /user/user.
+ */
+export const getSession = async () => {
+  try {
+    const response = await fetch('/api/auth/sessionToken', {
+      cache: 'no-store',
+      credentials: 'same-origin',
+    });
+    if (response.status === 200) {
+      return await response.json();
+    }
+  } catch {
+    return { status: 'error' };
+  }
+  return { status: 'error' };
+};
+
 const fetchWithDeadline = async (
   input: RequestInfo | URL,
   init: RequestInit = {},
@@ -378,9 +399,14 @@ export const SessionProvider = ({
     setIsUserVerificationPending(true);
 
     const verification = (async () => {
-      const hasBearerCredential = Boolean(getCookie('credentials_token'));
+      let hasBearerCredential = false;
 
       try {
+        // A valid Fence access_token and an older credentials_token can
+        // coexist. Let the server-side session check clear the stale
+        // credentials cookie before the client calls Fence.
+        await getSession();
+        hasBearerCredential = Boolean(getCookie('credentials_token'));
         await getUserDetails().unwrap();
         homeUnauthorizedRef.current = false;
       } catch (error: unknown) {

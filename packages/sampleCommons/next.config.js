@@ -8,8 +8,10 @@ const path = require('path');
 const basePath = process.env.NEXT_PUBLIC_BASEPATH;
 const workspaceRoot = path.resolve(__dirname, '../..');
 const turbopackAliases = {
-  '@gen3/core': 'packages/core/src/index.ts',
-  '@gen3/frontend': 'packages/frontend/src/index.ts',
+  // Turbopack resolves alias targets relative to `turbopack.root`. Absolute
+  // filesystem targets are rewritten as `./Users/...` and fail to compile.
+  '@gen3/core': './packages/core/src/index.ts',
+  '@gen3/frontend': './packages/frontend/src/index.ts',
 };
 
 dns.setDefaultResultOrder('ipv4first');

@@ -156,6 +156,337 @@ export const configForOutput = (
   };
 };
 
+const loomRecipeIdentifier = (value: string): string => {
+  const normalized = value
+    .trim()
+    .replace(/[^A-Za-z0-9_]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  if (!normalized) return 'column';
+  return /^[0-9]/.test(normalized) ? `column_${normalized}` : normalized;
+};
+
+const loomIdentifierKey = (value: string): string =>
+  value.replace(/[^A-Za-z0-9]/g, '').toLowerCase();
+
+const loomResourceColumnPrefix = (value: string): string =>
+  value
+    .trim()
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .replace(/[^A-Za-z0-9_]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .toLowerCase();
+
+/**
+ * A Builder field can have several names while it is being migrated from the
+ * catalog representation to Loom's executable representation. Treat all of
+ * those names as aliases when removing a non-executable field; otherwise a
+ * view can retain a stale reference even though the recipe declaration was
+ * removed.
+ */
+const recipeFieldReferenceKeys = (field: RecipeFieldV2): ReadonlyArray<string> => {
+  const record = field as RecipeFieldV2 & {
+    readonly publicName?: unknown;
+    readonly expectedPublicColumn?: unknown;
+  };
+  return [
+    field.name,
+    field.selectionKey,
+    field.valueSelector,
+    typeof record.publicName === 'string' ? record.publicName : undefined,
+    typeof record.expectedPublicColumn === 'string'
+      ? record.expectedPublicColumn
+      : undefined,
+  ].filter((value): value is string => Boolean(value?.trim()));
+};
+
+const recipeFieldWithoutLabel = (field: RecipeFieldV2): RecipeFieldV2 => {
+  const { label: _label, ...withoutLabel } = field;
+  return { ...withoutLabel, name: loomRecipeIdentifier(field.name) };
+};
+
+const recipeTraversalWithoutLabels = (
+  traversal: RecipeTraversalV2,
+): RecipeTraversalV2 => ({
+  ...traversal,
+  ...(traversal.fields
+    ? { fields: traversal.fields.map(recipeFieldWithoutLabel) }
+    : {}),
+  ...(traversal.children
+    ? { children: traversal.children.map(recipeTraversalWithoutLabels) }
+    : {}),
+});
+
+/** Remove presentation labels from authoring recipe fields. */
+export const sanitizeExplorerConfigForAuthoring = (
+  config: ExplorerConfigV2,
+): ExplorerConfigV2 => {
+  const normalizeColumn = (column: string): string =>
+    loomRecipeIdentifier(column);
+  const normalizeSharedFilters = config.sharedFilters
+    ? Object.fromEntries(
+        Object.entries(config.sharedFilters).map(([name, mappings]) => [
+          name,
+          mappings.map((mapping) => ({
+            ...mapping,
+            column: normalizeColumn(mapping.column),
+          })),
+        ]),
+      )
+    : undefined;
+
+  return {
+    ...config,
+    recipe: {
+      ...config.recipe,
+      outputs: config.recipe.outputs?.map((output) => ({
+        ...output,
+        ...(output.fields
+          ? { fields: output.fields.map(recipeFieldWithoutLabel) }
+          : {}),
+        ...(output.traversals
+          ? { traversals: output.traversals.map(recipeTraversalWithoutLabels) }
+          : {}),
+      })),
+    },
+    views: config.views.map((view) => ({
+      ...view,
+      table: {
+        ...view.table,
+        columns: view.table.columns.map((column) => ({
+          column: normalizeColumn(column.column),
+          ...(column.label === undefined ? {} : { label: column.label }),
+          visible: column.visible,
+        })),
+      },
+      filters: view.filters?.map((filter) => ({
+        ...filter,
+        column: normalizeColumn(filter.column),
+      })),
+      charts: view.charts?.map((chart) => ({
+        ...chart,
+        column: normalizeColumn(chart.column),
+      })),
+      fixedFilters: view.fixedFilters
+        ? Object.fromEntries(
+            Object.entries(view.fixedFilters).map(([column, values]) => [
+              normalizeColumn(column),
+              values,
+            ]),
+          )
+        : undefined,
+      actions: view.actions?.map((action) => ({
+        ...action,
+        columns: action.columns?.map(normalizeColumn),
+      })),
+    })),
+    ...(normalizeSharedFilters
+      ? { sharedFilters: normalizeSharedFilters }
+      : { sharedFilters: undefined }),
+  };
+};
+
+const executableRecipeField = (
+  field: RecipeFieldV2,
+): RecipeFieldV2 | undefined => {
+  const record = field as RecipeFieldV2 & { readonly expr?: unknown };
+  if (record.expr === undefined) return undefined;
+  return {
+    name: loomRecipeIdentifier(record.name),
+    expr: record.expr,
+  };
+};
+
+const executableRecipeTraversal = (
+  traversal: RecipeTraversalV2,
+): RecipeTraversalV2 => ({
+  ...traversal,
+  ...(traversal.fields
+    ? {
+        fields: traversal.fields
+          .map(executableRecipeField)
+          .filter((field): field is RecipeFieldV2 => Boolean(field)),
+      }
+    : {}),
+  ...(traversal.children
+    ? { children: traversal.children.map(executableRecipeTraversal) }
+    : {}),
+});
+
+/**
+ * Remove Builder-only metadata before sending an executable packet to Loom.
+ * The column array carries display order; executable recipe fields carry only
+ * their name and expression. Loom's strict V2 decoder rejects UI metadata.
+ */
+export const sanitizeExplorerConfigForLoom = (
+  config: ExplorerConfigV2,
+): ExplorerConfigV2 => {
+  const authoringConfig = sanitizeExplorerConfigForAuthoring(config);
+  const droppedByOutput = new Map<string, ReadonlySet<string>>();
+  const emittedByOutput = new Map<string, ReadonlyMap<string, string>>();
+  const collectDropped = (
+    fields: ReadonlyArray<RecipeFieldV2> | undefined,
+    dropped: Set<string>,
+    emitted: Map<string, string>,
+    rootPrefix?: string,
+  ) =>
+    fields?.forEach((field) => {
+      const hasExpression =
+        (field as RecipeFieldV2 & { readonly expr?: unknown }).expr !==
+        undefined;
+      if (!hasExpression) {
+        recipeFieldReferenceKeys(field).forEach((reference) => {
+          dropped.add(loomIdentifierKey(reference));
+          if (rootPrefix)
+            dropped.add(loomIdentifierKey(`${rootPrefix}_${reference}`));
+        });
+      } else {
+        const name = loomRecipeIdentifier(field.name);
+        // ExplorerConfig V2 presentation references the recipe/compiler's
+        // logical output names. Published ClickHouse rows may later qualify
+        // root fields (for example document_reference_title), so accept that
+        // storage spelling as an input alias but never send it to the preview
+        // or publication compiler.
+        emitted.set(loomIdentifierKey(name), name);
+        if (
+          rootPrefix &&
+          !loomIdentifierKey(name).startsWith(
+            loomIdentifierKey(`${rootPrefix}_`),
+          )
+        ) {
+          emitted.set(loomIdentifierKey(`${rootPrefix}_${name}`), name);
+        }
+      }
+    });
+  const collectDroppedTraversal = (
+    traversals: ReadonlyArray<RecipeTraversalV2> | undefined,
+    dropped: Set<string>,
+    emitted: Map<string, string>,
+  ): void =>
+    traversals?.forEach((traversal) => {
+      collectDropped(traversal.fields, dropped, emitted);
+      collectDroppedTraversal(traversal.children, dropped, emitted);
+    });
+  config.recipe.outputs?.forEach((output) => {
+    const dropped = new Set<string>();
+    const emitted = new Map<string, string>();
+    const rootPrefix = output.rootResourceType
+      ? loomResourceColumnPrefix(output.rootResourceType)
+      : undefined;
+    collectDropped(output.fields, dropped, emitted, rootPrefix);
+    collectDroppedTraversal(output.traversals, dropped, emitted);
+    if (dropped.size > 0) droppedByOutput.set(output.name, dropped);
+    emittedByOutput.set(output.name, emitted);
+  });
+  const views = authoringConfig.views.map((view) => {
+    const dropped = droppedByOutput.get(view.output);
+    const emitted = emittedByOutput.get(view.output);
+    const resolve = (column: string): string | undefined => {
+      const key = loomIdentifierKey(column);
+      if (dropped?.has(key)) return undefined;
+      return emitted?.get(key);
+    };
+    const resolveList = (
+      columns: ReadonlyArray<string> | undefined,
+    ): ReadonlyArray<string> | undefined => {
+      if (!columns) return undefined;
+      return columns
+        .map(resolve)
+        .filter((column): column is string => column !== undefined);
+    };
+    return {
+      ...view,
+      table: {
+        ...view.table,
+        columns: view.table.columns
+          .map((column) => {
+            const resolved = resolve(column.column);
+            return resolved
+              ? { ...column, column: resolved }
+              : undefined;
+          })
+          .filter(
+            (column): column is (typeof view.table.columns)[number] =>
+              column !== undefined,
+          ),
+      },
+      filters: view.filters
+        ?.map((filter) => {
+          const column = resolve(filter.column);
+          return column ? { ...filter, column } : undefined;
+        })
+        .filter((filter): filter is NonNullable<typeof filter> => Boolean(filter)),
+      charts: view.charts
+        ?.map((chart) => {
+          const column = resolve(chart.column);
+          return column ? { ...chart, column } : undefined;
+        })
+        .filter((chart): chart is NonNullable<typeof chart> => Boolean(chart)),
+      fixedFilters: view.fixedFilters
+        ? Object.fromEntries(
+            Object.entries(view.fixedFilters)
+              .map(([column, values]) => {
+                const resolved = resolve(column);
+                return resolved ? [resolved, values] : undefined;
+              })
+              .filter(
+                (entry): entry is [string, ReadonlyArray<string>] =>
+                  entry !== undefined,
+              ),
+          )
+        : undefined,
+      actions: view.actions?.map((action) => ({
+        ...action,
+        columns: resolveList(action.columns),
+      })),
+    };
+  });
+  const sharedFilters = authoringConfig.sharedFilters
+    ? Object.fromEntries(
+        Object.entries(authoringConfig.sharedFilters)
+          .map(([name, mappings]) => [
+            name,
+            mappings.filter(
+              (mapping) => emittedByOutput.has(mapping.output),
+            ).map((mapping) => {
+              const dropped = droppedByOutput.get(mapping.output);
+              const emitted = emittedByOutput.get(mapping.output);
+              const key = loomIdentifierKey(mapping.column);
+              if (dropped?.has(key)) return undefined;
+              const column = emitted?.get(key);
+              return column ? { ...mapping, column } : undefined;
+            }).filter(
+              (mapping): mapping is NonNullable<typeof mapping> =>
+                mapping !== undefined,
+            ),
+          ])
+          .filter(([, mappings]) => mappings.length > 0),
+      )
+    : undefined;
+  return {
+    ...authoringConfig,
+    views,
+    ...(sharedFilters ? { sharedFilters } : { sharedFilters: undefined }),
+    recipe: {
+      ...config.recipe,
+      outputs: config.recipe.outputs?.map((output) => ({
+        ...output,
+        ...(output.fields
+          ? {
+              fields: output.fields
+                .map(executableRecipeField)
+                .filter((field): field is RecipeFieldV2 => Boolean(field)),
+            }
+          : {}),
+        ...(output.traversals
+          ? {
+              traversals: output.traversals.map(executableRecipeTraversal),
+            }
+          : {}),
+      })),
+    },
+  };
+};
+
 /** The only authored Explorer contract. Presentation and executable recipe
  * are intentionally carried in one V2 packet. */
 export interface ExplorerConfigV2 {
@@ -214,9 +545,6 @@ export interface ExplorerTableColumnV2 {
   readonly column: string;
   readonly label?: string;
   readonly visible: boolean;
-  readonly order?: number;
-  readonly filterable?: boolean;
-  readonly chartable?: boolean;
 }
 
 export interface ExplorerDraftMetadata {
@@ -485,6 +813,8 @@ export interface ExplorerAuthoringCatalogResponse {
 export interface ExplorerAuthoringCompileRequest {
   readonly project: string;
   readonly explorerId: string;
+  /** Canonical Fence resource path used by scoped Loom write authorization. */
+  readonly authResourcePath?: string;
   readonly output: string;
   readonly config: ExplorerConfigV2;
   readonly snapshotToken: string;

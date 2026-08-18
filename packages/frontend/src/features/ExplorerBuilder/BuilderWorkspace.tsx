@@ -23,10 +23,14 @@ import {
 import type {
   ExplorerConfigV2,
   ExplorerDiagnostic,
+  ExplorerPreview,
   ExplorerState,
   RecipeTraversalV2,
 } from '@gen3/core';
-import { configForOutput } from '@gen3/core';
+import {
+  configForOutput,
+  sanitizeExplorerConfigForLoom,
+} from '@gen3/core';
 import {
   builderTables,
   applyCompiledColumnCapabilities,
@@ -210,9 +214,9 @@ const configFromServer = (
 
 /**
  * The repository default has no authored presentation packet. Build a
- * read-only inspection packet from its executable baseline recipe and live
- * dataset outputs so the Builder can show what ETL published without turning
- * it into an editable draft.
+ * browser-editable presentation packet from its executable baseline recipe and
+ * live dataset outputs. The baseline recipe remains server-managed; browser
+ * edits to the default packet do not invoke the interactive authoring compiler.
  */
 const defaultConfigFromServer = (
   candidate: ExplorerState | Record<string, unknown>,
@@ -334,7 +338,7 @@ const defaultConfigFromServer = (
   const baselineExplorer = isRecord(baseline?.explorer)
     ? baseline.explorer
     : undefined;
-  return {
+  const generatedConfig: ExplorerConfigV2 = {
     apiVersion: 'loom.calypr.org/explorer-config/v2',
     kind: 'ExplorerConfig',
     project:
@@ -350,6 +354,11 @@ const defaultConfigFromServer = (
     recipe: recipe as ExplorerConfigV2['recipe'],
     views,
   };
+  // Dataset/materialization metadata can retain physical columns from an
+  // older Explorer contract. Only seed the Builder with columns the current
+  // executable recipe can emit; the live catalog remains the source for new
+  // browser selections.
+  return sanitizeExplorerConfigForLoom(generatedConfig);
 };
 
 const activeConfigFromServer = (
@@ -403,12 +412,23 @@ const resourcesFor = (
   for (const resource of projectResources) {
     // A resource with no records cannot contribute rows or values to the
     // authored traversal. Keep unknown counts visible, but remove explicit
-    // zero-population nodes from the authoring graph.
-    if (isResourceType(resource.resourceType) && resource.count !== 0)
+    // zero-population and field-less nodes from the authoring graph.
+    if (
+      isResourceType(resource.resourceType) &&
+      resource.count !== 0 &&
+      resource.fields.length > 0
+    )
       byType.set(resource.resourceType, resource);
   }
   return [...byType.values()];
 };
+
+const candidateIdentity = (candidate: CatalogCandidate): string =>
+  JSON.stringify([
+    candidate.resourceType,
+    candidate.id,
+    candidate.nodePath ?? [],
+  ]);
 
 const relationshipsFor = (
   _state: BuilderSessionState,
@@ -770,6 +790,7 @@ const TraversalGraph = ({
   relationships,
   dispatch,
   disabled,
+  readOnly,
   status,
 }: {
   readonly state: BuilderSessionState;
@@ -779,6 +800,7 @@ const TraversalGraph = ({
     Parameters<typeof explorerBuilderReducer>[1]
   >;
   readonly disabled: boolean;
+  readonly readOnly?: boolean;
   readonly status: 'loading' | 'ready' | 'error';
 }) => {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -1113,7 +1135,9 @@ const TraversalGraph = ({
           </div>
           <p className="mb-1 text-[11px] text-slate-500">
             {disabled
-              ? 'The Builder is temporarily unavailable while discovery is incomplete.'
+              ? readOnly
+                ? 'The repository default is read-only. Create a custom Explorer to edit its row resource.'
+                : 'The Builder is temporarily unavailable while discovery is incomplete.'
               : 'Choose a node here or click one in the graph.'}
           </p>
           <div className="flex flex-wrap gap-1.5">
@@ -1146,6 +1170,7 @@ const GuidedGraphWorkspace = ({
   state,
   dispatch,
   disabled,
+  readOnly,
   resourceSuggestions,
   projectGraph,
   projectGraphStatus,
@@ -1156,6 +1181,7 @@ const GuidedGraphWorkspace = ({
     Parameters<typeof explorerBuilderReducer>[1]
   >;
   readonly disabled: boolean;
+  readonly readOnly?: boolean;
   readonly resourceSuggestions: ReadonlyArray<string>;
   readonly projectGraph: {
     readonly resources: ReadonlyArray<GraphResource>;
@@ -1200,6 +1226,11 @@ const GuidedGraphWorkspace = ({
     `${candidate.label} ${candidate.path} ${candidate.logicalType} ${candidate.familyName ?? ''} ${candidate.technicalDetails ?? ''} ${(candidate.examples ?? []).join(' ')}`
       .toLocaleLowerCase()
       .includes(query),
+  ).filter(
+    (candidate, index, values) =>
+      values.findIndex(
+        (value) => candidateIdentity(value) === candidateIdentity(candidate),
+      ) === index,
   );
   const outputTraversalAliases = traversalAliases(table?.traversals ?? []);
   const includedResourceTypes = new Set<string>();
@@ -1280,7 +1311,7 @@ const GuidedGraphWorkspace = ({
   };
   const setSelection = (next: ReadonlyArray<CatalogCandidate>) => {
     if (!canEditColumns || disabled) return;
-    const nextIds = next.map((candidate) => candidate.id);
+    const nextIds = [...new Set(next.map((candidate) => candidate.id))];
     if (!included) {
       setPendingSelections((current) => ({
         ...current,
@@ -1393,36 +1424,6 @@ const GuidedGraphWorkspace = ({
       aria-label="Guided Explorer Builder"
       className="flex min-h-[30rem] flex-col gap-2.5 overflow-hidden rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm sm:p-3 xl:h-[calc(100vh-14rem)] xl:max-h-[42rem] xl:min-h-0"
     >
-      <nav
-        aria-label="Included traversal"
-        className="flex min-h-11 flex-wrap items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2 py-1.5 text-xs"
-      >
-        <span className="mr-1 font-semibold uppercase tracking-wide text-blue-800">
-          Traversal
-        </span>
-        {root ? (
-          <button
-            type="button"
-            className="rounded-md border border-blue-300 bg-white px-2 py-1 font-semibold text-blue-950 hover:bg-blue-100"
-            onClick={() =>
-              dispatch({
-                type: 'selectResource',
-                resource: root,
-                nodeKey: `${state.selectedOutput ?? ''}|root:${root}`,
-              })
-            }
-          >
-            <span className="mr-1 text-blue-500">1</span>
-            {resourceLabels[root] ?? root}
-            <span className="ml-1 font-normal text-slate-500">row start</span>
-          </button>
-        ) : (
-          <span className="text-blue-900">
-            Select a resource node to define the row start.
-          </span>
-        )}
-        {renderTraversal(table?.traversals ?? [])}
-      </nav>
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-hidden xl:grid-cols-[minmax(0,1.12fr)_minmax(22rem,0.88fr)]">
         <section
           className="flex min-h-[23rem] min-w-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white p-2.5 xl:min-h-0"
@@ -1433,9 +1434,6 @@ const GuidedGraphWorkspace = ({
               <h3 id="fhir-map-heading" className="font-semibold">
                 Project graph
               </h3>
-              <p className="mt-0.5 text-xs text-slate-500">
-                Choose a row start, then click a green edge to add it.
-              </p>
             </div>
             {projectGraphStatus === 'ready' ? (
               <span className="text-xs text-emerald-700">
@@ -1452,6 +1450,38 @@ const GuidedGraphWorkspace = ({
               </span>
             )}
           </div>
+          <nav
+            aria-label="Included traversal"
+            className="mt-3 flex min-h-11 shrink-0 flex-wrap items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2 py-1.5 text-xs"
+          >
+            <span className="mr-1 font-semibold uppercase tracking-wide text-blue-800">
+              Traversal
+            </span>
+            {root ? (
+              <button
+                type="button"
+                className="rounded-md border border-blue-300 bg-white px-2 py-1 font-semibold text-blue-950 hover:bg-blue-100"
+                onClick={() =>
+                  dispatch({
+                    type: 'selectResource',
+                    resource: root,
+                    nodeKey: `${state.selectedOutput ?? ''}|root:${root}`,
+                  })
+                }
+              >
+                <span className="mr-1 text-blue-500">1</span>
+                {resourceLabels[root] ?? root}
+                <span className="ml-1 font-normal text-slate-500">
+                  row start
+                </span>
+              </button>
+            ) : (
+              <span className="text-blue-900">
+                Select a resource node to define the row start.
+              </span>
+            )}
+            {renderTraversal(table?.traversals ?? [])}
+          </nav>
           <div className="mt-3 min-h-0 flex-1">
             <TraversalGraph
               state={state}
@@ -1459,6 +1489,7 @@ const GuidedGraphWorkspace = ({
               relationships={relationships}
               dispatch={dispatch}
               disabled={disabled}
+              readOnly={readOnly}
               status={projectGraphStatus}
             />
           </div>
@@ -1533,8 +1564,9 @@ const GuidedGraphWorkspace = ({
               <div className="mt-2 flex flex-wrap gap-2">
                 {disabled ? (
                   <p className="basis-full text-xs text-amber-800">
-                    The field catalog is not editable until the Builder has
-                    finished loading this resource.
+                    {readOnly
+                      ? 'The repository default is read-only. Create a custom Explorer to edit its columns.'
+                      : 'The field catalog is not editable until the Builder has finished loading this resource.'}
                   </p>
                 ) : !canEditColumns ? (
                   <p className="basis-full text-xs text-slate-600">
@@ -1590,7 +1622,7 @@ const GuidedGraphWorkspace = ({
                     const previousFamily =
                       previous?.familyName ?? previous?.family ?? 'Fields';
                     return (
-                      <React.Fragment key={candidate.id}>
+                      <React.Fragment key={candidateIdentity(candidate)}>
                         {family !== previousFamily && (
                           <p className="bg-slate-50 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                             {family}
@@ -1724,7 +1756,6 @@ const PreviewTable = ({
   dispatch,
   disabled,
   readOnly = false,
-  onRetry,
   limit,
   onLimitChange,
 }: {
@@ -1734,7 +1765,6 @@ const PreviewTable = ({
   >;
   readonly disabled: boolean;
   readonly readOnly?: boolean;
-  readonly onRetry: () => void;
   readonly limit: 10 | 25 | 50 | 100;
   readonly onLimitChange: (limit: 10 | 25 | 50 | 100) => void;
 }) => {
@@ -1763,13 +1793,8 @@ const PreviewTable = ({
       <div className="flex flex-wrap items-center justify-between gap-2 border-b p-4">
         <div>
           <h2 className="font-semibold text-slate-900">
-            3. Preview and configure
+            Preview and configure
           </h2>
-          <p className="mt-1 text-xs text-slate-500">
-            Preview checks the selected table before the complete V2 packet is
-            saved.
-            {disabledReason ? ` ${disabledReason}` : ''}
-          </p>
         </div>
         <div className="flex items-center gap-2">
           <label className="text-xs text-slate-500">
@@ -1791,15 +1816,6 @@ const PreviewTable = ({
               <option value="100">100</option>
             </select>
           </label>
-          <button
-            type="button"
-            className="rounded border px-2 py-1 text-xs"
-            onClick={onRetry}
-            disabled={disabled}
-            title={disabledReason ?? 'Refresh the selected table preview.'}
-          >
-            Refresh preview
-          </button>
         </div>
       </div>
       {preview?.status === 'loading' && (
@@ -1898,7 +1914,7 @@ const PreviewTable = ({
       ) : (
         <div className="p-8 text-center text-sm text-slate-500">
           {preview?.status === 'error'
-            ? 'Preview unavailable. Use Refresh preview to try again.'
+            ? 'Preview unavailable. Use Render table to try again.'
             : catalogBlocked
               ? 'Field discovery is unavailable for this table. Refresh discovery before previewing.'
               : state.config?.recipe.outputs?.find(
@@ -2502,6 +2518,7 @@ const BuilderWorkspace = ({
   readonly project: string;
 }) => {
   const projectId = `${organization}-${project}`;
+  const authResourcePath = `/programs/${organization}/projects/${project}`;
   const [createExplorer] = useCreateExplorerMutation();
   const configs = useGetExplorerConfigsQuery(projectId);
   const [compileAuthoring] = useCompileExplorerAuthoringMutation();
@@ -2521,7 +2538,12 @@ const BuilderWorkspace = ({
   const [message, setMessage] = useState<string>();
   const [previewLimit, setPreviewLimit] = useState<10 | 25 | 50 | 100>(25);
   const previewAbort = useRef<{ abort?: () => void } | undefined>(undefined);
+  const previewInFlight = useRef<Promise<ExplorerPreview> | undefined>(
+    undefined,
+  );
+  const previewTimer = useRef<number | undefined>(undefined);
   const previewIntent = useRef<string | undefined>(undefined);
+  const commitInFlight = useRef(false);
   const isDefault =
     selectedId === 'default' || state.management === 'REPOSITORY';
   useEffect(() => {
@@ -2563,20 +2585,51 @@ const BuilderWorkspace = ({
       output: state.selectedOutput ?? '',
       config: authoringConfig as ExplorerConfigV2,
     },
-    // Repository/default Explorer is read-only and already carries the
-    // published configuration. Its Viewer must not fetch an authoring-only
-    // catalog in the background.
-    { skip: isDefault || !authoringConfig || !state.selectedOutput },
+    // The repository/default Explorer is editable in the browser, and its
+    // graph and field picker require the live authoring catalog.
+    { skip: !authoringConfig || !state.selectedOutput },
   );
   // Loom's supported authoring catalog is project-wide: its nodes and route
   // edges replace the removed legacy project-map call. Candidate
   // fields remain in state.catalog, where they are joined to the same graph
   // snapshot and opaque selection IDs.
+  const catalogCandidatesByResource = new Map<string, CatalogCandidate[]>();
+  for (const candidate of authoringCatalog.data?.candidates ?? []) {
+    const resourceType = candidate.resourceType?.trim();
+    if (!resourceType) continue;
+    const normalized = normalizeCatalogCandidate(candidate, resourceType);
+    if (!normalized) continue;
+    const values = catalogCandidatesByResource.get(resourceType) ?? [];
+    if (
+      !values.some(
+        (value) => candidateIdentity(value) === candidateIdentity(normalized),
+      )
+    )
+      values.push(normalized);
+    catalogCandidatesByResource.set(resourceType, values);
+  }
   const projectGraph = {
     sourceGeneration: authoringCatalog.data?.sourceGeneration,
     resources: (authoringCatalog.data?.resources ?? [])
-      .map((resource) => normalizeGraphResource(resource))
-      .filter((resource): resource is GraphResource => Boolean(resource)),
+      .map((value): GraphResource | undefined => {
+        const resource = normalizeGraphResource(value);
+        if (!resource) return undefined;
+        // The authoring REST response keeps resources and candidates in
+        // separate arrays. Join them before graph filtering so a node with no
+        // value-bearing selections never reaches ReactFlow.
+        const fields = [
+          ...resource.fields,
+          ...(catalogCandidatesByResource.get(resource.resourceType) ?? []),
+        ].filter(
+          (candidate, index, values) =>
+            values.findIndex(
+              (value) =>
+                candidateIdentity(value) === candidateIdentity(candidate),
+            ) === index,
+        );
+        return { ...resource, fields };
+      })
+      .filter((resource): resource is GraphResource => resource !== undefined),
     relationships: (authoringCatalog.data?.relationships ?? [])
       .map((relationship) => normalizeGraphRelationship(relationship))
       .filter((relationship): relationship is GraphRelationship =>
@@ -2764,11 +2817,12 @@ const BuilderWorkspace = ({
     const compiled = await compileAuthoring({
       project: projectId,
       explorerId: selectedId,
+      authResourcePath,
       output,
       config,
       snapshotToken: state.catalog.snapshotToken,
       selectedCandidateIdsByNode: state.selectedCandidateIdsByNode,
-      expectedDraftVersion: state.draftVersion,
+      ...(isDefault ? {} : { expectedDraftVersion: state.draftVersion }),
     }).unwrap();
     if (compiled.diagnostics.some((item) => item.severity === 'error'))
       throw {
@@ -2782,6 +2836,7 @@ const BuilderWorkspace = ({
   };
 
   const refreshPreview = async (force = false) => {
+    if (commitInFlight.current) return;
     const config = state.config;
     const output = state.selectedOutput;
     if (
@@ -2814,6 +2869,7 @@ const BuilderWorkspace = ({
     let previewConfig = config;
     let digest = '';
     let draftDigestForRequest = '';
+    let previewRequestPromise: Promise<ExplorerPreview> | undefined;
     // Mark the intent as loading before asynchronous compilation starts. If
     // compilation itself is rejected, the preview must still leave the
     // "Preparing" state and render a retryable error.
@@ -2824,8 +2880,8 @@ const BuilderWorkspace = ({
       digest: provisionalDigest,
     });
     try {
-      // The repository packet already contains canonical declarations. Do not
-      // invoke the custom authoring compiler merely to preview the packet.
+      // The repository default already contains canonical declarations and
+      // Loom rejects the interactive authoring compiler for this Explorer.
       compiledConfig = isDefault
         ? config
         : await compileForOutput(config, output);
@@ -2859,11 +2915,13 @@ const BuilderWorkspace = ({
         existing.status === 'loading'
       )
         return;
+      if (commitInFlight.current) return;
       previewAbort.current?.abort?.();
       dispatch({ type: 'previewLoading', output, digest });
       const request = previewDraft({
         project: projectId,
         explorerId: selectedId,
+        authResourcePath,
         config: previewConfig,
         output,
         limit: previewLimit,
@@ -2872,7 +2930,9 @@ const BuilderWorkspace = ({
           : {}),
       });
       previewAbort.current = request;
-      const result = await request.unwrap();
+      previewRequestPromise = request.unwrap();
+      previewInFlight.current = previewRequestPromise;
+      const result = await previewRequestPromise;
       if (result.diagnostics?.some((item) => item.severity === 'error')) {
         throw {
           data: {
@@ -2905,6 +2965,11 @@ const BuilderWorkspace = ({
         digest: digest || provisionalDigest,
         error: details.diagnostics.map((item) => item.message).join(' '),
       });
+    } finally {
+      if (previewInFlight.current === previewRequestPromise) {
+        previewInFlight.current = undefined;
+        previewAbort.current = undefined;
+      }
     }
   };
   // Preview is keyed by the digest and selected output; the callback is recreated with the current draft.
@@ -2914,9 +2979,14 @@ const BuilderWorkspace = ({
     // Explorers run the authoring compiler before previewing.
     if (!state.config) return;
     const timer = window.setTimeout(() => {
+      previewTimer.current = undefined;
       void refreshPreview();
     }, 750);
-    return () => window.clearTimeout(timer);
+    previewTimer.current = timer;
+    return () => {
+      window.clearTimeout(timer);
+      if (previewTimer.current === timer) previewTimer.current = undefined;
+    };
   }, [
     configDigest,
     state.selectedOutput,
@@ -2925,6 +2995,22 @@ const BuilderWorkspace = ({
     state.catalog.snapshotToken,
     isDefault,
   ]);
+
+  const cancelPendingPreview = async () => {
+    if (previewTimer.current !== undefined) {
+      window.clearTimeout(previewTimer.current);
+      previewTimer.current = undefined;
+    }
+    previewAbort.current?.abort?.();
+    const pending = previewInFlight.current;
+    if (!pending) return;
+    try {
+      await pending;
+    } catch {
+      // Aborting a preview is expected when a save or publish takes ownership
+      // of the project-level materialization path.
+    }
+  };
 
   const createCustom = async (from: 'default' | 'blank') => {
     const title = newName.trim();
@@ -2950,7 +3036,7 @@ const BuilderWorkspace = ({
           from === 'default' && isDefault
             ? (state.config ?? undefined)
             : undefined,
-        authResourcePath: `/programs/${organization}/projects/${project}`,
+        authResourcePath,
       }).unwrap();
       setSelectedId(created.explorerId);
       setNewName('');
@@ -2965,22 +3051,50 @@ const BuilderWorkspace = ({
   };
 
   const save = async () => {
-    if (isDefault || !state.config) return;
+    if (!state.config || commitInFlight.current) return;
+    commitInFlight.current = true;
     dispatch({ type: 'saving' });
     try {
+      await cancelPendingPreview();
       const configForSave =
-        state.selectedOutput && state.catalog.snapshotToken
+        !isDefault && state.selectedOutput && state.catalog.snapshotToken
           ? await compileForOutput(state.config, state.selectedOutput)
           : state.config;
       const saved = await saveDraft({
         project: projectId,
         explorerId: selectedId,
         config: configForSave,
+        authResourcePath,
         expectedDraftVersion: state.draftVersion,
         expectedDraftDigest: state.draftDigest || undefined,
       }).unwrap();
       const config = requireServerConfig(saved);
       const digest = saved.draftDigest || (await digestExplorerConfig(config));
+      if (isDefault) {
+        const published = await publishExplorer({
+          project: projectId,
+          explorerId: selectedId,
+          authResourcePath,
+          expectedDraftVersion: saved.draftVersion,
+          expectedDraftDigest: digest,
+        }).unwrap();
+        const publishedConfig = requireServerConfig(published);
+        const publishedDigest =
+          published.draftDigest || (await digestExplorerConfig(publishedConfig));
+        dispatch({
+          type: 'published',
+          config: publishedConfig,
+          revisionId: published.activeRevisionId,
+          draftVersion: published.draftVersion,
+          draftDigest: publishedDigest,
+          publishedAt: published.updatedAt,
+          activeUrl: published.activeUrl,
+          shareUrl: published.shareUrl,
+          lifecycleMetadata: published,
+        });
+        setMessage('Default Explorer saved and activated.');
+        return;
+      }
       dispatch({
         type: 'saved',
         config,
@@ -3002,10 +3116,12 @@ const BuilderWorkspace = ({
           .map((item) => item.message)
           .join(' ')}`,
       );
+    } finally {
+      commitInFlight.current = false;
     }
   };
   const makeLive = async () => {
-    if (isDefault || !state.config) return;
+    if (!state.config || commitInFlight.current) return;
     if (
       !selectedTable?.rootResourceType ||
       !selectedTable.columns.some((column) => column.visible)
@@ -3039,8 +3155,10 @@ const BuilderWorkspace = ({
     let digest = state.draftDigest;
     let configForSave = state.config;
     const expectedDraftDigest = state.draftDigest || undefined;
+    commitInFlight.current = true;
     try {
-      if (state.selectedOutput && state.catalog.snapshotToken) {
+      await cancelPendingPreview();
+      if (!isDefault && state.selectedOutput && state.catalog.snapshotToken) {
         configForSave = await compileForOutput(
           configForSave,
           state.selectedOutput,
@@ -3054,8 +3172,9 @@ const BuilderWorkspace = ({
           project: projectId,
           explorerId: selectedId,
           config: configForSave,
+          authResourcePath,
           expectedDraftVersion: version,
-          expectedDraftDigest: expectedDraftDigest,
+          expectedDraftDigest,
         }).unwrap();
         const savedConfig = requireServerConfig(saved);
         version = saved.draftVersion;
@@ -3074,6 +3193,7 @@ const BuilderWorkspace = ({
       const published = await publishExplorer({
         project: projectId,
         explorerId: selectedId,
+        authResourcePath,
         expectedDraftVersion: version,
         expectedDraftDigest: digest,
       }).unwrap();
@@ -3104,6 +3224,8 @@ const BuilderWorkspace = ({
           .map((item) => item.message)
           .join(' ')}`,
       );
+    } finally {
+      commitInFlight.current = false;
     }
   };
   const addTable = () => {
@@ -3195,9 +3317,9 @@ const BuilderWorkspace = ({
   if (selectedId === 'default' && selectedServerState && !selectedConfig)
     return (
       <main className="p-6" role="status">
-        The repository default was published by ETL and is read-only. Its
-        layout is generated from Loom&apos;s live dataset schema. Create a custom
-        Explorer to author presentation configuration.
+        The repository default configuration is not available yet. Its
+        executable recipe is still managed by ETL, but browser presentation
+        edits will be stored separately when the configuration is available.
       </main>
     );
   if (!selectedServerState || !selectedConfig)
@@ -3206,10 +3328,19 @@ const BuilderWorkspace = ({
         Loading the selected Explorer configuration…
       </main>
     );
-  // The repository publication is protected. Its synthesized packet is
-  // inspectable and previewable, but presentation edits and persistence are
-  // available only for custom Explorers.
-  const interactionDisabled = isDefault;
+  // The default recipe/source remains repository-managed by ETL/Git-DRS, but
+  // its Explorer presentation is editable in the browser. Browser saves do
+  // not participate in Git-DRS history or interactive Explorer CAS.
+  const interactionDisabled = false;
+  const commitBusy =
+    state.lifecycle === 'saving' || state.lifecycle === 'publishing';
+  const primaryActionLabel = commitBusy
+    ? isDefault
+      ? 'Publishing data…'
+      : 'Saving draft…'
+    : isDefault
+      ? 'Publish data'
+      : 'Save draft';
   const primaryDiagnostic = state.diagnostics[0];
   const diagnosticsAreErrors = state.diagnostics.some(
     (item) => item.severity === 'error',
@@ -3235,7 +3366,7 @@ const BuilderWorkspace = ({
   const explorerToolbar = (
     <div className="flex min-w-0 items-center gap-2">
       <label className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-slate-600">
-        Explorer
+        <span className="sr-only">Explorer</span>
         <select
           aria-label="Explorer"
           className="max-w-56 rounded border border-slate-300 bg-white px-2 py-1 text-sm"
@@ -3290,7 +3421,7 @@ const BuilderWorkspace = ({
           </div>
         </div>
       </details>
-      {!isDefault && state.lifecycle === 'published' && (
+      {state.lifecycle === 'published' && (
         <a
           className="ml-1 shrink-0 rounded border border-blue-300 px-2 py-1 text-xs font-semibold text-blue-800 hover:bg-blue-50"
           href={`/Explorer/${encodeURIComponent(projectId)}?explorerId=${encodeURIComponent(selectedId)}`}
@@ -3446,7 +3577,7 @@ const BuilderWorkspace = ({
             {selectedTable && (
               <input
                 aria-label="Table title"
-                className="min-w-40 flex-1 rounded border px-2 py-1 text-sm"
+                className="w-56 max-w-[28vw] min-w-0 shrink-0 rounded border px-2 py-1 text-sm"
                 value={selectedTable.title}
                 readOnly={interactionDisabled}
                 onChange={(event) =>
@@ -3458,52 +3589,88 @@ const BuilderWorkspace = ({
                 }
               />
             )}
-            {!isDefault && (
+            <div className="ml-auto flex shrink-0 items-center gap-1.5">
+              <button
+                type="button"
+                className="rounded border border-blue-300 px-3 py-1.5 text-xs font-semibold text-blue-800 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={
+                  !selectedTable?.rootResourceType ||
+                  !selectedTable.columns.some((column) => column.visible)
+                }
+                title={
+                  !selectedTable?.rootResourceType
+                    ? 'Choose a row resource before rendering the table.'
+                    : !selectedTable.columns.some((column) => column.visible)
+                      ? 'Select at least one visible column before rendering the table.'
+                      : 'Render the selected table preview.'
+                }
+                onClick={() => void refreshPreview(true)}
+              >
+                Render table
+              </button>
               <>
                 <button
                   type="button"
-                  className="ml-auto rounded border border-blue-300 px-3 py-1.5 text-xs font-semibold text-blue-800"
+                  aria-busy={commitBusy}
+                  className="inline-flex items-center gap-2 rounded border border-blue-300 px-3 py-1.5 text-xs font-semibold text-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
                   disabled={
                     !state.dirty ||
-                    state.lifecycle === 'saving' ||
-                    state.lifecycle === 'publishing'
+                    commitBusy
                   }
                   title={
-                    !state.dirty
-                      ? 'There are no unpublished changes to save.'
-                      : 'Save the current draft without changing the active Explorer.'
+                    commitBusy
+                      ? isDefault
+                        ? 'Publishing data. This may take a while while Loom materializes the dataset.'
+                        : 'Saving the Explorer draft.'
+                      : !state.dirty
+                      ? isDefault
+                        ? 'There are no unpublished data changes to publish.'
+                        : 'There are no unpublished changes to save.'
+                      : isDefault
+                        ? 'Publish data and activate the repository default. This may take a while while Loom materializes the dataset.'
+                        : 'Save the current draft without changing the active Explorer.'
                   }
                   onClick={() => void save()}
                 >
-                  Save draft
+                  {commitBusy && (
+                    <span
+                      aria-hidden="true"
+                      className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-blue-200 border-t-blue-700"
+                    />
+                  )}
+                  <span>{primaryActionLabel}</span>
                 </button>
-                <button
-                  type="button"
-                  className="rounded bg-blue-700 px-3 py-1.5 text-xs font-semibold text-white"
-                  disabled={
-                    state.lifecycle === 'saving' ||
-                    state.lifecycle === 'publishing'
-                  }
-                  title="Validate and publish the saved draft to the active Explorer."
-                  onClick={() => void makeLive()}
-                >
-                  Make live
-                </button>
-                <button
-                  type="button"
-                  className="rounded border px-3 py-1.5 text-xs"
-                  disabled={!state.dirty}
-                  title={
-                    state.dirty
-                      ? 'Discard local changes and restore the active publication.'
-                      : 'There are no unpublished changes to discard.'
-                  }
-                  onClick={() => dispatch({ type: 'discard' })}
-                >
-                  Discard changes
-                </button>
+                {!isDefault && (
+                  <>
+                  <button
+                    type="button"
+                    className="rounded bg-blue-700 px-3 py-1.5 text-xs font-semibold text-white"
+                    disabled={
+                      state.lifecycle === 'saving' ||
+                      state.lifecycle === 'publishing'
+                    }
+                    title="Validate and publish the saved draft to the active Explorer."
+                    onClick={() => void makeLive()}
+                  >
+                    Make live
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded border px-3 py-1.5 text-xs"
+                    disabled={!state.dirty}
+                    title={
+                      state.dirty
+                        ? 'Discard local changes and restore the active publication.'
+                        : 'There are no unpublished changes to discard.'
+                    }
+                    onClick={() => dispatch({ type: 'discard' })}
+                  >
+                    Discard changes
+                  </button>
+                  </>
+                )}
               </>
-            )}
+            </div>
           </div>
         </header>
         {state.conflict && (
@@ -3600,6 +3767,7 @@ const BuilderWorkspace = ({
               state={state}
               dispatch={dispatch}
               disabled={interactionDisabled}
+              readOnly={interactionDisabled}
               resourceSuggestions={resourceSuggestions}
               projectGraph={projectGraph}
               projectGraphStatus={projectGraphStatus}
@@ -3616,7 +3784,6 @@ const BuilderWorkspace = ({
             readOnly={interactionDisabled}
             limit={previewLimit}
             onLimitChange={setPreviewLimit}
-            onRetry={() => void refreshPreview(true)}
           />
           <PresentationPanels
             state={state}

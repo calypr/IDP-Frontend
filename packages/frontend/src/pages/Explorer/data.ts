@@ -26,6 +26,10 @@ import type {
   ServerPageContext,
 } from '../../lib/pageLoader';
 import type { ExplorerPageData } from './types';
+import {
+  normalizeCohortPanelForDataset,
+  normalizeSharedFilterMappings,
+} from '../../features/CohortBuilder/runtimeConfiguration';
 
 type LoomColumnsByExplorerType = Record<string, ReadonlySet<string>>;
 
@@ -428,7 +432,25 @@ export const loomRepositoryConfigConfiguration = (
     const configuredColumns = view.table.columns.map((column) => ({
       name: column.column,
     }));
-    const availableColumns = materialization?.columns ?? configuredColumns;
+    const outputMetadata = deployed.dataset?.outputs.find((candidate) => {
+      const candidateRecord = candidate as unknown as Record<string, unknown>;
+      const outputName =
+        typeof candidateRecord.output === 'string'
+          ? candidateRecord.output
+          : typeof candidateRecord.name === 'string'
+            ? candidateRecord.name
+            : '';
+      return (
+        outputName === view.output ||
+        normalizeExplorerOutputName(outputName ?? '') ===
+          normalizeExplorerOutputName(view.output)
+      );
+    });
+    const availableColumns =
+      (materialization?.columns?.length ? materialization.columns : undefined) ??
+      (outputMetadata?.columns?.length ? outputMetadata.columns : undefined) ??
+      (deployed.emittedColumns?.length ? deployed.emittedColumns : undefined) ??
+      configuredColumns;
     columns[view.output] = new Set(
       availableColumns.map((column) => column.name),
     );
@@ -465,7 +487,7 @@ export const loomRepositoryConfigConfiguration = (
         ([, values]) => values.length > 0,
       ),
     );
-    return {
+    const panel = {
       tabTitle: view.title,
       guppyConfig: {
         dataType: view.output,
@@ -499,13 +521,14 @@ export const loomRepositoryConfigConfiguration = (
       ...(Object.keys(charts).length > 0 ? { charts } : {}),
       ...(Object.keys(preFilters).length > 0 ? { preFilters } : {}),
     } as unknown as CohortPanelConfiguration;
+    return normalizeCohortPanelForDataset(panel, availableColumns);
   });
   const sharedFilters = activeConfig.sharedFilters
     ? {
         defined: Object.fromEntries(
           Object.entries(activeConfig.sharedFilters).map(([name, mappings]) => [
             name,
-            mappings.map((mapping) => ({
+            normalizeSharedFilterMappings(mappings, columns).map((mapping) => ({
               index: mapping.output,
               field: mapping.column,
             })),
@@ -583,96 +606,6 @@ export const getExplorerLoomProblem = (
   }
 };
 
-type ConfiguredField = {
-  readonly dataset: string;
-  readonly source: string;
-  readonly field: string;
-};
-
-const GetPanelFields = (
-  panel: CohortPanelConfiguration,
-  panelIndex: number,
-): ReadonlyArray<ConfiguredField> => {
-  const dataset = panel.guppyConfig.dataType;
-  const fields: ConfiguredField[] = [];
-  const add = (source: string, field: string | undefined) => {
-    if (field) fields.push({ dataset, source, field });
-  };
-  const addAll = (source: string, values: ReadonlyArray<string> | undefined) =>
-    values?.forEach((field) => add(source, field));
-
-  panel.filters?.tabs.forEach((tab, index) =>
-    addAll(`filters.tabs[${index}].fields`, tab.fields),
-  );
-  addAll(
-    'guppyConfig.accessibleFieldCheckList',
-    panel.guppyConfig.accessibleFieldCheckList,
-  );
-  add(
-    'guppyConfig.accessibleValidationField',
-    panel.guppyConfig.accessibleValidationField,
-  );
-  Object.keys(panel.charts ?? {}).forEach((field) => add('charts', field));
-  Object.keys(panel.chartsSection?.charts ?? {}).forEach((field) =>
-    add('chartsSection.charts', field),
-  );
-  addAll('table.fields', panel.table?.fields);
-  Object.entries(panel.table?.columns ?? {}).forEach(([field, column]) => {
-    add('table.columns', field);
-    add('table.columns.accessorPath', column.accessorPath);
-  });
-  panel.table?.subTables?.forEach((table, index) =>
-    addAll(`table.subTables[${index}].fields`, table.fields),
-  );
-  add('table.detailsConfig.idField', panel.table?.detailsConfig?.idField);
-  Object.keys(panel.preFilters ?? {}).forEach((field) =>
-    add('preFilters', field),
-  );
-  panel.buttons?.forEach((button, index) =>
-    addAll(
-      `buttons[${index}].actionArgs.fileFields`,
-      (
-        button.actionArgs as unknown as
-          | { fileFields?: ReadonlyArray<string> }
-          | undefined
-      )?.fileFields,
-    ),
-  );
-
-  return fields.map((field) => ({
-    ...field,
-    source: `explorerConfig[${panelIndex}].${field.source}`,
-  }));
-};
-
-/** Throws when a config references a column absent from its Loom dataset. */
-export const ValidateExplorerConfiguration = (
-  configuration: CohortBuilderConfiguration,
-  columnsByExplorerType: LoomColumnsByExplorerType,
-): void => {
-  const fields = configuration.explorerConfig.flatMap(GetPanelFields);
-  Object.entries(configuration.sharedFilters?.defined ?? {}).forEach(
-    ([name, mappings]) =>
-      mappings.forEach((mapping, index) =>
-        fields.push({
-          dataset: mapping.index,
-          source: `sharedFilters.defined.${name}[${index}]`,
-          field: mapping.field,
-        }),
-      ),
-  );
-  const missing = fields.filter(
-    ({ dataset, field }) => !columnsByExplorerType[dataset]?.has(field),
-  );
-  if (missing.length === 0) return;
-
-  throw new Error(
-    `Explorer configuration does not match Loom datasets:\n${missing
-      .map(({ dataset, source, field }) => `- ${dataset} ${source}: ${field}`)
-      .join('\n')}`,
-  );
-};
-
 const GetSharedFieldMapping = async (
   cohortBuilderConfiguration: CohortBuilderConfiguration,
   columnsByExplorerType?: LoomColumnsByExplorerType,
@@ -695,6 +628,19 @@ const GetSharedFieldMapping = async (
     }
     if (cohortBuilderConfiguration?.sharedFilters?.defined) {
       sharedFiltersMap = cohortBuilderConfiguration?.sharedFilters?.defined;
+      if (columnsByExplorerType) {
+        sharedFiltersMap = Object.fromEntries(
+          Object.entries(sharedFiltersMap)
+            .map(([name, mappings]) => [
+              name,
+              mappings.filter((mapping) => {
+                const columns = columnsByExplorerType[mapping.index];
+                return !columns || columns.has(mapping.field);
+              }),
+            ])
+            .filter(([, mappings]) => mappings.length > 0),
+        );
+      }
     }
     if (sharedFiltersMap) {
       const indexToAlias = Object.values(
@@ -791,7 +737,6 @@ const loadExplorerConfiguration = async (
   try {
     const pinned = loomRepositoryConfigConfiguration(deployed);
     configuration = pinned.configuration;
-    ValidateExplorerConfiguration(configuration, pinned.columns);
     sharedFiltersMap = await GetSharedFieldMapping(
       configuration,
       pinned.columns,
@@ -813,7 +758,7 @@ const loadExplorerConfiguration = async (
       const defaultMetadataFailure = explorerID === 'default';
       const problemStatus =
         status !== 502 || !defaultMetadataFailure ? status : 503;
-      console.error('[Explorer] Published configuration validation failed', {
+      console.error('[Explorer] Published configuration loading failed', {
         project: configId,
         explorerId: explorerID,
         detail,

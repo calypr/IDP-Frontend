@@ -46,7 +46,7 @@ export const filterLinkedGraph = (
 } => {
   const populatedTypes = new Set(
     resources
-      .filter((resource) => resource.count !== 0)
+      .filter((resource) => resource.count !== 0 && resource.fields.length > 0)
       .map((resource) => resource.resourceType),
   );
   const linkedTypes = new Set<string>();
@@ -538,6 +538,33 @@ const tableView = (
 ): ExplorerViewV2 | undefined =>
   config.views.find((view) => view.output === output);
 
+/**
+ * `order` was a Builder-only column layout field. The V2 wire contract uses
+ * the order of `table.columns` itself, and Loom rejects unknown fields, so
+ * remove the legacy field as configs enter the Builder.
+ */
+const withoutColumnOrder = (
+  column: ExplorerTableColumnV2,
+): ExplorerTableColumnV2 => {
+  const { order: _order, ...withoutOrder } = column as ExplorerTableColumnV2 & {
+    readonly order?: unknown;
+  };
+  return withoutOrder;
+};
+
+const withoutBuilderColumnOrder = (
+  config: ExplorerConfigV2,
+): ExplorerConfigV2 => ({
+  ...config,
+  views: config.views.map((view) => ({
+    ...view,
+    table: {
+      ...view.table,
+      columns: view.table.columns.map(withoutColumnOrder),
+    },
+  })),
+});
+
 const cloneTraversal = (traversal: RecipeTraversalV2): RecipeTraversalV2 => ({
   ...traversal,
   fields: traversal.fields?.map((field) => ({ ...field })),
@@ -567,7 +594,7 @@ type MutableView = {
   title: string;
   output: string;
   rowLabel?: string;
-  table: { columns: ExplorerTableColumnV2[] };
+  table: { columns: BuilderColumn[] };
   filters?: Array<{ column: string; label?: string }>;
   charts?: Array<{ column: string; type: string; title?: string }>;
   fixedFilters?: Record<string, string[]>;
@@ -607,12 +634,11 @@ const tableFromConfig = (
         column: field.name,
         label: field.label,
         visible: true,
-        order: undefined,
         logicalType: field.logicalType,
         filterable: true,
         chartable: false,
       }))
-    ).map((column, index) => ({ ...column, order: column.order ?? index })),
+    ).map(withoutColumnOrder),
     filters: view?.filters ?? [],
     charts: (view?.charts ?? []).filter(
       (chart): chart is { column: string; type: 'pie'; title?: string } =>
@@ -949,6 +975,14 @@ const publicColumnNameForCandidate = (
   nodeKey: string,
   view: MutableView,
 ): string => {
+  const safeIdentifier = (value: string): string => {
+    const normalized = value
+      .trim()
+      .replace(/[^A-Za-z0-9_]+/g, '_')
+      .replace(/^_+|_+$/g, '');
+    if (!normalized) return 'column';
+    return /^[0-9]/.test(normalized) ? `column_${normalized}` : normalized;
+  };
   const nodeAlias = recipeNodeKey(nodeKey);
   const relationTarget = nodeAlias.includes('/')
     ? nodeAlias.split('/').filter(Boolean).at(-1)
@@ -963,11 +997,12 @@ const publicColumnNameForCandidate = (
     (nodeAlias.startsWith('root:')
       ? candidate.path
       : `${prefix}__${candidate.path}`);
+  const safeRequested = safeIdentifier(requested);
   const used = new Set(view.table.columns.map((column) => column.column));
-  if (!used.has(requested)) return requested;
+  if (!used.has(safeRequested)) return safeRequested;
   let suffix = 2;
-  while (used.has(`${requested}_${suffix}`)) suffix += 1;
-  return `${requested}_${suffix}`;
+  while (used.has(`${safeRequested}_${suffix}`)) suffix += 1;
+  return `${safeRequested}_${suffix}`;
 };
 const setFieldsForNode = (
   output: MutableRecipeOutput,
@@ -1263,9 +1298,20 @@ export const explorerBuilderReducer = (
             action.nodeKey,
             view,
           );
+          const recipeNode = recipeNodeKey(action.nodeKey);
+          const selectorRoot = recipeNode.startsWith('root:')
+            ? 'root'
+            : recipeNode;
+          const candidatePath = action.candidate.path
+            .trim()
+            .replace(/^root\./, '');
+          const directExpression =
+            (action.candidate.family ?? 'field') === 'field' && candidatePath
+              ? { select: `${selectorRoot}.${candidatePath}` }
+              : undefined;
           const field: RecipeFieldV2 = {
             name: publicName,
-            label: action.candidate.label,
+            ...(directExpression ? { expr: directExpression } : {}),
             logicalType: action.candidate.logicalType,
             repeated: action.candidate.repeated,
             family: action.candidate.family ?? 'field',
@@ -1294,7 +1340,6 @@ export const explorerBuilderReducer = (
                 column: field.name,
                 label: field.label,
                 visible: true,
-                order: view.table.columns.length,
                 filterable: action.candidate.filterable,
                 chartable: action.candidate.chartable,
               },
@@ -1355,25 +1400,7 @@ export const explorerBuilderReducer = (
     }
     case 'setColumnLabel': {
       if (!state.config) return state;
-      const config = updateView(state.config, action.output, (view, output) => {
-        const rename = (
-          fields: ReadonlyArray<RecipeFieldV2> | undefined,
-        ): RecipeFieldV2[] | undefined =>
-          fields?.map((field) =>
-            field.name === action.column
-              ? { ...field, label: action.label }
-              : { ...field },
-          );
-        output.fields = rename(output.fields);
-        const renameTraversals = (
-          nodes: ReadonlyArray<RecipeTraversalV2>,
-        ): RecipeTraversalV2[] =>
-          nodes.map((node) => ({
-            ...node,
-            fields: rename(node.fields),
-            children: renameTraversals(node.children ?? []),
-          }));
-        output.traversals = renameTraversals(output.traversals ?? []);
+      const config = updateView(state.config, action.output, (view) => {
         view.table = {
           ...view.table,
           columns: view.table.columns.map((column) =>
@@ -1448,10 +1475,7 @@ export const explorerBuilderReducer = (
           );
           view.table = {
             ...view.table,
-            columns: columns.map((column, index) => ({
-              ...column,
-              order: index,
-            })),
+            columns,
           };
         }),
       );
@@ -1929,19 +1953,24 @@ export const initialStateFromConfig = async (
   updatedAt?: string,
   lifecycleMetadata: ExplorerLifecycleMetadataV2 = {},
 ): Promise<BuilderSessionState> => {
+  const normalizedConfig = withoutBuilderColumnOrder(config);
+  const normalizedActiveConfig = activeConfig
+    ? withoutBuilderColumnOrder(activeConfig)
+    : null;
   const selectedOutput =
-    config.recipe.outputs?.[0]?.name ?? config.views[0]?.output;
-  const root = config.recipe.outputs?.find(
+    normalizedConfig.recipe.outputs?.[0]?.name ?? normalizedConfig.views[0]?.output;
+  const root = normalizedConfig.recipe.outputs?.find(
     (output) => output.name === selectedOutput,
   )?.rootResourceType;
   return {
     ...state,
     project,
-    config,
-    serverDraftConfig: config,
-    activeConfig,
+    config: normalizedConfig,
+    serverDraftConfig: normalizedConfig,
+    activeConfig: normalizedActiveConfig,
     draftVersion: version,
-    draftDigest: digest ?? (await digestExplorerConfig(config)),
+    draftDigest:
+      digest ?? (await digestExplorerConfig(normalizedConfig)),
     updatedAt,
     lifecycleMetadata,
     selectedOutput,
