@@ -1,6 +1,7 @@
 import React from 'react';
 import { Stack, Table, Text } from '@mantine/core';
 import { TableDetailsPanelProps } from './types';
+import { renderCell } from '../../../../utils/renderCell';
 
 export const RowTableDetailsPanel = ({ row }: TableDetailsPanelProps) => {
   const rowData = row?.original ?? {};
@@ -11,7 +12,7 @@ export const RowTableDetailsPanel = ({ row }: TableDetailsPanelProps) => {
         <Text fw="bold">{field}</Text>
       </Table.Td>
       <Table.Td>
-        <Text>{value ? (value as string) : ''}</Text>
+        <Text>{renderCell(value)}</Text>
       </Table.Td>
     </Table.Tr>
   ));

@@ -27,7 +27,7 @@ const RenderReportsLink = (
   ) {
     return (
       <a href={`${baseUrl}/${cellValue}`} target="_blank" rel="noreferrer">
-        <ActionIcon color="primary.0" size="md" variant="filled">
+        <ActionIcon color="primary" size="md" variant="filled">
           <FaExternalLinkAlt />
         </ActionIcon>
       </a>
@@ -45,7 +45,7 @@ const RenderFileDownloadLink = (
   ...args: unknown[]
 ) => {
   const arg0 = args[0] as Record<string, unknown>;
-  const fileId = cell?.getValue();
+  const fileId = arg0?.fileId || cell?.getValue();
   const downloadBaseUrl =
     arg0?.actionUrl || arg0?.downloadURL || `${SYFON_API}/download`;
 
@@ -56,7 +56,7 @@ const RenderFileDownloadLink = (
         rel="noreferrer"
         target="_blank"
       >
-        <ActionIcon color="primary.0" size="md" variant="filled">
+        <ActionIcon color="primary" size="md" variant="filled">
           <FaFileDownload />
         </ActionIcon>
       </a>
@@ -70,14 +70,14 @@ export const RenderFileImageLink = (
   ...args: unknown[]
 ) => {
   const arg0 = args[0] as Record<string, unknown>;
-  const fileId = getSafeRowValue(row, 'sha256');
+  const fileId = arg0?.fileId || getSafeRowValue(row, 'sha256');
   const imageBaseUrl =
     arg0?.actionUrl || arg0?.imageURL || '/image-viewer/view';
 
   if (fileId) {
     return (
       <a href={`${imageBaseUrl}/${fileId}`} target="_blank" rel="noreferrer">
-        <ActionIcon color="primary.0" size="md" variant="filled">
+        <ActionIcon color="primary" size="md" variant="filled">
           <FaImage />
         </ActionIcon>
       </a>

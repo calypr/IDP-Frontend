@@ -188,6 +188,74 @@ describe('ExplorerConfig V2 runtime translation', () => {
     });
   });
 
+  it('passes file actions and selects the file action renderer for V2 file views', () => {
+    const deployed = {
+      explorerId: 'default',
+      activeConfig: {
+        apiVersion: 'loom.calypr.org/explorer-config/v2',
+        kind: 'ExplorerConfig',
+        project: 'program-project',
+        explorer: {
+          id: 'default',
+          title: 'Files',
+          management: 'repository',
+        },
+        recipe: {
+          recipeName: 'project_recipe',
+          translationVersion: 'r000001_abcd',
+          outputs: [{ name: 'File', rootResourceType: 'DocumentReference' }],
+        },
+        views: [
+          {
+            id: 'file-view',
+            title: 'Files',
+            output: 'File',
+            table: {
+              columns: [
+                {
+                  column: 'identifier_value',
+                  label: 'File Actions',
+                  visible: true,
+                },
+              ],
+            },
+          },
+        ],
+        fileActions: {
+          actions: { file_download: '/download' },
+          extensions: { default: ['file_download'] },
+        },
+      },
+      materializations: [
+        {
+          outputId: 'File',
+          output: 'File',
+          materializationId: 'file-materialization',
+          columns: [
+            {
+              name: 'identifier_value',
+              clickhouseType: 'String',
+              logicalType: 'string',
+            },
+          ],
+        },
+      ],
+    } as unknown as RepositoryExplorerConfig;
+
+    const { configuration } = loomRepositoryConfigConfiguration(deployed);
+    const panel = configuration.explorerConfig[0];
+
+    expect(configuration.fileActions).toEqual({
+      actions: { file_download: '/download' },
+      extensions: { default: ['file_download'] },
+    });
+    expect(panel.table?.columns.identifier_value).toMatchObject({
+      field: 'identifier_value',
+      type: 'string',
+      cellRenderFunction: 'fileActions',
+    });
+  });
+
   it('translates logical Explorer fields to qualified materialization columns', () => {
     const deployed = {
       project: 'program-project',

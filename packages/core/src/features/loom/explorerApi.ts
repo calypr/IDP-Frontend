@@ -41,9 +41,15 @@ export interface CreateExplorerRequest {
   readonly description?: string;
   readonly from: 'default' | 'blank';
   readonly authResourcePath?: string;
-  /** Optional local starting packet used by the default Builder's
-   * “create from this configuration” action. */
-  readonly config?: ExplorerConfigV2;
+}
+
+export interface DeleteExplorerRequest extends Pick<
+  ExplorerProjectRef,
+  'project'
+> {
+  readonly explorerId: string;
+  /** Canonical Fence resource path used by scoped Loom write authorization. */
+  readonly authResourcePath?: string;
 }
 
 export interface SaveExplorerDraftRequest extends ExplorerProjectRef {
@@ -129,7 +135,8 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
  * Builder or Viewer code selects draft versus active configuration.
  */
 const unwrapExplorerEnvelope = (payload: unknown): unknown => {
-  const data = isRecord(payload) && isRecord(payload.data) ? payload.data : payload;
+  const data =
+    isRecord(payload) && isRecord(payload.data) ? payload.data : payload;
   if (!isRecord(data) || !isRecord(data.state)) return data;
   return {
     ...data.state,
@@ -294,6 +301,42 @@ const configValidationError = (
   };
 };
 
+/** Loom's current executable recipe.Traversal is one-hop and rejects a
+ * `children` property. Empty arrays are removed by the serializers; a populated
+ * tree must fail locally rather than silently dropping authored descendants. */
+const nestedTraversalCompatibilityError = (
+  config: ExplorerConfigV2,
+): { readonly error: ExplorerApiError } | undefined => {
+  for (const [outputIndex, output] of (config.recipe.outputs ?? []).entries()) {
+    for (const [traversalIndex, traversal] of (
+      output.traversals ?? []
+    ).entries()) {
+      if ((traversal.children?.length ?? 0) === 0) continue;
+      const fieldPath = `$.recipe.outputs[${outputIndex}].traversals[${traversalIndex}].children`;
+      return {
+        error: {
+          status: 422,
+          code: 'UNSUPPORTED_NESTED_TRAVERSAL',
+          message:
+            'This Loom version does not support nested recipe traversals. Remove the descendant traversal before compiling.',
+          diagnostics: [
+            {
+              severity: 'error',
+              code: 'UNSUPPORTED_NESTED_TRAVERSAL',
+              message:
+                'Nested traversal steps cannot be compiled by the current Loom recipe schema.',
+              configPath: fieldPath,
+            },
+          ],
+          fieldPath,
+          retryable: false,
+        },
+      };
+    }
+  }
+  return undefined;
+};
+
 interface AuthoringCatalogDiagnostic {
   readonly severity?: string;
   readonly code?: string;
@@ -408,6 +451,7 @@ const authoringDiagnostic = (
 const fetchExplorerAuthoringCatalog = async (
   project: string,
   explorerId: string,
+  authResourcePath?: string,
   signal?: AbortSignal,
 ): Promise<{
   readonly catalog: NonNullable<
@@ -420,13 +464,17 @@ const fetchExplorerAuthoringCatalog = async (
   readonly resolvedSchemaDigest?: string;
   readonly authScopeDigest?: string;
 }> => {
-  const endpoint = `${explorerRoot(project)}/${encodeURIComponent(explorerId)}/authoring/catalog`;
+  const endpoint = withAuthResourcePath(
+    `${explorerRoot(project)}/${encodeURIComponent(explorerId)}/authoring/catalog`,
+    authResourcePath,
+  );
   const result = await requestJson<AuthoringCatalogRESTPayload>(endpoint, {
     signal,
   });
   if (result.error) throw result.error;
   const response = result.data;
-  if (!response) throw new Error('Loom returned no Explorer authoring catalog response.');
+  if (!response)
+    throw new Error('Loom returned no Explorer authoring catalog response.');
   const columnsByNode = new Map<string, AuthoringCatalogColumn[]>();
   for (const selection of response.selections ?? []) {
     const nodeID = selection.nodeId?.trim();
@@ -443,7 +491,9 @@ const fetchExplorerAuthoringCatalog = async (
     });
     columnsByNode.set(nodeID, columns);
   }
-  const catalog: NonNullable<AuthoringCatalogPayload['explorerAuthoringCatalog']> = {
+  const catalog: NonNullable<
+    AuthoringCatalogPayload['explorerAuthoringCatalog']
+  > = {
     snapshotToken: response.snapshotToken,
     project: response.project,
     explorerId: response.explorerId,
@@ -538,6 +588,7 @@ const authoringCatalogColumnToCandidate = (
   resourceType: string,
   output: string,
   nodePath: ReadonlyArray<string>,
+  nodeId?: string,
 ): ExplorerAuthoringCandidate | undefined => {
   const id = column.selectionId?.trim();
   const selectionKey = column.label?.trim();
@@ -547,8 +598,7 @@ const authoringCatalogColumnToCandidate = (
       ? selectionKey.slice(selectionKey.indexOf('.') + 1)
       : selectionKey);
   if (!id || !path) return undefined;
-  const valueType =
-    column.logicalType?.trim() || 'unknown';
+  const valueType = column.logicalType?.trim() || 'unknown';
   if (isStructuralFieldCandidate(valueType)) return undefined;
   const cardinality = column.cardinality?.trim() || '';
   const repeated =
@@ -568,6 +618,7 @@ const authoringCatalogColumnToCandidate = (
   const valueSelector = path;
   return {
     id,
+    nodeId: nodeId?.trim() || undefined,
     resourceType,
     path,
     label,
@@ -717,9 +768,9 @@ export const loomExplorerApi = loomApi.injectEndpoints({
         const listPayload = unwrapExplorerEnvelope(result.data);
         const values: ReadonlyArray<ExplorerState> = Array.isArray(listPayload)
           ? (listPayload as ReadonlyArray<ExplorerState>)
-          : (isRecord(listPayload) && Array.isArray(listPayload.explorers)
-              ? listPayload.explorers
-              : [] as ReadonlyArray<ExplorerState>);
+          : isRecord(listPayload) && Array.isArray(listPayload.explorers)
+            ? listPayload.explorers
+            : ([] as ReadonlyArray<ExplorerState>);
         return {
           data: values.map((value) =>
             normalizeExplorerState(value, project, value.explorerId),
@@ -758,7 +809,6 @@ export const loomExplorerApi = loomApi.injectEndpoints({
           description,
           from,
           authResourcePath,
-          config,
         },
         api,
       ) {
@@ -773,14 +823,6 @@ export const loomExplorerApi = loomApi.injectEndpoints({
             },
           };
         }
-        if (config) {
-          const invalidConfig = configValidationError(
-            config,
-            project,
-            explorerId ?? 'default',
-          );
-          if (invalidConfig) return invalidConfig;
-        }
         const result = await requestJson<ExplorerState>(
           withAuthResourcePath(explorerRoot(project), authResourcePath),
           {
@@ -791,9 +833,6 @@ export const loomExplorerApi = loomApi.injectEndpoints({
               title,
               description,
               from,
-              ...(config
-                ? { config: sanitizeExplorerConfigForLoom(config) }
-                : {}),
             }),
           },
           selectCSRFToken(api.getState() as CoreState),
@@ -811,6 +850,26 @@ export const loomExplorerApi = loomApi.injectEndpoints({
             };
       },
       invalidatesTags: (_result, _error, args) => [
+        { type: 'LOOM_EXPLORER', id: args.project },
+      ],
+    }),
+    deleteExplorer: builder.mutation<void, DeleteExplorerRequest>({
+      async queryFn({ project, explorerId, authResourcePath }, api) {
+        const result = await requestJson<unknown>(
+          withAuthResourcePath(
+            `${explorerRoot(project)}/${encodeURIComponent(explorerId)}`,
+            authResourcePath,
+          ),
+          {
+            method: 'DELETE',
+            signal: api.signal,
+          },
+          selectCSRFToken(api.getState() as CoreState),
+        );
+        return result.error ? { error: result.error } : { data: undefined };
+      },
+      invalidatesTags: (_result, _error, args) => [
+        { type: 'LOOM_EXPLORER', id: `${args.project}:${args.explorerId}` },
         { type: 'LOOM_EXPLORER', id: args.project },
       ],
     }),
@@ -835,6 +894,8 @@ export const loomExplorerApi = loomApi.injectEndpoints({
           explorerId,
         );
         if (invalidConfig) return invalidConfig;
+        const incompatibleTraversal = nestedTraversalCompatibilityError(config);
+        if (incompatibleTraversal) return incompatibleTraversal;
         const result = await requestJson<ExplorerState>(
           withAuthResourcePath(
             `${explorerRoot(project)}/${encodeURIComponent(explorerId)}/draft`,
@@ -886,6 +947,8 @@ export const loomExplorerApi = loomApi.injectEndpoints({
           explorerId,
         );
         if (invalidConfig) return invalidConfig;
+        const incompatibleTraversal = nestedTraversalCompatibilityError(config);
+        if (incompatibleTraversal) return incompatibleTraversal;
         const scopedConfig = configForOutput(config, output);
         // Preview must preserve the server-owned Explorer identity. The
         // repository default is now browser-editable, so changing its
@@ -926,7 +989,10 @@ export const loomExplorerApi = loomApi.injectEndpoints({
       ExplorerAuthoringCatalogResponse,
       ExplorerAuthoringCatalogRequest
     >({
-      async queryFn({ project, output, config, datasetGeneration }, api) {
+      async queryFn(
+        { project, output, config, datasetGeneration, authResourcePath },
+        api,
+      ) {
         const requestedExplorerId =
           config && typeof config.explorer?.id === 'string'
             ? config.explorer.id
@@ -979,6 +1045,7 @@ export const loomExplorerApi = loomApi.injectEndpoints({
           const supportedCatalog = await fetchExplorerAuthoringCatalog(
             project,
             requestedExplorerId || 'default',
+            authResourcePath,
             api.signal,
           );
           diagnostics.push(...supportedCatalog.diagnostics);
@@ -1065,6 +1132,7 @@ export const loomExplorerApi = loomApi.injectEndpoints({
                   node.resourceType,
                   output,
                   node.nodePath,
+                  catalogNode.nodeId,
                 );
                 if (!normalized) continue;
                 candidatesByKey.set(
@@ -1168,6 +1236,8 @@ export const loomExplorerApi = loomApi.injectEndpoints({
           explorerId,
         );
         if (invalidConfig) return invalidConfig;
+        const incompatibleTraversal = nestedTraversalCompatibilityError(config);
+        if (incompatibleTraversal) return incompatibleTraversal;
         const result = await requestJson<ExplorerAuthoringCompileResponse>(
           withAuthResourcePath(
             `${explorerRoot(project)}/${encodeURIComponent(explorerId)}/authoring/compile`,
@@ -1187,9 +1257,32 @@ export const loomExplorerApi = loomApi.injectEndpoints({
           },
           selectCSRFToken(api.getState() as CoreState),
         );
-        return result.error
-          ? { error: result.error }
-          : { data: result.data as ExplorerAuthoringCompileResponse };
+        if (result.error) return { error: result.error };
+        const response = result.data as
+          | (ExplorerAuthoringCompileResponse & {
+              readonly diagnostics?: unknown;
+              readonly emittedColumns?: unknown;
+            })
+          | undefined;
+        if (!response)
+          return {
+            error: {
+              status: 'CUSTOM_ERROR',
+              code: 'INVALID_COMPILE_RESPONSE',
+              message: 'Loom returned no Explorer compile response.',
+            },
+          };
+        return {
+          data: {
+            ...response,
+            diagnostics: Array.isArray(response.diagnostics)
+              ? response.diagnostics
+              : [],
+            emittedColumns: Array.isArray(response.emittedColumns)
+              ? response.emittedColumns
+              : [],
+          },
+        };
       },
     }),
     publishExplorer: builder.mutation<
@@ -1299,7 +1392,9 @@ export const loomExplorerApi = loomApi.injectEndpoints({
         return result.error
           ? { error: result.error }
           : {
-              data: unwrapExplorerEnvelope(result.data) as RepositoryExplorerConfig,
+              data: unwrapExplorerEnvelope(
+                result.data,
+              ) as RepositoryExplorerConfig,
             };
       },
       providesTags: (_result, _error, project) => [
@@ -1313,6 +1408,7 @@ export const {
   useGetExplorerConfigsQuery,
   useGetExplorerQuery,
   useCreateExplorerMutation,
+  useDeleteExplorerMutation,
   useSaveExplorerDraftMutation,
   usePreviewExplorerDraftMutation,
   useGetExplorerAuthoringCatalogQuery,

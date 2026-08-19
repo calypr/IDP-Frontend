@@ -1,5 +1,6 @@
 import { configureStore } from '@reduxjs/toolkit';
 import { loomExplorerApi } from '../explorerApi';
+import type { CreateExplorerRequest } from '../explorerApi';
 import type { ExplorerConfigV2 } from '../explorer';
 
 const config: ExplorerConfigV2 = {
@@ -326,6 +327,59 @@ describe('authenticated V2 Explorer lifecycle API', () => {
     );
   });
 
+  it('keeps the create body limited to the server-supported lifecycle fields', async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          project: 'org-project',
+          explorerId: 'patient-review',
+          management: 'INTERACTIVE',
+          draftConfig: config,
+        }),
+        { status: 200 },
+      ),
+    );
+    await store()
+      .dispatch(
+        loomExplorerApi.endpoints.createExplorer.initiate({
+          project: 'org-project',
+          name: 'Patient Review',
+          title: 'Patient Review',
+          from: 'default',
+          // This was previously sent to POST /explorers even though it belongs
+          // to PUT /explorers/:id/draft.
+          config,
+        } as CreateExplorerRequest & { readonly config: ExplorerConfigV2 }),
+      )
+      .unwrap();
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
+    expect(body).toEqual({
+      name: 'Patient Review',
+      title: 'Patient Review',
+      from: 'default',
+    });
+    expect(body).not.toHaveProperty('config');
+  });
+
+  it('deletes a custom Explorer through its resource endpoint', async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
+    await store()
+      .dispatch(
+        loomExplorerApi.endpoints.deleteExplorer.initiate({
+          project: 'org-project',
+          explorerId: 'patient-review',
+          authResourcePath: '/programs/org/projects/project',
+        }),
+      )
+      .unwrap();
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining(
+        '/loom/api/v1/projects/org-project/explorers/patient-review',
+      ),
+      expect.objectContaining({ method: 'DELETE' }),
+    );
+  });
+
   it('unwraps nested Loom API errors into render-safe diagnostics', async () => {
     fetchMock.mockResolvedValue(
       new Response(
@@ -476,6 +530,170 @@ describe('authenticated V2 Explorer lifecycle API', () => {
     );
   });
 
+  it('normalizes null collections in a successful authoring compile response', async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          project: 'org-project',
+          explorerId: 'custom',
+          config,
+          draftDigest: 'sha256:draft',
+          snapshotToken: 'sha256:catalog',
+          diagnostics: null,
+          emittedColumns: null,
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const result = await store()
+      .dispatch(
+        loomExplorerApi.endpoints.compileExplorerAuthoring.initiate({
+          project: 'org-project',
+          explorerId: 'custom',
+          output: 'people',
+          config,
+          snapshotToken: 'sha256:catalog',
+          selectedCandidateIdsByNode: {},
+        }),
+      )
+      .unwrap();
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.emittedColumns).toEqual([]);
+  });
+
+  it('strips visual traversal direction recursively from authoring compile packets', async () => {
+    const configWithDirections = {
+      ...config,
+      recipe: {
+        schemaVersion: 2,
+        outputs: [
+          {
+            name: 'documents',
+            rootResourceType: 'ResearchStudy',
+            fields: [],
+            traversals: [
+              {
+                alias: 'documents',
+                toResourceType: 'DocumentReference',
+                name: 'subject_ResearchStudy',
+                direction: 'outbound',
+                fields: [],
+                children: [],
+              },
+            ],
+          },
+        ],
+      },
+      views: [
+        {
+          id: 'view-documents',
+          title: 'Documents',
+          output: 'documents',
+          table: { columns: [] },
+        },
+      ],
+    } as ExplorerConfigV2;
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          output: 'documents',
+          config: configWithDirections,
+          digest: 'sha256:compiled',
+          snapshotToken: 'sha256:catalog',
+          diagnostics: [],
+          emittedColumns: [],
+        }),
+        { status: 200 },
+      ),
+    );
+
+    await store()
+      .dispatch(
+        loomExplorerApi.endpoints.compileExplorerAuthoring.initiate({
+          project: 'org-project',
+          explorerId: 'custom',
+          output: 'documents',
+          config: configWithDirections,
+          snapshotToken: 'sha256:catalog',
+          selectedCandidateIdsByNode: {},
+        }),
+      )
+      .unwrap();
+
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
+    const traversal = body.config.recipe.outputs[0].traversals[0];
+    expect(traversal).not.toHaveProperty('direction');
+    expect(traversal).not.toHaveProperty('children');
+    expect(traversal).toEqual(
+      expect.objectContaining({
+        alias: 'documents',
+        toResourceType: 'DocumentReference',
+        name: 'subject_ResearchStudy',
+      }),
+    );
+  });
+
+  it('rejects populated traversal children locally instead of sending invalid recipe JSON', async () => {
+    const nestedConfig = {
+      ...config,
+      recipe: {
+        schemaVersion: 2,
+        outputs: [
+          {
+            name: 'documents',
+            rootResourceType: 'ResearchStudy',
+            fields: [],
+            traversals: [
+              {
+                alias: 'documents',
+                toResourceType: 'DocumentReference',
+                name: 'subject_ResearchStudy',
+                children: [
+                  {
+                    alias: 'patients',
+                    toResourceType: 'Patient',
+                    name: 'subject',
+                    fields: [],
+                  },
+                ],
+                fields: [],
+              },
+            ],
+          },
+        ],
+      },
+      views: [
+        {
+          id: 'view-documents',
+          title: 'Documents',
+          output: 'documents',
+          table: { columns: [] },
+        },
+      ],
+    } as ExplorerConfigV2;
+
+    await expect(
+      store()
+        .dispatch(
+          loomExplorerApi.endpoints.compileExplorerAuthoring.initiate({
+            project: 'org-project',
+            explorerId: 'custom',
+            output: 'documents',
+            config: nestedConfig,
+            snapshotToken: 'sha256:catalog',
+            selectedCandidateIdsByNode: {},
+          }),
+        )
+        .unwrap(),
+    ).rejects.toMatchObject({
+      status: 422,
+      code: 'UNSUPPORTED_NESTED_TRAVERSAL',
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('preserves nested CAS conflict metadata from the REST error envelope', async () => {
     fetchMock.mockResolvedValue(
       new Response(
@@ -617,6 +835,21 @@ describe('authenticated V2 Explorer lifecycle API', () => {
               { name: 'date' },
               { name: 'legacy[].unresolvable' },
             ],
+            traversals: [
+              {
+                alias: 'documents',
+                toResourceType: 'DocumentReference',
+                name: 'subject',
+                direction: 'outbound',
+                fields: [
+                  {
+                    name: 'document_id',
+                    expr: { select: 'documents.id' },
+                  },
+                ],
+                children: [],
+              },
+            ],
           },
         ],
       },
@@ -693,6 +926,9 @@ describe('authenticated V2 Explorer lifecycle API', () => {
       expr: { select: 'root.category[].coding[].system' },
     });
     expect(body.config.recipe.outputs?.[0].fields).toHaveLength(2);
+    const traversal = body.config.recipe.outputs?.[0].traversals?.[0];
+    expect(traversal).not.toHaveProperty('direction');
+    expect(traversal).not.toHaveProperty('children');
     expect(body.config.views[0].table.columns[1].column).toBe(
       'category_coding_system',
     );
@@ -702,7 +938,11 @@ describe('authenticated V2 Explorer lifecycle API', () => {
   it('previews the repository default without interactive draft CAS data', async () => {
     const defaultConfig: ExplorerConfigV2 = {
       ...config,
-      explorer: { ...config.explorer, id: 'default', management: 'interactive' },
+      explorer: {
+        ...config.explorer,
+        id: 'default',
+        management: 'interactive',
+      },
       recipe: {
         schemaVersion: 2,
         outputs: [{ name: 'people', rootResourceType: 'Patient', fields: [] }],
@@ -801,10 +1041,9 @@ describe('authenticated V2 Explorer lifecycle API', () => {
     const body = JSON.parse(String(fetchMock.mock.calls[0][1].body)) as {
       config: ExplorerConfigV2;
     };
-    expect(body.config.views[0].table.columns.map((column) => column.column)).toEqual([
-      'title',
-      'date',
-    ]);
+    expect(
+      body.config.views[0].table.columns.map((column) => column.column),
+    ).toEqual(['title', 'date']);
     expect(body.config.views[0].filters).toEqual([
       { column: 'date', label: 'Date' },
     ]);
@@ -1375,6 +1614,7 @@ describe('authenticated V2 Explorer lifecycle API', () => {
           explorerId: 'custom',
           output: 'people',
           config: authoringConfig,
+          authResourcePath: '/programs/org/projects/project',
         }),
       )
       .unwrap();
@@ -1687,6 +1927,7 @@ describe('authenticated V2 Explorer lifecycle API', () => {
           explorerId: 'custom',
           output: 'people',
           config: authoringConfig,
+          authResourcePath: '/programs/org/projects/project',
         }),
       )
       .unwrap();
@@ -1703,14 +1944,20 @@ describe('authenticated V2 Explorer lifecycle API', () => {
       expect.arrayContaining([
         expect.objectContaining({
           id: 'selection-patient-id',
+          nodeId: 'node-patient',
           resourceType: 'Patient',
           path: 'id',
         }),
       ]),
     );
     expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining('/loom/api/v1/projects/org-project/explorers/custom/authoring/catalog'),
+      expect.stringContaining(
+        '/loom/api/v1/projects/org-project/explorers/custom/authoring/catalog',
+      ),
       expect.objectContaining({ credentials: 'include' }),
+    );
+    expect(String(fetchMock.mock.calls[0][0])).toContain(
+      'auth_resource_path=%2Fprograms%2Forg%2Fprojects%2Fproject',
     );
     expect(String(fetchMock.mock.calls[0][0])).not.toContain('/graphql/');
   });

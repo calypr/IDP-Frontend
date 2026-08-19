@@ -51,6 +51,78 @@ const normalizeExplorerOutputName = (value: string): string =>
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
+const normalizeFileActionColumnName = (value: string): string =>
+  value
+    .trim()
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .replace(/[^a-zA-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .toLowerCase();
+
+const fileActionColumnFor = (
+  view: { readonly output: string },
+  fields: ReadonlyArray<{
+    readonly column: string;
+    readonly label?: string;
+  }>,
+  rootResourceType: string | undefined,
+  fileActions: unknown,
+): string | undefined => {
+  const fileActionsRecord = isRecord(fileActions) ? fileActions : undefined;
+  const hasConfiguredActions =
+    isRecord(fileActionsRecord?.actions) &&
+    Object.keys(fileActionsRecord.actions).length > 0;
+  const configuredColumn =
+    typeof fileActionsRecord?.column === 'string'
+      ? fileActionsRecord.column
+      : undefined;
+  const byName = new Map(
+    fields.map((field) => [
+      normalizeFileActionColumnName(field.column),
+      field.column,
+    ]),
+  );
+  if (configuredColumn) {
+    const configured = byName.get(
+      normalizeFileActionColumnName(configuredColumn),
+    );
+    if (configured) return configured;
+  }
+
+  const labelledFileActionColumn = fields.find((field) =>
+    normalizeFileActionColumnName(field.label ?? '').includes('file_action'),
+  );
+  if (labelledFileActionColumn) return labelledFileActionColumn.column;
+
+  const isFileView =
+    new Set(['file', 'document_reference']).has(
+      normalizeFileActionColumnName(view.output),
+    ) ||
+    ['file', 'document_reference'].includes(
+      normalizeFileActionColumnName(rootResourceType ?? ''),
+  );
+  if (!isFileView) return undefined;
+
+  if (!hasConfiguredActions) return undefined;
+
+  // V2 deliberately has no legacy cell-renderer fields. File actions are
+  // therefore attached to the conventional file identity column when no
+  // explicit column was supplied. This keeps a published UUID column from
+  // falling back to a plain value cell.
+  const conventionalNames = [
+    'id',
+    'file_id',
+    'document_reference_id',
+    'document_reference_identifier',
+    'sha256',
+    'file_name',
+    'document_reference_source_path',
+  ];
+  return conventionalNames
+    .map((name) => byName.get(name))
+    .find((column): column is string => Boolean(column));
+};
+
 const isDataframeSelector = (value: unknown): value is LoomDatasetSelector =>
   isRecord(value) &&
   typeof value.recipe === 'string' &&
@@ -340,6 +412,25 @@ export const loomRepositoryConfigConfiguration = (
   const rootResourceTypes: Record<string, string | undefined> = {};
   const activeConfig = deployed.activeConfig;
   if (!activeConfig) throw missingActiveConfigError();
+  const fileActions = activeConfig.fileActions
+    ? {
+        actions: Object.fromEntries(
+          Object.entries(activeConfig.fileActions.actions ?? {}).filter(
+            ([, route]) => typeof route === 'string',
+          ),
+        ),
+        extensions: Object.fromEntries(
+          Object.entries(activeConfig.fileActions.extensions ?? {}).map(
+            ([extension, actions]) => [
+              extension,
+              actions.filter(
+                (action): action is string => typeof action === 'string',
+              ),
+            ],
+          ),
+        ),
+      }
+    : undefined;
   // The published V2 packet owns the Explorer's project identity. Older
   // deployment envelopes did not repeat it at the top level.
   const project = activeConfig.project || deployed.project;
@@ -388,6 +479,12 @@ export const loomRepositoryConfigConfiguration = (
     );
     rootResourceTypes[view.output] = rootResourceType;
     const fields = view.table.columns.filter((column) => column.visible);
+    const fileActionColumn = fileActionColumnFor(
+      view,
+      fields,
+      rootResourceType,
+      activeConfig.fileActions,
+    );
     // ExplorerConfig V2 keeps presentation settings on the view. The legacy
     // CohortBuilder renderer still expects those settings under its panel
     // contract, so translate them explicitly at this boundary. Previously we
@@ -432,10 +529,47 @@ export const loomRepositoryConfigConfiguration = (
         enabled: true,
         fields: fields.map((column) => column.column),
         columns: Object.fromEntries(
-          fields.map((column) => [
-            column.column,
-            { field: column.column, title: column.label || column.column },
-          ]),
+          fields.map((column) => {
+            // The V2 contract intentionally keeps table columns small, but
+            // older/forward-compatible packets may still carry renderer
+            // metadata. Preserve the metadata at this legacy renderer
+            // boundary instead of silently reducing every column to a value
+            // cell.
+            const rawColumn = column as unknown as Record<string, unknown>;
+            const params = isRecord(rawColumn.params)
+              ? { ...rawColumn.params }
+              : undefined;
+            const inferredFileActions =
+              fileActionColumn === column.column &&
+              rawColumn.type === undefined &&
+              rawColumn.cellRenderFunction === undefined;
+            return [
+              column.column,
+              {
+                field: column.column,
+                title: column.label || column.column,
+                ...(inferredFileActions
+                  ? { type: 'string', cellRenderFunction: 'fileActions' }
+                  : {}),
+                ...(typeof rawColumn.type === 'string'
+                  ? { type: rawColumn.type }
+                  : {}),
+                ...(typeof rawColumn.cellRenderFunction === 'string'
+                  ? { cellRenderFunction: rawColumn.cellRenderFunction }
+                  : {}),
+                ...(typeof rawColumn.accessorPath === 'string'
+                  ? { accessorPath: rawColumn.accessorPath }
+                  : {}),
+                ...(typeof rawColumn.width === 'number'
+                  ? { width: rawColumn.width }
+                  : {}),
+                ...(typeof rawColumn.sortable === 'boolean'
+                  ? { sortable: rawColumn.sortable }
+                  : {}),
+                ...(params ? { params } : {}),
+              },
+            ];
+          }),
         ),
       },
       ...(filterFields.length > 0
@@ -480,8 +614,12 @@ export const loomRepositoryConfigConfiguration = (
   return {
     configuration:
       sharedFilters === null
-        ? { explorerConfig }
-        : { explorerConfig, sharedFilters },
+        ? { explorerConfig, ...(fileActions ? { fileActions } : {}) }
+        : {
+            explorerConfig,
+            sharedFilters,
+            ...(fileActions ? { fileActions } : {}),
+          },
     columns,
     runtimeColumns,
     rootResourceTypes,

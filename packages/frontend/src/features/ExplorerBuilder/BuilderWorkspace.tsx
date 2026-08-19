@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import { IconColumns3, IconGripVertical } from '@tabler/icons-react';
+import { IconColumns3, IconGripVertical, IconTrash } from '@tabler/icons-react';
 import { createPortal } from 'react-dom';
 import {
   Background,
@@ -17,6 +17,7 @@ import {
   useGetExplorerAuthoringCatalogQuery,
   useGetExplorerConfigsQuery,
   useGetExplorerQuery,
+  useDeleteExplorerMutation,
   usePreviewExplorerDraftMutation,
   usePublishExplorerMutation,
   useSaveExplorerDraftMutation,
@@ -28,9 +29,7 @@ import type {
   ExplorerState,
   RecipeTraversalV2,
 } from '@gen3/core';
-import {
-  configForOutput,
-} from '@gen3/core';
+import { configForOutput } from '@gen3/core';
 import {
   builderTables,
   applyCompiledColumnCapabilities,
@@ -45,6 +44,7 @@ import {
   initialStateFromConfig,
   previewCacheKey,
   publishedConfigFromServer,
+  reachableRelationshipsForResource,
   presentationDiagnostics,
   slugifyExplorerId,
   tableColumns,
@@ -60,6 +60,7 @@ import {
 } from './builderDomain';
 import { layoutDatasetGraph, type GraphLayoutResult } from './graphLayout';
 import { recordBrowserRuntimeError } from '../../lib/conformance/browserRuntime';
+import { renderCell } from '../../utils/renderCell';
 
 const resourceLabels: Readonly<Record<string, string>> = {
   Patient: 'People',
@@ -183,6 +184,7 @@ const normalizeCatalogCandidate = (
   return {
     ...(value as unknown as CatalogCandidate),
     id: value.id.trim(),
+    nodeId: optionalText(value.nodeId),
     resourceType,
     path: value.path.trim(),
     label: value.label.trim(),
@@ -207,6 +209,85 @@ const normalizeCatalogCandidate = (
     diagnostic: optionalText(value.diagnostic),
     extensionMapping: optionalText(value.extensionMapping),
   };
+};
+
+const catalogNodeKeyForCandidate = (
+  candidate: CatalogCandidate,
+  fallbackOutput: string,
+): string => {
+  const output = candidate.output?.trim() || fallbackOutput;
+  const nodePath = candidate.nodePath ?? [];
+  const nodeSuffix =
+    nodePath.length > 0
+      ? nodePath[nodePath.length - 1]
+      : `root:${candidate.resourceType}`;
+  return `${output}|${nodeSuffix}`;
+};
+
+/**
+ * The Builder uses readable keys to group fields by table node. Loom's
+ * compiler uses opaque catalog node IDs instead. Keep that translation at the
+ * request boundary so UI state remains stable and the server receives the
+ * identifiers from the same catalog snapshot it returned.
+ */
+const selectedCandidateIdsForCompile = (
+  state: BuilderSessionState,
+  output: string,
+): Readonly<Record<string, ReadonlyArray<string>>> => {
+  const candidates = state.catalog.resources.flatMap(
+    (resource) => resource.fields,
+  );
+  const candidatesByUiNode = new Map<string, ReadonlyArray<CatalogCandidate>>();
+  for (const candidate of candidates) {
+    const key = catalogNodeKeyForCandidate(candidate, output);
+    candidatesByUiNode.set(key, [
+      ...(candidatesByUiNode.get(key) ?? []),
+      candidate,
+    ]);
+  }
+
+  const selectedByWireNode: Record<string, string[]> = {};
+  for (const [uiNodeKey, selectedIds] of Object.entries(
+    state.selectedCandidateIdsByNode,
+  )) {
+    if (!uiNodeKey.startsWith(`${output}|`) || selectedIds.length === 0)
+      continue;
+    const nodeCandidates = candidatesByUiNode.get(uiNodeKey) ?? [];
+    const candidatesById = new Map(
+      nodeCandidates.map((candidate) => [candidate.id, candidate]),
+    );
+    const selectedCandidates = selectedIds.map((candidateId) => {
+      const candidate = candidatesById.get(candidateId);
+      if (candidate) return candidate;
+      throw {
+        data: {
+          code: 'CATALOG_SELECTION_NODE_MISMATCH',
+          message: `Loom catalog selection ${candidateId} does not belong to ${uiNodeKey}. Refresh field discovery before previewing.`,
+        },
+      };
+    });
+    const uiNodeSuffix = uiNodeKey.slice(output.length + 1);
+    // The backend deliberately treats root as a special wire key and resolves
+    // it against the output's root resource in the immutable snapshot.
+    const wireNodeId = uiNodeSuffix.startsWith('root:')
+      ? 'root'
+      : selectedCandidates.find((candidate) => candidate.nodeId)?.nodeId;
+    if (!wireNodeId) {
+      throw {
+        data: {
+          code: 'CATALOG_NODE_UNRESOLVED',
+          message: `Loom's field catalog did not provide a wire node ID for ${uiNodeKey}. Refresh field discovery before previewing.`,
+        },
+      };
+    }
+    selectedByWireNode[wireNodeId] = [
+      ...new Set([
+        ...(selectedByWireNode[wireNodeId] ?? []),
+        ...selectedCandidates.map((candidate) => candidate.id),
+      ]),
+    ];
+  }
+  return selectedByWireNode;
 };
 
 const normalizeGraphResource = (value: unknown): GraphResource | undefined => {
@@ -479,9 +560,12 @@ const lifecycleError = (
     ...(value ?? {}),
     ...(nested ?? {}),
   };
+  const directErrorMessage =
+    error instanceof Error && error.message.trim() ? error.message : undefined;
   const rawMessage =
     body.message ??
     (typeof value.error === 'string' ? value.error : undefined) ??
+    directErrorMessage ??
     'The Explorer request failed.';
   const httpStatus =
     typeof body.httpStatus === 'number'
@@ -963,7 +1047,24 @@ const TraversalGraph = ({
                   );
                   return;
                 }
-                dispatch({ type: 'selectResource', resource: node.id });
+                // Clicking a reachable node should start the same traversal
+                // workflow as clicking its edge. If several relationships can
+                // reach the node, select the first stable option and let the
+                // field viewer make the relationship choice explicit.
+                const reachableRelationships =
+                  reachableRelationshipsForResource(
+                    visibleRelationships,
+                    node.id,
+                    root,
+                    output?.traversals ?? [],
+                  );
+                dispatch({
+                  type: 'selectResource',
+                  resource: node.id,
+                  nodeKey: reachableRelationships[0]
+                    ? `${state.selectedOutput}|${reachableRelationships[0].id}`
+                    : undefined,
+                });
               }}
               onEdgeClick={(_, edge) => {
                 if (!state.selectedOutput) return;
@@ -1140,16 +1241,18 @@ const GuidedGraphWorkspace = ({
     : `${state.selectedOutput ?? ''}|root:`;
   const nodeCandidates = candidatesFor(state, resource, projectGraph.resources);
   const query = search.trim().toLocaleLowerCase();
-  const candidates = nodeCandidates.filter((candidate) =>
-    `${candidate.label} ${candidate.path} ${candidate.logicalType} ${candidate.familyName ?? ''} ${(candidate.examples ?? []).join(' ')}`
-      .toLocaleLowerCase()
-      .includes(query),
-  ).filter(
-    (candidate, index, values) =>
-      values.findIndex(
-        (value) => candidateIdentity(value) === candidateIdentity(candidate),
-      ) === index,
-  );
+  const candidates = nodeCandidates
+    .filter((candidate) =>
+      `${candidate.label} ${candidate.path} ${candidate.logicalType} ${candidate.familyName ?? ''} ${(candidate.examples ?? []).join(' ')}`
+        .toLocaleLowerCase()
+        .includes(query),
+    )
+    .filter(
+      (candidate, index, values) =>
+        values.findIndex(
+          (value) => candidateIdentity(value) === candidateIdentity(candidate),
+        ) === index,
+    );
   const outputTraversalAliases = traversalAliases(table?.traversals ?? []);
   const includedResourceTypes = new Set<string>();
   const collectIncludedResources = (nodes: ReadonlyArray<RecipeTraversalV2>) =>
@@ -1169,13 +1272,19 @@ const GuidedGraphWorkspace = ({
         (candidate) => candidate.id === nodeKey.split('|').slice(1).join('|'),
       )
     : undefined;
+  const reachableRelationshipChoices = resource
+    ? reachableRelationshipsForResource(
+        relationships,
+        resource,
+        root,
+        table?.traversals ?? [],
+      )
+    : [];
   const relationshipIsReachable = Boolean(
     inspectedRelationship &&
-    root &&
-    (inspectedRelationship.source === root ||
-      includedResourceTypes.has(inspectedRelationship.source)) !==
-      (inspectedRelationship.target === root ||
-        includedResourceTypes.has(inspectedRelationship.target)),
+    reachableRelationshipChoices.some(
+      (relationship) => relationship.id === inspectedRelationship.id,
+    ),
   );
   const orientedRelationship =
     inspectedRelationship && root
@@ -1428,19 +1537,72 @@ const GuidedGraphWorkspace = ({
             </div>
           </div>
           {orientedRelationship && relationshipIsReachable && (
-            <div className="mt-3 rounded border border-green-300 bg-green-50 p-2 text-xs text-green-950">
-              <strong>Reachable relationship:</strong>{' '}
-              {resourceLabels[orientedRelationship.source] ??
-                orientedRelationship.source}{' '}
-              → {orientedRelationship.label} →{' '}
-              {resourceLabels[orientedRelationship.target] ??
-                orientedRelationship.target}
-              {orientedRelationship.linkCount === undefined
-                ? ''
-                : ` · ${orientedRelationship.linkCount.toLocaleString()} observed links`}
-              {orientedRelationship.cardinality
-                ? ` · expected ${orientedRelationship.cardinality}`
-                : ''}
+            <div className="mt-3 rounded border border-green-300 bg-green-50 p-3 text-xs text-green-950">
+              <div className="flex flex-wrap items-end gap-2">
+                <div className="min-w-0 flex-1">
+                  <strong className="block text-sm">
+                    Add the next traversal step
+                  </strong>
+                  <span>
+                    {resourceLabels[orientedRelationship.source] ??
+                      orientedRelationship.source}{' '}
+                    → {orientedRelationship.label} →{' '}
+                    {resourceLabels[orientedRelationship.target] ??
+                      orientedRelationship.target}
+                    {orientedRelationship.linkCount === undefined
+                      ? ''
+                      : ` · ${orientedRelationship.linkCount.toLocaleString()} observed links`}
+                    {orientedRelationship.cardinality
+                      ? ` · expected ${orientedRelationship.cardinality}`
+                      : ''}
+                  </span>
+                  {reachableRelationshipChoices.length > 1 && (
+                    <label className="mt-2 block font-medium">
+                      Relationship
+                      <select
+                        aria-label={`Relationship used to add ${resourceLabels[resource ?? ''] ?? resource}`}
+                        className="mt-1 block w-full rounded border border-green-400 bg-white px-2 py-1.5 text-xs text-slate-900"
+                        value={inspectedRelationship?.id ?? ''}
+                        onChange={(event) =>
+                          dispatch({
+                            type: 'selectResource',
+                            resource,
+                            nodeKey: `${state.selectedOutput ?? ''}|${event.currentTarget.value}`,
+                          })
+                        }
+                      >
+                        {reachableRelationshipChoices.map((relationship) => (
+                          <option key={relationship.id} value={relationship.id}>
+                            {relationship.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  disabled={disabled}
+                  title={
+                    disabled
+                      ? 'The Builder is temporarily unavailable while discovery is incomplete.'
+                      : 'Add this reachable relationship and its selected columns to the traversal.'
+                  }
+                  className="rounded-md bg-green-700 px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-400"
+                  onClick={addInspectedResource}
+                >
+                  Add{' '}
+                  {resourceLabels[orientedRelationship.target] ??
+                    orientedRelationship.target}{' '}
+                  to traversal
+                  {selectedCount > 0 && (
+                    <>
+                      {' '}
+                      · {selectedCount} column{selectedCount === 1 ? '' : 's'}
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           )}
           {!resource && (
@@ -1521,13 +1683,13 @@ const GuidedGraphWorkspace = ({
                       : undefined;
                     const canFilter = Boolean(
                       configuredColumn &&
-                        configuredColumn.filterable !== false &&
-                        candidate.filterable !== false,
+                      configuredColumn.filterable !== false &&
+                      candidate.filterable !== false,
                     );
                     const canChart = Boolean(
                       configuredColumn &&
-                        (configuredColumn.chartable ??
-                          candidate.chartable === true),
+                      (configuredColumn.chartable ??
+                        candidate.chartable === true),
                     );
                     return (
                       <React.Fragment key={candidateIdentity(candidate)}>
@@ -1680,30 +1842,6 @@ const GuidedGraphWorkspace = ({
                   )}
                 </div>
               </div>
-              {orientedRelationship && relationshipIsReachable && (
-                <button
-                  type="button"
-                  disabled={disabled}
-                  title={
-                    disabled
-                      ? 'The Builder is temporarily unavailable while discovery is incomplete.'
-                      : 'Add this reachable relationship and its selected columns to the traversal.'
-                  }
-                  className="mt-3 w-full rounded-md bg-green-700 px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-400"
-                  onClick={addInspectedResource}
-                >
-                  Add{' '}
-                  {resourceLabels[orientedRelationship.target] ??
-                    orientedRelationship.target}{' '}
-                  to traversal
-                  {selectedCount > 0 && (
-                    <>
-                      {' '}
-                      · {selectedCount} column{selectedCount === 1 ? '' : 's'}
-                    </>
-                  )}
-                </button>
-              )}
               {resource !== root && (
                 <button
                   type="button"
@@ -1954,10 +2092,7 @@ const PreviewTable = ({
                       draggable={!editingDisabled}
                       onDragStart={(event) => {
                         event.dataTransfer.effectAllowed = 'move';
-                        event.dataTransfer.setData(
-                          'text/plain',
-                          column.column,
-                        );
+                        event.dataTransfer.setData('text/plain', column.column);
                         setDraggingColumn(column.column);
                         setDropTarget(undefined);
                       }}
@@ -1965,9 +2100,7 @@ const PreviewTable = ({
                         if (editingDisabled || !draggingColumn) return;
                         event.preventDefault();
                         event.dataTransfer.dropEffect = 'move';
-                        setDropTarget(
-                          dropTargetForEvent(event, column.column),
-                        );
+                        setDropTarget(dropTargetForEvent(event, column.column));
                       }}
                       onDrop={(event) => {
                         event.preventDefault();
@@ -1997,9 +2130,7 @@ const PreviewTable = ({
                         setDropTarget(undefined);
                       }}
                       className={`relative border-b px-2 py-1.5 transition-colors ${
-                        draggingColumn === column.column
-                          ? 'opacity-50'
-                          : ''
+                        draggingColumn === column.column ? 'opacity-50' : ''
                       } ${isDropTarget ? 'bg-blue-50' : ''}`}
                     >
                       {isDropTarget && (
@@ -2045,9 +2176,9 @@ const PreviewTable = ({
                     <td
                       key={column.column}
                       className="max-w-64 truncate border-b px-3 py-2"
-                      title={String(row[column.column] ?? '')}
+                      title={renderCell(row[column.column])}
                     >
-                      {String(row[column.column] ?? '—')}
+                      {renderCell(row[column.column]) || '—'}
                     </td>
                   ))}
                 </tr>
@@ -2397,7 +2528,10 @@ const BuilderWorkspace = ({
 }) => {
   const projectId = `${organization}-${project}`;
   const authResourcePath = `/programs/${organization}/projects/${project}`;
-  const [createExplorer] = useCreateExplorerMutation();
+  const [createExplorer, { isLoading: isCreatingExplorer }] =
+    useCreateExplorerMutation();
+  const [deleteExplorer, { isLoading: isDeletingExplorer }] =
+    useDeleteExplorerMutation();
   const configs = useGetExplorerConfigsQuery(projectId);
   const [compileAuthoring] = useCompileExplorerAuthoringMutation();
   const [saveDraft, { isLoading: isSavingDraftRequest }] =
@@ -2466,11 +2600,17 @@ const BuilderWorkspace = ({
       explorerId: selectedId,
       output: state.selectedOutput ?? '',
       config: authoringCatalogConfig as ExplorerConfigV2,
+      authResourcePath,
     },
     // The repository/default Explorer is editable in the browser, and its
     // graph and field picker require the live authoring catalog.
     { skip: !authoringCatalogConfig || !state.selectedOutput },
   );
+  const authoringCatalogScopeKey = authoringCatalogConfig
+    ? canonicalizeExplorerConfig(authoringCatalogConfig)
+    : undefined;
+  const authoringCatalogScopeKeyRef = useRef(authoringCatalogScopeKey);
+  authoringCatalogScopeKeyRef.current = authoringCatalogScopeKey;
   // Loom's supported authoring catalog is project-wide: its nodes and route
   // edges replace the removed legacy project-map call. Candidate
   // fields remain in state.catalog, where they are joined to the same graph
@@ -2537,8 +2677,8 @@ const BuilderWorkspace = ({
     (resourceType, index, values) => values.indexOf(resourceType) === index,
   );
   const activeConfig = selectedServerState
-    ? activeConfigFromServer(selectedServerState) ??
-      (selectedId === 'default' && selectedConfig ? selectedConfig : undefined)
+    ? (activeConfigFromServer(selectedServerState) ??
+      (selectedId === 'default' && selectedConfig ? selectedConfig : undefined))
     : undefined;
   const tableList = builderTables(state.config);
   const selectedTable = tableList.find(
@@ -2667,6 +2807,7 @@ const BuilderWorkspace = ({
       type: 'setCatalog',
       catalog: {
         snapshotToken: catalog.snapshotToken,
+        scopeKey: authoringCatalogScopeKeyRef.current,
         catalogDigest: catalog.catalogDigest,
         sourceGeneration: catalog.sourceGeneration,
         resolvedSchemaDigest: catalog.resolvedSchemaDigest,
@@ -2709,6 +2850,18 @@ const BuilderWorkspace = ({
           message: 'Loom field discovery has not completed for this table.',
         },
       };
+    if (
+      !isDefault &&
+      (!authoringCatalogScopeKey ||
+        state.catalog.scopeKey !== authoringCatalogScopeKey)
+    )
+      throw {
+        data: {
+          code: 'CATALOG_REFRESHING',
+          message:
+            'Loom field discovery is refreshing for the current row resource. Try previewing again when it completes.',
+        },
+      };
     const compiled = await compileAuthoring({
       project: projectId,
       explorerId: selectedId,
@@ -2716,7 +2869,7 @@ const BuilderWorkspace = ({
       output,
       config,
       snapshotToken: state.catalog.snapshotToken,
-      selectedCandidateIdsByNode: state.selectedCandidateIdsByNode,
+      selectedCandidateIdsByNode: selectedCandidateIdsForCompile(state, output),
       ...(isDefault ? {} : { expectedDraftVersion: state.draftVersion }),
     }).unwrap();
     if (compiled.diagnostics.some((item) => item.severity === 'error'))
@@ -2730,7 +2883,7 @@ const BuilderWorkspace = ({
     );
   };
 
-  const refreshPreview = async () => {
+  const refreshPreview = async (force = false) => {
     if (commitInFlight.current) return;
     const config = state.config;
     const output = state.selectedOutput;
@@ -2751,6 +2904,16 @@ const BuilderWorkspace = ({
       );
       return;
     }
+    if (
+      !isDefault &&
+      (!authoringCatalogScopeKey ||
+        state.catalog.scopeKey !== authoringCatalogScopeKey)
+    ) {
+      setMessage(
+        'Loom field discovery is refreshing for the current row resource. Preview will be available when it completes.',
+      );
+      return;
+    }
     if (state.catalog.diagnostics.some((item) => item.severity === 'error')) {
       setMessage(
         'The field catalog reported blocking diagnostics. Resolve them before previewing.',
@@ -2758,7 +2921,7 @@ const BuilderWorkspace = ({
       return;
     }
     const intent = `${previewConfigDigest}|${output}|${previewLimit}|${state.catalog.snapshotToken ?? ''}`;
-    if (previewIntent.current === intent) return;
+    if (!force && previewIntent.current === intent) return;
     previewIntent.current = intent;
     let compiledConfig = config;
     let previewConfig = config;
@@ -2790,7 +2953,7 @@ const BuilderWorkspace = ({
       previewConfig = configForOutput(compiledConfig, output);
       digest = await digestExplorerPreview(previewConfig, output, previewLimit);
       const cached = state.previewCache[previewCacheKey(output, digest)];
-      if (cached?.status === 'ready' && cached.data) {
+      if (!force && cached?.status === 'ready' && cached.data) {
         dispatch({
           type: 'previewLoading',
           output,
@@ -2806,6 +2969,7 @@ const BuilderWorkspace = ({
       }
       const existing = state.preview[output];
       if (
+        !force &&
         existing?.digest === digest &&
         existing.status === 'loading'
       )
@@ -2848,6 +3012,7 @@ const BuilderWorkspace = ({
         return;
       const details = lifecycleError(error);
       const failure = details.diagnostics.map((item) => item.message).join(' ');
+      if (previewIntent.current === intent) previewIntent.current = undefined;
       dispatch({
         type: 'error',
         diagnostics: details.diagnostics,
@@ -2872,7 +3037,7 @@ const BuilderWorkspace = ({
   useEffect(() => {
     // Repository defaults preview their canonical packet directly; custom
     // Explorers run the authoring compiler before previewing.
-    if (!state.config) return;
+    if (!state.config || (!isDefault && !state.activeConfig)) return;
     const timer = window.setTimeout(() => {
       previewTimer.current = undefined;
       void refreshPreview();
@@ -2889,6 +3054,7 @@ const BuilderWorkspace = ({
     state.catalog.complete,
     state.catalog.snapshotToken,
     isDefault,
+    state.activeConfig,
   ]);
 
   const cancelPendingPreview = async () => {
@@ -2910,6 +3076,8 @@ const BuilderWorkspace = ({
   const createCustom = async (from: 'default' | 'blank') => {
     const title = newName.trim();
     const requestedId = slugifyExplorerId(title);
+    const startingConfig =
+      from === 'default' && isDefault ? state.config : undefined;
     if (!title || !requestedId || requestedId === 'default') {
       newNameRef.current?.focus();
       setMessage('Enter a name for the new Explorer.');
@@ -2927,18 +3095,67 @@ const BuilderWorkspace = ({
         name: title,
         title,
         from,
-        config:
-          from === 'default' && isDefault
-            ? (state.config ?? undefined)
-            : undefined,
         authResourcePath,
       }).unwrap();
-      setSelectedId(created.explorerId);
+      let result = created;
+      if (startingConfig) {
+        // Create only accepts the source selector. Persist a local copy in the
+        // draft endpoint after creation, changing the identity to the new
+        // interactive Explorer before sending it to Loom.
+        const copiedConfig: ExplorerConfigV2 = {
+          ...startingConfig,
+          explorer: {
+            ...startingConfig.explorer,
+            id: created.explorerId,
+            title,
+            management: 'interactive',
+          },
+        };
+        result = await saveDraft({
+          project: projectId,
+          explorerId: created.explorerId,
+          config: copiedConfig,
+          authResourcePath,
+          expectedDraftVersion: created.draftVersion,
+          expectedDraftDigest: created.draftDigest || undefined,
+        }).unwrap();
+      }
+      setSelectedId(result.explorerId);
       setNewName('');
-      setMessage(`Created ${title}.`);
+      setMessage(
+        startingConfig
+          ? `Created ${title} from the current default configuration.`
+          : `Created ${title}.`,
+      );
+    } catch (error) {
+      const details = lifecycleError(error);
+      setMessage(
+        startingConfig
+          ? `Create Explorer request failed while copying the configuration: ${details.diagnostics
+              .map((item) => item.message)
+              .join(' ')}`
+          : `Create Explorer request failed: ${details.diagnostics
+              .map((item) => item.message)
+              .join(' ')}`,
+      );
+    }
+  };
+
+  const deleteSelectedExplorer = async () => {
+    if (selectedId === 'default' || isDeletingExplorer) return;
+    const title = selectedConfig?.explorer.title ?? selectedId;
+    if (!window.confirm(`Delete “${title}”? This cannot be undone.`)) return;
+    try {
+      await deleteExplorer({
+        project: projectId,
+        explorerId: selectedId,
+        authResourcePath,
+      }).unwrap();
+      setSelectedId('default');
+      setMessage(`Deleted ${title}.`);
     } catch (error) {
       setMessage(
-        `Create Explorer request failed: ${lifecycleError(error)
+        `Delete Explorer request failed: ${lifecycleError(error)
           .diagnostics.map((item) => item.message)
           .join(' ')}`,
       );
@@ -2975,7 +3192,8 @@ const BuilderWorkspace = ({
         }).unwrap();
         const publishedConfig = requirePublishedConfig(published);
         const publishedDigest =
-          published.draftDigest || (await digestExplorerConfig(publishedConfig));
+          published.draftDigest ||
+          (await digestExplorerConfig(publishedConfig));
         dispatch({
           type: 'published',
           config: publishedConfig,
@@ -3232,13 +3450,7 @@ const BuilderWorkspace = ({
     state.lifecycle === 'publishing' ||
     isSavingDraftRequest ||
     isPublishingRequest;
-  const primaryActionLabel = commitBusy
-    ? isDefault
-      ? 'Publishing data…'
-      : 'Saving draft…'
-    : isDefault
-      ? 'Publish data'
-      : 'Save draft';
+  const primaryActionLabel = commitBusy ? 'Publishing…' : 'Publish';
   const primaryDiagnostic = state.diagnostics[0];
   const diagnosticsAreErrors = state.diagnostics.some(
     (item) => item.severity === 'error',
@@ -3248,6 +3460,13 @@ const BuilderWorkspace = ({
   const catalogNeedsRetry = state.catalog.diagnostics.some(
     (item) => item.severity === 'error',
   );
+  const previewState = state.selectedOutput
+    ? state.preview[state.selectedOutput]
+    : undefined;
+  const previewBusy = previewState?.status === 'loading';
+  const previewMissingRequirements =
+    !selectedTable?.rootResourceType ||
+    !selectedTable.columns.some((column) => column.visible);
   const diagnosticHeading =
     diagnosticCode === 'AUTHENTICATION_REQUIRED'
       ? 'Sign in required'
@@ -3265,61 +3484,101 @@ const BuilderWorkspace = ({
     <div className="flex min-w-0 items-center gap-2">
       <label className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-slate-600">
         <span className="sr-only">Explorer</span>
-        <select
-          aria-label="Explorer"
-          className="max-w-56 appearance-none rounded border border-slate-300 bg-white px-2 py-1 text-sm"
-          style={{
-            appearance: 'none',
-            WebkitAppearance: 'none',
-            backgroundImage: 'none',
-          }}
-          value={selectedId}
-          onChange={(event) => setSelectedId(event.currentTarget.value)}
-        >
-          {(configs.data ?? []).map((candidate) => (
-            <option key={candidate.explorerId} value={candidate.explorerId}>
-              {configFromServer(candidate)?.explorer.title ?? candidate.explorerId}
-              {candidate.explorerId === 'default'
-                ? ' · repository default'
-                : ' · custom'}
-            </option>
-          ))}
-        </select>
+        <span className="flex items-center gap-1">
+          <select
+            aria-label="Explorer"
+            className="max-w-56 appearance-none rounded border border-slate-300 bg-white px-2 py-1 text-sm"
+            style={{
+              appearance: 'none',
+              WebkitAppearance: 'none',
+              backgroundImage: 'none',
+            }}
+            value={selectedId}
+            onChange={(event) => setSelectedId(event.currentTarget.value)}
+          >
+            {(configs.data ?? []).map((candidate) => (
+              <option key={candidate.explorerId} value={candidate.explorerId}>
+                {configFromServer(candidate)?.explorer.title ??
+                  candidate.explorerId}
+                {candidate.explorerId === 'default'
+                  ? ' · repository default'
+                  : ' · custom'}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            aria-label={
+              selectedId === 'default'
+                ? 'The repository default cannot be deleted'
+                : `Delete ${selectedConfig?.explorer.title ?? selectedId}`
+            }
+            className="rounded p-1 text-slate-500 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-40"
+            disabled={
+              selectedId === 'default' || isDeletingExplorer || commitBusy
+            }
+            title={
+              selectedId === 'default'
+                ? 'The repository default cannot be deleted.'
+                : 'Delete this Explorer'
+            }
+            onClick={() => void deleteSelectedExplorer()}
+          >
+            <IconTrash size={16} stroke={1.8} aria-hidden="true" />
+          </button>
+        </span>
       </label>
       <details className="relative shrink-0">
         <summary className="cursor-pointer list-none rounded border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
-          New
+          New Explorer
         </summary>
-        <div className="absolute left-0 top-full z-40 mt-1 w-72 rounded-lg border border-slate-200 bg-white p-2.5 shadow-lg">
-          <label className="block text-xs font-medium text-slate-600">
-            Explorer name
+        <div className="absolute left-0 top-full z-40 mt-1 w-80 rounded-lg border border-slate-200 bg-white p-3 shadow-lg">
+          <div className="text-sm font-semibold text-slate-800">
+            Create a custom Explorer
+          </div>
+          <p className="mt-1 text-xs leading-5 text-slate-500">
+            Choose a name, then start with the default configuration or an empty
+            one. The name becomes the Explorer’s URL ID.
+          </p>
+          <label className="mt-3 block text-xs font-medium text-slate-600">
+            Name
             <input
+              aria-label="New Explorer name"
               ref={newNameRef}
-              className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+              className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm outline-blue-500"
               value={newName}
               onChange={(event) => setNewName(event.currentTarget.value)}
               placeholder="e.g. Biospecimen review"
             />
           </label>
           <p className="mt-1 text-[11px] text-slate-500">
-            ID: <code>{derivedId || '—'}</code>
+            URL ID (generated from name):{' '}
+            <code className="rounded bg-slate-100 px-1 text-slate-700">
+              {derivedId || '—'}
+            </code>
           </p>
-          <div className="mt-2 flex gap-1.5">
+          <div className="mt-3 space-y-1.5">
             <button
               type="button"
-              className="rounded bg-blue-700 px-2 py-1.5 text-xs font-semibold text-white"
-              title="Copy the repository default into a new custom Explorer"
+              className="block w-full rounded bg-blue-700 px-3 py-2 text-left text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={isCreatingExplorer || isSavingDraftRequest}
               onClick={() => void createCustom('default')}
             >
-              Use default
+              <span className="block">Start from the default</span>
+              <span className="mt-0.5 block font-normal text-blue-100">
+                Copy the current default configuration into this Explorer.
+              </span>
             </button>
             <button
               type="button"
-              className="rounded border border-slate-300 px-2 py-1.5 text-xs font-semibold"
-              title="Create a new blank custom Explorer"
+              className="block w-full rounded border border-slate-300 px-3 py-2 text-left text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={isCreatingExplorer || isSavingDraftRequest}
               onClick={() => void createCustom('blank')}
             >
-              Blank
+              <span className="block">Start blank</span>
+              <span className="mt-0.5 block font-normal text-slate-500">
+                Create an empty Explorer and configure it yourself.
+              </span>
             </button>
           </div>
         </div>
@@ -3372,89 +3631,94 @@ const BuilderWorkspace = ({
                   </button>
                 </div>
                 {tableSelectorOpen && (
-                <div className="absolute left-0 top-full z-40 mt-1 min-w-64 rounded-lg border border-slate-200 bg-white p-1.5 shadow-lg">
-                  <ol role="listbox" aria-label="Explorer tables" className="space-y-1">
-                    {tableList.map((table, index) => {
-                      const active = state.selectedOutput === table.output;
-                      const dropTarget = tableDropTarget === table.output;
-                      return (
-                        <li key={table.output}>
-                          <button
-                            type="button"
-                            role="option"
-                            aria-selected={active}
-                            aria-label={`${table.title}. Drag to reorder.`}
-                            draggable={!interactionDisabled}
-                            className={`flex w-full cursor-grab items-center gap-1.5 rounded px-2 py-1.5 text-left text-xs font-medium transition active:cursor-grabbing disabled:cursor-not-allowed disabled:opacity-50 ${active ? 'bg-blue-50 text-blue-800' : 'text-slate-700 hover:bg-slate-50'} ${dropTarget ? 'ring-2 ring-blue-300 ring-inset' : ''} ${draggingTableOutput === table.output ? 'opacity-50' : ''}`}
-                            onClick={() => {
-                              dispatch({
-                                type: 'selectOutput',
-                                output: table.output,
-                              });
-                              setTableSelectorOpen(false);
-                            }}
-                            onDragStart={(event) => {
-                              if (interactionDisabled) return;
-                              event.dataTransfer.effectAllowed = 'move';
-                              event.dataTransfer.setData(
-                                'text/plain',
-                                table.output,
-                              );
-                              setDraggingTableOutput(table.output);
-                              setTableDropTarget(undefined);
-                            }}
-                            onDragOver={(event) => {
-                              if (
-                                interactionDisabled ||
-                                !draggingTableOutput ||
-                                draggingTableOutput === table.output
-                              )
-                                return;
-                              event.preventDefault();
-                              event.dataTransfer.dropEffect = 'move';
-                              setTableDropTarget(table.output);
-                            }}
-                            onDrop={(event) => {
-                              event.preventDefault();
-                              if (
-                                !interactionDisabled &&
-                                draggingTableOutput &&
-                                draggingTableOutput !== table.output
-                              ) {
-                                const bounds =
-                                  event.currentTarget.getBoundingClientRect();
-                                const droppedAfter =
-                                  event.clientY > bounds.top + bounds.height / 2;
-                                const before = droppedAfter
-                                  ? tableList[index + 1]?.output
-                                  : table.output;
-                                if (before !== draggingTableOutput)
-                                  dispatch({
-                                    type: 'reorderTable',
-                                    output: draggingTableOutput,
-                                    before,
-                                  });
-                              }
-                              setDraggingTableOutput(undefined);
-                              setTableDropTarget(undefined);
-                            }}
-                            onDragEnd={() => {
-                              setDraggingTableOutput(undefined);
-                              setTableDropTarget(undefined);
-                            }}
-                          >
-                            <IconGripVertical
-                              size={13}
-                              stroke={1.8}
-                              aria-hidden="true"
-                            />
-                            <span className="truncate">{table.title}</span>
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ol>
-                </div>
+                  <div className="absolute left-0 top-full z-40 mt-1 min-w-64 rounded-lg border border-slate-200 bg-white p-1.5 shadow-lg">
+                    <ol
+                      role="listbox"
+                      aria-label="Explorer tables"
+                      className="space-y-1"
+                    >
+                      {tableList.map((table, index) => {
+                        const active = state.selectedOutput === table.output;
+                        const dropTarget = tableDropTarget === table.output;
+                        return (
+                          <li key={table.output}>
+                            <button
+                              type="button"
+                              role="option"
+                              aria-selected={active}
+                              aria-label={`${table.title}. Drag to reorder.`}
+                              draggable={!interactionDisabled}
+                              className={`flex w-full cursor-grab items-center gap-1.5 rounded px-2 py-1.5 text-left text-xs font-medium transition active:cursor-grabbing disabled:cursor-not-allowed disabled:opacity-50 ${active ? 'bg-blue-50 text-blue-800' : 'text-slate-700 hover:bg-slate-50'} ${dropTarget ? 'ring-2 ring-blue-300 ring-inset' : ''} ${draggingTableOutput === table.output ? 'opacity-50' : ''}`}
+                              onClick={() => {
+                                dispatch({
+                                  type: 'selectOutput',
+                                  output: table.output,
+                                });
+                                setTableSelectorOpen(false);
+                              }}
+                              onDragStart={(event) => {
+                                if (interactionDisabled) return;
+                                event.dataTransfer.effectAllowed = 'move';
+                                event.dataTransfer.setData(
+                                  'text/plain',
+                                  table.output,
+                                );
+                                setDraggingTableOutput(table.output);
+                                setTableDropTarget(undefined);
+                              }}
+                              onDragOver={(event) => {
+                                if (
+                                  interactionDisabled ||
+                                  !draggingTableOutput ||
+                                  draggingTableOutput === table.output
+                                )
+                                  return;
+                                event.preventDefault();
+                                event.dataTransfer.dropEffect = 'move';
+                                setTableDropTarget(table.output);
+                              }}
+                              onDrop={(event) => {
+                                event.preventDefault();
+                                if (
+                                  !interactionDisabled &&
+                                  draggingTableOutput &&
+                                  draggingTableOutput !== table.output
+                                ) {
+                                  const bounds =
+                                    event.currentTarget.getBoundingClientRect();
+                                  const droppedAfter =
+                                    event.clientY >
+                                    bounds.top + bounds.height / 2;
+                                  const before = droppedAfter
+                                    ? tableList[index + 1]?.output
+                                    : table.output;
+                                  if (before !== draggingTableOutput)
+                                    dispatch({
+                                      type: 'reorderTable',
+                                      output: draggingTableOutput,
+                                      before,
+                                    });
+                                }
+                                setDraggingTableOutput(undefined);
+                                setTableDropTarget(undefined);
+                              }}
+                              onDragEnd={() => {
+                                setDraggingTableOutput(undefined);
+                                setTableDropTarget(undefined);
+                              }}
+                            >
+                              <IconGripVertical
+                                size={13}
+                                stroke={1.8}
+                                aria-hidden="true"
+                              />
+                              <span className="truncate">{table.title}</span>
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ol>
+                  </div>
                 )}
               </div>
             </label>
@@ -3512,26 +3776,44 @@ const BuilderWorkspace = ({
               <>
                 <button
                   type="button"
-                  aria-busy={commitBusy}
-                  className="inline-flex items-center gap-2 rounded border border-blue-300 px-3 py-1.5 text-xs font-semibold text-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  aria-busy={previewBusy}
+                  className="inline-flex items-center gap-2 rounded border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
                   disabled={
-                    !state.dirty ||
-                    commitBusy
+                    previewMissingRequirements ||
+                    previewBusy ||
+                    commitBusy ||
+                    authoringCatalog.isFetching
                   }
                   title={
-                    commitBusy
-                      ? isDefault
-                        ? 'Publishing data. This may take a while while Loom materializes the dataset.'
-                        : 'Saving the Explorer draft.'
-                      : !state.dirty
-                      ? isDefault
-                        ? 'There are no unpublished data changes to publish.'
-                        : 'There are no unpublished changes to save.'
-                      : isDefault
-                        ? 'Publish data and activate the repository default. This may take a while while Loom materializes the dataset.'
-                        : 'Save the current draft without changing the active Explorer.'
+                    previewMissingRequirements
+                      ? 'Choose a row resource and at least one visible column before previewing.'
+                      : authoringCatalog.isFetching
+                        ? 'Field discovery is still running.'
+                        : 'Compile the current draft and load a fresh sample of rows.'
                   }
-                  onClick={() => void save()}
+                  onClick={() => void refreshPreview(true)}
+                >
+                  {previewBusy && (
+                    <span
+                      aria-hidden="true"
+                      className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-200 border-t-slate-700"
+                    />
+                  )}
+                  <span>{previewBusy ? 'Previewing…' : 'Preview'}</span>
+                </button>
+                <button
+                  type="button"
+                  aria-busy={commitBusy}
+                  className="inline-flex items-center gap-2 rounded border border-blue-300 px-3 py-1.5 text-xs font-semibold text-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={!state.dirty || commitBusy}
+                  title={
+                    commitBusy
+                      ? 'Publishing this Explorer. This may take a while while Loom materializes the dataset.'
+                      : !state.dirty
+                        ? 'There are no unpublished changes to publish.'
+                        : 'Publish this Explorer. This may take a while while Loom materializes the dataset.'
+                  }
+                  onClick={() => void (isDefault ? save() : makeLive())}
                 >
                   {commitBusy && (
                     <span
@@ -3541,35 +3823,6 @@ const BuilderWorkspace = ({
                   )}
                   <span>{primaryActionLabel}</span>
                 </button>
-                {!isDefault && (
-                  <>
-                  <button
-                    type="button"
-                    className="rounded bg-blue-700 px-3 py-1.5 text-xs font-semibold text-white"
-                    disabled={
-                      state.lifecycle === 'saving' ||
-                      state.lifecycle === 'publishing'
-                    }
-                    title="Validate and publish the saved draft to the active Explorer."
-                    onClick={() => void makeLive()}
-                  >
-                    Make live
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded border px-3 py-1.5 text-xs"
-                    disabled={!state.dirty}
-                    title={
-                      state.dirty
-                        ? 'Discard local changes and restore the active publication.'
-                        : 'There are no unpublished changes to discard.'
-                    }
-                    onClick={() => dispatch({ type: 'discard' })}
-                  >
-                    Discard changes
-                  </button>
-                  </>
-                )}
               </>
             </div>
           </div>

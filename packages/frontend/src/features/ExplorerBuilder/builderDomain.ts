@@ -109,6 +109,8 @@ export const graphDistancesFromRoot = (
 
 export interface CatalogCandidate {
   readonly id: string;
+  /** Opaque Loom catalog node ID; never replace this with the UI node key. */
+  readonly nodeId?: string;
   readonly resourceType: ResourceType;
   readonly path: string;
   readonly label: string;
@@ -135,6 +137,8 @@ export interface CatalogCandidate {
 
 export interface CatalogSnapshot {
   readonly snapshotToken?: string;
+  /** Stable identity for the output/traversal shape used to discover this catalog. */
+  readonly scopeKey?: string;
   readonly catalogDigest?: string;
   readonly sourceGeneration?: string;
   readonly resolvedSchemaDigest?: string;
@@ -580,6 +584,43 @@ export const traversalRelationshipName = (
   traversal: RecipeTraversalV2,
 ): string => traversal.name ?? traversal.relationship ?? '';
 
+/** Relationships that can extend the current traversal to the selected node.
+ * A node can have more than one eligible edge, so callers must keep the
+ * relationship identity instead of inferring a route from resource type alone.
+ */
+export const reachableRelationshipsForResource = (
+  relationships: ReadonlyArray<GraphRelationship>,
+  resourceType: ResourceType,
+  rootResourceType: ResourceType | undefined,
+  traversals: ReadonlyArray<RecipeTraversalV2>,
+): ReadonlyArray<GraphRelationship> => {
+  if (!rootResourceType) return [];
+  const included = new Set<ResourceType>([rootResourceType]);
+  const visit = (nodes: ReadonlyArray<RecipeTraversalV2>) =>
+    nodes.forEach((node) => {
+      included.add(traversalTargetResource(node));
+      visit(node.children ?? []);
+    });
+  visit(traversals);
+
+  return relationships
+    .filter((relationship) => {
+      const sourceIncluded = included.has(relationship.source);
+      const targetIncluded = included.has(relationship.target);
+      if (sourceIncluded === targetIncluded) return false;
+      return (
+        (sourceIncluded ? relationship.target : relationship.source) ===
+        resourceType
+      );
+    })
+    .slice()
+    .sort(
+      (left, right) =>
+        left.label.localeCompare(right.label) ||
+        left.id.localeCompare(right.id),
+    );
+};
+
 type MutableRecipeOutput = {
   name: string;
   title?: string;
@@ -703,6 +744,12 @@ const withEdit = (
   dirty: true,
   lifecycle: 'idle',
   diagnostics: [],
+});
+const emptyCatalog = (): CatalogSnapshot => ({
+  complete: false,
+  diagnostics: [],
+  resources: [],
+  relationships: [],
 });
 const selectedTable = (
   state: BuilderSessionState,
@@ -1038,6 +1085,23 @@ const tableColumnMatchesCandidate = (
   return view.table.columns.some((column) => names.has(column.column));
 };
 
+const candidateBelongsToRecipeNode = (
+  output: MutableRecipeOutput,
+  nodeKey: string,
+  candidate: CatalogCandidate,
+): boolean => {
+  const key = recipeNodeKey(nodeKey);
+  if (key.startsWith('root:'))
+    return (
+      key === `root:${output.rootResourceType}` &&
+      candidate.resourceType === output.rootResourceType
+    );
+  const node = traversalNode(output.traversals ?? [], key);
+  return Boolean(
+    node && traversalTargetResource(node) === candidate.resourceType,
+  );
+};
+
 /**
  * A catalog snapshot is opaque and short-lived, but the Builder config is
  * durable. Use both recipe fields and table declarations when reconciling a
@@ -1053,6 +1117,14 @@ export const candidateMatchesConfiguredSelection = (
     (item) => item.name === output,
   );
   if (!recipeOutput) return false;
+  if (
+    !candidateBelongsToRecipeNode(
+      recipeOutput as MutableRecipeOutput,
+      nodeKey,
+      candidate,
+    )
+  )
+    return false;
   return (
     fieldsForNode(recipeOutput as MutableRecipeOutput, nodeKey).some((field) =>
       fieldMatchesCandidate(field, candidate),
@@ -1177,6 +1249,8 @@ export const explorerBuilderReducer = (
         selectedOutput: action.output,
         selectedResource: undefined,
         selectedNodeKey: undefined,
+        catalog: emptyCatalog(),
+        selectedCandidateIdsByNode: {},
       };
     case 'selectResource':
       return {
@@ -1194,26 +1268,46 @@ export const explorerBuilderReducer = (
       const output = state.config?.recipe.outputs?.find(
         (candidate) => candidate.name === state.selectedOutput,
       ) as MutableRecipeOutput | undefined;
-      const selectedCandidateIdsByNode = {
-        ...state.selectedCandidateIdsByNode,
-      };
+      const sameSnapshot = Boolean(
+        state.catalog.snapshotToken &&
+        action.catalog.snapshotToken &&
+        state.catalog.snapshotToken === action.catalog.snapshotToken,
+      );
+      const sameScope = state.catalog.scopeKey === action.catalog.scopeKey;
+      const selectedCandidateIdsByNode =
+        sameSnapshot && sameScope
+          ? { ...state.selectedCandidateIdsByNode }
+          : {};
       if (output) {
         for (const resource of action.catalog.resources) {
           const fields = resource.fields;
           const grouped = new Map<string, CatalogCandidate[]>();
           for (const candidate of fields) {
             const nodePath = candidate.nodePath ?? [];
-            const nodeKey = `${state.selectedOutput ?? candidate.output ?? ''}|${nodePath.length > 0 ? nodePath[nodePath.length - 1] : `root:${resource.resourceType}`}`;
+            const outputKey =
+              candidate.output?.trim() || state.selectedOutput || '';
+            const nodeKey = `${outputKey}|${nodePath.length > 0 ? nodePath[nodePath.length - 1] : `root:${resource.resourceType}`}`;
             const existing = grouped.get(nodeKey) ?? [];
             existing.push(candidate);
             grouped.set(nodeKey, existing);
           }
           for (const [nodeKey, candidates] of grouped) {
-            const configuredIds = candidates
+            const separator = nodeKey.indexOf('|');
+            const outputKey =
+              separator >= 0
+                ? nodeKey.slice(0, separator)
+                : (state.selectedOutput ?? '');
+            const nodeCandidates = candidates.filter((candidate) =>
+              candidateBelongsToRecipeNode(output, nodeKey, candidate),
+            );
+            const candidateIdsForNode = new Set(
+              nodeCandidates.map((candidate) => candidate.id),
+            );
+            const configuredIds = nodeCandidates
               .filter((candidate) =>
                 candidateMatchesConfiguredSelection(
                   state.config as ExplorerConfigV2,
-                  state.selectedOutput ?? '',
+                  outputKey,
                   nodeKey,
                   candidate,
                 ),
@@ -1223,19 +1317,26 @@ export const explorerBuilderReducer = (
             if (existingSelections) {
               // Keep explicit local toggles, but add any fields that became
               // part of the current config after this snapshot was loaded.
+              // Remove stale selections hydrated into a different recipe node.
               selectedCandidateIdsByNode[nodeKey] = [
-                ...new Set([...existingSelections, ...configuredIds]),
+                ...new Set([
+                  ...existingSelections.filter((id) =>
+                    candidateIdsForNode.has(id),
+                  ),
+                  ...configuredIds,
+                ]),
               ];
               continue;
             }
-            selectedCandidateIdsByNode[nodeKey] = candidates
+            selectedCandidateIdsByNode[nodeKey] = nodeCandidates
               .filter(
                 (candidate) =>
                   // Loom's candidate snapshot is authoritative for family
                   // selections. A dynamic/extension/pivot key may be
                   // selected in its native family without having a matching
                   // ordinary `fields[]` declaration.
-                  candidate.selected === true || configuredIds.includes(candidate.id),
+                  candidate.selected === true ||
+                  configuredIds.includes(candidate.id),
               )
               .map((candidate) => candidate.id);
           }
@@ -1273,6 +1374,7 @@ export const explorerBuilderReducer = (
           selectedOutput: action.output,
           selectedResource: action.resourceType,
           selectedNodeKey: `${action.output}|root:${action.resourceType}`,
+          catalog: emptyCatalog(),
           selectedCandidateIdsByNode: {},
         },
         config,
@@ -1311,6 +1413,8 @@ export const explorerBuilderReducer = (
           ...state,
           selectedResource: action.relationship.target,
           selectedNodeKey: `${action.output}|${appended.alias}`,
+          catalog: emptyCatalog(),
+          selectedCandidateIdsByNode: {},
         },
         config,
       );
@@ -1382,9 +1486,14 @@ export const explorerBuilderReducer = (
             ...state,
             selectedResource: currentOutput?.rootResourceType,
             selectedNodeKey: `${action.output}|root:${currentOutput?.rootResourceType ?? ''}`,
+            catalog: emptyCatalog(),
             selectedCandidateIdsByNode,
           }
-        : { ...state, selectedCandidateIdsByNode };
+        : {
+            ...state,
+            catalog: emptyCatalog(),
+            selectedCandidateIdsByNode,
+          };
       return withEdit(nextState, cleanedConfig);
     }
     case 'setCandidate': {
@@ -2108,7 +2217,8 @@ export const initialStateFromConfig = async (
     ? withoutBuilderColumnOrder(activeConfig)
     : null;
   const selectedOutput =
-    normalizedConfig.recipe.outputs?.[0]?.name ?? normalizedConfig.views[0]?.output;
+    normalizedConfig.recipe.outputs?.[0]?.name ??
+    normalizedConfig.views[0]?.output;
   const root = normalizedConfig.recipe.outputs?.find(
     (output) => output.name === selectedOutput,
   )?.rootResourceType;
@@ -2119,8 +2229,7 @@ export const initialStateFromConfig = async (
     serverDraftConfig: normalizedConfig,
     activeConfig: normalizedActiveConfig,
     draftVersion: version,
-    draftDigest:
-      digest ?? (await digestExplorerConfig(normalizedConfig)),
+    draftDigest: digest ?? (await digestExplorerConfig(normalizedConfig)),
     updatedAt,
     lifecycleMetadata,
     selectedOutput,

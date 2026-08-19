@@ -28,6 +28,7 @@ import { JSONPath } from 'jsonpath-plus';
 import { StudyProvider } from '../../Study';
 import QueryRowDetailsPanel from './ExploreTableDetails/QueryRowDetailsPanel';
 import { ErrorCard } from '../../../components/MessageCards';
+import { renderCell } from '../../../utils/renderCell';
 
 const DEFAULT_PAGE_LIMIT_LABEL = 'Rows per Page (Limited to 10,0000):';
 const DEFAULT_PAGE_LIMIT = 10000;
@@ -134,7 +135,7 @@ const ExplorerTable = ({
       );
 
       if (selectedRow && field in selectedRow) {
-        return selectedRow[field] as string;
+        return renderCell(selectedRow[field]);
       }
       return 'Default Placeholder';
     },

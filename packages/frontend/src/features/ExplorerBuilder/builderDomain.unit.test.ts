@@ -11,6 +11,7 @@ import {
   initialStateFromConfig,
   previewCacheKey,
   publishedConfigFromServer,
+  reachableRelationshipsForResource,
   presentationDiagnostics,
   rowGrainForResource,
   slugifyExplorerId,
@@ -57,8 +58,14 @@ const config: ExplorerConfigV2 = {
 
 describe('ExplorerConfig V2 Builder domain', () => {
   it('uses the active packet as the published Builder state when draft and active differ', () => {
-    const draft = { ...config, explorer: { ...config.explorer, title: 'Draft' } };
-    const active = { ...config, explorer: { ...config.explorer, title: 'Active' } };
+    const draft = {
+      ...config,
+      explorer: { ...config.explorer, title: 'Draft' },
+    };
+    const active = {
+      ...config,
+      explorer: { ...config.explorer, title: 'Active' },
+    };
 
     expect(
       publishedConfigFromServer({ activeConfig: active, draftConfig: draft }),
@@ -74,9 +81,7 @@ describe('ExplorerConfig V2 Builder domain', () => {
   it('uses Loom row-grain names instead of lowercasing resource types', () => {
     expect(rowGrainForResource('DocumentReference')).toBe('file');
     expect(rowGrainForResource('ResearchSubject')).toBe('study_enrollment');
-    expect(rowGrainForResource('MedicationAdministration')).toBe(
-      'resource',
-    );
+    expect(rowGrainForResource('MedicationAdministration')).toBe('resource');
     expect(rowGrainForResource('GroupMember')).toBe('expanded');
     expect(rowGrainForResource('SubstanceDefinition')).toBe('resource');
   });
@@ -91,6 +96,56 @@ describe('ExplorerConfig V2 Builder domain', () => {
     const distances = graphDistancesFromRoot('Patient', relationships);
     expect(distances.size).toBe(7);
     expect(distances.get('Resource6')).toBe(6);
+  });
+
+  it('finds every relationship that can extend the traversal to a clicked node', () => {
+    const relationships = [
+      {
+        id: 'patient-specimen',
+        source: 'Patient',
+        target: 'Specimen',
+        label: 'specimen',
+      },
+      {
+        id: 'file-specimen',
+        source: 'File',
+        target: 'Specimen',
+        label: 'subject',
+      },
+      {
+        id: 'patient-file',
+        source: 'Patient',
+        target: 'File',
+        label: 'file',
+      },
+    ];
+
+    expect(
+      reachableRelationshipsForResource(relationships, 'Specimen', 'Patient', [
+        {
+          alias: 'files',
+          toResourceType: 'File',
+          name: 'file',
+          fields: [],
+        },
+      ]).map((relationship) => relationship.id),
+    ).toEqual(['patient-specimen', 'file-specimen']);
+    expect(
+      reachableRelationshipsForResource(
+        relationships,
+        'File',
+        'Patient',
+        [],
+      ).map((relationship) => relationship.id),
+    ).toEqual(['patient-file']);
+    expect(
+      reachableRelationshipsForResource(
+        relationships,
+        'Patient',
+        'Patient',
+        [],
+      ),
+    ).toEqual([]);
   });
 
   it('removes zero-record and isolated resources from the traversal graph', () => {
@@ -108,7 +163,12 @@ describe('ExplorerConfig V2 Builder domain', () => {
           count: 2,
           fields: [graphField('Specimen', 'specimen-id')],
         },
-        { resourceType: 'Organization', label: 'Organization', count: 4, fields: [] },
+        {
+          resourceType: 'Organization',
+          label: 'Organization',
+          count: 4,
+          fields: [],
+        },
         { resourceType: 'Empty', label: 'Empty', count: 0, fields: [] },
         { resourceType: 'NoFields', label: 'No fields', count: 4, fields: [] },
       ],
@@ -133,13 +193,12 @@ describe('ExplorerConfig V2 Builder domain', () => {
         },
       ],
     );
-    expect(filtered.resources.map((resource) => resource.resourceType)).toEqual([
-      'Patient',
-      'Specimen',
-    ]);
-    expect(filtered.relationships.map((relationship) => relationship.id)).toEqual([
-      'Patient/specimen/Specimen',
-    ]);
+    expect(filtered.resources.map((resource) => resource.resourceType)).toEqual(
+      ['Patient', 'Specimen'],
+    );
+    expect(
+      filtered.relationships.map((relationship) => relationship.id),
+    ).toEqual(['Patient/specimen/Specimen']);
   });
 
   it('canonicalizes object keys without changing array order', () => {
@@ -255,22 +314,18 @@ describe('ExplorerConfig V2 Builder domain', () => {
       column: 'file',
       before: 'id',
     });
-    expect(before.config?.views[0].table.columns.map(({ column }) => column)).toEqual([
-      'file',
-      'id',
-      'status',
-    ]);
+    expect(
+      before.config?.views[0].table.columns.map(({ column }) => column),
+    ).toEqual(['file', 'id', 'status']);
     const after = explorerBuilderReducer(before, {
       type: 'reorderColumn',
       output: 'patients',
       column: 'file',
       after: 'id',
     });
-    expect(after.config?.views[0].table.columns.map(({ column }) => column)).toEqual([
-      'id',
-      'file',
-      'status',
-    ]);
+    expect(
+      after.config?.views[0].table.columns.map(({ column }) => column),
+    ).toEqual(['id', 'file', 'status']);
   });
 
   it('keeps bulk column visibility reversible when every column is hidden', async () => {
@@ -329,9 +384,7 @@ describe('ExplorerConfig V2 Builder domain', () => {
     expect(added.selectedResource).toBeUndefined();
     expect(added.selectedNodeKey).toBeUndefined();
     expect(
-      added.config?.recipe.outputs?.find(
-        (item) => item.name === 'specimens',
-      ),
+      added.config?.recipe.outputs?.find((item) => item.name === 'specimens'),
     ).not.toHaveProperty('title');
     expect(
       added.config?.views.find((view) => view.output === 'specimens')?.title,
@@ -842,6 +895,98 @@ describe('ExplorerConfig V2 Builder domain', () => {
     ).toEqual(['candidate-id']);
   });
 
+  it('does not merge opaque selections across catalog snapshots', async () => {
+    const loaded = await initialStateFromConfig(
+      'demo',
+      createBuilderSession('demo'),
+      config,
+    );
+    const firstSnapshot = explorerBuilderReducer(loaded, {
+      type: 'setCatalog',
+      catalog: {
+        snapshotToken: 'snapshot-1',
+        complete: true,
+        diagnostics: [],
+        resources: [
+          {
+            resourceType: 'Patient',
+            label: 'People',
+            fields: [
+              {
+                id: 'candidate-id',
+                resourceType: 'Patient',
+                path: 'id',
+                label: 'Person ID',
+                logicalType: 'string',
+                repeated: false,
+              },
+            ],
+          },
+        ],
+        relationships: [],
+      },
+    });
+    const secondSnapshot = explorerBuilderReducer(firstSnapshot, {
+      type: 'setCatalog',
+      catalog: {
+        snapshotToken: 'snapshot-2',
+        complete: true,
+        diagnostics: [],
+        resources: [
+          {
+            resourceType: 'Patient',
+            label: 'People',
+            fields: [
+              {
+                id: 'candidate-name',
+                resourceType: 'Patient',
+                path: 'name',
+                label: 'Person name',
+                logicalType: 'string',
+                repeated: false,
+                selected: true,
+              },
+            ],
+          },
+        ],
+        relationships: [],
+      },
+    });
+    expect(
+      secondSnapshot.selectedCandidateIdsByNode['patients|root:Patient'],
+    ).toEqual(['candidate-name']);
+    expect(
+      secondSnapshot.selectedCandidateIdsByNode['patients|root:Patient'],
+    ).not.toContain('candidate-id');
+  });
+
+  it('invalidates the catalog when the row resource changes', async () => {
+    const loaded = await initialStateFromConfig(
+      'demo',
+      createBuilderSession('demo'),
+      config,
+    );
+    const hydrated = explorerBuilderReducer(loaded, {
+      type: 'setCatalog',
+      catalog: {
+        snapshotToken: 'snapshot-1',
+        scopeKey: 'patients:Patient',
+        complete: true,
+        diagnostics: [],
+        resources: [],
+        relationships: [],
+      },
+    });
+    const changed = explorerBuilderReducer(hydrated, {
+      type: 'setRoot',
+      output: 'patients',
+      resourceType: 'ResearchStudy',
+    });
+    expect(changed.catalog.complete).toBe(false);
+    expect(changed.catalog.snapshotToken).toBeUndefined();
+    expect(changed.selectedCandidateIdsByNode).toEqual({});
+  });
+
   it('hydrates configured table columns even when the recipe field list is incomplete', async () => {
     const configured = {
       ...config,
@@ -917,9 +1062,72 @@ describe('ExplorerConfig V2 Builder domain', () => {
     expect(cleared.config?.views[0].table.columns).toEqual([
       { column: 'id', label: 'Person ID', visible: true },
     ]);
+    expect(cleared.selectedCandidateIdsByNode['patients|root:Patient']).toEqual(
+      ['candidate-id'],
+    );
+  });
+
+  it('does not hydrate a same-named candidate from another resource under root', async () => {
+    const loaded = await initialStateFromConfig(
+      'demo',
+      createBuilderSession('demo'),
+      config,
+    );
+    const hydrated = explorerBuilderReducer(loaded, {
+      type: 'setCatalog',
+      catalog: {
+        snapshotToken: 'snapshot-1',
+        complete: true,
+        diagnostics: [],
+        resources: [
+          {
+            resourceType: 'Patient',
+            label: 'People',
+            fields: [
+              {
+                ...graphField('Patient', 'patient-id'),
+                path: 'id',
+                publicName: 'id',
+              },
+            ],
+          },
+          {
+            resourceType: 'SubstanceDefinition',
+            label: 'Substances',
+            fields: [
+              {
+                ...graphField('SubstanceDefinition', 'substance-id'),
+                path: 'id',
+                publicName: 'id',
+                selected: true,
+              },
+            ],
+          },
+        ],
+        relationships: [],
+      },
+    });
+
     expect(
-      cleared.selectedCandidateIdsByNode['patients|root:Patient'],
-    ).toEqual(['candidate-id']);
+      hydrated.selectedCandidateIdsByNode['patients|root:Patient'],
+    ).toEqual(['patient-id']);
+    expect(
+      hydrated.selectedCandidateIdsByNode['patients|root:SubstanceDefinition'],
+    ).toEqual([]);
+
+    const refreshed = explorerBuilderReducer(
+      {
+        ...hydrated,
+        selectedCandidateIdsByNode: {
+          ...hydrated.selectedCandidateIdsByNode,
+          'patients|root:SubstanceDefinition': ['substance-id'],
+        },
+      },
+      { type: 'setCatalog', catalog: hydrated.catalog },
+    );
+    expect(
+      refreshed.selectedCandidateIdsByNode['patients|root:SubstanceDefinition'],
+    ).toEqual([]);
   });
 
   it('matches logical config names to qualified and sanitized catalog paths', async () => {

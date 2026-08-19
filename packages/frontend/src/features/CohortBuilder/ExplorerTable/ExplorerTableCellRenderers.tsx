@@ -5,7 +5,9 @@ import {
 import React, { ReactNode } from 'react';
 import { isArray } from 'lodash';
 import { Badge, Text } from '@mantine/core';
+import { FaFileDownload, FaImage } from 'react-icons/fa';
 import { CellRendererFunctionProps } from './types';
+import { renderCell } from '../../../utils/renderCell';
 
 export interface CellRendererFunctionCatalogEntry {
   [key: string]: CellRendererFunction;
@@ -47,7 +49,7 @@ export const RenderArrayCell: CellRendererFunction = ({
             color="accent-light"
             key={`${cell.id}-value-${index}`}
           >
-            {x}
+            {renderCell(x)}
           </Badge>
         ))}
       </div>
@@ -70,7 +72,7 @@ export const RenderArrayCellNegativePositive = ({
             classNames={{ root: 'basis-1/3' }}
             key={`${cell.id}-value-${index}`}
           >
-            {x}
+            {renderCell(x)}
           </Badge>
         ))}
       </div>
@@ -81,10 +83,68 @@ export const RenderArrayCellNegativePositive = ({
 
 export const ValueCellRenderer = ({ cell }: CellRendererFunctionProps) => {
   const value = cell.getValue();
+  return <span>{renderCell(value)}</span>;
+};
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const isUuid = (value: unknown): value is string =>
+  typeof value === 'string' && UUID_PATTERN.test(value.trim());
+
+const fileIdentifierFor = (
+  cell: CellRendererFunctionProps['cell'],
+  row: CellRendererFunctionProps['row'],
+): string | undefined => {
+  const candidates = [
+    cell.getValue(),
+    getSafeRowValue(row, 'id'),
+    getSafeRowValue(row, 'file_id'),
+    getSafeRowValue(row, 'file_uuid'),
+    getSafeRowValue(row, 'document_reference_id'),
+    getSafeRowValue(row, 'document_reference_identifier'),
+    getSafeRowValue(row, 'uuid'),
+    getSafeRowValue(row, 'sha256'),
+  ];
+  return candidates.find(isUuid);
+};
+
+const renderDefaultFileAction = (
+  actionName: string,
+  actionUrl: string | undefined,
+  fileId: string,
+) => {
+  const baseUrl = (
+    actionUrl ||
+    (actionName === 'file_download'
+      ? '/download'
+      : actionName === 'file_image'
+        ? '/image-viewer/view'
+        : '')
+  ).replace(/\/+$/, '');
+  if (!baseUrl) return null;
+  const href = `${baseUrl}/${encodeURIComponent(fileId)}${
+    actionName === 'file_download'
+      ? `${baseUrl.includes('?') ? '&' : '?'}redirect=true`
+      : ''
+  }`;
+  const icon =
+    actionName === 'file_download' ? (
+      <FaFileDownload aria-hidden="true" />
+    ) : actionName === 'file_image' ? (
+      <FaImage aria-hidden="true" />
+    ) : null;
   return (
-    <span>
-      {typeof value === 'boolean' ? String(value) : (value as ReactNode)}
-    </span>
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      aria-label={actionName}
+      title={actionName}
+      className="inline-flex h-8 w-8 items-center justify-center rounded bg-primary text-primary-contrast text-xs font-semibold"
+    >
+      {icon || actionName}
+    </a>
   );
 };
 
@@ -98,15 +158,15 @@ const RenderLinkCell = (
   ...args: unknown[]
 ) => {
   const arg = args[0] as Record<string, unknown>;
+  const content = renderCell(cell.getValue());
   return (
     <a
-      href={`${arg.baseURL}${cell.getValue()}`}
+      href={`${arg.baseURL}${content}`}
       target="_blank"
       rel="noreferrer"
     >
       <Text c="blue" td="underline" fw={700}>
-        {' '}
-        {cell.getValue() as ReactNode}{' '}
+        {' '}{content}{' '}
       </Text>
     </a>
   );
@@ -128,6 +188,8 @@ export const RenderFileActions = (
 ) => {
   const { cell, row } = props;
   const arg = (args[0] || {}) as Record<string, unknown>;
+  const fileId = fileIdentifierFor(cell, row);
+  if (!fileId) return <React.Fragment />;
   let fileActionsConfig = arg.fileActions as
     | {
         extensions: Record<string, string[]>;
@@ -180,17 +242,32 @@ export const RenderFileActions = (
     fileNameStr = typeof cellRef === 'string' ? cellRef : '';
   }
 
-  const extension = fileNameStr.includes('.')
-    ? fileNameStr.split('.').pop()?.toLowerCase() || ''
+  const fileNameWithoutQuery = fileNameStr.split(/[?#]/, 1)[0];
+  const extension = fileNameWithoutQuery.includes('.')
+    ? fileNameWithoutQuery.split('.').pop()?.toLowerCase() || ''
     : '';
+  const configuredActions = [
+    fileActionsConfig?.extensions?.[extension],
+    fileActionsConfig?.extensions?.[`.${extension}`],
+    fileActionsConfig?.extensions?.['default'],
+  ].find((actions): actions is string[] => Array.isArray(actions));
   const actionsList =
-    fileActionsConfig?.extensions?.[extension] ||
-    fileActionsConfig?.extensions?.['default'] ||
+    configuredActions ||
     (arg.imageURL && ['tif', 'tiff'].includes(extension)
       ? ['file_download', 'file_image']
       : ['file_download']);
 
   if (actionsList.length === 0) return <React.Fragment />;
+
+  // Action renderers historically read cell.getValue() directly. Replace
+  // that value for the action call so a source path can never leak through
+  // as a file identifier when the action column is not the UUID column.
+  const actionProps = {
+    ...props,
+    cell: Object.assign(Object.create(cell), {
+      getValue: () => fileId,
+    }),
+  } as CellRendererFunctionProps;
 
   return (
     <div className="flex space-x-2">
@@ -210,11 +287,21 @@ export const RenderFileActions = (
           const actionUrl = fileActionsConfig?.actions?.[actionName];
           return (
             <React.Fragment key={`${actionName}-${index}`}>
-              {actionRenderer(props, { ...arg, actionUrl }, ...args.slice(1))}
+              {actionRenderer(
+                actionProps,
+                { ...arg, actionUrl, fileId },
+                ...args.slice(1),
+              )}
             </React.Fragment>
           );
         }
-        return null;
+        const actionUrl = fileActionsConfig?.actions?.[actionName];
+        const fallback = renderDefaultFileAction(actionName, actionUrl, fileId);
+        return fallback ? (
+          <React.Fragment key={`${actionName}-${index}`}>
+            {fallback}
+          </React.Fragment>
+        ) : null;
       })}
     </div>
   );
@@ -238,3 +325,8 @@ export const registerExplorerDefaultCellRenderers = () => {
     },
   });
 };
+
+// The table can be mounted by a direct frontend consumer without the sample
+// app's _app registration hook. Keep the built-in renderers available in that
+// case as well; application-specific action renderers can still be layered on.
+registerExplorerDefaultCellRenderers();

@@ -3,6 +3,7 @@ import { StudyDetailsField } from '../../Study/types';
 import React, { ReactElement } from 'react';
 import { Box, Text } from '@mantine/core';
 import { JSONPath } from 'jsonpath-plus';
+import { renderCell } from '../../../utils/renderCell';
 
 export interface RowRenderFunctionParams<TData extends Record<string, any> = Record<string, any>> {
   row: MRT_Row<TData>;
@@ -30,7 +31,7 @@ const StringRowRenderer = (
       w={'100%'}
     >
       <Text size="xs" lineClamp={2}>
-        {value}
+        {renderCell(value)}
       </Text>
     </Box>
   );

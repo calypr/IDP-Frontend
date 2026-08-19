@@ -183,7 +183,9 @@ const loomResourceColumnPrefix = (value: string): string =>
  * view can retain a stale reference even though the recipe declaration was
  * removed.
  */
-const recipeFieldReferenceKeys = (field: RecipeFieldV2): ReadonlyArray<string> => {
+const recipeFieldReferenceKeys = (
+  field: RecipeFieldV2,
+): ReadonlyArray<string> => {
   const record = field as RecipeFieldV2 & {
     readonly publicName?: unknown;
     readonly expectedPublicColumn?: unknown;
@@ -206,17 +208,27 @@ const recipeFieldWithoutLabel = (field: RecipeFieldV2): RecipeFieldV2 => {
 
 const recipeTraversalWithoutLabels = (
   traversal: RecipeTraversalV2,
-): RecipeTraversalV2 => ({
-  ...traversal,
-  ...(traversal.fields
-    ? { fields: traversal.fields.map(recipeFieldWithoutLabel) }
-    : {}),
-  ...(traversal.children
-    ? { children: traversal.children.map(recipeTraversalWithoutLabels) }
-    : {}),
-});
+): RecipeTraversalV2 => {
+  // `direction` describes the Builder's visual edge orientation. Loom infers
+  // traversal orientation from the server-owned route and rejects this UI-only
+  // property in its strict recipe.Traversal decoder.
+  const {
+    direction: _direction,
+    children,
+    ...withoutBuilderMetadata
+  } = traversal;
+  return {
+    ...withoutBuilderMetadata,
+    ...(traversal.fields
+      ? { fields: traversal.fields.map(recipeFieldWithoutLabel) }
+      : {}),
+    ...(children?.length
+      ? { children: children.map(recipeTraversalWithoutLabels) }
+      : {}),
+  };
+};
 
-/** Remove presentation labels from authoring recipe fields. */
+/** Remove Builder-only metadata from authoring recipe declarations. */
 export const sanitizeExplorerConfigForAuthoring = (
   config: ExplorerConfigV2,
 ): ExplorerConfigV2 => {
@@ -253,9 +265,7 @@ export const sanitizeExplorerConfigForAuthoring = (
             : {}),
           ...(output.traversals
             ? {
-                traversals: output.traversals.map(
-                  recipeTraversalWithoutLabels,
-                ),
+                traversals: output.traversals.map(recipeTraversalWithoutLabels),
               }
             : {}),
         };
@@ -311,19 +321,26 @@ const executableRecipeField = (
 
 const executableRecipeTraversal = (
   traversal: RecipeTraversalV2,
-): RecipeTraversalV2 => ({
-  ...traversal,
-  ...(traversal.fields
-    ? {
-        fields: traversal.fields
-          .map(executableRecipeField)
-          .filter((field): field is RecipeFieldV2 => Boolean(field)),
-      }
-    : {}),
-  ...(traversal.children
-    ? { children: traversal.children.map(executableRecipeTraversal) }
-    : {}),
-});
+): RecipeTraversalV2 => {
+  const {
+    direction: _direction,
+    children,
+    ...withoutBuilderMetadata
+  } = traversal;
+  return {
+    ...withoutBuilderMetadata,
+    ...(traversal.fields
+      ? {
+          fields: traversal.fields
+            .map(executableRecipeField)
+            .filter((field): field is RecipeFieldV2 => Boolean(field)),
+        }
+      : {}),
+    ...(children?.length
+      ? { children: children.map(executableRecipeTraversal) }
+      : {}),
+  };
+};
 
 /**
  * Loom's row grain is a small execution vocabulary, not an arbitrary
@@ -435,9 +452,7 @@ export const sanitizeExplorerConfigForLoom = (
         columns: view.table.columns
           .map((column) => {
             const resolved = resolve(column.column);
-            return resolved
-              ? { ...column, column: resolved }
-              : undefined;
+            return resolved ? { ...column, column: resolved } : undefined;
           })
           .filter(
             (column): column is (typeof view.table.columns)[number] =>
@@ -449,7 +464,9 @@ export const sanitizeExplorerConfigForLoom = (
           const column = resolve(filter.column);
           return column ? { ...filter, column } : undefined;
         })
-        .filter((filter): filter is NonNullable<typeof filter> => Boolean(filter)),
+        .filter((filter): filter is NonNullable<typeof filter> =>
+          Boolean(filter),
+        ),
       charts: view.charts
         ?.map((chart) => {
           const column = resolve(chart.column);
@@ -480,19 +497,20 @@ export const sanitizeExplorerConfigForLoom = (
         Object.entries(authoringConfig.sharedFilters)
           .map(([name, mappings]) => [
             name,
-            mappings.filter(
-              (mapping) => emittedByOutput.has(mapping.output),
-            ).map((mapping) => {
-              const dropped = droppedByOutput.get(mapping.output);
-              const emitted = emittedByOutput.get(mapping.output);
-              const key = loomIdentifierKey(mapping.column);
-              if (dropped?.has(key)) return undefined;
-              const column = emitted?.get(key);
-              return column ? { ...mapping, column } : undefined;
-            }).filter(
-              (mapping): mapping is NonNullable<typeof mapping> =>
-                mapping !== undefined,
-            ),
+            mappings
+              .filter((mapping) => emittedByOutput.has(mapping.output))
+              .map((mapping) => {
+                const dropped = droppedByOutput.get(mapping.output);
+                const emitted = emittedByOutput.get(mapping.output);
+                const key = loomIdentifierKey(mapping.column);
+                if (dropped?.has(key)) return undefined;
+                const column = emitted?.get(key);
+                return column ? { ...mapping, column } : undefined;
+              })
+              .filter(
+                (mapping): mapping is NonNullable<typeof mapping> =>
+                  mapping !== undefined,
+              ),
           ])
           .filter(([, mappings]) => mappings.length > 0),
       )
@@ -791,6 +809,8 @@ export interface ExplorerAuthoringCatalogRequest {
   readonly explorerId: string;
   readonly output: string;
   readonly config: ExplorerConfigV2;
+  /** Canonical Fence resource path used by scoped Loom authorization. */
+  readonly authResourcePath?: string;
   /** Immutable dataset generation returned by the project graph. Candidate
    * discovery must inspect the same generation as the graph and preview. */
   readonly datasetGeneration?: string;
@@ -798,6 +818,8 @@ export interface ExplorerAuthoringCatalogRequest {
 
 export interface ExplorerAuthoringCandidate {
   readonly id: string;
+  /** Opaque catalog node ID required by the authoring compiler. */
+  readonly nodeId?: string;
   readonly resourceType: string;
   readonly path: string;
   readonly label: string;
