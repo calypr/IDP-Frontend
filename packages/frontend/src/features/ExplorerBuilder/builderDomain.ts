@@ -36,6 +36,12 @@ export interface GraphRelationship {
   readonly direction?: 'outbound' | 'inbound';
 }
 
+/** The Viewer must consume the published packet, never the editable draft. */
+export const publishedConfigFromServer = (candidate: {
+  readonly activeConfig?: ExplorerConfigV2;
+  readonly draftConfig?: ExplorerConfigV2;
+}): ExplorerConfigV2 | undefined => candidate.activeConfig;
+
 /** Keep only resources that can participate in a dataframe traversal. */
 export const filterLinkedGraph = (
   resources: ReadonlyArray<GraphResource>,
@@ -112,10 +118,8 @@ export interface CatalogCandidate {
   readonly populationCount?: number;
   readonly examples?: ReadonlyArray<string>;
   readonly family?: 'field' | 'catalog' | 'dynamic' | 'extension' | 'pivot';
-  readonly recommended?: boolean;
   readonly filterable?: boolean;
   readonly chartable?: boolean;
-  readonly technicalDetails?: string;
   readonly selectionKey?: string;
   readonly valueSelector?: string;
   readonly familyName?: string;
@@ -305,10 +309,16 @@ export type BuilderAction =
       readonly visible: boolean;
     }
   | {
+      readonly type: 'setColumnsVisible';
+      readonly output: string;
+      readonly visible: boolean;
+    }
+  | {
       readonly type: 'reorderColumn';
       readonly output: string;
       readonly column: string;
       readonly before?: string;
+      readonly after?: string;
     }
   | {
       readonly type: 'setFilter';
@@ -462,19 +472,9 @@ export const rowGrainForResource = (resourceType: string): string => {
     case 'ResearchSubject':
       return 'study_enrollment';
     case 'GroupMember':
-      return 'group_member';
-    case 'Observation':
-      return 'observation';
-    case 'Condition':
-      return 'diagnosis';
+      return 'expanded';
     default:
-      return (
-        resourceType
-          .trim()
-          .replace(/([a-z])([A-Z])/g, '$1_$2')
-          .replace(/[^A-Za-z0-9_]+/g, '_')
-          .toLocaleLowerCase() || 'resource'
-      );
+      return 'resource';
   }
 };
 
@@ -960,16 +960,105 @@ const fieldsForNode = (
   visit(output.traversals ?? []);
   return fields;
 };
+const safeColumnIdentifier = (value: string): string =>
+  value
+    .trim()
+    .replace(/[^A-Za-z0-9_]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+
+const candidateAliasesForValue = (
+  candidate: CatalogCandidate,
+  value: string | undefined,
+): ReadonlyArray<string> => {
+  if (!value?.trim()) return [];
+  const rawAliases = new Set<string>();
+  const addAlias = (alias: string): void => {
+    const trimmed = alias.trim();
+    if (!trimmed) return;
+    rawAliases.add(trimmed);
+    const safe = safeColumnIdentifier(trimmed);
+    if (safe) rawAliases.add(safe);
+  };
+  const trimmed = value.trim();
+  addAlias(trimmed);
+  addAlias(trimmed.replace(/^root\./, ''));
+  const hashIndex = trimmed.lastIndexOf('#');
+  if (hashIndex >= 0) addAlias(trimmed.slice(hashIndex + 1));
+  const resourcePrefix = `${candidate.resourceType}.`;
+  const rootless = trimmed.replace(/^root\./, '');
+  if (rootless.startsWith(resourcePrefix))
+    addAlias(rootless.slice(resourcePrefix.length));
+  return [...rawAliases];
+};
+
+const columnNamesForCandidate = (
+  candidate: CatalogCandidate,
+): ReadonlySet<string> => {
+  const names = new Set<string>();
+  [
+    candidate.publicName,
+    candidate.path,
+    candidate.selectionKey,
+    candidate.valueSelector,
+  ].forEach((value) =>
+    candidateAliasesForValue(candidate, value).forEach((alias) =>
+      names.add(alias),
+    ),
+  );
+  const qualifiedPath = `${candidate.resourceType}__${candidate.path}`;
+  const qualifiedIdentifier = safeColumnIdentifier(qualifiedPath);
+  if (qualifiedIdentifier) names.add(qualifiedIdentifier);
+  return names;
+};
+
+export const candidateColumnNames = (
+  candidate: CatalogCandidate,
+): ReadonlySet<string> => columnNamesForCandidate(candidate);
+
 const fieldMatchesCandidate = (
   field: RecipeFieldV2,
   candidate: CatalogCandidate,
-): boolean =>
-  field.name === candidate.publicName ||
-  field.name === candidate.path ||
-  (candidate.selectionKey !== undefined &&
-    field.selectionKey === candidate.selectionKey) ||
-  (candidate.valueSelector !== undefined &&
-    field.valueSelector === candidate.valueSelector);
+): boolean => {
+  const candidateNames = columnNamesForCandidate(candidate);
+  return [field.name, field.selectionKey, field.valueSelector].some((value) =>
+    candidateAliasesForValue(candidate, value).some((alias) =>
+      candidateNames.has(alias),
+    ),
+  );
+};
+
+const tableColumnMatchesCandidate = (
+  config: ExplorerConfigV2,
+  output: string,
+  candidate: CatalogCandidate,
+): boolean => {
+  const view = config.views.find((item) => item.output === output);
+  if (!view) return false;
+  const names = columnNamesForCandidate(candidate);
+  return view.table.columns.some((column) => names.has(column.column));
+};
+
+/**
+ * A catalog snapshot is opaque and short-lived, but the Builder config is
+ * durable. Use both recipe fields and table declarations when reconciling a
+ * catalog candidate with the current draft.
+ */
+export const candidateMatchesConfiguredSelection = (
+  config: ExplorerConfigV2,
+  output: string,
+  nodeKey: string,
+  candidate: CatalogCandidate,
+): boolean => {
+  const recipeOutput = config.recipe.outputs?.find(
+    (item) => item.name === output,
+  );
+  if (!recipeOutput) return false;
+  return (
+    fieldsForNode(recipeOutput as MutableRecipeOutput, nodeKey).some((field) =>
+      fieldMatchesCandidate(field, candidate),
+    ) || tableColumnMatchesCandidate(config, output, candidate)
+  );
+};
 const publicColumnNameForCandidate = (
   candidate: CatalogCandidate,
   nodeKey: string,
@@ -1120,8 +1209,25 @@ export const explorerBuilderReducer = (
             grouped.set(nodeKey, existing);
           }
           for (const [nodeKey, candidates] of grouped) {
-            if (selectedCandidateIdsByNode[nodeKey]) continue;
-            const fieldsForNodeNow = fieldsForNode(output, nodeKey);
+            const configuredIds = candidates
+              .filter((candidate) =>
+                candidateMatchesConfiguredSelection(
+                  state.config as ExplorerConfigV2,
+                  state.selectedOutput ?? '',
+                  nodeKey,
+                  candidate,
+                ),
+              )
+              .map((candidate) => candidate.id);
+            const existingSelections = selectedCandidateIdsByNode[nodeKey];
+            if (existingSelections) {
+              // Keep explicit local toggles, but add any fields that became
+              // part of the current config after this snapshot was loaded.
+              selectedCandidateIdsByNode[nodeKey] = [
+                ...new Set([...existingSelections, ...configuredIds]),
+              ];
+              continue;
+            }
             selectedCandidateIdsByNode[nodeKey] = candidates
               .filter(
                 (candidate) =>
@@ -1129,10 +1235,7 @@ export const explorerBuilderReducer = (
                   // selections. A dynamic/extension/pivot key may be
                   // selected in its native family without having a matching
                   // ordinary `fields[]` declaration.
-                  candidate.selected === true ||
-                  fieldsForNodeNow.some((field) =>
-                    fieldMatchesCandidate(field, candidate),
-                  ),
+                  candidate.selected === true || configuredIds.includes(candidate.id),
               )
               .map((candidate) => candidate.id);
           }
@@ -1292,6 +1395,12 @@ export const explorerBuilderReducer = (
         const existing = targetFields.findIndex((field) =>
           fieldMatchesCandidate(field, action.candidate),
         );
+        const candidateColumnNames = columnNamesForCandidate(action.candidate);
+        const configuredColumnNames = new Set(
+          view.table.columns
+            .filter((column) => candidateColumnNames.has(column.column))
+            .map((column) => column.column),
+        );
         if (action.selected && existing < 0) {
           const publicName = publicColumnNameForCandidate(
             action.candidate,
@@ -1345,29 +1454,40 @@ export const explorerBuilderReducer = (
               },
             ],
           };
-        } else if (!action.selected && existing >= 0) {
-          const fieldName = targetFields[existing].name;
+        } else if (
+          !action.selected &&
+          (existing >= 0 || configuredColumnNames.size > 0)
+        ) {
+          const fieldName =
+            existing >= 0
+              ? targetFields[existing].name
+              : [...configuredColumnNames][0];
           removedFieldName = fieldName;
-          setFieldsForNode(
-            output,
-            action.nodeKey,
-            targetFields.filter((_field, index) => index !== existing),
-          );
+          if (existing >= 0)
+            setFieldsForNode(
+              output,
+              action.nodeKey,
+              targetFields.filter((_field, index) => index !== existing),
+            );
+          const removedColumns = new Set([
+            ...configuredColumnNames,
+            ...(fieldName ? [fieldName] : []),
+          ]);
           view.table = {
             ...view.table,
             columns: view.table.columns.filter(
-              (column) => column.column !== fieldName,
+              (column) => !removedColumns.has(column.column),
             ),
           };
           view.filters = view.filters?.filter(
-            (filter) => filter.column !== fieldName,
+            (filter) => !removedColumns.has(filter.column),
           );
           view.charts = view.charts?.filter(
-            (chart) => chart.column !== fieldName,
+            (chart) => !removedColumns.has(chart.column),
           );
           if (view.fixedFilters) {
             const fixedFilters = { ...view.fixedFilters };
-            delete fixedFilters[fieldName];
+            removedColumns.forEach((column) => delete fixedFilters[column]);
             view.fixedFilters = fixedFilters;
           }
         }
@@ -1454,6 +1574,21 @@ export const explorerBuilderReducer = (
         }),
       );
     }
+    case 'setColumnsVisible': {
+      if (!state.config) return state;
+      return withEdit(
+        state,
+        updateView(state.config, action.output, (view) => {
+          view.table = {
+            ...view.table,
+            columns: view.table.columns.map((column) => ({
+              ...column,
+              visible: action.visible,
+            })),
+          };
+        }),
+      );
+    }
     case 'reorderColumn': {
       if (!state.config) return state;
       return withEdit(
@@ -1463,16 +1598,32 @@ export const explorerBuilderReducer = (
           const sourceIndex = columns.findIndex(
             (column) => column.column === action.column,
           );
-          if (sourceIndex < 0) return;
+          if (
+            sourceIndex < 0 ||
+            action.before === action.column ||
+            action.after === action.column
+          )
+            return;
           const [source] = columns.splice(sourceIndex, 1);
-          const targetIndex = action.before
-            ? columns.findIndex((column) => column.column === action.before)
-            : columns.length;
-          columns.splice(
-            targetIndex < 0 ? columns.length : targetIndex,
-            0,
-            source,
-          );
+          if (action.after) {
+            const targetIndex = columns.findIndex(
+              (column) => column.column === action.after,
+            );
+            columns.splice(
+              targetIndex < 0 ? columns.length : targetIndex + 1,
+              0,
+              source,
+            );
+          } else {
+            const targetIndex = action.before
+              ? columns.findIndex((column) => column.column === action.before)
+              : columns.length;
+            columns.splice(
+              targetIndex < 0 ? columns.length : targetIndex,
+              0,
+              source,
+            );
+          }
           view.table = {
             ...view.table,
             columns,
@@ -1656,7 +1807,6 @@ export const explorerBuilderReducer = (
       const config = updateConfig(state.config, (outputs, views) => {
         outputs.push({
           name: action.output,
-          title: action.title,
           fields: [],
           traversals: [],
         });
@@ -1688,10 +1838,10 @@ export const explorerBuilderReducer = (
           (candidate) => candidate.output === action.sourceOutput,
         );
         if (!source || !sourceView) return;
+        const { title: _title, ...recipeOutput } = source;
         outputs.push({
-          ...source,
+          ...recipeOutput,
           name: action.output,
-          title: action.title,
           fields: source.fields?.map((field) => ({ ...field })),
           traversals: source.traversals?.map(cloneTraversal),
         });

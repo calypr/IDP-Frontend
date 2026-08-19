@@ -2,6 +2,7 @@ import type { ExplorerConfigV2 } from '@gen3/core';
 import {
   builderTables,
   canonicalizeExplorerConfig,
+  candidateMatchesConfiguredSelection,
   createBuilderSession,
   digestExplorerPreview,
   explorerBuilderReducer,
@@ -9,6 +10,7 @@ import {
   graphDistancesFromRoot,
   initialStateFromConfig,
   previewCacheKey,
+  publishedConfigFromServer,
   presentationDiagnostics,
   rowGrainForResource,
   slugifyExplorerId,
@@ -54,6 +56,15 @@ const config: ExplorerConfigV2 = {
 };
 
 describe('ExplorerConfig V2 Builder domain', () => {
+  it('uses the active packet as the published Builder state when draft and active differ', () => {
+    const draft = { ...config, explorer: { ...config.explorer, title: 'Draft' } };
+    const active = { ...config, explorer: { ...config.explorer, title: 'Active' } };
+
+    expect(
+      publishedConfigFromServer({ activeConfig: active, draftConfig: draft }),
+    ).toBe(active);
+  });
+
   it('derives safe, collision-checkable ids from one creation name', () => {
     expect(slugifyExplorerId('Biospecimen review')).toBe('biospecimen-review');
     expect(slugifyExplorerId('123 review')).toBe('explorer-123-review');
@@ -64,8 +75,10 @@ describe('ExplorerConfig V2 Builder domain', () => {
     expect(rowGrainForResource('DocumentReference')).toBe('file');
     expect(rowGrainForResource('ResearchSubject')).toBe('study_enrollment');
     expect(rowGrainForResource('MedicationAdministration')).toBe(
-      'medication_administration',
+      'resource',
     );
+    expect(rowGrainForResource('GroupMember')).toBe('expanded');
+    expect(rowGrainForResource('SubstanceDefinition')).toBe('resource');
   });
 
   it('keeps every reachable graph resource instead of truncating traversal depth', () => {
@@ -200,6 +213,86 @@ describe('ExplorerConfig V2 Builder domain', () => {
     expect(filtered.config?.views[0].filters?.[0].column).toBe('id');
   });
 
+  it('supports dropping a column before or after an adjacent column', async () => {
+    const sourceOutput = config.recipe.outputs?.[0];
+    if (!sourceOutput) throw new Error('Test config is missing its output');
+    const reorderConfig = {
+      ...config,
+      recipe: {
+        ...config.recipe,
+        outputs: [
+          {
+            ...sourceOutput,
+            fields: [
+              ...(sourceOutput.fields ?? []),
+              { name: 'status', label: 'Status' },
+              { name: 'file', label: 'File' },
+            ],
+          },
+        ],
+      },
+      views: [
+        {
+          ...config.views[0],
+          table: {
+            columns: [
+              ...config.views[0].table.columns,
+              { column: 'status', label: 'Status', visible: true },
+              { column: 'file', label: 'File', visible: true },
+            ],
+          },
+        },
+      ],
+    };
+    const loaded = await initialStateFromConfig(
+      'demo',
+      createBuilderSession('demo'),
+      reorderConfig,
+    );
+    const before = explorerBuilderReducer(loaded, {
+      type: 'reorderColumn',
+      output: 'patients',
+      column: 'file',
+      before: 'id',
+    });
+    expect(before.config?.views[0].table.columns.map(({ column }) => column)).toEqual([
+      'file',
+      'id',
+      'status',
+    ]);
+    const after = explorerBuilderReducer(before, {
+      type: 'reorderColumn',
+      output: 'patients',
+      column: 'file',
+      after: 'id',
+    });
+    expect(after.config?.views[0].table.columns.map(({ column }) => column)).toEqual([
+      'id',
+      'file',
+      'status',
+    ]);
+  });
+
+  it('keeps bulk column visibility reversible when every column is hidden', async () => {
+    const loaded = await initialStateFromConfig(
+      'demo',
+      createBuilderSession('demo'),
+      config,
+    );
+    const hidden = explorerBuilderReducer(loaded, {
+      type: 'setColumnsVisible',
+      output: 'patients',
+      visible: false,
+    });
+    expect(hidden.config?.views[0].table.columns[0].visible).toBe(false);
+    const restored = explorerBuilderReducer(hidden, {
+      type: 'setColumnsVisible',
+      output: 'patients',
+      visible: true,
+    });
+    expect(restored.config?.views[0].table.columns[0].visible).toBe(true);
+  });
+
   it('duplicates a table with its presentation settings and keeps the source', async () => {
     const loaded = await initialStateFromConfig(
       'demo',
@@ -235,6 +328,14 @@ describe('ExplorerConfig V2 Builder domain', () => {
     expect(added.selectedOutput).toBe('specimens');
     expect(added.selectedResource).toBeUndefined();
     expect(added.selectedNodeKey).toBeUndefined();
+    expect(
+      added.config?.recipe.outputs?.find(
+        (item) => item.name === 'specimens',
+      ),
+    ).not.toHaveProperty('title');
+    expect(
+      added.config?.views.find((view) => view.output === 'specimens')?.title,
+    ).toBe('Biospecimens');
   });
 
   it('discard restores the active published packet', async () => {
@@ -739,6 +840,179 @@ describe('ExplorerConfig V2 Builder domain', () => {
     expect(
       hydrated.selectedCandidateIdsByNode['patients|root:Patient'],
     ).toEqual(['candidate-id']);
+  });
+
+  it('hydrates configured table columns even when the recipe field list is incomplete', async () => {
+    const configured = {
+      ...config,
+      views: [
+        {
+          ...config.views[0],
+          table: {
+            columns: [
+              ...config.views[0].table.columns,
+              { column: 'file_name', label: 'File name', visible: true },
+            ],
+          },
+        },
+      ],
+    };
+    const loaded = await initialStateFromConfig(
+      'demo',
+      createBuilderSession('demo'),
+      config,
+    );
+    const catalog = {
+      complete: true,
+      diagnostics: [],
+      resources: [
+        {
+          resourceType: 'Patient',
+          label: 'People',
+          fields: [
+            {
+              ...graphField('Patient', 'candidate-id'),
+              publicName: 'id',
+            },
+            graphField('Patient', 'file_name'),
+          ],
+        },
+      ],
+      relationships: [],
+    };
+    const hydrated = explorerBuilderReducer(loaded, {
+      type: 'setCatalog',
+      catalog,
+    });
+    expect(
+      hydrated.selectedCandidateIdsByNode['patients|root:Patient'],
+    ).toEqual(['candidate-id']);
+
+    const refreshed = explorerBuilderReducer(
+      { ...hydrated, config: configured },
+      {
+        type: 'setCatalog',
+        catalog,
+      },
+    );
+    expect(
+      refreshed.selectedCandidateIdsByNode['patients|root:Patient'],
+    ).toEqual(['candidate-id', 'file_name']);
+    expect(
+      candidateMatchesConfiguredSelection(
+        configured,
+        'patients',
+        'patients|root:Patient',
+        graphField('Patient', 'file_name'),
+      ),
+    ).toBe(true);
+
+    const cleared = explorerBuilderReducer(refreshed, {
+      type: 'setCandidate',
+      output: 'patients',
+      nodeKey: 'patients|root:Patient',
+      candidate: graphField('Patient', 'file_name'),
+      selected: false,
+    });
+    expect(cleared.config?.views[0].table.columns).toEqual([
+      { column: 'id', label: 'Person ID', visible: true },
+    ]);
+    expect(
+      cleared.selectedCandidateIdsByNode['patients|root:Patient'],
+    ).toEqual(['candidate-id']);
+  });
+
+  it('matches logical config names to qualified and sanitized catalog paths', async () => {
+    const configured: ExplorerConfigV2 = {
+      ...config,
+      recipe: {
+        ...config.recipe,
+        outputs: [
+          {
+            ...config.recipe.outputs![0],
+            fields: [
+              { name: 'id' },
+              { name: 'identifier_system' },
+              { name: 'identifier' },
+            ],
+          },
+        ],
+      },
+      views: [
+        {
+          ...config.views[0],
+          table: {
+            columns: [
+              { column: 'id', visible: true },
+              { column: 'identifier_system', visible: true },
+              { column: 'identifier', visible: true },
+            ],
+          },
+        },
+      ],
+    };
+    const systemCandidate: CatalogCandidate = {
+      id: 'identifier-system',
+      resourceType: 'Patient',
+      path: 'identifier[].system',
+      label: 'identifier[].system',
+      publicName: 'identifier[].system',
+      selectionKey: 'Patient.identifier[].system',
+      valueSelector: 'identifier[].system',
+      logicalType: 'string',
+      repeated: true,
+    };
+    const identifierCandidate: CatalogCandidate = {
+      id: 'identifier',
+      resourceType: 'Patient',
+      path: 'Patient#identifier',
+      label: 'identifier',
+      publicName: 'Patient#identifier',
+      selectionKey: 'Patient#identifier',
+      valueSelector: 'Patient#identifier',
+      logicalType: 'string',
+      repeated: true,
+    };
+    expect(
+      candidateMatchesConfiguredSelection(
+        configured,
+        'patients',
+        'patients|root:Patient',
+        systemCandidate,
+      ),
+    ).toBe(true);
+    expect(
+      candidateMatchesConfiguredSelection(
+        configured,
+        'patients',
+        'patients|root:Patient',
+        identifierCandidate,
+      ),
+    ).toBe(true);
+
+    const loaded = await initialStateFromConfig(
+      'demo',
+      createBuilderSession('demo'),
+      configured,
+    );
+    const hydrated = explorerBuilderReducer(loaded, {
+      type: 'setCatalog',
+      catalog: {
+        complete: true,
+        diagnostics: [],
+        resources: [
+          {
+            resourceType: 'Patient',
+            label: 'People',
+            fields: [systemCandidate, identifierCandidate],
+          },
+        ],
+        relationships: [],
+      },
+    });
+    expect(
+      hydrated.selectedCandidateIdsByNode['patients|root:Patient'],
+    ).toEqual(['identifier-system', 'identifier']);
   });
 
   it('hydrates selected native family keys even without an ordinary field declaration', async () => {

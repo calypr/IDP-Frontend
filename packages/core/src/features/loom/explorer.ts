@@ -238,15 +238,28 @@ export const sanitizeExplorerConfigForAuthoring = (
     ...config,
     recipe: {
       ...config.recipe,
-      outputs: config.recipe.outputs?.map((output) => ({
-        ...output,
-        ...(output.fields
-          ? { fields: output.fields.map(recipeFieldWithoutLabel) }
-          : {}),
-        ...(output.traversals
-          ? { traversals: output.traversals.map(recipeTraversalWithoutLabels) }
-          : {}),
-      })),
+      outputs: config.recipe.outputs?.map((output) => {
+        const {
+          title: _title,
+          rowGrain: _rowGrain,
+          ...withoutRecipeMetadata
+        } = output;
+        const rowGrain = normalizeRowGrainForLoom(output.rowGrain);
+        return {
+          ...withoutRecipeMetadata,
+          ...(rowGrain ? { rowGrain } : {}),
+          ...(output.fields
+            ? { fields: output.fields.map(recipeFieldWithoutLabel) }
+            : {}),
+          ...(output.traversals
+            ? {
+                traversals: output.traversals.map(
+                  recipeTraversalWithoutLabels,
+                ),
+              }
+            : {}),
+        };
+      }),
     },
     views: config.views.map((view) => ({
       ...view,
@@ -311,6 +324,28 @@ const executableRecipeTraversal = (
     ? { children: traversal.children.map(executableRecipeTraversal) }
     : {}),
 });
+
+/**
+ * Loom's row grain is a small execution vocabulary, not an arbitrary
+ * snake-cased FHIR resource name. Keep accepting descriptive values while a
+ * config is hydrated, but only send values that the recipe validator knows.
+ */
+const loomRowGrains = new Set([
+  'patient',
+  'specimen',
+  'file',
+  'study_enrollment',
+  'resource',
+  'expanded',
+]);
+
+export const normalizeRowGrainForLoom = (
+  value: unknown,
+): string | undefined => {
+  if (typeof value !== 'string' || !value.trim()) return undefined;
+  const normalized = value.trim().toLocaleLowerCase();
+  return loomRowGrains.has(normalized) ? normalized : 'resource';
+};
 
 /**
  * Remove Builder-only metadata before sending an executable packet to Loom.
@@ -468,21 +503,30 @@ export const sanitizeExplorerConfigForLoom = (
     ...(sharedFilters ? { sharedFilters } : { sharedFilters: undefined }),
     recipe: {
       ...config.recipe,
-      outputs: config.recipe.outputs?.map((output) => ({
-        ...output,
-        ...(output.fields
-          ? {
-              fields: output.fields
-                .map(executableRecipeField)
-                .filter((field): field is RecipeFieldV2 => Boolean(field)),
-            }
-          : {}),
-        ...(output.traversals
-          ? {
-              traversals: output.traversals.map(executableRecipeTraversal),
-            }
-          : {}),
-      })),
+      outputs: config.recipe.outputs?.map((output) => {
+        const {
+          title: _title,
+          rowGrain: _rowGrain,
+          ...withoutRecipeMetadata
+        } = output;
+        const rowGrain = normalizeRowGrainForLoom(output.rowGrain);
+        return {
+          ...withoutRecipeMetadata,
+          ...(rowGrain ? { rowGrain } : {}),
+          ...(output.fields
+            ? {
+                fields: output.fields
+                  .map(executableRecipeField)
+                  .filter((field): field is RecipeFieldV2 => Boolean(field)),
+              }
+            : {}),
+          ...(output.traversals
+            ? {
+                traversals: output.traversals.map(executableRecipeTraversal),
+              }
+            : {}),
+        };
+      }),
     },
   };
 };
@@ -764,10 +808,8 @@ export interface ExplorerAuthoringCandidate {
   readonly populationCount?: number;
   readonly examples?: ReadonlyArray<string>;
   readonly family?: 'field' | 'catalog' | 'dynamic' | 'extension' | 'pivot';
-  readonly recommended?: boolean;
   readonly filterable?: boolean;
   readonly chartable?: boolean;
-  readonly technicalDetails?: string;
   /** Native recipe declaration metadata returned by Loom. These values are
    * used to author fields; the candidate id remains snapshot-local and is
    * never persisted in ExplorerConfig V2. */

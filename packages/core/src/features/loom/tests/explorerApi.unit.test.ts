@@ -254,6 +254,42 @@ describe('authenticated V2 Explorer lifecycle API', () => {
     });
   });
 
+  it('unwraps a publication state envelope before hydrating the Builder', async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          activeUrl: '/Explorer/org-project',
+          publicationId: 'publication-1',
+          state: {
+            project: 'org-project',
+            explorerId: 'default',
+            management: 'REPOSITORY',
+            activeConfig: config,
+            draftConfig: {
+              ...config,
+              explorer: { ...config.explorer, title: 'Draft' },
+            },
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const result = await store()
+      .dispatch(
+        loomExplorerApi.endpoints.getExplorer.initiate({
+          project: 'org-project',
+          explorerId: 'default',
+        }),
+      )
+      .unwrap();
+
+    expect(result.activeConfig).toEqual(config);
+    expect(result.draftConfig?.explorer.title).toBe('Draft');
+    expect(result.publicationId).toBe('publication-1');
+    expect(result.activeUrl).toBe('/Explorer/org-project');
+  });
+
   it('derives creation identity on the server and sends the requested name', async () => {
     fetchMock.mockResolvedValue(
       new Response(
@@ -560,7 +596,9 @@ describe('authenticated V2 Explorer lifecycle API', () => {
         outputs: [
           {
             name: 'people',
+            title: 'People',
             rootResourceType: 'Patient',
+            rowGrain: 'substance_definition',
             fields: [
               {
                 name: 'id',
@@ -648,6 +686,8 @@ describe('authenticated V2 Explorer lifecycle API', () => {
       name: 'id',
       expr: { select: 'root.id' },
     });
+    expect(body.config.recipe.outputs?.[0]).not.toHaveProperty('title');
+    expect(body.config.recipe.outputs?.[0].rowGrain).toBe('resource');
     expect(body.config.recipe.outputs?.[0].fields?.[1]).toEqual({
       name: 'category_coding_system',
       expr: { select: 'root.category[].coding[].system' },
@@ -662,7 +702,7 @@ describe('authenticated V2 Explorer lifecycle API', () => {
   it('previews the repository default without interactive draft CAS data', async () => {
     const defaultConfig: ExplorerConfigV2 = {
       ...config,
-      explorer: { ...config.explorer, id: 'default', management: 'repository' },
+      explorer: { ...config.explorer, id: 'default', management: 'interactive' },
       recipe: {
         schemaVersion: 2,
         outputs: [{ name: 'people', rootResourceType: 'Patient', fields: [] }],
@@ -1593,12 +1633,12 @@ describe('authenticated V2 Explorer lifecycle API', () => {
       ]),
     );
   });
-  it('uses the V2 REST authoring catalog without Builder GraphQL introspection', async () => {
+  it('loads the V2 REST authoring catalog before a row resource is selected', async () => {
     const authoringConfig: ExplorerConfigV2 = {
       ...config,
       recipe: {
         schemaVersion: 2,
-        outputs: [{ name: 'people', rootResourceType: 'Patient', fields: [] }],
+        outputs: [{ name: 'people', fields: [] }],
       },
     };
     fetchMock.mockResolvedValue(

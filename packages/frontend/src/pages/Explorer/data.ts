@@ -13,10 +13,7 @@ import {
 } from '@gen3/core';
 import type {
   ExplorerDatasetOutputV2,
-  ExplorerPhysicalColumnV2,
   FacetDefinition,
-  LoomColumn,
-  LoomDataset,
   RecipeBundleV2,
   RepositoryExplorerConfig,
 } from '@gen3/core';
@@ -29,9 +26,15 @@ import type { ExplorerPageData } from './types';
 import {
   normalizeCohortPanelForDataset,
   normalizeSharedFilterMappings,
+  runtimeColumnsFromUnknown,
+  type RuntimeColumn,
 } from '../../features/CohortBuilder/runtimeConfiguration';
 
 type LoomColumnsByExplorerType = Record<string, ReadonlySet<string>>;
+type LoomRuntimeColumnsByExplorerType = Record<
+  string,
+  ReadonlyArray<RuntimeColumn>
+>;
 
 const legacyExplorerOutputNames: Readonly<Record<string, string>> = {
   file: 'DocumentReference',
@@ -73,86 +76,43 @@ const missingSelectorError = (output: string): Error & {
     },
   );
 
+const missingActiveConfigError = (): Error & {
+  readonly status: number;
+  readonly code: string;
+  readonly retryable: boolean;
+} =>
+  Object.assign(
+    new Error(
+      'The active Explorer publication did not include activeConfig. Refusing to synthesize an Explorer from live dataset metadata.',
+    ),
+    {
+      status: 422,
+      code: 'EXPLORER_ACTIVE_CONFIG_REQUIRED',
+      retryable: false,
+    },
+  );
+
 /**
  * The browser lifecycle client and some Loom deployments expose REST resources
- * in a `{ data: ... }` envelope. The Viewer loads this resource during SSR
- * through the request-bound client, so normalize it at this boundary too.
+ * in either a `{ data: ... }` envelope or a publication envelope whose actual
+ * Explorer state is under `state`. The Viewer loads this resource during SSR
+ * through the request-bound client, so normalize both shapes at this boundary.
  */
 export const unwrapRepositoryExplorerResponse = (
   payload: unknown,
 ): RepositoryExplorerConfig => {
-  const value = isRecord(payload) && isRecord(payload.data) ? payload.data : payload;
-  return value as RepositoryExplorerConfig;
-};
-
-const getRepositoryDatasets = (
-  deployed: RepositoryExplorerConfig,
-): ReadonlyArray<LoomDataset> => {
-  const datasetOutputs = deployed.dataset?.outputs ?? [];
-  if (datasetOutputs.length > 0)
-    return datasetOutputs.map((output) =>
-      loomDatasetFromOutput(deployed, output),
-    );
-  if (deployed.datasets?.length)
-    return deployed.datasets.map((dataset) => ({
-      ...dataset,
-      dataType: normalizeExplorerOutputName(dataset.dataType) as LoomDataset['dataType'],
-      selector:
-        (isDataframeSelector(dataset.selector) ? dataset.selector : undefined) ??
-        materializationSelectorForOutput(deployed, dataset.name),
-    }));
-
-  // Older Loom responses exposed the same physical columns through
-  // materializations. Keep the column fallback, but derive the request
-  // selector from the server recipe metadata instead of the materialization
-  // identifier.
-  return (deployed.materializations ?? []).map((materialization) => ({
-    id: `${deployed.project}:${materialization.output}`,
-    name: materialization.output,
-    dataType: normalizeExplorerOutputName(materialization.output) as LoomDataset['dataType'],
-    selector: materializationSelectorForOutput(deployed, materialization.output),
-    revision: deployed.sourceGeneration ?? materialization.output,
-    state: 'READY',
-    columns: materialization.columns,
-    rowCount: 0,
-    createdAt: '',
-  })) as ReadonlyArray<LoomDataset>;
-};
-
-const loomColumnFromPhysicalColumn = (
-  column: ExplorerPhysicalColumnV2,
-): LoomColumn => ({
-  name: column.name,
-  clickhouseType: column.clickhouseType ?? 'String',
-  logicalType: column.logicalType ?? 'string',
-  nullable: column.nullable ?? true,
-  repeated: column.repeated ?? false,
-  // The repository default must not invent capabilities for a column when
-  // Loom only supplies its physical name/type. Unsupported aggregate or sort
-  // requests otherwise make the entire default tab fail to render.
-  filterable: column.filterable ?? false,
-  sortable: column.sortable ?? false,
-  aggregatable: column.aggregatable ?? false,
-});
-
-const loomDatasetFromOutput = (
-  deployed: RepositoryExplorerConfig,
-  output: ExplorerDatasetOutputV2,
-): LoomDataset => {
-  const outputName = outputNameFromMetadata(output);
-  const selector = materializationSelectorForOutput(deployed, outputName, output);
+  const data = isRecord(payload) && isRecord(payload.data) ? payload.data : payload;
+  if (!isRecord(data) || !isRecord(data.state)) return data as RepositoryExplorerConfig;
+  const value = data.state;
   return {
-    id: `${deployed.project}:${outputName}`,
-    name: outputName,
-    dataType: normalizeExplorerOutputName(outputName) as LoomDataset['dataType'],
-    selector,
-    revision:
-      deployed.dataset?.generation ?? deployed.sourceGeneration ?? outputName,
-    state: normalizedOutputState(output),
-    columns: (output.columns ?? []).map(loomColumnFromPhysicalColumn),
-    rowCount: 0,
-    createdAt: deployed.updatedAt,
-  };
+    ...value,
+    activeUrl: data.activeUrl ?? value.activeUrl,
+    publicationId: data.publicationId ?? value.publicationId,
+    shareUrl: data.shareUrl ?? value.shareUrl,
+    materializationMappings:
+      data.materializationMappings ?? value.materializationMappings,
+    materializations: data.materializations ?? value.materializations,
+  } as RepositoryExplorerConfig;
 };
 
 type MaterializationReference = {
@@ -162,7 +122,8 @@ type MaterializationReference = {
   readonly selector?: LoomDatasetSelector;
   readonly recipeName?: string;
   readonly translationVersion?: string;
-  readonly columns?: ReadonlyArray<{ readonly name: string }>;
+  readonly columns?: ReadonlyArray<unknown>;
+  readonly columnMappings?: Readonly<Record<string, string>>;
 };
 
 const materializationMappingsFor = (
@@ -176,6 +137,7 @@ const materializationMappingsFor = (
     recipeName: mapping.recipeName,
     translationVersion: mapping.translationVersion,
     columns: mapping.columns,
+    columnMappings: mapping.columnMappings,
   })),
   ...(deployed.frozenMaterializationMappings ?? []).map((mapping) => ({
     outputId: mapping.outputId,
@@ -185,6 +147,7 @@ const materializationMappingsFor = (
     recipeName: mapping.recipeName,
     translationVersion: mapping.translationVersion,
     columns: mapping.columns,
+    columnMappings: mapping.columnMappings,
   })),
   ...(deployed.materializations ?? []).map((materialization) => ({
     outputId: materialization.outputId,
@@ -193,6 +156,102 @@ const materializationMappingsFor = (
     columns: materialization.columns,
   })),
 ];
+
+const mergeRuntimeColumns = (
+  ...groups: ReadonlyArray<ReadonlyArray<RuntimeColumn>>
+): RuntimeColumn[] => {
+  const byName = new Map<string, RuntimeColumn>();
+  for (const group of groups) {
+    for (const column of group) {
+      const existing = byName.get(column.name);
+      if (!existing) {
+        byName.set(column.name, column);
+        continue;
+      }
+      byName.set(column.name, {
+        ...existing,
+        filterable: existing.filterable ?? column.filterable,
+        chartable: existing.chartable ?? column.chartable,
+        semanticPath: existing.semanticPath ?? column.semanticPath,
+        selectionId: existing.selectionId ?? column.selectionId,
+        aliases: [
+          ...new Set([...(existing.aliases ?? []), ...(column.aliases ?? [])]),
+        ],
+      });
+    }
+  }
+  return [...byName.values()];
+};
+
+const runtimeColumnsWithMappingAliases = (
+  values: ReadonlyArray<unknown>,
+  columnMappings?: Readonly<Record<string, string>>,
+): RuntimeColumn[] => {
+  const columns = runtimeColumnsFromUnknown(values);
+  if (!columnMappings) return columns;
+  return columns.map((column) => ({
+    ...column,
+    aliases: [
+      ...(column.aliases ?? []),
+      ...Object.entries(columnMappings)
+        .filter(([, physical]) => physical === column.name)
+        .map(([logical]) => logical),
+    ],
+  }));
+};
+
+const outputRootResourceType = (
+  deployed: RepositoryExplorerConfig,
+  output: string,
+): string | undefined => {
+  const recipe = deployed.activeConfig?.recipe;
+  return recipe?.outputs?.find((candidate) => candidate.name === output)
+    ?.rootResourceType;
+};
+
+const runtimeColumnsForOutput = (
+  deployed: RepositoryExplorerConfig,
+  output: string,
+  materialization: MaterializationReference | undefined,
+  outputMetadata: ExplorerDatasetOutputV2 | undefined,
+  configuredColumns: ReadonlyArray<unknown>,
+): RuntimeColumn[] => {
+  const record = deployed as unknown as Record<string, unknown>;
+  const emittedColumns = Array.isArray(record.emittedColumns)
+    ? record.emittedColumns.filter((column) => {
+        if (!isRecord(column)) return false;
+        const outputID =
+          typeof column.OutputID === 'string'
+            ? column.OutputID
+            : typeof column.outputId === 'string'
+              ? column.outputId
+              : undefined;
+        return !outputID || outputID === output;
+      })
+    : [];
+  const physicalColumns = Array.isArray(record.physicalColumns)
+    ? record.physicalColumns
+    : [];
+  const preferred =
+    materialization?.columns && materialization.columns.length > 0
+      ? runtimeColumnsWithMappingAliases(
+          materialization.columns,
+          materialization.columnMappings,
+        )
+      : outputMetadata?.columns && outputMetadata.columns.length > 0
+        ? runtimeColumnsFromUnknown(outputMetadata.columns)
+        : emittedColumns.length > 0
+          ? runtimeColumnsFromUnknown(emittedColumns)
+          : physicalColumns.length > 0
+            ? runtimeColumnsFromUnknown(physicalColumns)
+            : runtimeColumnsFromUnknown(configuredColumns);
+  const preferredNames = new Set(preferred.map((column) => column.name));
+  const supplemental = runtimeColumnsFromUnknown([
+    ...emittedColumns,
+    ...physicalColumns,
+  ]).filter((column) => preferredNames.has(column.name));
+  return mergeRuntimeColumns(preferred, supplemental);
+};
 
 const materializationSelectorForOutput = (
   deployed: RepositoryExplorerConfig,
@@ -267,117 +326,20 @@ const materializationSelectorForOutput = (
   }
 };
 
-const outputNameFromMetadata = (output: ExplorerDatasetOutputV2): string => {
-  const value = output as unknown as Record<string, unknown>;
-  return typeof value.output === 'string'
-    ? value.output.trim()
-    : typeof value.name === 'string'
-      ? value.name.trim()
-      : typeof value.dataType === 'string'
-        ? value.dataType.trim()
-        : '';
-};
-
-const normalizedOutputState = (
-  output: ExplorerDatasetOutputV2,
-): LoomDataset['state'] => {
-  if (output.queryable === false) return 'UNQUERYABLE';
-  const rawState =
-    typeof output.state === 'string' ? output.state.trim().toUpperCase() : '';
-  if (
-    !rawState ||
-    ['READY', 'PUBLISHED', 'MATERIALIZED', 'AVAILABLE', 'QUERYABLE', 'ACTIVE'].includes(
-      rawState,
-    )
-  )
-    return 'READY';
-  return rawState;
-};
-
-const isReadyDataset = (dataset: LoomDataset): boolean =>
-  dataset.state.toUpperCase() === 'READY';
-
-/**
- * Builds the repository/default presentation from Loom's live dataset
- * metadata. The default Explorer deliberately has no server-owned views,
- * filters, or physical column list to become stale.
- */
-const defaultConfigurationFromDatasets = (
-  datasets: ReadonlyArray<LoomDataset>,
-  project: string,
-): {
-  readonly configuration: CohortBuilderConfiguration;
-  readonly columns: LoomColumnsByExplorerType;
-} => {
-  const readyDatasets = datasets.filter(
-    (dataset) => isReadyDataset(dataset) && dataset.dataType.trim().length > 0,
-  );
-  if (readyDatasets.length === 0) {
-    const summary =
-      datasets.length > 0
-        ? datasets
-            .map(
-              (dataset) =>
-                `${dataset.name || '<unnamed>'} [${dataset.dataType || '<unknown>'}; ${dataset.state || '<unknown>'}; ${dataset.columns.length} columns]`,
-            )
-            .join(', ')
-        : 'no dataset records';
-    throw new Error(
-      `Loom did not publish any READY Explorer datasets. Received: ${summary}`,
-    );
-  }
-
-  const columns: LoomColumnsByExplorerType = {};
-  const explorerConfig = readyDatasets.map((dataset) => {
-    if (!dataset.selector)
-      throw missingSelectorError(dataset.dataType);
-    const datasetColumns = dataset.columns;
-    const fields = datasetColumns.map((column) => column.name);
-    columns[dataset.dataType] = new Set(fields);
-
-    return {
-      tabTitle: dataset.dataType,
-      guppyConfig: {
-        dataType: dataset.dataType,
-        output: dataset.dataType,
-        loomDataset: dataset.selector,
-        loomProjectIds: [project],
-      },
-      table: {
-        enabled: true,
-        fields,
-        columns: Object.fromEntries(
-          datasetColumns.map((column) => [
-            column.name,
-            { field: column.name, title: column.name },
-          ]),
-        ),
-      },
-    } as CohortPanelConfiguration;
-  });
-
-  return {
-    configuration: { explorerConfig },
-    columns,
-  };
-};
-
 /** Converts the authenticated, frozen V2 deployment record into the existing renderer contract. */
 export const loomRepositoryConfigConfiguration = (
   deployed: RepositoryExplorerConfig,
 ): {
   readonly configuration: CohortBuilderConfiguration;
   readonly columns: LoomColumnsByExplorerType;
+  readonly runtimeColumns: LoomRuntimeColumnsByExplorerType;
+  readonly rootResourceTypes: Readonly<Record<string, string | undefined>>;
 } => {
-  // A published repository default has no draft, but its active V2 packet is
-  // still the authoritative presentation contract. Falling back to datasets
-  // only when no active packet exists preserves filters, charts, fixed/shared
-  // filters, and table visibility for the default Explorer.
-  if (!deployed.activeConfig)
-    return defaultConfigurationFromDatasets(getRepositoryDatasets(deployed), deployed.project);
-
   const columns: LoomColumnsByExplorerType = {};
+  const runtimeColumns: LoomRuntimeColumnsByExplorerType = {};
+  const rootResourceTypes: Record<string, string | undefined> = {};
   const activeConfig = deployed.activeConfig;
+  if (!activeConfig) throw missingActiveConfigError();
   // The published V2 packet owns the Explorer's project identity. Older
   // deployment envelopes did not repeat it at the top level.
   const project = activeConfig.project || deployed.project;
@@ -406,14 +368,25 @@ export const loomRepositoryConfigConfiguration = (
           normalizeExplorerOutputName(view.output)
       );
     });
-    const availableColumns =
-      (materialization?.columns?.length ? materialization.columns : undefined) ??
-      (outputMetadata?.columns?.length ? outputMetadata.columns : undefined) ??
-      (deployed.emittedColumns?.length ? deployed.emittedColumns : undefined) ??
-      configuredColumns;
-    columns[view.output] = new Set(
-      availableColumns.map((column) => column.name),
+    const configuredRuntimeColumns = runtimeColumnsFromUnknown(
+      configuredColumns,
     );
+    const rootResourceType = outputRootResourceType(deployed, view.output);
+    const availableColumns = runtimeColumnsForOutput(
+      deployed,
+      view.output,
+      materialization,
+      outputMetadata,
+      configuredColumns,
+    );
+    columns[view.output] = new Set(availableColumns.map((column) => column.name));
+    runtimeColumns[view.output] = mergeRuntimeColumns(
+      availableColumns,
+      configuredRuntimeColumns.filter((column) =>
+        availableColumns.some((available) => available.name === column.name),
+      ),
+    );
+    rootResourceTypes[view.output] = rootResourceType;
     const fields = view.table.columns.filter((column) => column.visible);
     // ExplorerConfig V2 keeps presentation settings on the view. The legacy
     // CohortBuilder renderer still expects those settings under its panel
@@ -481,17 +454,25 @@ export const loomRepositoryConfigConfiguration = (
       ...(Object.keys(charts).length > 0 ? { charts } : {}),
       ...(Object.keys(preFilters).length > 0 ? { preFilters } : {}),
     } as unknown as CohortPanelConfiguration;
-    return normalizeCohortPanelForDataset(panel, availableColumns);
+    return normalizeCohortPanelForDataset(
+      panel,
+      runtimeColumns[view.output],
+      rootResourceType,
+    );
   });
   const sharedFilters = activeConfig.sharedFilters
     ? {
         defined: Object.fromEntries(
           Object.entries(activeConfig.sharedFilters).map(([name, mappings]) => [
-            name,
-            normalizeSharedFilterMappings(mappings, columns).map((mapping) => ({
-              index: mapping.output,
-              field: mapping.column,
-            })),
+              name,
+              normalizeSharedFilterMappings(
+                mappings,
+                runtimeColumns,
+                rootResourceTypes,
+              ).map((mapping) => ({
+                index: mapping.output,
+                field: mapping.column,
+              })),
           ]),
         ),
       }
@@ -502,6 +483,8 @@ export const loomRepositoryConfigConfiguration = (
         ? { explorerConfig }
         : { explorerConfig, sharedFilters },
     columns,
+    runtimeColumns,
+    rootResourceTypes,
   };
 };
 
@@ -569,6 +552,8 @@ export const getExplorerLoomProblem = (
 const GetSharedFieldMapping = async (
   cohortBuilderConfiguration: CohortBuilderConfiguration,
   columnsByExplorerType?: LoomColumnsByExplorerType,
+  runtimeColumnsByExplorerType?: LoomRuntimeColumnsByExplorerType,
+  rootResourceTypes?: Readonly<Record<string, string | undefined>>,
 ) => {
   let sharedFiltersMap: SharedFieldMapping | null = null;
 
@@ -595,7 +580,18 @@ const GetSharedFieldMapping = async (
               name,
               mappings.filter((mapping) => {
                 const columns = columnsByExplorerType[mapping.index];
-                return !columns || columns.has(mapping.field);
+                if (!columns) return true;
+                const runtimeColumns = runtimeColumnsByExplorerType?.[mapping.index];
+                if (runtimeColumns) {
+                  return Boolean(
+                    normalizeSharedFilterMappings(
+                      [{ output: mapping.index, column: mapping.field }],
+                      { [mapping.index]: runtimeColumns },
+                      rootResourceTypes,
+                    ).length,
+                  );
+                }
+                return columns.has(mapping.field);
               }),
             ])
             .filter(([, mappings]) => mappings.length > 0),
@@ -700,6 +696,8 @@ const loadExplorerConfiguration = async (
     sharedFiltersMap = await GetSharedFieldMapping(
       configuration,
       pinned.columns,
+      pinned.runtimeColumns,
+      pinned.rootResourceTypes,
     );
   } catch (error) {
     const problem = getExplorerLoomProblem(error);

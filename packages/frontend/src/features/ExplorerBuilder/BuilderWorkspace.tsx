@@ -1,4 +1,5 @@
-import React, { useEffect, useReducer, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { IconColumns3, IconGripVertical } from '@tabler/icons-react';
 import { createPortal } from 'react-dom';
 import {
   Background,
@@ -29,12 +30,13 @@ import type {
 } from '@gen3/core';
 import {
   configForOutput,
-  sanitizeExplorerConfigForLoom,
 } from '@gen3/core';
 import {
   builderTables,
   applyCompiledColumnCapabilities,
   canonicalizeExplorerConfig,
+  candidateColumnNames,
+  candidateMatchesConfiguredSelection,
   createBuilderSession,
   digestExplorerConfig,
   digestExplorerPreview,
@@ -42,6 +44,7 @@ import {
   filterLinkedGraph,
   initialStateFromConfig,
   previewCacheKey,
+  publishedConfigFromServer,
   presentationDiagnostics,
   slugifyExplorerId,
   tableColumns,
@@ -79,6 +82,58 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 const isResourceType = (value: unknown): value is string =>
   typeof value === 'string' && value.trim().length > 0;
+
+/**
+ * Field and presentation edits do not change the graph behind the authoring
+ * catalog. Keep those edits out of the catalog request identity so checking a
+ * row control cannot refresh the picker and change the user's place in it.
+ */
+const traversalForAuthoringCatalog = (
+  traversal: RecipeTraversalV2,
+): RecipeTraversalV2 => {
+  const { fields: _fields, children, ...withoutFields } = traversal;
+  return {
+    ...withoutFields,
+    ...(children
+      ? { children: children.map(traversalForAuthoringCatalog) }
+      : {}),
+  };
+};
+
+const catalogConfigFor = (
+  config: ExplorerConfigV2,
+  output: string,
+): ExplorerConfigV2 => {
+  const scoped = configForOutput(config, output);
+  return {
+    ...scoped,
+    // These are presentation-only and are not used to discover graph fields.
+    sharedFilters: undefined,
+    fileActions: undefined,
+    recipe: {
+      ...scoped.recipe,
+      outputs: scoped.recipe.outputs?.map((candidate) => {
+        const { fields: _fields, traversals, ...withoutFields } = candidate;
+        return {
+          ...withoutFields,
+          ...(traversals
+            ? {
+                traversals: traversals.map(traversalForAuthoringCatalog),
+              }
+            : {}),
+        };
+      }),
+    },
+    // Keep the required view envelope, but omit its authored columns and
+    // presentation settings from the discovery request identity.
+    views: scoped.views.map((view) => ({
+      id: view.id,
+      title: '',
+      output: view.output,
+      table: { columns: [] },
+    })),
+  };
+};
 const titleForResource = (value: unknown): string =>
   isResourceType(value)
     ? value
@@ -144,7 +199,6 @@ const normalizeCatalogCandidate = (
       typeof value.population === 'number' && Number.isFinite(value.population)
         ? value.population
         : undefined,
-    technicalDetails: optionalText(value.technicalDetails),
     selectionKey: optionalText(value.selectionKey),
     valueSelector: optionalText(value.valueSelector),
     familyName: optionalText(value.familyName),
@@ -212,155 +266,6 @@ const configFromServer = (
   return isRecord(config) ? (config as unknown as ExplorerConfigV2) : undefined;
 };
 
-/**
- * The repository default has no authored presentation packet. Build a
- * browser-editable presentation packet from its executable baseline recipe and
- * live dataset outputs. The baseline recipe remains server-managed; browser
- * edits to the default packet do not invoke the interactive authoring compiler.
- */
-const defaultConfigFromServer = (
-  candidate: ExplorerState | Record<string, unknown>,
-  project: string,
-): ExplorerConfigV2 | undefined => {
-  const record = candidate as Record<string, unknown>;
-  if (record.explorerId !== 'default') return undefined;
-  const baseline = isRecord(record.baselineConfig)
-    ? record.baselineConfig
-    : undefined;
-  const recipe =
-    baseline && isRecord(baseline.recipe)
-      ? baseline.recipe
-      : baseline && Array.isArray(baseline.outputs)
-        ? baseline
-        : undefined;
-  const dataset = isRecord(record.dataset) ? record.dataset : undefined;
-  const recipeOutputs = recipe && Array.isArray(recipe.outputs)
-    ? recipe.outputs.filter(isRecord)
-    : [];
-  const liveOutputs = Array.isArray(dataset?.outputs)
-    ? dataset.outputs.filter(isRecord)
-    : Array.isArray(record.datasets)
-      ? record.datasets.filter(isRecord)
-      : Array.isArray(record.materializations)
-        ? record.materializations.filter(isRecord)
-        : Array.isArray(record.materializationMappings)
-          ? record.materializationMappings.filter(isRecord)
-          : [];
-  const outputs = liveOutputs.length > 0 ? liveOutputs : recipeOutputs;
-  if (!recipe || outputs.length === 0) return undefined;
-
-  const emittedColumns = Array.isArray(record.emittedColumns)
-    ? record.emittedColumns.filter(isRecord)
-    : [];
-  const physicalColumns = Array.isArray(record.physicalColumns)
-    ? record.physicalColumns.filter(isRecord)
-    : [];
-  const mappingOutputs = [
-    ...(Array.isArray(record.materializationMappings)
-      ? record.materializationMappings.filter(isRecord)
-      : []),
-    ...(Array.isArray(record.frozenMaterializationMappings)
-      ? record.frozenMaterializationMappings.filter(isRecord)
-      : []),
-  ];
-
-  const views = outputs.flatMap((output) => {
-    const name =
-      typeof output.name === 'string'
-        ? output.name.trim()
-        : typeof output.output === 'string'
-          ? output.output.trim()
-          : typeof output.dataType === 'string'
-            ? output.dataType.trim()
-            : '';
-    const state =
-      typeof output.state === 'string' && output.state.trim()
-        ? output.state
-        : 'READY';
-    const queryable = output.queryable !== false;
-    const outputColumns = Array.isArray(output.columns) ? output.columns : [];
-    const mappedOutput = mappingOutputs.find(
-      (mapping) =>
-        (mapping.output === name || mapping.name === name) &&
-        Array.isArray(mapping.columns),
-    );
-    const recipeOutput = recipeOutputs.find(
-      (candidate) => candidate.name === name,
-    );
-    const recipeColumns = recipeOutput && Array.isArray(recipeOutput.fields)
-      ? recipeOutput.fields
-      : [];
-    const rawColumns =
-      outputColumns.length > 0
-        ? outputColumns
-        : mappedOutput && Array.isArray(mappedOutput.columns)
-          ? mappedOutput.columns
-          : outputs.length === 1
-            ? [...emittedColumns, ...physicalColumns]
-            : recipeColumns;
-    const columns = rawColumns.flatMap((column) => {
-      const name =
-        typeof column === 'string'
-          ? column.trim()
-          : isRecord(column) && typeof column.name === 'string'
-            ? column.name.trim()
-            : isRecord(column) && typeof column.column === 'string'
-              ? column.column.trim()
-              : '';
-      if (!name) return [];
-      return [
-        {
-          column: name,
-          label:
-            isRecord(column) &&
-            typeof column.label === 'string' &&
-            column.label.trim()
-              ? column.label
-              : name,
-          visible: true,
-        },
-      ];
-    });
-    if (!name || state.toUpperCase() !== 'READY' || !queryable || !columns.length)
-      return [];
-    return [
-      {
-        id: slugifyExplorerId(name) || name.toLowerCase(),
-        title: name,
-        output: name,
-        rowLabel: name,
-        table: { columns },
-      },
-    ];
-  });
-  if (!views.length) return undefined;
-
-  const baselineExplorer = isRecord(baseline?.explorer)
-    ? baseline.explorer
-    : undefined;
-  const generatedConfig: ExplorerConfigV2 = {
-    apiVersion: 'loom.calypr.org/explorer-config/v2',
-    kind: 'ExplorerConfig',
-    project:
-      typeof record.project === 'string' ? record.project : project,
-    explorer: {
-      id: 'default',
-      title:
-        typeof baselineExplorer?.title === 'string'
-          ? baselineExplorer.title
-          : 'Repository default',
-      management: 'repository',
-    },
-    recipe: recipe as ExplorerConfigV2['recipe'],
-    views,
-  };
-  // Dataset/materialization metadata can retain physical columns from an
-  // older Explorer contract. Only seed the Builder with columns the current
-  // executable recipe can emit; the live catalog remains the source for new
-  // browser selections.
-  return sanitizeExplorerConfigForLoom(generatedConfig);
-};
-
 const activeConfigFromServer = (
   candidate: ExplorerState | Record<string, unknown>,
 ): ExplorerConfigV2 | undefined => {
@@ -368,6 +273,14 @@ const activeConfigFromServer = (
   const config = record.activeConfig;
   return isRecord(config) ? (config as unknown as ExplorerConfigV2) : undefined;
 };
+
+const configForBuilder = (
+  candidate: ExplorerState | Record<string, unknown>,
+  preferActive: boolean,
+): ExplorerConfigV2 | undefined =>
+  preferActive
+    ? activeConfigFromServer(candidate)
+    : configFromServer(candidate);
 
 const requireServerConfig = (
   candidate: ExplorerState | Record<string, unknown>,
@@ -382,6 +295,24 @@ const requireServerConfig = (
       },
     };
   return config;
+};
+
+const requirePublishedConfig = (
+  candidate: ExplorerState | Record<string, unknown>,
+): ExplorerConfigV2 => {
+  const config = publishedConfigFromServer(
+    candidate as {
+      readonly activeConfig?: ExplorerConfigV2;
+      readonly draftConfig?: ExplorerConfigV2;
+    },
+  );
+  if (config) return config;
+  throw {
+    data: {
+      code: 'INVALID_PUBLICATION_RESPONSE',
+      message: 'The publication response did not include activeConfig.',
+    },
+  };
 };
 
 const resourceTypesFromConfig = (
@@ -489,36 +420,21 @@ const selectedCandidateIdsFor = (
   if (output?.rootResourceType !== resource) visit(output?.traversals ?? []);
   const nodeKey = `${state.selectedOutput ?? ''}|${localNodeKey}`;
   const snapshotSelections = state.selectedCandidateIdsByNode[nodeKey];
-  if (snapshotSelections) return new Set(snapshotSelections);
-  const fields =
-    output && output.rootResourceType === resource
-      ? [...(output.fields ?? [])]
-      : [];
-  if (output?.rootResourceType !== resource) {
-    const collect = (nodes: ReadonlyArray<RecipeTraversalV2>) =>
-      nodes.forEach((node) => {
-        if (traversalTargetResource(node) === resource)
-          fields.push(...(node.fields ?? []));
-        collect(node.children ?? []);
-      });
-    collect(output?.traversals ?? []);
-  }
-  return new Set(
-    fields
-      .map(
-        (field) =>
-          candidatesFor(state, resource).find(
-            (candidate) =>
-              field.name === candidate.publicName ||
-              field.name === candidate.path ||
-              (candidate.selectionKey !== undefined &&
-                field.selectionKey === candidate.selectionKey) ||
-              (candidate.valueSelector !== undefined &&
-                field.valueSelector === candidate.valueSelector),
-          )?.id,
-      )
-      .filter((id): id is string => Boolean(id)),
-  );
+  const configuredSelections = candidatesFor(state, resource)
+    .filter((candidate) =>
+      state.config
+        ? candidateMatchesConfiguredSelection(
+            state.config,
+            state.selectedOutput ?? '',
+            nodeKey,
+            candidate,
+          )
+        : false,
+    )
+    .map((candidate) => candidate.id);
+  if (snapshotSelections)
+    return new Set([...snapshotSelections, ...configuredSelections]);
+  return new Set(configuredSelections);
 };
 
 const diagnostic = (
@@ -1191,7 +1107,6 @@ const GuidedGraphWorkspace = ({
   readonly projectGraphError?: string;
 }) => {
   const [search, setSearch] = useState('');
-  const [showTechnical, setShowTechnical] = useState(false);
   const [pendingSelections, setPendingSelections] = useState<
     Readonly<Record<string, ReadonlyArray<string>>>
   >({});
@@ -1201,7 +1116,10 @@ const GuidedGraphWorkspace = ({
   const builderTable = builderTables(state.config).find(
     (candidate) => candidate.output === state.selectedOutput,
   );
-  const tableList = builderTables(state.config);
+  const configuredColumnForCandidate = (candidate: CatalogCandidate) =>
+    builderTable?.columns.find((column) =>
+      candidateColumnNames(candidate).has(column.column),
+    );
   const discoveredResources =
     projectGraphStatus === 'ready'
       ? resourcesFor(state, resourceSuggestions, projectGraph.resources)
@@ -1223,7 +1141,7 @@ const GuidedGraphWorkspace = ({
   const nodeCandidates = candidatesFor(state, resource, projectGraph.resources);
   const query = search.trim().toLocaleLowerCase();
   const candidates = nodeCandidates.filter((candidate) =>
-    `${candidate.label} ${candidate.path} ${candidate.logicalType} ${candidate.familyName ?? ''} ${candidate.technicalDetails ?? ''} ${(candidate.examples ?? []).join(' ')}`
+    `${candidate.label} ${candidate.path} ${candidate.logicalType} ${candidate.familyName ?? ''} ${(candidate.examples ?? []).join(' ')}`
       .toLocaleLowerCase()
       .includes(query),
   ).filter(
@@ -1288,7 +1206,9 @@ const GuidedGraphWorkspace = ({
   const selectedIds = included
     ? selectedCandidateIdsFor(state, resource)
     : new Set(pendingSelections[selectionNodeKey] ?? []);
-  const selectedCount = selectedIds.size;
+  const selectedCount = nodeCandidates.filter((candidate) =>
+    selectedIds.has(candidate.id),
+  ).length;
   const canEditColumns = Boolean(state.selectedOutput && resource);
   const applyCandidate = (candidate: CatalogCandidate, selected: boolean) => {
     if (!canEditColumns || disabled) return;
@@ -1422,7 +1342,7 @@ const GuidedGraphWorkspace = ({
   return (
     <section
       aria-label="Guided Explorer Builder"
-      className="flex min-h-[30rem] flex-col gap-2.5 overflow-hidden rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm sm:p-3 xl:h-[calc(100vh-14rem)] xl:max-h-[42rem] xl:min-h-0"
+      className="flex min-h-[30rem] flex-col gap-2.5 overflow-hidden xl:h-[calc(100vh-14rem)] xl:max-h-[42rem] xl:min-h-0"
     >
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-hidden xl:grid-cols-[minmax(0,1.12fr)_minmax(22rem,0.88fr)]">
         <section
@@ -1505,16 +1425,7 @@ const GuidedGraphWorkspace = ({
                 {resourceLabels[resource ?? ''] ?? resource ?? 'resource'}{' '}
                 columns
               </h3>
-              <p className="mt-0.5 text-xs text-slate-600">
-                Inspect first. The table changes only when you explicitly add
-                this dataset.
-              </p>
             </div>
-            {resource && (
-              <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] text-slate-600">
-                {selectedCount} selected
-              </span>
-            )}
           </div>
           {orientedRelationship && relationshipIsReachable && (
             <div className="mt-3 rounded border border-green-300 bg-green-50 p-2 text-xs text-green-950">
@@ -1550,16 +1461,6 @@ const GuidedGraphWorkspace = ({
                   placeholder="Search columns, codes, systems, or examples"
                   className="min-w-0 flex-1 rounded border border-slate-300 px-2.5 py-2 text-sm"
                 />
-                <label className="flex items-center gap-1 text-xs text-slate-600">
-                  <input
-                    type="checkbox"
-                    checked={showTechnical}
-                    onChange={(event) =>
-                      setShowTechnical(event.currentTarget.checked)
-                    }
-                  />{' '}
-                  Technical details
-                </label>
               </div>
               <div className="mt-2 flex flex-wrap gap-2">
                 {disabled ? (
@@ -1591,21 +1492,6 @@ const GuidedGraphWorkspace = ({
                 <button
                   type="button"
                   disabled={disabled || !canEditColumns}
-                  className="rounded border border-blue-300 px-2 py-1.5 text-xs font-semibold text-blue-800 disabled:opacity-50"
-                  onClick={() =>
-                    setSelection(
-                      nodeCandidates.filter(
-                        (candidate) => candidate.recommended,
-                      ),
-                    )
-                  }
-                  title="Select Loom-recommended columns when editing a custom Explorer."
-                >
-                  Select recommended
-                </button>
-                <button
-                  type="button"
-                  disabled={disabled || !canEditColumns}
                   className="rounded border border-slate-300 px-2 py-1.5 text-xs disabled:opacity-50"
                   title="Clear the selected columns for this resource."
                   onClick={() => setSelection([])}
@@ -1621,6 +1507,28 @@ const GuidedGraphWorkspace = ({
                       candidate.familyName ?? candidate.family ?? 'Fields';
                     const previousFamily =
                       previous?.familyName ?? previous?.family ?? 'Fields';
+                    const configuredColumn =
+                      configuredColumnForCandidate(candidate);
+                    const filter = configuredColumn
+                      ? builderTable?.filters.find(
+                          (item) => item.column === configuredColumn.column,
+                        )
+                      : undefined;
+                    const chart = configuredColumn
+                      ? builderTable?.charts.find(
+                          (item) => item.column === configuredColumn.column,
+                        )
+                      : undefined;
+                    const canFilter = Boolean(
+                      configuredColumn &&
+                        configuredColumn.filterable !== false &&
+                        candidate.filterable !== false,
+                    );
+                    const canChart = Boolean(
+                      configuredColumn &&
+                        (configuredColumn.chartable ??
+                          candidate.chartable === true),
+                    );
                     return (
                       <React.Fragment key={candidateIdentity(candidate)}>
                         {family !== previousFamily && (
@@ -1628,62 +1536,136 @@ const GuidedGraphWorkspace = ({
                             {family}
                           </p>
                         )}
-                        <label
-                          className={`flex cursor-pointer items-start gap-2.5 px-3 py-2.5 ${selectedIds.has(candidate.id) ? 'bg-blue-50' : 'hover:bg-slate-50'}`}
+                        <div
+                          className={`flex items-start gap-3 px-3 py-2.5 ${selectedIds.has(candidate.id) ? 'bg-blue-50' : 'hover:bg-slate-50'}`}
                         >
-                          <input
-                            type="checkbox"
-                            className="mt-1"
-                            checked={selectedIds.has(candidate.id)}
-                            disabled={disabled || !canEditColumns}
-                            onChange={(event) =>
-                              applyCandidate(
-                                candidate,
-                                event.currentTarget.checked,
-                              )
-                            }
-                          />
-                          <span className="min-w-0 flex-1">
-                            <span
-                              className="block truncate text-sm font-medium text-slate-800"
-                              title={candidate.label}
-                            >
-                              {candidate.label}
-                              {candidate.recommended && (
-                                <span className="ml-1.5 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] text-emerald-800">
-                                  Recommended
+                          <label className="flex min-w-0 flex-1 cursor-pointer items-start gap-2.5">
+                            <input
+                              type="checkbox"
+                              className="mt-1"
+                              checked={selectedIds.has(candidate.id)}
+                              disabled={disabled || !canEditColumns}
+                              onChange={(event) =>
+                                applyCandidate(
+                                  candidate,
+                                  event.currentTarget.checked,
+                                )
+                              }
+                            />
+                            <span className="min-w-0 flex-1">
+                              <span
+                                className="block truncate text-sm font-medium text-slate-800"
+                                title={candidate.label}
+                              >
+                                {candidate.label}
+                              </span>
+                              <span className="block text-xs text-slate-500">
+                                {candidate.logicalType} ·{' '}
+                                {candidate.repeated
+                                  ? 'repeated'
+                                  : 'single value'}
+                                {candidate.populationCount === undefined
+                                  ? ''
+                                  : ` · ${candidate.populationCount.toLocaleString()} populated`}
+                              </span>
+                              {candidate.examples?.length ? (
+                                <span
+                                  className="block truncate text-[11px] text-slate-400"
+                                  title={candidate.examples.join(', ')}
+                                >
+                                  Examples:{' '}
+                                  {candidate.examples.slice(0, 2).join(', ')}
                                 </span>
+                              ) : null}
+                            </span>
+                            <span className="text-[10px] uppercase text-slate-400">
+                              {candidate.family ?? 'field'}
+                            </span>
+                          </label>
+                          {configuredColumn && (
+                            <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5 pt-0.5">
+                              <label className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-600">
+                                <input
+                                  type="checkbox"
+                                  checked={Boolean(filter)}
+                                  disabled={disabled || !canFilter}
+                                  onChange={(event) =>
+                                    dispatch({
+                                      type: 'setFilter',
+                                      output: state.selectedOutput ?? '',
+                                      column: configuredColumn.column,
+                                      enabled: event.currentTarget.checked,
+                                      label:
+                                        filter?.label ?? configuredColumn.label,
+                                    })
+                                  }
+                                />
+                                Filter
+                              </label>
+                              {filter && (
+                                <input
+                                  aria-label={`${configuredColumn.label ?? configuredColumn.column} filter label`}
+                                  className="w-28 rounded border border-slate-300 bg-white px-1.5 py-0.5 text-[10px]"
+                                  value={
+                                    filter.label ?? configuredColumn.label ?? ''
+                                  }
+                                  disabled={disabled}
+                                  onChange={(event) =>
+                                    dispatch({
+                                      type: 'setFilter',
+                                      output: state.selectedOutput ?? '',
+                                      column: configuredColumn.column,
+                                      enabled: true,
+                                      label: event.currentTarget.value,
+                                    })
+                                  }
+                                />
                               )}
-                            </span>
-                            <span className="block text-xs text-slate-500">
-                              {candidate.logicalType} ·{' '}
-                              {candidate.repeated ? 'repeated' : 'single value'}
-                              {candidate.populationCount === undefined
-                                ? ''
-                                : ` · ${candidate.populationCount.toLocaleString()} populated`}
-                            </span>
-                            {candidate.examples?.length ? (
-                              <span
-                                className="block truncate text-[11px] text-slate-400"
-                                title={candidate.examples.join(', ')}
-                              >
-                                Examples:{' '}
-                                {candidate.examples.slice(0, 2).join(', ')}
-                              </span>
-                            ) : null}
-                            {showTechnical && (
-                              <span
-                                className="block truncate text-[11px] text-slate-400"
-                                title={candidate.path}
-                              >
-                                {candidate.technicalDetails ?? candidate.path}
-                              </span>
-                            )}
-                          </span>
-                          <span className="text-[10px] uppercase text-slate-400">
-                            {candidate.family ?? 'field'}
-                          </span>
-                        </label>
+                              <label className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-600">
+                                <input
+                                  type="checkbox"
+                                  checked={Boolean(chart)}
+                                  disabled={disabled || !canChart}
+                                  title={
+                                    canChart
+                                      ? undefined
+                                      : 'Charts are unavailable for this column type.'
+                                  }
+                                  onChange={(event) =>
+                                    dispatch({
+                                      type: 'setChart',
+                                      output: state.selectedOutput ?? '',
+                                      column: configuredColumn.column,
+                                      enabled: event.currentTarget.checked,
+                                      title:
+                                        chart?.title ?? configuredColumn.label,
+                                    })
+                                  }
+                                />
+                                Chart
+                              </label>
+                              {chart && (
+                                <input
+                                  aria-label={`${configuredColumn.label ?? configuredColumn.column} chart title`}
+                                  className="w-28 rounded border border-slate-300 bg-white px-1.5 py-0.5 text-[10px]"
+                                  value={
+                                    chart.title ?? configuredColumn.label ?? ''
+                                  }
+                                  disabled={disabled}
+                                  onChange={(event) =>
+                                    dispatch({
+                                      type: 'setChart',
+                                      output: state.selectedOutput ?? '',
+                                      column: configuredColumn.column,
+                                      enabled: true,
+                                      title: event.currentTarget.value,
+                                    })
+                                  }
+                                />
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </React.Fragment>
                     );
                   })}
@@ -1773,6 +1755,10 @@ const PreviewTable = ({
   const allColumns = tableColumns(state);
   const columns = allColumns.filter((column) => column.visible);
   const editingDisabled = disabled || readOnly;
+  const visibilityDisabled =
+    readOnly ||
+    !state.config?.recipe.outputs?.find((item) => item.name === output)
+      ?.rootResourceType;
   const catalogBlocked = state.catalog.diagnostics.some(
     (item) => item.severity === 'error',
   );
@@ -1784,23 +1770,140 @@ const PreviewTable = ({
       : columns.length === 0
         ? 'Select at least one visible column first.'
         : undefined;
+  type ColumnDropTarget = {
+    readonly column: string;
+    readonly position: 'before' | 'after';
+  };
   const [draggingColumn, setDraggingColumn] = useState<string>();
+  const [dropTarget, setDropTarget] = useState<ColumnDropTarget>();
+
+  const dropTargetForEvent = (
+    event: React.DragEvent<HTMLTableCellElement>,
+    column: string,
+  ): ColumnDropTarget => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    return {
+      column,
+      position:
+        event.clientX - bounds.left < bounds.width / 2 ? 'before' : 'after',
+    };
+  };
+
   return (
     <section
       aria-label="Sample preview"
       className="rounded-xl border border-slate-200 bg-white shadow-sm"
     >
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
         <div>
           <h2 className="font-semibold text-slate-900">
             Preview and configure
           </h2>
         </div>
         <div className="flex items-center gap-2">
-          <label className="text-xs text-slate-500">
+          <details className="relative">
+            <summary
+              aria-label="Configure visible columns"
+              className="flex cursor-pointer list-none items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-slate-400 hover:bg-slate-50 [&::-webkit-details-marker]:hidden"
+            >
+              <IconColumns3 size={15} stroke={1.8} aria-hidden="true" />
+              <span>Columns</span>
+              <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">
+                {columns.length}/{allColumns.length}
+              </span>
+              <span aria-hidden="true" className="text-slate-400">
+                ▾
+              </span>
+            </summary>
+            <div className="absolute right-0 top-full z-30 mt-2 w-72 overflow-hidden rounded-xl border border-slate-200 bg-white text-left shadow-xl">
+              <div className="border-b border-slate-100 px-3 py-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-semibold text-slate-800">
+                    Visible columns
+                  </p>
+                  <span className="text-[10px] font-medium text-slate-400">
+                    {columns.length} of {allColumns.length}
+                  </span>
+                </div>
+                <p className="mt-1 text-[11px] leading-4 text-slate-500">
+                  Choose which fields appear in the preview and published table.
+                </p>
+                <div className="mt-2 flex gap-1.5">
+                  <button
+                    type="button"
+                    className="rounded-md border border-slate-200 px-2 py-1 text-[10px] font-semibold text-slate-600 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
+                    disabled={
+                      visibilityDisabled || columns.length === allColumns.length
+                    }
+                    onClick={() =>
+                      dispatch({
+                        type: 'setColumnsVisible',
+                        output,
+                        visible: true,
+                      })
+                    }
+                  >
+                    Select all
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded-md border border-slate-200 px-2 py-1 text-[10px] font-semibold text-slate-600 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
+                    disabled={visibilityDisabled || columns.length === 0}
+                    onClick={() =>
+                      dispatch({
+                        type: 'setColumnsVisible',
+                        output,
+                        visible: false,
+                      })
+                    }
+                  >
+                    Uncheck all
+                  </button>
+                </div>
+              </div>
+              <div className="max-h-64 overflow-y-auto p-1.5">
+                {allColumns.map((column) => (
+                  <label
+                    key={column.column}
+                    className="flex cursor-pointer items-start gap-2 rounded-lg px-2 py-2 hover:bg-slate-50"
+                  >
+                    <input
+                      type="checkbox"
+                      className="mt-0.5 h-3.5 w-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                      checked={column.visible}
+                      disabled={visibilityDisabled}
+                      onChange={(event) =>
+                        dispatch({
+                          type: 'setColumnVisible',
+                          output,
+                          column: column.column,
+                          visible: event.currentTarget.checked,
+                        })
+                      }
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-xs font-medium text-slate-700">
+                        {column.label ?? column.column}
+                      </span>
+                      <span className="block truncate text-[10px] text-slate-400">
+                        {column.column}
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          </details>
+          <label className="inline-flex items-center text-xs text-slate-500">
             Rows
             <select
-              className="ml-1 rounded border px-1.5 py-1"
+              aria-label="Preview rows"
+              className="ml-1 w-11 appearance-none rounded-md border border-slate-300 bg-white px-1.5 py-1 text-center text-xs font-medium text-slate-700 shadow-sm"
+              style={{
+                appearance: 'none',
+                WebkitAppearance: 'none',
+                backgroundImage: 'none',
+              }}
               value={limit}
               onChange={(event) =>
                 onLimitChange(
@@ -1839,59 +1942,100 @@ const PreviewTable = ({
           <table className="min-w-full text-left text-xs">
             <thead className="bg-slate-50">
               <tr>
-                {columns.map((column) => (
-                  <th
-                    key={column.column}
-                    draggable={!editingDisabled}
-                    onDragStart={() => setDraggingColumn(column.column)}
-                    onDragOver={(event) => event.preventDefault()}
-                    onDrop={() => {
-                      if (
-                        !editingDisabled &&
-                        draggingColumn &&
-                        draggingColumn !== column.column
-                      )
-                        dispatch({
-                          type: 'reorderColumn',
-                          output,
-                          column: draggingColumn,
-                          before: column.column,
-                        });
-                      setDraggingColumn(undefined);
-                    }}
-                    className="border-b px-3 py-2"
-                  >
-                    <input
-                      aria-label={`${column.column} display label`}
-                      className="w-32 rounded border px-1.5 py-1 text-xs font-semibold"
-                      value={column.label ?? column.column}
-                      disabled={editingDisabled}
-                      onChange={(event) =>
-                        dispatch({
-                          type: 'setColumnLabel',
-                          output,
-                          column: column.column,
-                          label: event.currentTarget.value,
-                        })
-                      }
-                    />
-                    <button
-                      type="button"
-                      className="ml-1 text-[10px] text-slate-500"
-                      disabled={editingDisabled}
-                      onClick={() =>
-                        dispatch({
-                          type: 'setColumnVisible',
-                          output,
-                          column: column.column,
-                          visible: false,
-                        })
-                      }
+                {columns.map((column) => {
+                  const isDropTarget =
+                    dropTarget?.column === column.column &&
+                    draggingColumn !== column.column;
+                  const isDropBefore =
+                    isDropTarget && dropTarget?.position === 'before';
+                  return (
+                    <th
+                      key={column.column}
+                      draggable={!editingDisabled}
+                      onDragStart={(event) => {
+                        event.dataTransfer.effectAllowed = 'move';
+                        event.dataTransfer.setData(
+                          'text/plain',
+                          column.column,
+                        );
+                        setDraggingColumn(column.column);
+                        setDropTarget(undefined);
+                      }}
+                      onDragOver={(event) => {
+                        if (editingDisabled || !draggingColumn) return;
+                        event.preventDefault();
+                        event.dataTransfer.dropEffect = 'move';
+                        setDropTarget(
+                          dropTargetForEvent(event, column.column),
+                        );
+                      }}
+                      onDrop={(event) => {
+                        event.preventDefault();
+                        if (
+                          !editingDisabled &&
+                          draggingColumn &&
+                          draggingColumn !== column.column
+                        ) {
+                          const target = dropTargetForEvent(
+                            event,
+                            column.column,
+                          );
+                          dispatch({
+                            type: 'reorderColumn',
+                            output,
+                            column: draggingColumn,
+                            ...(target.position === 'before'
+                              ? { before: column.column }
+                              : { after: column.column }),
+                          });
+                        }
+                        setDraggingColumn(undefined);
+                        setDropTarget(undefined);
+                      }}
+                      onDragEnd={() => {
+                        setDraggingColumn(undefined);
+                        setDropTarget(undefined);
+                      }}
+                      className={`relative border-b px-2 py-1.5 transition-colors ${
+                        draggingColumn === column.column
+                          ? 'opacity-50'
+                          : ''
+                      } ${isDropTarget ? 'bg-blue-50' : ''}`}
                     >
-                      Hide
-                    </button>
-                  </th>
-                ))}
+                      {isDropTarget && (
+                        <span
+                          aria-hidden="true"
+                          className={`pointer-events-none absolute inset-y-1 z-10 w-1 rounded-full bg-blue-600 shadow-[0_0_0_3px_rgba(37,99,235,0.14)] ${
+                            isDropBefore ? 'left-0' : 'right-0'
+                          }`}
+                        />
+                      )}
+                      <div className="flex min-w-40 items-center gap-1.5">
+                        <span
+                          aria-hidden="true"
+                          className="cursor-grab select-none text-slate-400 active:cursor-grabbing"
+                          title="Drag to reorder"
+                        >
+                          <IconGripVertical size={16} stroke={1.8} />
+                        </span>
+                        <input
+                          aria-label={`${column.column} display label`}
+                          className="min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                          value={column.label ?? column.column}
+                          disabled={editingDisabled}
+                          onChange={(event) =>
+                            dispatch({
+                              type: 'setColumnLabel',
+                              output,
+                              column: column.column,
+                              label: event.currentTarget.value,
+                            })
+                          }
+                        />
+                      </div>
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
@@ -1914,7 +2058,7 @@ const PreviewTable = ({
       ) : (
         <div className="p-8 text-center text-sm text-slate-500">
           {preview?.status === 'error'
-            ? 'Preview unavailable. Use Render table to try again.'
+            ? 'Preview unavailable. Change the configuration to try again.'
             : catalogBlocked
               ? 'Field discovery is unavailable for this table. Refresh discovery before previewing.'
               : state.config?.recipe.outputs?.find(
@@ -1924,31 +2068,6 @@ const PreviewTable = ({
                   ? 'Preparing a sample preview…'
                   : 'Select at least one column to preview.'
                 : 'Choose a row resource before previewing.'}
-        </div>
-      )}
-      {allColumns.some((column) => !column.visible) && (
-        <div className="flex flex-wrap items-center gap-2 border-t px-4 py-3 text-xs">
-          <span className="font-medium text-slate-600">Hidden columns:</span>
-          {allColumns
-            .filter((column) => !column.visible)
-            .map((column) => (
-              <button
-                key={column.column}
-                type="button"
-                className="rounded border px-2 py-1"
-                disabled={editingDisabled}
-                onClick={() =>
-                  dispatch({
-                    type: 'setColumnVisible',
-                    output,
-                    column: column.column,
-                    visible: true,
-                  })
-                }
-              >
-                {column.label ?? column.column}
-              </button>
-            ))}
         </div>
       )}
     </section>
@@ -1967,13 +2086,7 @@ const PresentationPanels = ({
   readonly disabled: boolean;
 }) => {
   const output = state.selectedOutput ?? '';
-  const table = builderTables(state.config).find(
-    (item) => item.output === output,
-  );
-  const columns = tableColumns(state);
   const [sharedName, setSharedName] = useState('');
-  const [fixedColumn, setFixedColumn] = useState('');
-  const [fixedValue, setFixedValue] = useState('');
   const [fileActionName, setFileActionName] = useState('');
   const [fileActionRoute, setFileActionRoute] = useState('');
   const [fileExtension, setFileExtension] = useState('');
@@ -1983,9 +2096,6 @@ const PresentationPanels = ({
   const [sharedMappingColumns, setSharedMappingColumns] = useState<
     Readonly<Record<string, string>>
   >({});
-  const filterableColumns = columns.filter(
-    (column) => column.filterable !== false,
-  );
   const tables = builderTables(state.config);
   const fileActions = state.config?.fileActions?.actions ?? {};
   const fileExtensions = state.config?.fileActions?.extensions ?? {};
@@ -2020,241 +2130,9 @@ const PresentationPanels = ({
   return (
     <details className="rounded-xl border border-slate-200 bg-white shadow-sm">
       <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-slate-900 [&::-webkit-details-marker]:hidden">
-        <span className="mr-2 text-blue-700">2.</span>
-        Configure filters, charts, table actions, and shared filters
-        <span className="ml-2 text-xs font-normal text-slate-500">
-          Optional presentation settings
-        </span>
+        Shared filters and file actions
       </summary>
       <div className="grid gap-4 border-t border-slate-200 p-4 lg:grid-cols-2">
-        <section className="rounded-xl border bg-white p-4">
-          <h3 className="font-semibold">Filters</h3>
-          <p className="mt-1 text-xs text-slate-500">
-            Add filters from emitted columns.
-          </p>
-          <div className="mt-3 space-y-2">
-            {filterableColumns.map((column) => {
-              const filter = table?.filters.find(
-                (candidate) => candidate.column === column.column,
-              );
-              const enabled = Boolean(filter);
-              return (
-                <div
-                  key={column.column}
-                  className="flex flex-wrap items-center gap-2 text-sm"
-                >
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={enabled}
-                      disabled={disabled}
-                      onChange={(event) =>
-                        dispatch({
-                          type: 'setFilter',
-                          output,
-                          column: column.column,
-                          enabled: event.currentTarget.checked,
-                          label: filter?.label ?? column.label,
-                        })
-                      }
-                    />
-                    {column.label ?? column.column}
-                  </label>
-                  {enabled && (
-                    <input
-                      aria-label={`${column.label ?? column.column} filter label`}
-                      className="min-w-40 flex-1 rounded border px-2 py-1 text-xs"
-                      value={filter?.label ?? column.label ?? column.column}
-                      disabled={disabled}
-                      onChange={(event) =>
-                        dispatch({
-                          type: 'setFilter',
-                          output,
-                          column: column.column,
-                          enabled: true,
-                          label: event.currentTarget.value,
-                        })
-                      }
-                    />
-                  )}
-                </div>
-              );
-            })}
-          </div>
-          <details className="mt-3">
-            <summary className="cursor-pointer text-xs font-medium text-slate-600">
-              Fixed filters
-            </summary>
-            <div className="mt-2 flex flex-wrap gap-2">
-              <select
-                className="min-w-0 flex-1 rounded border px-2 py-1 text-xs"
-                disabled={disabled}
-                value={fixedColumn}
-                onChange={(event) => setFixedColumn(event.currentTarget.value)}
-              >
-                <option value="">Choose a column</option>
-                {filterableColumns.map((column) => (
-                  <option key={column.column} value={column.column}>
-                    {column.label ?? column.column}
-                  </option>
-                ))}
-              </select>
-              <input
-                className="min-w-0 flex-1 rounded border px-2 py-1 text-xs"
-                value={fixedValue}
-                onChange={(event) => setFixedValue(event.currentTarget.value)}
-                placeholder="Accepted value"
-                disabled={disabled}
-              />
-              <button
-                type="button"
-                className="rounded border px-2 py-1 text-xs"
-                disabled={disabled || !fixedColumn || !fixedValue.trim()}
-                onClick={() => {
-                  const currentValues = table?.fixedFilters[fixedColumn] ?? [];
-                  dispatch({
-                    type: 'setFixedFilter',
-                    output,
-                    column: fixedColumn,
-                    values: [...new Set([...currentValues, fixedValue.trim()])],
-                  });
-                  setFixedValue('');
-                }}
-              >
-                Set
-              </button>
-            </div>
-            {Object.entries(table?.fixedFilters ?? {}).map(
-              ([column, values]) => (
-                <div
-                  key={column}
-                  className="mt-2 flex items-center justify-between rounded bg-slate-50 px-2 py-1 text-xs"
-                >
-                  <span>
-                    {column}: {values.join(', ')}
-                  </span>
-                  <button
-                    type="button"
-                    className="underline"
-                    disabled={disabled}
-                    onClick={() =>
-                      dispatch({ type: 'clearFixedFilter', output, column })
-                    }
-                  >
-                    Remove
-                  </button>
-                </div>
-              ),
-            )}
-          </details>
-        </section>
-        <section className="rounded-xl border bg-white p-4">
-          <h3 className="font-semibold">Charts</h3>
-          <p className="mt-1 text-xs text-slate-500">
-            Pie charts are available only for columns whose compiler capability
-            allows them.
-          </p>
-          <div className="mt-3 space-y-2">
-            {columns.map((column) => {
-              const supported = column.chartable === true;
-              const chart = table?.charts.find(
-                (candidate) => candidate.column === column.column,
-              );
-              const enabled = Boolean(chart);
-              return (
-                <div
-                  key={column.column}
-                  className={`flex flex-wrap items-center gap-2 text-sm ${supported ? '' : 'text-slate-400'}`}
-                >
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={enabled}
-                      disabled={disabled || !supported}
-                      onChange={(event) =>
-                        dispatch({
-                          type: 'setChart',
-                          output,
-                          column: column.column,
-                          enabled: event.currentTarget.checked,
-                          title: chart?.title ?? column.label,
-                        })
-                      }
-                    />
-                    {column.label ?? column.column}
-                  </label>
-                  {enabled && (
-                    <input
-                      aria-label={`${column.label ?? column.column} chart title`}
-                      className="min-w-40 flex-1 rounded border px-2 py-1 text-xs"
-                      value={chart?.title ?? column.label ?? column.column}
-                      disabled={disabled}
-                      onChange={(event) =>
-                        dispatch({
-                          type: 'setChart',
-                          output,
-                          column: column.column,
-                          enabled: true,
-                          title: event.currentTarget.value,
-                        })
-                      }
-                    />
-                  )}
-                  {!supported && (
-                    <span className="text-[10px]">
-                      not supported for this type
-                    </span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </section>
-        <section className="rounded-xl border bg-white p-4">
-          <h3 className="font-semibold">Actions</h3>
-          <p className="mt-1 text-xs text-slate-500">
-            Optional download/export actions for this table.
-          </p>
-          <button
-            type="button"
-            disabled={disabled}
-            className="mt-3 rounded border px-2 py-1 text-xs"
-            onClick={() =>
-              dispatch({
-                type: 'addAction',
-                output,
-                action: {
-                  type: 'download',
-                  title: 'Download table',
-                  output,
-                  columns: columns
-                    .filter((column) => column.visible)
-                    .map((column) => column.column),
-                },
-              })
-            }
-          >
-            Add download action
-          </button>
-          {table?.actions.map((action, index) => (
-            <div
-              key={`${action.type}-${index}`}
-              className="mt-2 flex items-center justify-between rounded bg-slate-50 p-2 text-xs"
-            >
-              <span>{action.title}</span>
-              <button
-                type="button"
-                className="underline"
-                disabled={disabled}
-                onClick={() =>
-                  dispatch({ type: 'removeAction', output, index })
-                }
-              >
-                Remove
-              </button>
-            </div>
-          ))}
-        </section>
         <section className="rounded-xl border bg-white p-4">
           <h3 className="font-semibold">Shared filters</h3>
           <p className="mt-1 text-xs text-slate-500">
@@ -2372,7 +2250,7 @@ const PresentationPanels = ({
             ),
           )}
         </section>
-        <section className="rounded-xl border bg-white p-4 lg:col-span-2">
+        <section className="rounded-xl border bg-white p-4">
           <h3 className="font-semibold">Project file actions</h3>
           <p className="mt-1 text-xs text-slate-500">
             Name an action and map file extensions to its target route.
@@ -2522,15 +2400,20 @@ const BuilderWorkspace = ({
   const [createExplorer] = useCreateExplorerMutation();
   const configs = useGetExplorerConfigsQuery(projectId);
   const [compileAuthoring] = useCompileExplorerAuthoringMutation();
-  const [saveDraft] = useSaveExplorerDraftMutation();
+  const [saveDraft, { isLoading: isSavingDraftRequest }] =
+    useSaveExplorerDraftMutation();
   const [previewDraft] = usePreviewExplorerDraftMutation();
-  const [publishExplorer] = usePublishExplorerMutation();
+  const [publishExplorer, { isLoading: isPublishingRequest }] =
+    usePublishExplorerMutation();
   const [state, dispatch] = useReducer(
     explorerBuilderReducer,
     projectId,
     (value) => createBuilderSession(value),
   );
   const [selectedId, setSelectedId] = useState('default');
+  const [draggingTableOutput, setDraggingTableOutput] = useState<string>();
+  const [tableDropTarget, setTableDropTarget] = useState<string>();
+  const [tableSelectorOpen, setTableSelectorOpen] = useState(false);
   const [newName, setNewName] = useState('');
   const newNameRef = useRef<HTMLInputElement>(null);
   const [builderToolbarHost, setBuilderToolbarHost] =
@@ -2555,11 +2438,7 @@ const BuilderWorkspace = ({
     (candidate) => candidate.explorerId === selectedId,
   );
   const selectedConfigFromList = selectedServerConfig
-    ? configFromServer(selectedServerConfig) ??
-      (selectedId === 'default'
-        ? activeConfigFromServer(selectedServerConfig) ??
-          defaultConfigFromServer(selectedServerConfig, projectId)
-        : undefined)
+    ? configForBuilder(selectedServerConfig, selectedId === 'default')
     : undefined;
   const selectedExplorer = useGetExplorerQuery(
     { project: projectId, explorerId: selectedId },
@@ -2571,23 +2450,26 @@ const BuilderWorkspace = ({
   const selectedConfig =
     selectedConfigFromList ??
     (selectedExplorer.data
-      ? configFromServer(selectedExplorer.data) ??
-        (selectedId === 'default'
-          ? activeConfigFromServer(selectedExplorer.data) ??
-            defaultConfigFromServer(selectedExplorer.data, projectId)
-          : undefined)
+      ? configForBuilder(selectedExplorer.data, selectedId === 'default')
       : undefined);
   const authoringConfig = state.config;
+  const authoringCatalogConfig = useMemo(
+    () =>
+      authoringConfig && state.selectedOutput
+        ? catalogConfigFor(authoringConfig, state.selectedOutput)
+        : undefined,
+    [authoringConfig, state.selectedOutput],
+  );
   const authoringCatalog = useGetExplorerAuthoringCatalogQuery(
     {
       project: projectId,
       explorerId: selectedId,
       output: state.selectedOutput ?? '',
-      config: authoringConfig as ExplorerConfigV2,
+      config: authoringCatalogConfig as ExplorerConfigV2,
     },
     // The repository/default Explorer is editable in the browser, and its
     // graph and field picker require the live authoring catalog.
-    { skip: !authoringConfig || !state.selectedOutput },
+    { skip: !authoringCatalogConfig || !state.selectedOutput },
   );
   // Loom's supported authoring catalog is project-wide: its nodes and route
   // edges replace the removed legacy project-map call. Candidate
@@ -2667,8 +2549,21 @@ const BuilderWorkspace = ({
     : '';
   const authoringRoot = selectedTable?.rootResourceType;
   const derivedId = slugifyExplorerId(newName);
-  const configDigest = state.config
-    ? canonicalizeExplorerConfig(state.config)
+  // Column order is presentation-only. Keep it out of the preview effect's
+  // identity so dragging a header does not recompile and refetch the same rows.
+  const previewConfigDigest = state.config
+    ? canonicalizeExplorerConfig({
+        ...state.config,
+        views: state.config.views.map((view) => ({
+          ...view,
+          table: {
+            ...view.table,
+            columns: [...view.table.columns].sort((left, right) =>
+              left.column.localeCompare(right.column),
+            ),
+          },
+        })),
+      })
     : '';
 
   // The seed intentionally captures the current reducer state once per server config.
@@ -2835,7 +2730,7 @@ const BuilderWorkspace = ({
     );
   };
 
-  const refreshPreview = async (force = false) => {
+  const refreshPreview = async () => {
     if (commitInFlight.current) return;
     const config = state.config;
     const output = state.selectedOutput;
@@ -2862,8 +2757,8 @@ const BuilderWorkspace = ({
       );
       return;
     }
-    const intent = `${configDigest}|${output}|${previewLimit}|${state.catalog.snapshotToken ?? ''}`;
-    if (!force && previewIntent.current === intent) return;
+    const intent = `${previewConfigDigest}|${output}|${previewLimit}|${state.catalog.snapshotToken ?? ''}`;
+    if (previewIntent.current === intent) return;
     previewIntent.current = intent;
     let compiledConfig = config;
     let previewConfig = config;
@@ -2873,7 +2768,8 @@ const BuilderWorkspace = ({
     // Mark the intent as loading before asynchronous compilation starts. If
     // compilation itself is rejected, the preview must still leave the
     // "Preparing" state and render a retryable error.
-    const provisionalDigest = configDigest || `${output}:${previewLimit}`;
+    const provisionalDigest =
+      previewConfigDigest || `${output}:${previewLimit}`;
     dispatch({
       type: 'previewLoading',
       output,
@@ -2894,7 +2790,7 @@ const BuilderWorkspace = ({
       previewConfig = configForOutput(compiledConfig, output);
       digest = await digestExplorerPreview(previewConfig, output, previewLimit);
       const cached = state.previewCache[previewCacheKey(output, digest)];
-      if (!force && cached?.status === 'ready' && cached.data) {
+      if (cached?.status === 'ready' && cached.data) {
         dispatch({
           type: 'previewLoading',
           output,
@@ -2910,7 +2806,6 @@ const BuilderWorkspace = ({
       }
       const existing = state.preview[output];
       if (
-        !force &&
         existing?.digest === digest &&
         existing.status === 'loading'
       )
@@ -2988,7 +2883,7 @@ const BuilderWorkspace = ({
       if (previewTimer.current === timer) previewTimer.current = undefined;
     };
   }, [
-    configDigest,
+    previewConfigDigest,
     state.selectedOutput,
     previewLimit,
     state.catalog.complete,
@@ -3078,7 +2973,7 @@ const BuilderWorkspace = ({
           expectedDraftVersion: saved.draftVersion,
           expectedDraftDigest: digest,
         }).unwrap();
-        const publishedConfig = requireServerConfig(published);
+        const publishedConfig = requirePublishedConfig(published);
         const publishedDigest =
           published.draftDigest || (await digestExplorerConfig(publishedConfig));
         dispatch({
@@ -3197,7 +3092,7 @@ const BuilderWorkspace = ({
         expectedDraftVersion: version,
         expectedDraftDigest: digest,
       }).unwrap();
-      const publishedConfig = requireServerConfig(published);
+      const publishedConfig = requirePublishedConfig(published);
       const publishedDigest =
         published.draftDigest || (await digestExplorerConfig(publishedConfig));
       dispatch({
@@ -3259,7 +3154,7 @@ const BuilderWorkspace = ({
         (candidate) => candidate.explorerId === selectedId,
       );
       const serverConfig = serverState
-        ? configFromServer(serverState)
+        ? configForBuilder(serverState, selectedId === 'default')
         : undefined;
       if (!serverState || !serverConfig) {
         setMessage(
@@ -3333,7 +3228,10 @@ const BuilderWorkspace = ({
   // not participate in Git-DRS history or interactive Explorer CAS.
   const interactionDisabled = false;
   const commitBusy =
-    state.lifecycle === 'saving' || state.lifecycle === 'publishing';
+    state.lifecycle === 'saving' ||
+    state.lifecycle === 'publishing' ||
+    isSavingDraftRequest ||
+    isPublishingRequest;
   const primaryActionLabel = commitBusy
     ? isDefault
       ? 'Publishing data…'
@@ -3369,7 +3267,12 @@ const BuilderWorkspace = ({
         <span className="sr-only">Explorer</span>
         <select
           aria-label="Explorer"
-          className="max-w-56 rounded border border-slate-300 bg-white px-2 py-1 text-sm"
+          className="max-w-56 appearance-none rounded border border-slate-300 bg-white px-2 py-1 text-sm"
+          style={{
+            appearance: 'none',
+            WebkitAppearance: 'none',
+            backgroundImage: 'none',
+          }}
           value={selectedId}
           onChange={(event) => setSelectedId(event.currentTarget.value)}
         >
@@ -3439,91 +3342,122 @@ const BuilderWorkspace = ({
       <main className="min-h-screen bg-slate-50 p-2 text-slate-900 sm:p-3">
         <header className="sticky top-0 z-30 rounded-xl border border-slate-200 bg-white/95 p-2.5 shadow-sm backdrop-blur sm:p-3">
           <div className="flex flex-wrap items-center gap-1.5 text-xs">
-            <label className="text-xs font-medium text-slate-600">
+            <label className="flex items-center text-xs font-medium text-slate-600">
               Table
-              <select
-                className="ml-2 rounded border px-2 py-1"
-                value={state.selectedOutput ?? ''}
-                onChange={(event) =>
-                  dispatch({
-                    type: 'selectOutput',
-                    output: event.currentTarget.value,
-                  })
-                }
-              >
-                {tableList.map((table) => (
-                  <option key={table.output} value={table.output}>
-                    {table.title}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {tableList.length > 1 && (
-              <details className="relative">
-                <summary className="cursor-pointer list-none rounded border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-700 [&::-webkit-details-marker]:hidden">
-                  Arrange tables
-                </summary>
-                <div className="absolute left-0 top-full z-40 mt-1 min-w-64 rounded-lg border border-slate-200 bg-white p-2 shadow-lg">
-                  <p className="mb-1 px-1 text-[11px] text-slate-500">
-                    Change the order shown in the table selector.
-                  </p>
-                  <ol className="space-y-1">
-                    {tableList.map((item, index) => (
-                      <li
-                        key={item.output}
-                        className="flex items-center gap-1 rounded bg-slate-50 px-1.5 py-1 text-xs"
-                      >
-                        <button
-                          type="button"
-                          className="min-w-0 flex-1 truncate text-left font-medium text-slate-700 hover:text-blue-700"
-                          onClick={() =>
-                            dispatch({
-                              type: 'selectOutput',
-                              output: item.output,
-                            })
-                          }
-                        >
-                          {item.title}
-                        </button>
-                        <button
-                          type="button"
-                          aria-label={`Move ${item.title} earlier`}
-                          disabled={interactionDisabled || index === 0}
-                          className="rounded border border-slate-300 bg-white px-1.5 py-0.5 disabled:cursor-not-allowed disabled:opacity-40"
-                          onClick={() =>
-                            dispatch({
-                              type: 'reorderTable',
-                              output: item.output,
-                              before: tableList[index - 1]?.output,
-                            })
-                          }
-                        >
-                          ↑
-                        </button>
-                        <button
-                          type="button"
-                          aria-label={`Move ${item.title} later`}
-                          disabled={
-                            interactionDisabled ||
-                            index === tableList.length - 1
-                          }
-                          className="rounded border border-slate-300 bg-white px-1.5 py-0.5 disabled:cursor-not-allowed disabled:opacity-40"
-                          onClick={() =>
-                            dispatch({
-                              type: 'reorderTable',
-                              output: item.output,
-                              before: tableList[index + 2]?.output,
-                            })
-                          }
-                        >
-                          ↓
-                        </button>
-                      </li>
-                    ))}
+              <div className="relative ml-2 min-w-52">
+                <div className="flex items-center rounded border border-slate-300 bg-white text-sm">
+                  <input
+                    aria-label="Table name"
+                    className="min-w-0 flex-1 bg-transparent px-2 py-1 outline-none"
+                    value={selectedTable?.title ?? ''}
+                    readOnly={interactionDisabled || !selectedTable}
+                    placeholder="Select table"
+                    onChange={(event) => {
+                      if (!selectedTable) return;
+                      dispatch({
+                        type: 'renameTable',
+                        output: selectedTable.output,
+                        title: event.currentTarget.value,
+                      });
+                    }}
+                  />
+                  <button
+                    type="button"
+                    aria-label="Open table list"
+                    aria-expanded={tableSelectorOpen}
+                    className="px-2 py-1 text-slate-400 hover:text-slate-700"
+                    onClick={() => setTableSelectorOpen((open) => !open)}
+                  >
+                    ▾
+                  </button>
+                </div>
+                {tableSelectorOpen && (
+                <div className="absolute left-0 top-full z-40 mt-1 min-w-64 rounded-lg border border-slate-200 bg-white p-1.5 shadow-lg">
+                  <ol role="listbox" aria-label="Explorer tables" className="space-y-1">
+                    {tableList.map((table, index) => {
+                      const active = state.selectedOutput === table.output;
+                      const dropTarget = tableDropTarget === table.output;
+                      return (
+                        <li key={table.output}>
+                          <button
+                            type="button"
+                            role="option"
+                            aria-selected={active}
+                            aria-label={`${table.title}. Drag to reorder.`}
+                            draggable={!interactionDisabled}
+                            className={`flex w-full cursor-grab items-center gap-1.5 rounded px-2 py-1.5 text-left text-xs font-medium transition active:cursor-grabbing disabled:cursor-not-allowed disabled:opacity-50 ${active ? 'bg-blue-50 text-blue-800' : 'text-slate-700 hover:bg-slate-50'} ${dropTarget ? 'ring-2 ring-blue-300 ring-inset' : ''} ${draggingTableOutput === table.output ? 'opacity-50' : ''}`}
+                            onClick={() => {
+                              dispatch({
+                                type: 'selectOutput',
+                                output: table.output,
+                              });
+                              setTableSelectorOpen(false);
+                            }}
+                            onDragStart={(event) => {
+                              if (interactionDisabled) return;
+                              event.dataTransfer.effectAllowed = 'move';
+                              event.dataTransfer.setData(
+                                'text/plain',
+                                table.output,
+                              );
+                              setDraggingTableOutput(table.output);
+                              setTableDropTarget(undefined);
+                            }}
+                            onDragOver={(event) => {
+                              if (
+                                interactionDisabled ||
+                                !draggingTableOutput ||
+                                draggingTableOutput === table.output
+                              )
+                                return;
+                              event.preventDefault();
+                              event.dataTransfer.dropEffect = 'move';
+                              setTableDropTarget(table.output);
+                            }}
+                            onDrop={(event) => {
+                              event.preventDefault();
+                              if (
+                                !interactionDisabled &&
+                                draggingTableOutput &&
+                                draggingTableOutput !== table.output
+                              ) {
+                                const bounds =
+                                  event.currentTarget.getBoundingClientRect();
+                                const droppedAfter =
+                                  event.clientY > bounds.top + bounds.height / 2;
+                                const before = droppedAfter
+                                  ? tableList[index + 1]?.output
+                                  : table.output;
+                                if (before !== draggingTableOutput)
+                                  dispatch({
+                                    type: 'reorderTable',
+                                    output: draggingTableOutput,
+                                    before,
+                                  });
+                              }
+                              setDraggingTableOutput(undefined);
+                              setTableDropTarget(undefined);
+                            }}
+                            onDragEnd={() => {
+                              setDraggingTableOutput(undefined);
+                              setTableDropTarget(undefined);
+                            }}
+                          >
+                            <IconGripVertical
+                              size={13}
+                              stroke={1.8}
+                              aria-hidden="true"
+                            />
+                            <span className="truncate">{table.title}</span>
+                          </button>
+                        </li>
+                      );
+                    })}
                   </ol>
                 </div>
-              </details>
-            )}
+                )}
+              </div>
+            </label>
             <button
               type="button"
               className="rounded border px-2 py-1 text-xs"
@@ -3574,40 +3508,7 @@ const BuilderWorkspace = ({
             >
               Delete table
             </button>
-            {selectedTable && (
-              <input
-                aria-label="Table title"
-                className="w-56 max-w-[28vw] min-w-0 shrink-0 rounded border px-2 py-1 text-sm"
-                value={selectedTable.title}
-                readOnly={interactionDisabled}
-                onChange={(event) =>
-                  dispatch({
-                    type: 'renameTable',
-                    output: selectedTable.output,
-                    title: event.currentTarget.value,
-                  })
-                }
-              />
-            )}
             <div className="ml-auto flex shrink-0 items-center gap-1.5">
-              <button
-                type="button"
-                className="rounded border border-blue-300 px-3 py-1.5 text-xs font-semibold text-blue-800 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={
-                  !selectedTable?.rootResourceType ||
-                  !selectedTable.columns.some((column) => column.visible)
-                }
-                title={
-                  !selectedTable?.rootResourceType
-                    ? 'Choose a row resource before rendering the table.'
-                    : !selectedTable.columns.some((column) => column.visible)
-                      ? 'Select at least one visible column before rendering the table.'
-                      : 'Render the selected table preview.'
-                }
-                onClick={() => void refreshPreview(true)}
-              >
-                Render table
-              </button>
               <>
                 <button
                   type="button"

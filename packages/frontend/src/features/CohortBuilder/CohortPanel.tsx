@@ -214,6 +214,7 @@ export const CohortPanel = ({
   const runtimeGuppyConfig = runtimePanel.guppyConfig;
   const runtimeFilters = runtimePanel.filters;
   const hasConfiguredFilters = hasUsableFilterConfiguration(runtimeFilters);
+  const hasActiveFilters = Object.keys(cohortFilters.root ?? {}).length > 0;
   const runtimeCharts = runtimePanel.charts;
   const runtimeChartsSection = runtimePanel.chartsSection;
   const runtimeTable = runtimePanel.table;
@@ -731,7 +732,7 @@ export const CohortPanel = ({
           }`}
         >
           {/* Put QueryExpression at the top of content panel */}
-          {hasConfiguredFilters && (
+          {hasConfiguredFilters && hasActiveFilters && (
             <div className="mb-2">
               <QueryExpression index={index} columnTitles={columnTitles} />
             </div>

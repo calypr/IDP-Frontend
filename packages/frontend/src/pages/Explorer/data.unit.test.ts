@@ -54,6 +54,36 @@ describe('ExplorerConfig V2 runtime translation', () => {
     });
   });
 
+  it('unwraps the publication envelope returned by publish', () => {
+    const activeConfig = {
+      apiVersion: 'loom.calypr.org/explorer-config/v2',
+      kind: 'ExplorerConfig',
+      project: 'program-project',
+      explorer: { id: 'default', title: 'Published', management: 'repository' },
+      recipe: {
+        recipeName: 'project_recipe',
+        translationVersion: 'r000001_abcd',
+        outputs: [{ name: 'Patient' }],
+      },
+      views: [],
+    };
+    const response = unwrapRepositoryExplorerResponse({
+      activeUrl: '/api/v1/projects/program-project/explorers/default',
+      publicationId: 'publication-1',
+      state: {
+        project: 'program-project',
+        explorerId: 'default',
+        management: 'REPOSITORY',
+        activeConfig,
+        materializations: [],
+      },
+    });
+
+    expect(response.activeConfig).toBe(activeConfig);
+    expect(response.publicationId).toBe('publication-1');
+    expect(response.project).toBe('program-project');
+  });
+
   it('keeps view filters, fixed filters, charts, and shared filters in the runtime contract', () => {
     const deployed = {
       explorerId: 'default',
@@ -158,6 +188,115 @@ describe('ExplorerConfig V2 runtime translation', () => {
     });
   });
 
+  it('translates logical Explorer fields to qualified materialization columns', () => {
+    const deployed = {
+      project: 'program-project',
+      explorerId: 'default',
+      management: 'REPOSITORY',
+      updatedAt: '2026-08-17T00:00:00Z',
+      recipeName: 'project_recipe',
+      translationVersion: 'r000001_abcd',
+      activeConfig: {
+        apiVersion: 'loom.calypr.org/explorer-config/v2',
+        kind: 'ExplorerConfig',
+        project: 'program-project',
+        explorer: { id: 'default', title: 'Example', management: 'repository' },
+        recipe: {
+          recipeName: 'project_recipe',
+          translationVersion: 'r000001_abcd',
+          outputs: [
+            { name: 'Patient', rootResourceType: 'ResearchSubject' },
+          ],
+        },
+        views: [
+          {
+            id: 'patient-view',
+            title: 'People',
+            output: 'Patient',
+            table: {
+              columns: [
+                { column: 'identifier', label: 'Participant ID', visible: true },
+                { column: 'id', label: 'Internal ID', visible: true },
+              ],
+            },
+            filters: [{ column: 'identifier', label: 'Participant ID' }],
+            charts: [{ column: 'identifier', type: 'pie', title: 'Participants' }],
+          },
+        ],
+        sharedFilters: {
+          cohort: [{ output: 'Patient', column: 'identifier' }],
+        },
+      },
+      materializations: [
+        {
+          outputId: 'Patient',
+          output: 'Patient',
+          materializationId: 'patient-materialization',
+          columns: [
+            {
+              name: 'research_subject_identifier',
+              semanticPath: 'ResearchSubject.identifier[].value',
+              filterable: true,
+              chartable: true,
+            },
+            {
+              name: 'research_subject_id',
+              semanticPath: 'ResearchSubject.id',
+              filterable: false,
+              chartable: false,
+            },
+          ],
+        },
+      ],
+      emittedColumns: [
+        {
+          OutputID: 'Patient',
+          SelectionID: 'ResearchSubject.identifier[].value',
+          PublicColumn: 'research_subject_identifier',
+          Filterable: true,
+          Chartable: true,
+        },
+        {
+          OutputID: 'Patient',
+          SelectionID: 'ResearchSubject.id',
+          PublicColumn: 'research_subject_id',
+          Filterable: false,
+          Chartable: false,
+        },
+      ],
+    } as unknown as RepositoryExplorerConfig;
+
+    const { configuration } = loomRepositoryConfigConfiguration(deployed);
+    const panel = configuration.explorerConfig[0];
+
+    expect(panel.table?.fields).toEqual([
+      'research_subject_identifier',
+      'research_subject_id',
+    ]);
+    expect(panel.table?.columns).toEqual({
+      research_subject_identifier: {
+        field: 'research_subject_identifier',
+        title: 'Participant ID',
+      },
+      research_subject_id: {
+        field: 'research_subject_id',
+        title: 'Internal ID',
+      },
+    });
+    expect(panel.filters?.tabs[0]?.fields).toEqual([
+      'research_subject_identifier',
+    ]);
+    expect(panel.charts).toEqual({
+      research_subject_identifier: {
+        chartType: 'pie',
+        title: 'Participants',
+      },
+    });
+    expect(configuration.sharedFilters?.defined).toEqual({
+      cohort: [{ index: 'Patient', field: 'research_subject_identifier' }],
+    });
+  });
+
   it('accepts stale Builder field references and falls back to published columns', () => {
     const { configuration } = loomRepositoryConfigConfiguration({
       project: 'program-project',
@@ -221,10 +360,10 @@ describe('ExplorerConfig V2 runtime translation', () => {
     const panel = configuration.explorerConfig[0];
     expect(panel.table?.fields).toEqual(['id', 'status']);
     expect(panel.table?.columns.identifier).toBeUndefined();
-    expect(panel.filters?.tabs[0]?.fields).toEqual(['status']);
+    expect(panel.filters).toBeUndefined();
   });
 
-  it('builds the repository default presentation from live Loom datasets', () => {
+  it('does not synthesize a repository presentation from live Loom datasets', () => {
     const deployed = {
       project: 'program-project',
       explorerId: 'default',
@@ -271,77 +410,9 @@ describe('ExplorerConfig V2 runtime translation', () => {
       ],
     } as unknown as RepositoryExplorerConfig;
 
-    const { configuration, columns } =
-      loomRepositoryConfigConfiguration(deployed);
-    const panel = configuration.explorerConfig[0];
-
-    expect(panel.guppyConfig).toEqual({
-      dataType: 'Patient',
-      output: 'Patient',
-      loomDataset: {
-        recipe: 'project_recipe',
-        translationVersion: 'r000001_abcd',
-        output: 'Patient',
-      },
-      loomProjectIds: ['program-project'],
-    });
-    expect(panel.table?.fields).toEqual(['id', 'race']);
-    expect(panel.filters).toBeUndefined();
-    expect(columns.Patient).toEqual(new Set(['id', 'race']));
-  });
-
-  it('prefers Loom dataset outputs over legacy materializations', () => {
-    const deployed = {
-      project: 'program-project',
-      explorerId: 'default',
-      management: 'REPOSITORY',
-      updatedAt: '2026-08-17T00:00:00Z',
-      recipeName: 'calypr-meta-default',
-      translationVersion: 'r000042_default',
-      dataset: {
-        generation: 'generation-43',
-        outputs: [
-          {
-            name: 'Patient',
-            output: 'DocumentReference',
-            state: 'READY',
-            queryable: true,
-            materializationId: 'live-patient-materialization',
-            columns: [{ name: 'live_patient_id' }],
-          },
-        ],
-      },
-      materializations: [
-        {
-          outputId: 'Patient',
-          output: 'Patient',
-          materializationId: 'stale-materialization',
-          columns: [
-            {
-              name: 'stale_patient_id',
-              clickhouseType: 'String',
-              logicalType: 'string',
-              nullable: true,
-              repeated: false,
-              filterable: true,
-              sortable: true,
-              aggregatable: true,
-            },
-          ],
-        },
-      ],
-    } as unknown as RepositoryExplorerConfig;
-
-    const { configuration } =
-      loomRepositoryConfigConfiguration(deployed);
-    expect(configuration.explorerConfig[0]?.table?.fields).toEqual([
-      'live_patient_id',
-    ]);
-    expect(configuration.explorerConfig[0]?.guppyConfig.loomDataset).toEqual({
-      recipe: 'calypr-meta-default',
-      translationVersion: 'r000042_default',
-      output: 'DocumentReference',
-    });
+    expect(() => loomRepositoryConfigConfiguration(deployed)).toThrow(
+      'Refusing to synthesize an Explorer from live dataset metadata',
+    );
   });
 
   it('fails closed when a published output has no server selector identity', () => {
@@ -351,18 +422,20 @@ describe('ExplorerConfig V2 runtime translation', () => {
         explorerId: 'default',
         management: 'REPOSITORY',
         updatedAt: '2026-08-17T00:00:00Z',
-        datasets: [
-          {
-            id: 'patient-dataset',
-            name: 'Patient',
-            dataType: 'Patient',
-            revision: 'generation-42',
-            state: 'READY',
-            rowCount: 1,
-            createdAt: '2026-08-17T00:00:00Z',
-            columns: [],
-          },
-        ],
+        activeConfig: {
+          apiVersion: 'loom.calypr.org/explorer-config/v2',
+          kind: 'ExplorerConfig',
+          project: 'program-project',
+          explorer: { id: 'default', title: 'Example', management: 'repository' },
+          views: [
+            {
+              id: 'patient-view',
+              title: 'People',
+              output: 'Patient',
+              table: { columns: [{ column: 'id', visible: true }] },
+            },
+          ],
+        },
       } as unknown as RepositoryExplorerConfig),
     ).toThrow('complete server dataframe selector');
   });

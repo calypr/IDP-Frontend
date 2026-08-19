@@ -123,12 +123,24 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
 /**
- * Loom deployments have briefly exposed REST resources both directly and in
- * a `{ data: ... }` envelope. Accept the envelope at this boundary so the
- * Builder receives the same ExplorerState either way.
+ * Loom deployments expose lifecycle resources either directly, in a
+ * `{ data: ... }` envelope, or in a publication envelope whose authoritative
+ * Explorer state is under `state`. Normalize all three shapes before any
+ * Builder or Viewer code selects draft versus active configuration.
  */
-const unwrapExplorerEnvelope = (payload: unknown): unknown =>
-  isRecord(payload) && isRecord(payload.data) ? payload.data : payload;
+const unwrapExplorerEnvelope = (payload: unknown): unknown => {
+  const data = isRecord(payload) && isRecord(payload.data) ? payload.data : payload;
+  if (!isRecord(data) || !isRecord(data.state)) return data;
+  return {
+    ...data.state,
+    activeUrl: data.activeUrl ?? data.state.activeUrl,
+    publicationId: data.publicationId ?? data.state.publicationId,
+    shareUrl: data.shareUrl ?? data.state.shareUrl,
+    materializationMappings:
+      data.materializationMappings ?? data.state.materializationMappings,
+    materializations: data.materializations ?? data.state.materializations,
+  };
+};
 
 const errorFromResponse = async (
   response: Response,
@@ -565,12 +577,10 @@ const authoringCatalogColumnToCandidate = (
     populationCount: column.population,
     examples: column.examples,
     family: 'field',
-    recommended: /(^|[._])id$/i.test(path),
     filterable: column.filterable ?? !repeated,
     chartable:
       column.chartable ??
       (!repeated && /number|integer|decimal|date|boolean/i.test(valueType)),
-    technicalDetails: selectionKey,
     selectionKey: selectionKey || path,
     valueSelector,
     familyName: 'Fields',
@@ -882,6 +892,14 @@ export const loomExplorerApi = loomApi.injectEndpoints({
         // management mode to interactive creates a packet that does not match
         // Loom's deployed identity.
         const loomPreviewConfig = sanitizeExplorerConfigForLoom(scopedConfig);
+        const previewConfig = {
+          ...loomPreviewConfig,
+          explorer: {
+            ...loomPreviewConfig.explorer,
+            id: explorerId,
+            management: explorerId === 'default' ? 'repository' : 'interactive',
+          },
+        } satisfies ExplorerConfigV2;
         const result = await requestJson<ExplorerPreview>(
           withAuthResourcePath(
             `${explorerRoot(project)}/${encodeURIComponent(explorerId)}/preview`,
@@ -891,7 +909,7 @@ export const loomExplorerApi = loomApi.injectEndpoints({
             method: 'POST',
             signal: api.signal,
             body: JSON.stringify({
-              config: loomPreviewConfig,
+              config: previewConfig,
               output,
               limit,
               ...(draftDigest ? { draftDigest } : {}),
@@ -923,36 +941,6 @@ export const loomExplorerApi = loomApi.injectEndpoints({
           const selectedOutput = config.recipe.outputs?.find(
             (candidate) => candidate.name === output,
           );
-          const rootResourceType = selectedOutput?.rootResourceType?.trim();
-          if (!rootResourceType) {
-            const diagnostics: ReadonlyArray<ExplorerDiagnostic> = [
-              {
-                severity: 'error',
-                code: 'ROOT_RESOURCE_REQUIRED',
-                message: `Choose a row resource before discovering the ${output} traversal.`,
-              },
-            ];
-            const digest = await catalogDigest({
-              project,
-              output,
-              resources: [],
-              relationships: [],
-              candidates: [],
-              diagnostics,
-            });
-            return {
-              data: {
-                snapshotToken: `loom:${digest}`,
-                catalogDigest: digest,
-                complete: false,
-                diagnostics,
-                resources: [],
-                relationships: [],
-                candidates: [],
-              },
-            };
-          }
-
           const traversalNodes = selectedOutput
             ? collectTraversalNodes(selectedOutput)
             : [];
@@ -1285,7 +1273,9 @@ export const loomExplorerApi = loomApi.injectEndpoints({
           selectCSRFToken(api.getState() as CoreState),
         );
         if (result.error) return { error: result.error };
-        return { data: result.data as RepositoryExplorerConfig };
+        return {
+          data: unwrapExplorerEnvelope(result.data) as RepositoryExplorerConfig,
+        };
       },
       providesTags: (_result, _error, args) => [
         {
@@ -1308,7 +1298,9 @@ export const loomExplorerApi = loomApi.injectEndpoints({
         if (result.error?.status === 404) return { data: null };
         return result.error
           ? { error: result.error }
-          : { data: result.data as RepositoryExplorerConfig };
+          : {
+              data: unwrapExplorerEnvelope(result.data) as RepositoryExplorerConfig,
+            };
       },
       providesTags: (_result, _error, project) => [
         { type: 'LOOM_EXPLORER', id: project },

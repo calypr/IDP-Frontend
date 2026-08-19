@@ -110,4 +110,127 @@ describe('normalizeCohortPanelForDataset', () => {
     ).toBe(false);
     expect(Object.prototype.hasOwnProperty.call(panel, 'filters')).toBe(false);
   });
+
+  it('maps logical fields to qualified physical columns before filtering presentation settings', () => {
+    const panel = normalizeCohortPanelForDataset(
+      {
+        tabTitle: 'Patients',
+        guppyConfig: { dataType: 'Patient' },
+        table: {
+          enabled: true,
+          fields: ['identifier', 'id'],
+          columns: {
+            identifier: { field: 'identifier', title: 'Participant ID' },
+            id: { field: 'id', title: 'Internal ID' },
+          },
+        },
+        filters: {
+          tabs: [
+            {
+              title: 'Filters',
+              fields: ['identifier'],
+              fieldsConfig: {
+                identifier: {
+                  field: 'identifier',
+                  index: 'Patient',
+                  label: 'Participant ID',
+                  type: 'enum',
+                },
+              },
+            },
+          ],
+        },
+        charts: { identifier: { chartType: 'pie', title: 'Participants' } },
+        preFilters: { identifier: ['HTA201_3'] },
+      },
+      [
+        {
+          name: 'research_subject_identifier',
+          semanticPath: 'ResearchSubject.identifier[].value',
+          filterable: true,
+          chartable: true,
+        },
+        {
+          name: 'research_subject_id',
+          semanticPath: 'ResearchSubject.id',
+          filterable: false,
+          chartable: false,
+        },
+        {
+          name: 'patient__patient_id',
+          semanticPath: 'Patient.id',
+          filterable: true,
+          chartable: true,
+        },
+      ],
+      'ResearchSubject',
+    );
+
+    expect(panel.table?.fields).toEqual([
+      'research_subject_identifier',
+      'research_subject_id',
+    ]);
+    expect(panel.table?.columns).toEqual({
+      research_subject_identifier: {
+        field: 'research_subject_identifier',
+        title: 'Participant ID',
+      },
+      research_subject_id: {
+        field: 'research_subject_id',
+        title: 'Internal ID',
+      },
+    });
+    expect(panel.filters?.tabs[0]).toMatchObject({
+      fields: ['research_subject_identifier'],
+      fieldsConfig: {
+        research_subject_identifier: {
+          field: 'research_subject_identifier',
+          label: 'Participant ID',
+        },
+      },
+    });
+    expect(panel.charts).toEqual({
+      research_subject_identifier: {
+        chartType: 'pie',
+        title: 'Participants',
+      },
+    });
+    expect(panel.preFilters).toEqual({
+      research_subject_identifier: ['HTA201_3'],
+    });
+  });
+
+  it('accepts Loom EmittedColumn default JSON field names', () => {
+    const panel = normalizeCohortPanelForDataset(
+      {
+        tabTitle: 'Patients',
+        guppyConfig: { dataType: 'Patient' },
+        table: {
+          enabled: true,
+          fields: ['identifier'],
+          columns: {
+            identifier: { field: 'identifier', title: 'Participant ID' },
+          },
+        },
+      },
+      [
+        {
+          OutputID: 'Patient',
+          SelectionID: 'ResearchSubject.identifier[].value',
+          PublicColumn: 'research_subject_identifier',
+          Filterable: true,
+          Chartable: true,
+        } as never,
+      ],
+      'ResearchSubject',
+    );
+
+    expect(panel.table?.fields).toEqual(['research_subject_identifier']);
+    expect(panel.table?.columns).toEqual({
+      research_subject_identifier: {
+        field: 'research_subject_identifier',
+        title: 'Participant ID',
+      },
+    });
+  });
 });
