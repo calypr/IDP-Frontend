@@ -22,7 +22,7 @@ import {
 } from '@mantine/core';
 import {
   SYFON_API,
-  useGetRepositoryExplorerConfigQuery,
+  useGetExplorerStateV1Query,
   useLazyGetGeckoGitProjectFileQuery,
   useGetGeckoGitProjectsQuery,
   useGetGeckoGitProjectRefsQuery,
@@ -216,8 +216,8 @@ const GitProjectPage = ({
     isLoading: isStatusLoading,
     refetch: refetchGitProjects,
   } = useGetGeckoGitProjectsQuery();
-  const { data: explorer } = useGetRepositoryExplorerConfigQuery(
-    `${organization}-${project}`,
+  const { data: explorer } = useGetExplorerStateV1Query(
+    { project: `${organization}/${project}`, explorerId: 'default' },
     {
       skip: !organization || !project,
     },

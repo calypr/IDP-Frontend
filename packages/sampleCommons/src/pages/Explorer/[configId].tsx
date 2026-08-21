@@ -1,63 +1,93 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { useGetGeckoProjectsQuery } from '@gen3/core';
+import { canonicalLoomProjectId, useGetExplorerStateV1Query, useGetGeckoProjectsQuery } from '@gen3/core';
 import {
   ExplorerMainContent,
   ExplorerPageGetServerSideProps as getServerSideProps,
-  ExplorerPageProps,
   NavPageLayout,
   ProjectWorkspaceTabs,
   useIsEmbedded,
 } from '@gen3/frontend';
+import type { ExplorerPageProps, PageLoadProblem } from '@gen3/frontend';
 
 const CohortBuilderPage = ({
   headerProps,
   footerProps,
-  configuration,
+  runtime: initialRuntime,
+  project: explorerProject,
   sharedFiltersMap,
   pageProblems,
 }: ExplorerPageProps): JSX.Element => {
   const router = useRouter();
   const { data: geckoProjects = [] } = useGetGeckoProjectsQuery();
-  const problems = pageProblems ?? [];
   const configId =
     typeof router.query.configId === 'string' ? router.query.configId : '';
   const explorerId =
     typeof router.query.explorerId === 'string'
       ? router.query.explorerId
-      : undefined;
+      : 'default';
+  const projectId = canonicalLoomProjectId(configId);
+  const explorerState = useGetExplorerStateV1Query(
+    { project: projectId, explorerId },
+    { skip: !configId },
+  );
+  const runtime = explorerState.data?.runtime ?? initialRuntime ?? null;
+  const clientProblems: readonly PageLoadProblem[] = explorerState.error
+    ? [{
+        severity: 'error',
+        source: 'loom',
+        status: typeof explorerState.error === 'object' && explorerState.error && 'status' in explorerState.error && typeof explorerState.error.status === 'number' ? explorerState.error.status : 502,
+        code: typeof explorerState.error === 'object' && explorerState.error && 'code' in explorerState.error && typeof explorerState.error.code === 'string' ? explorerState.error.code : 'EXPLORER_STATE_REQUEST_FAILED',
+        retryable: true,
+        message: typeof explorerState.error === 'object' && explorerState.error && 'message' in explorerState.error && typeof explorerState.error.message === 'string' ? explorerState.error.message : 'The Explorer state could not be loaded.',
+      }]
+    : explorerState.data && !explorerState.data.runtime
+      ? [{
+          severity: 'error',
+          source: 'loom',
+          status: 422,
+          code: 'EXPLORER_RUNTIME_REQUIRED',
+          retryable: false,
+          message: 'Loom returned Explorer state without its server-generated runtime.',
+        }]
+      : [];
+  const problems = [...(pageProblems ?? []), ...clientProblems];
   const isEmbedded = useIsEmbedded();
-  const explorerConfig = configuration?.explorerConfig;
   const [activeExplorerTab, setActiveExplorerTab] = useState<string | null>(
-    explorerConfig?.[0]?.tabTitle ?? null,
+    runtime?.outputs[0]?.title ?? null,
   );
 
   const matchingProject = geckoProjects.find((candidate) => {
     const parts = candidate.resourcePath.split('/').filter(Boolean);
-    return `${parts[1]}-${parts[3]}` === configId;
+    return `${parts[1]}/${parts[3]}` === projectId;
   });
   const matchingProjectParts =
     matchingProject?.resourcePath.split('/').filter(Boolean) ?? [];
   const organization = matchingProjectParts[1] ?? '';
   const project = matchingProjectParts[3] ?? '';
-  const explorerHref = `/Explorer/${encodeURIComponent(configId)}${explorerId ? `?explorerId=${encodeURIComponent(explorerId)}` : ''}`;
+  const explorerHref = `/Explorer/${encodeURIComponent(projectId)}${explorerId ? `?explorerId=${encodeURIComponent(explorerId)}` : ''}`;
   const builderHref = `/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}/explorers/builder${explorerId ? `?explorerId=${encodeURIComponent(explorerId)}` : ''}`;
   const showTabsInToolbar = Boolean(organization && project && !isEmbedded);
 
   useEffect(() => {
-    setActiveExplorerTab(explorerConfig?.[0]?.tabTitle ?? null);
-  }, [configId, explorerConfig]);
+    setActiveExplorerTab(runtime?.outputs[0]?.title ?? null);
+  }, [configId, projectId, runtime]);
 
-  const explorerContent = configuration ? (
+  const explorerContent = runtime && explorerProject ? (
     <ExplorerMainContent
+      runtime={runtime}
+      project={explorerProject}
       activeTab={showTabsInToolbar ? activeExplorerTab : undefined}
-      configuration={configuration}
       hideTabList={showTabsInToolbar}
       onTabChange={showTabsInToolbar ? setActiveExplorerTab : undefined}
       sharedFiltersMap={sharedFiltersMap}
       pageProblems={pageProblems}
     />
+  ) : explorerState.isLoading || explorerState.isUninitialized ? (
+    <main className="mx-auto max-w-screen-2xl p-6">
+      <p role="status">Loading Explorer…</p>
+    </main>
   ) : (
     <main className="mx-auto max-w-screen-2xl p-6">
       <p role="alert">
@@ -105,8 +135,8 @@ const CohortBuilderPage = ({
                 className="flex min-w-0 shrink gap-5 overflow-x-auto"
                 role="tablist"
               >
-                {explorerConfig?.map((panel) => {
-                  const isActive = activeExplorerTab === panel.tabTitle;
+                {runtime?.outputs.map((output) => {
+                  const isActive = activeExplorerTab === output.title;
                   return (
                     <button
                       aria-selected={isActive}
@@ -115,12 +145,12 @@ const CohortBuilderPage = ({
                           ? 'border-[#2f5aac] text-[#2f5aac]'
                           : 'border-transparent text-slate-500 hover:text-slate-800'
                       }`}
-                      key={panel.tabTitle}
-                      onClick={() => setActiveExplorerTab(panel.tabTitle)}
+                      key={output.outputId}
+                      onClick={() => setActiveExplorerTab(output.title)}
                       role="tab"
                       type="button"
                     >
-                      {panel.tabTitle}
+                      {output.title}
                     </button>
                   );
                 })}

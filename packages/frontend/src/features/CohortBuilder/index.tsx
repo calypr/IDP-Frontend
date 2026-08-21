@@ -1,6 +1,5 @@
 import CohortBuilder from './CohortBuilder';
 import {
-  type CohortBuilderConfiguration,
   type CohortBuilderProps,
   type CohortPanelConfiguration,
 } from './types';
@@ -32,7 +31,6 @@ import TabbedCohortBuilder, {
 import { SummaryTableColumn } from './ExplorerTable';
 export {
   type SummaryTableColumn,
-  type CohortBuilderConfiguration,
   type CohortBuilderProps,
   type TableDetailsPanelProps,
   type TableDetailsReportPanelProps,

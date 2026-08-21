@@ -34,6 +34,19 @@ export interface DataframeSelector {
 /** Backwards-compatible name for consumers of the Loom-specific API. */
 export type LoomDatasetSelector = DataframeSelector;
 
+/** Build a dataframe selector only from an immutable server recipe identity. */
+export const dataframeSelectorForRecipeOutput = (
+  recipe: { readonly recipeName?: string; readonly translationVersion?: string; readonly outputs?: ReadonlyArray<unknown> },
+  output: string,
+): DataframeSelector => {
+  const recipeName = recipe.recipeName?.trim();
+  const translationVersion = recipe.translationVersion?.trim();
+  if (!recipeName || !translationVersion || !output.trim()) {
+    throw new Error('A server recipe name and translation version are required for a dataframe selector.');
+  }
+  return { recipe: recipeName, translationVersion, output: output.trim() };
+};
+
 export interface LoomSelectorDiagnostic {
   readonly code: 'UNSUPPORTED_LEGACY_OUTPUT' | 'INVALID_DATASET_SELECTOR';
   readonly message: string;
@@ -111,7 +124,7 @@ export const loomDatasetIdentityKey = (
   ].join('|');
 
 export interface LoomDatasetRef {
-  /** Logical output name used by the Explorer UI; V2 recipes may define custom outputs. */
+  /** Logical output name used by the Explorer UI; server recipes may define custom outputs. */
   readonly dataType: string;
   /** Current immutable dataset identity used by dataframe operations. */
   readonly selector?: DataframeSelector;

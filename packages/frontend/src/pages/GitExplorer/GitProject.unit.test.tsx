@@ -12,6 +12,7 @@ jest.mock('@gen3/core', () => ({
   useGetConfigContentQuery: jest.fn(),
   useGetGeckoProjectsQuery: jest.fn(),
   useGetGeckoGitProjectsQuery: jest.fn(),
+  useGetExplorerStateV1Query: jest.fn(),
   useGetGeckoGitProjectRefsQuery: jest.fn(),
   useGetGeckoGitProjectStatusQuery: jest.fn(),
   useGetGeckoGitProjectTreeQuery: jest.fn(),
@@ -38,7 +39,7 @@ jest.mock('../../features/Navigation', () => ({
         Home
       </a>
       {hasExplorerConfig ? (
-        <a href={`/Explorer/${organization}-${project}`} role="tab">
+        <a href={`/Explorer/${organization}%2F${project}`} role="tab">
           Explorer
         </a>
       ) : null}
@@ -99,6 +100,7 @@ const coreMocks = jest.requireMock('@gen3/core') as {
   useGetConfigContentQuery: jest.Mock;
   useGetGeckoProjectsQuery: jest.Mock;
   useGetGeckoGitProjectsQuery: jest.Mock;
+  useGetExplorerStateV1Query: jest.Mock;
   useGetGeckoGitProjectRefsQuery: jest.Mock;
   useGetGeckoGitProjectStatusQuery: jest.Mock;
   useGetGeckoGitProjectTreeQuery: jest.Mock;
@@ -161,6 +163,11 @@ describe('GitProjectPage', () => {
       data: [],
       isLoading: false,
       refetch: jest.fn(),
+    });
+    coreMocks.useGetExplorerStateV1Query.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
     });
     coreMocks.useReconcileGeckoGitOrganizationMutation.mockReturnValue([
       jest.fn(() => ({ unwrap: jest.fn().mockResolvedValue(undefined) })),
@@ -282,6 +289,16 @@ describe('GitProjectPage', () => {
         data: {
           explorerConfig: [],
         },
+      },
+      isLoading: false,
+      isError: false,
+    });
+    coreMocks.useGetExplorerStateV1Query.mockReturnValue({
+      data: {
+        apiVersion: 'loom.calypr.org/explorer-state/v1',
+        kind: 'ExplorerState',
+        project: 'Ellrott_Lab/embedding_rotation',
+        explorerId: 'default',
       },
       isLoading: false,
       isError: false,

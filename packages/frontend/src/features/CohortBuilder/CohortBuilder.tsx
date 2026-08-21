@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { useDeepCompareMemo, useDeepCompareEffect } from 'use-deep-compare';
+import React from 'react';
+import { useDeepCompareEffect } from 'use-deep-compare';
 import { CohortBuilderProps, CohortPanelConfiguration } from './types';
 import { Tabs } from '@mantine/core';
 import { CohortPanel } from './CohortPanel';
@@ -11,6 +11,7 @@ import {
   useCoreDispatch,
   useCoreSelector,
 } from '@gen3/core';
+import { cohortBuilderPanelsFromRuntime } from './explorerRuntime';
 import { TabsLayoutToComponentProp } from '../../utils/layout';
 
 export const useGetCurrentCohort = () => {
@@ -18,21 +19,25 @@ export const useGetCurrentCohort = () => {
 };
 
 const CohortBuilder = ({
-  configuration: explorerConfiguration,
+  runtime,
+  project,
   activeTab,
   hideTabList = false,
   onTabChange,
   sharedFiltersMap = null,
 }: CohortBuilderProps) => {
-  const { explorerConfig, tabsLayout = 'left', fileActions } =
-    explorerConfiguration;
+  const runtimeProjection = cohortBuilderPanelsFromRuntime(runtime, project);
+  const configuration = runtimeProjection.panels;
+  const resolvedSharedFiltersMap = sharedFiltersMap ?? runtimeProjection.sharedFiltersMap;
+  const tabsLayout = 'left' as const;
+  const fileActions = undefined;
   const dispatch = useCoreDispatch();
 
   const [isTransitioning, setIsTransitioning] = React.useState(false);
 
   useDeepCompareEffect(() => {
-    dispatch(setSharedFilters(sharedFiltersMap ?? {}));
-  }, [dispatch, sharedFiltersMap]);
+    dispatch(setSharedFilters(resolvedSharedFiltersMap ?? {}));
+  }, [dispatch, resolvedSharedFiltersMap]);
 
   // Reset cohort when configuration changes (e.g. switching between different project explorers)
   // this prevents blank pages caused by using a cohort ID that doesn't exist in the new data context
@@ -42,7 +47,7 @@ const CohortBuilder = ({
     // Extensible Fix: Apply preFilters from each tab configuration
     const initialFilters: Record<string, any> = {};
     
-    explorerConfig.forEach((panel) => {
+    configuration.forEach((panel) => {
       const index = panel.guppyConfig.dataType;
       const tabPreFilters = panel.preFilters;
       
@@ -63,12 +68,7 @@ const CohortBuilder = ({
     // Small delay to allow Redux state to propagate and hooks to reset
     const timer = setTimeout(() => setIsTransitioning(false), 50);
     return () => clearTimeout(timer);
-  }, [dispatch, explorerConfig]);
-
-  const configuration = useDeepCompareMemo(
-    () => explorerConfig,
-    [explorerConfig],
-  );
+  }, [dispatch, configuration]);
 
   if (isTransitioning) {
     return null; // Return null during the 50ms transition to avoid "double spinner" overlap with child components
@@ -79,12 +79,12 @@ const CohortBuilder = ({
       <div className="flex w-full flex-col">
         <Tabs
           color="primary.4"
-          variant={explorerConfig[0]?.tabType}
+          variant={configuration[0]?.tabType}
           // A panel owns several dataframe queries (facets, charts, count,
           // and rows). Mount only the visible panel so opening Explorer does
           // not query every configured output at once.
           keepMounted={false}
-          defaultValue={explorerConfig[0].tabTitle}
+          defaultValue={configuration[0]?.tabTitle}
           onChange={onTabChange}
           value={activeTab}
         >
@@ -121,7 +121,7 @@ const CohortBuilder = ({
                 dropdowns={panelConfig.dropdowns}
                 buttons={panelConfig.buttons}
                 loginForDownload={panelConfig.loginForDownload}
-                sharedFiltersMap={panelConfig.sharedFiltersMap}
+                sharedFiltersMap={resolvedSharedFiltersMap ?? undefined}
                 fileActions={fileActions}
               />
             </Tabs.Panel>

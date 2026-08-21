@@ -5,7 +5,6 @@ export * from './pages/Analysis';
 export * from './pages/Apps';
 export * from './pages/AvailableImages';
 export * from './pages/CALYPR';
-export * from './pages/Configurator';
 export * from './pages/Crosswalk';
 export * from './pages/DataDictionary';
 export * from './pages/DataLibrary';

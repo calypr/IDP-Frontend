@@ -62,52 +62,6 @@ export interface RecipeBundleV2 {
   readonly [key: string]: unknown;
 }
 
-export interface RecipeSelectorMetadata {
-  readonly recipeName?: string;
-  readonly translationVersion?: string;
-}
-
-const firstNonEmptyString = (
-  ...values: ReadonlyArray<unknown>
-): string | undefined => {
-  const value = values.find(
-    (candidate): candidate is string =>
-      typeof candidate === 'string' && candidate.trim().length > 0,
-  );
-  return value?.trim();
-};
-
-/**
- * Converts the server-returned executable recipe identity into the only
- * selector accepted by Loom dataframe operations.
- */
-export const dataframeSelectorForRecipeOutput = (
-  recipe: RecipeBundleV2,
-  output: string,
-  metadata?: RecipeSelectorMetadata,
-): DataframeSelector => {
-  const recipeName = firstNonEmptyString(
-    recipe.recipeName,
-    recipe.name,
-    metadata?.recipeName,
-  );
-  const translationVersion = firstNonEmptyString(
-    recipe.translationVersion,
-    metadata?.translationVersion,
-  );
-  const outputName = output.trim();
-  if (!recipeName || !translationVersion || !outputName) {
-    throw new Error(
-      `Loom cannot query Explorer output ${output || '<unnamed>'} without the server recipe name, translation version, and output.`,
-    );
-  }
-  return {
-    recipe: recipeName,
-    translationVersion,
-    output: outputName,
-  };
-};
-
 /**
  * Scope an authoring request to the output currently being inspected.
  *
@@ -234,6 +188,7 @@ export const sanitizeExplorerConfigForAuthoring = (
 ): ExplorerConfigV2 => {
   const normalizeColumn = (column: string): string =>
     loomRecipeIdentifier(column);
+  const { recipeName: _recipeName, ...recipeWithoutName } = config.recipe;
   const normalizeSharedFilters = config.sharedFilters
     ? Object.fromEntries(
         Object.entries(config.sharedFilters).map(([name, mappings]) => [
@@ -249,7 +204,11 @@ export const sanitizeExplorerConfigForAuthoring = (
   return {
     ...config,
     recipe: {
-      ...config.recipe,
+      // `recipeName` is lifecycle metadata used by dataframe selectors, not
+      // part of Loom's strict executable recipe document. Keep the accepted
+      // recipe `name`/`translationVersion` identity, but never send this
+      // frontend-only alias to the V2 decoder.
+      ...recipeWithoutName,
       outputs: config.recipe.outputs?.map((output) => {
         const {
           title: _title,

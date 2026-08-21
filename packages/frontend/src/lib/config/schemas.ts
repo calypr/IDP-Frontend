@@ -196,14 +196,6 @@ export const AnalysisConfigurationSchema = z.union([
     .passthrough(),
 ]);
 
-export const ConfiguratorConfigurationSchema = z
-  .object({
-    textBoxes: z
-      .array(z.object({ box: z.string() }).passthrough())
-      .optional(),
-  })
-  .passthrough();
-
 export const DictionaryConfigurationSchema = z
   .object({
     showGraph: z.boolean().optional(),
@@ -261,38 +253,6 @@ export const DiscoveryConfigurationSchema = z.union([
     })
     .passthrough(),
   DiscoveryIndexConfigurationSchema,
-]);
-
-const ExplorerPanelSchema = z
-  .object({
-    tabTitle: z.string().optional(),
-    tabType: z.enum(['pills', 'outline']).optional(),
-    guppyConfig: UnknownObjectSchema.optional(),
-    charts: z.record(z.string(), UnknownObjectSchema).optional(),
-    chartsSection: UnknownObjectSchema.optional(),
-    filters: UnknownObjectSchema.optional(),
-    table: UnknownObjectSchema.optional(),
-    dropdowns: z.record(z.string(), UnknownObjectSchema).optional(),
-    buttons: z.array(UnknownObjectSchema).optional(),
-    loginForDownload: z.boolean().optional(),
-    sharedFiltersMap: JsonValueSchema.optional(),
-    preFilters: UnknownObjectSchema.optional(),
-  })
-  .passthrough();
-
-export const CohortBuilderConfigurationSchema = z
-  .object({
-    explorerConfig: z.array(ExplorerPanelSchema),
-    tabsLayout: z.enum(['left', 'right', 'center']).optional(),
-    sharedFilters: UnknownObjectSchema.optional(),
-    accessControl: UnknownObjectSchema.optional(),
-    fileActions: UnknownObjectSchema.optional(),
-  })
-  .passthrough();
-
-export const ExplorerConfigurationSchema = z.union([
-  z.array(ExplorerPanelSchema),
-  CohortBuilderConfigurationSchema,
 ]);
 
 export const FileSummaryConfigurationSchema = z

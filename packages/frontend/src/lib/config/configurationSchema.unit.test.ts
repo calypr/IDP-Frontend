@@ -4,13 +4,11 @@ import {
   AdminAuthzConfigurationSchema,
   AnalysisConfigurationSchema,
   AnalysisToolsConfigurationSchema,
-  ConfiguratorConfigurationSchema,
   CrosswalkConfigurationSchema,
   DataLibraryConfigurationSchema,
   DictionaryConfigurationSchema,
   DiscoveryConfigurationSchema,
   DynamicAppConfigurationSchema,
-  ExplorerConfigurationSchema,
   FileSummaryConfigurationSchema,
   IconRegistryConfigurationSchema,
   LandingConfigurationSchema,
@@ -55,7 +53,6 @@ describe('runtime configuration schemas', () => {
     ['gen3/analysisTools.json', AnalysisToolsConfigurationSchema],
     ['datacommons/analysisCenterSample.json', AnalysisConfigurationSchema],
     ['gen3/analysisCenterSample.json', AnalysisConfigurationSchema],
-    ['cbds/configurator.json', ConfiguratorConfigurationSchema],
     ['gen3/crosswalk.json', CrosswalkConfigurationSchema],
     ['datacommons/crosswalk.json', CrosswalkConfigurationSchema],
     ['gen3/dictionary.json', DictionaryConfigurationSchema],
@@ -64,10 +61,6 @@ describe('runtime configuration schemas', () => {
     ['gen3/discovery.json', DiscoveryConfigurationSchema],
     ['cbds/discovery.json', DiscoveryConfigurationSchema],
     ['aced/discovery.json', DiscoveryConfigurationSchema],
-    ['gen3/explorer.json', ExplorerConfigurationSchema],
-    ['cbds/explorer/regular.json', ExplorerConfigurationSchema],
-    ['cbds/explorer/testy.json', ExplorerConfigurationSchema],
-    ['gen3/cohortBuilder/default.json', ExplorerConfigurationSchema],
     ['gen3/landingPage.json', LandingConfigurationSchema],
     ['cbds/calyprLandingPage.json', LandingConfigurationSchema],
     ['gen3/login.json', LoginConfigurationSchema],
@@ -150,7 +143,6 @@ describe('runtime configuration schemas', () => {
 
   test('accepts an empty optional configuration fixture', () => {
     expect(DynamicAppConfigurationSchema.parse({})).toEqual({});
-    expect(ConfiguratorConfigurationSchema.parse({})).toEqual({});
     expect(LandingConfigurationSchema.parse({})).toEqual({});
   });
 

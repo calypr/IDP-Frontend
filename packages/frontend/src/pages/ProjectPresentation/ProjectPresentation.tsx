@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import {
   useGetAuthzMappingsQuery,
-  useGetRepositoryExplorerConfigQuery,
+  useGetExplorerStateV1Query,
   useGetGeckoProjectSummaryQuery,
   useGetGeckoProjectsQuery,
   useGetGeckoGitProjectPresentationConfigQuery,
@@ -45,8 +45,8 @@ export const ProjectPresentationPage = ({
 
   const { data: geckoProjects = [], isLoading: isProjectsLoading } =
     useGetGeckoProjectsQuery();
-  const { data: explorer } = useGetRepositoryExplorerConfigQuery(
-    `${organization}-${project}`,
+  const { data: explorer } = useGetExplorerStateV1Query(
+    { project: `${organization}/${project}`, explorerId: 'default' },
     {
       skip:
         !organization || !project ||

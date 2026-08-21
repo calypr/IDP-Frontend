@@ -1,9 +1,9 @@
-import type { SharedFieldMapping } from '@gen3/core';
+import type { ExplorerRuntimeV1, SharedFieldMapping } from '@gen3/core';
 import type { PageProps } from '../../lib/pageLoader';
-import type { CohortBuilderConfiguration } from '../../features/CohortBuilder';
 
 export interface ExplorerPageData {
-  configuration: CohortBuilderConfiguration | null;
+  runtime: ExplorerRuntimeV1 | null;
+  project?: string;
   sharedFiltersMap: SharedFieldMapping | null;
 }
 

@@ -19,12 +19,12 @@ import {
   loomFacetCacheKey,
   loomFacetSpecName,
 } from '../facetPolicy';
-import { dataframeSelectorForRecipeOutput } from '../explorer';
 import { buildLoomDownloadRequest } from '../loomDownload';
 import {
   isLoomDataType,
   loomDatasetIdentityKey,
   normalizeLegacyLoomOutput,
+  dataframeSelectorForRecipeOutput,
 } from '../types';
 
 describe('Loom GraphQL request contracts', () => {

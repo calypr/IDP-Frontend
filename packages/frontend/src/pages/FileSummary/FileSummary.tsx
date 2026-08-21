@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import {
   GEN3_GECKO_API,
-  useGetRepositoryExplorerConfigQuery,
+  useGetExplorerStateV1Query,
 } from '@gen3/core';
 import {
   ActionIcon,
@@ -203,8 +203,8 @@ export const FileSummaryPage = ({
     () => splitProjectSelectionValue(selectedProject),
     [selectedProject],
   );
-  const { data: explorer } = useGetRepositoryExplorerConfigQuery(
-    `${selectedProjectParts?.organization ?? ''}-${selectedProjectParts?.project ?? ''}`,
+  const { data: explorer } = useGetExplorerStateV1Query(
+    { project: `${selectedProjectParts?.organization ?? ''}/${selectedProjectParts?.project ?? ''}`, explorerId: 'default' },
     {
       skip: !selectedProjectParts,
     },

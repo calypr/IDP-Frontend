@@ -25,7 +25,7 @@ const ProjectExplorerBuilder = ({
     typeof router.query.explorerId === 'string'
       ? router.query.explorerId
       : undefined;
-  const explorerHref = `/Explorer/${encodeURIComponent(`${organization}-${project}`)}${explorerId ? `?explorerId=${encodeURIComponent(explorerId)}` : ''}`;
+  const explorerHref = `/Explorer/${encodeURIComponent(`${organization}/${project}`)}${explorerId ? `?explorerId=${encodeURIComponent(explorerId)}` : ''}`;
   return (
     <NavPageLayout
       {...{ footerProps, headerProps, pageProblems }}

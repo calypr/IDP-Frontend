@@ -1,11 +1,13 @@
 import React from 'react';
 import dynamic from 'next/dynamic';
+import { useRouter } from 'next/router';
 import type { SharedFieldMapping } from '@gen3/core';
+import { canonicalLoomProjectId, useGetExplorerStateV1Query } from '@gen3/core';
 import { NavPageLayout } from '../../features/Navigation';
 import PageLoadBoundary from '../../components/MessageCards/PageLoadBoundary';
 import { ProtectedContent } from '../../components/Protected';
 import type { PageLoadProblem } from '../../lib/pageLoader';
-import type { CohortBuilderConfiguration } from '../../features/CohortBuilder';
+import type { ExplorerRuntimeV1 } from '@gen3/core';
 import { useSession } from '../../lib/session/session';
 import { ExplorerPageProps } from './types';
 
@@ -15,7 +17,8 @@ const CohortBuilder = dynamic(
 );
 
 interface ExplorerMainContentProps {
-  configuration: CohortBuilderConfiguration | null;
+  runtime: ExplorerRuntimeV1 | null;
+  project?: string;
   activeTab?: string | null;
   hideTabList?: boolean;
   onTabChange?: (value: string | null) => void;
@@ -24,19 +27,21 @@ interface ExplorerMainContentProps {
 }
 
 export const ExplorerMainContent = ({
-  configuration,
+  runtime,
+  project,
   activeTab,
   hideTabList,
   onTabChange,
   sharedFiltersMap,
   pageProblems = [],
 }: ExplorerMainContentProps) => {
-  if (!configuration) return <PageLoadBoundary problems={pageProblems} />;
+  if (!runtime || !project) return <PageLoadBoundary problems={pageProblems} />;
 
   return (
     <ProtectedContent>
       <AuthenticatedExplorerContent
-        configuration={configuration}
+        runtime={runtime}
+        project={project}
         activeTab={activeTab}
         hideTabList={hideTabList}
         onTabChange={onTabChange}
@@ -47,19 +52,19 @@ export const ExplorerMainContent = ({
 };
 
 const AuthenticatedExplorerContent = ({
-  configuration,
+  runtime,
+  project,
   activeTab,
   hideTabList,
   onTabChange,
   sharedFiltersMap,
-}: Omit<ExplorerMainContentProps, 'pageProblems' | 'configuration'> & {
-  configuration: CohortBuilderConfiguration;
-}) => {
+}: Omit<ExplorerMainContentProps, 'pageProblems'>) => {
   const { status } = useSession();
   if (status !== 'issued') return null;
   return (
     <CohortBuilder
-      configuration={configuration}
+      runtime={runtime as ExplorerRuntimeV1}
+      project={project as string}
       activeTab={activeTab}
       hideTabList={hideTabList}
       onTabChange={onTabChange}
@@ -71,11 +76,22 @@ const AuthenticatedExplorerContent = ({
 const ExplorerPage = ({
   headerProps,
   footerProps,
-  configuration,
+  runtime,
+  project,
   headerMetadata,
   sharedFiltersMap,
   pageProblems,
 }: ExplorerPageProps): JSX.Element => {
+  const router = useRouter();
+  const routeProject = typeof router.query.configId === 'string'
+    ? canonicalLoomProjectId(router.query.configId)
+    : project;
+  const routeExplorerId = typeof router.query.explorerId === 'string' ? router.query.explorerId : 'default';
+  const explorerState = useGetExplorerStateV1Query(
+    { project: routeProject ?? '', explorerId: routeExplorerId },
+    { skip: !routeProject },
+  );
+  const effectiveRuntime = explorerState.data?.runtime ?? runtime;
   const pageHeaderMetadata =
     headerMetadata ?? {
       title: 'Gen3 Explorer Page',
@@ -91,7 +107,8 @@ const ExplorerPage = ({
       pageProblems={pageProblems}
     >
       <ExplorerMainContent
-        configuration={configuration}
+        runtime={effectiveRuntime}
+        project={explorerState.data?.project ?? project}
         sharedFiltersMap={sharedFiltersMap}
         pageProblems={pageProblems}
       />

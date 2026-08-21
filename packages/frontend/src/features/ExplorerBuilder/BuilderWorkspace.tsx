@@ -14,9 +14,8 @@ import type { Edge, EdgeProps, Node } from '@xyflow/react';
 import {
   useCreateExplorerMutation,
   useCompileExplorerAuthoringMutation,
-  useGetExplorerAuthoringCatalogQuery,
-  useGetExplorerConfigsQuery,
-  useGetExplorerQuery,
+  useGetExplorerAuthoringExplorersV1Query,
+  useGetExplorerBuilderStateV1Query,
   useDeleteExplorerMutation,
   usePreviewExplorerDraftMutation,
   usePublishExplorerMutation,
@@ -25,8 +24,11 @@ import {
 import type {
   ExplorerConfigV2,
   ExplorerDiagnostic,
+  ExplorerBuilderStateV1,
+  ExplorerLifecycleMetadataV2,
   ExplorerPreview,
   ExplorerState,
+  RecipeFieldV2,
   RecipeTraversalV2,
 } from '@gen3/core';
 import { configForOutput } from '@gen3/core';
@@ -89,52 +91,6 @@ const isResourceType = (value: unknown): value is string =>
  * catalog. Keep those edits out of the catalog request identity so checking a
  * row control cannot refresh the picker and change the user's place in it.
  */
-const traversalForAuthoringCatalog = (
-  traversal: RecipeTraversalV2,
-): RecipeTraversalV2 => {
-  const { fields: _fields, children, ...withoutFields } = traversal;
-  return {
-    ...withoutFields,
-    ...(children
-      ? { children: children.map(traversalForAuthoringCatalog) }
-      : {}),
-  };
-};
-
-const catalogConfigFor = (
-  config: ExplorerConfigV2,
-  output: string,
-): ExplorerConfigV2 => {
-  const scoped = configForOutput(config, output);
-  return {
-    ...scoped,
-    // These are presentation-only and are not used to discover graph fields.
-    sharedFilters: undefined,
-    fileActions: undefined,
-    recipe: {
-      ...scoped.recipe,
-      outputs: scoped.recipe.outputs?.map((candidate) => {
-        const { fields: _fields, traversals, ...withoutFields } = candidate;
-        return {
-          ...withoutFields,
-          ...(traversals
-            ? {
-                traversals: traversals.map(traversalForAuthoringCatalog),
-              }
-            : {}),
-        };
-      }),
-    },
-    // Keep the required view envelope, but omit its authored columns and
-    // presentation settings from the discovery request identity.
-    views: scoped.views.map((view) => ({
-      id: view.id,
-      title: '',
-      output: view.output,
-      table: { columns: [] },
-    })),
-  };
-};
 const titleForResource = (value: unknown): string =>
   isResourceType(value)
     ? value
@@ -347,21 +303,361 @@ const configFromServer = (
   return isRecord(config) ? (config as unknown as ExplorerConfigV2) : undefined;
 };
 
-const activeConfigFromServer = (
-  candidate: ExplorerState | Record<string, unknown>,
-): ExplorerConfigV2 | undefined => {
-  const record = candidate as Record<string, unknown>;
-  const config = record.activeConfig;
-  return isRecord(config) ? (config as unknown as ExplorerConfigV2) : undefined;
+type BuilderCatalogProjection = {
+  readonly snapshotToken?: string;
+  readonly sourceGeneration?: string;
+  readonly resolvedSchemaDigest?: string;
+  readonly authScopeDigest?: string;
+  readonly complete: boolean;
+  readonly diagnostics: ReadonlyArray<ExplorerDiagnostic>;
+  readonly resources: ReadonlyArray<Record<string, unknown>>;
+  readonly relationships: ReadonlyArray<Record<string, unknown>>;
+  readonly candidates: ReadonlyArray<Record<string, unknown>>;
 };
 
-const configForBuilder = (
-  candidate: ExplorerState | Record<string, unknown>,
-  preferActive: boolean,
-): ExplorerConfigV2 | undefined =>
-  preferActive
-    ? activeConfigFromServer(candidate)
-    : configFromServer(candidate);
+/**
+ * The current Builder editor still uses its V2-compatible reducer. Project
+ * hydration, however, comes only from Loom's combined V1 response. This
+ * projection is deliberately local: it joins the V1 bundle's opaque document
+ * with the V1 catalog and resolved bindings without reading /explorers/:id.
+ */
+const configFromBuilderState = (
+  builder: ExplorerBuilderStateV1,
+  project: string,
+): ExplorerConfigV2 | undefined => {
+  const documents = [
+    ...(builder.bundle.documents ?? []),
+    ...(builder.bundle.document ? [builder.bundle.document] : []),
+  ];
+  if (documents.length === 0) return undefined;
+
+  const nodesById = new Map(
+    builder.catalog.nodes.map((node) => [node.nodeId, node]),
+  );
+  const candidatesById = new Map(
+    builder.catalog.candidates.map((candidate) => [
+      candidate.candidateId,
+      candidate,
+    ]),
+  );
+  const edgesById = new Map(
+    builder.catalog.edges.map((edge) => [edge.edgeId, edge]),
+  );
+
+  const outputConfig = documents.map((document) => {
+    const outputId = document.output.id;
+    const binding = builder.bindings.find(
+      (candidate) => candidate.outputId === outputId,
+    );
+    const tab = builder.bundle.tabs?.find(
+      (candidate) => candidate.outputId === outputId,
+    );
+    const baseNode = nodesById.get(document.baseNodeId);
+    const baseResourceType =
+      binding?.baseResourceType ?? baseNode?.resourceType ?? 'Resource';
+    const occurrences = [...(document.routeOccurrences ?? [])].sort(
+      (left, right) => left.index - right.index,
+    );
+    const candidateOccurrences = new Map<string, Set<string>>();
+    const addCandidateOccurrence = (
+      candidateId: string,
+      occurrenceId: string,
+    ) => {
+      const occurrencesForCandidate =
+        candidateOccurrences.get(candidateId) ?? new Set<string>();
+      occurrencesForCandidate.add(occurrenceId);
+      candidateOccurrences.set(candidateId, occurrencesForCandidate);
+    };
+    document.candidateOccurrences?.forEach((occurrence) =>
+      addCandidateOccurrence(occurrence.candidateId, occurrence.occurrenceId),
+    );
+    const candidateEmissions = binding?.candidateEmissions ?? [];
+    const emittedByCandidate = new Map(
+      candidateEmissions.map((emission) => [emission.candidateId, emission]),
+    );
+    candidateEmissions.forEach((emission) =>
+      addCandidateOccurrence(emission.candidateId, emission.occurrenceId),
+    );
+    const candidateIds = [
+      ...(document.candidateIds ?? []),
+      ...candidateEmissions.map((emission) => emission.candidateId),
+    ].filter(
+      (candidateId, index, values) => values.indexOf(candidateId) === index,
+    );
+
+    const fieldFor = (candidateId: string): RecipeFieldV2 => {
+      const candidate = candidatesById.get(candidateId);
+      const emission = emittedByCandidate.get(candidateId);
+      const label =
+        emission?.label?.trim() || candidate?.label?.trim() || candidateId;
+      return {
+        name: label,
+        label,
+        logicalType:
+          emission?.logicalType?.trim() ||
+          candidate?.logicalType?.trim() ||
+          'string',
+        repeated: false,
+        family: 'catalog',
+        selectionKey: label,
+        valueSelector: label,
+      };
+    };
+    const fieldsFor = (nodeId: string, occurrenceId?: string) =>
+      candidateIds
+        .filter((candidateId) => {
+          const candidate = candidatesById.get(candidateId);
+          if (!candidate || candidate.nodeId !== nodeId) return false;
+          const authoredOccurrences = candidateOccurrences.get(candidateId);
+          return occurrenceId
+            ? authoredOccurrences?.has(occurrenceId) === true
+            : authoredOccurrences === undefined ||
+                authoredOccurrences.has('base');
+        })
+        .map(fieldFor);
+
+    const traversals = (document.routeEdgeIds ?? []).map((edgeId, index) => {
+      const previousNodeId =
+        index === 0 ? document.baseNodeId : occurrences[index - 1]?.nodeId;
+      const occurrence = occurrences[index];
+      const edge = edgesById.get(edgeId);
+      const targetNodeId =
+        occurrence?.nodeId ??
+        (edge && edge.fromNodeId === previousNodeId
+          ? edge.toNodeId
+          : edge?.fromNodeId);
+      const target = targetNodeId ? nodesById.get(targetNodeId) : undefined;
+      const direction =
+        edge && previousNodeId
+          ? edge.fromNodeId === previousNodeId
+            ? 'outbound'
+            : 'inbound'
+          : undefined;
+      return {
+        alias: `route_${index}`,
+        ...(target?.resourceType
+          ? { toResourceType: target.resourceType }
+          : {}),
+        ...(edge?.label ? { name: edge.label } : {}),
+        ...(direction
+          ? { direction: direction as 'outbound' | 'inbound' }
+          : {}),
+        ...(targetNodeId
+          ? {
+              fields: fieldsFor(
+                targetNodeId,
+                occurrence?.id ??
+                  binding?.routeOccurrences?.[index]?.occurrenceId,
+              ),
+            }
+          : {}),
+      };
+    });
+
+    const presentation = isRecord(document.presentation)
+      ? document.presentation
+      : {};
+    const emissions = candidateEmissions.filter((emission) =>
+      candidateIds.includes(emission.candidateId),
+    );
+    const fallbackEmissions = candidateIds
+      .filter((candidateId) => !emittedByCandidate.has(candidateId))
+      .map((candidateId) => {
+        const candidate = candidatesById.get(candidateId);
+        return {
+          candidateId,
+          occurrenceId:
+            candidateOccurrences.get(candidateId)?.values().next().value ??
+            'base',
+          emissionId: candidateId,
+          label: candidate?.label ?? candidateId,
+          logicalType: candidate?.logicalType ?? 'string',
+          filterable: candidate?.filterable !== false,
+          chartable: candidate?.chartable === true,
+        };
+      });
+    const allEmissions = [...emissions, ...fallbackEmissions];
+    const fieldNameFor = (emission: (typeof allEmissions)[number]) =>
+      emission.label?.trim() || emission.candidateId;
+    const presentationFor = (emissionId: string) => {
+      const value = presentation[emissionId];
+      return isRecord(value) ? value : {};
+    };
+    const orderedEmissions = [...allEmissions].sort((left, right) => {
+      const leftOrder = presentationFor(left.emissionId).order;
+      const rightOrder = presentationFor(right.emissionId).order;
+      return (
+        (typeof leftOrder === 'number' ? leftOrder : Number.MAX_SAFE_INTEGER) -
+        (typeof rightOrder === 'number' ? rightOrder : Number.MAX_SAFE_INTEGER)
+      );
+    });
+    const tableColumns = orderedEmissions.map((emission) => {
+      const item = presentationFor(emission.emissionId);
+      return {
+        column: fieldNameFor(emission),
+        ...(typeof item.label === 'string' ? { label: item.label } : {}),
+        visible: item.visible !== false,
+      };
+    });
+    const filters = allEmissions.flatMap((emission) => {
+      const item = presentationFor(emission.emissionId);
+      return isRecord(item.filter)
+        ? [
+            {
+              column: fieldNameFor(emission),
+              ...(typeof item.filter.label === 'string'
+                ? { label: item.filter.label }
+                : {}),
+            },
+          ]
+        : [];
+    });
+    const charts = allEmissions.flatMap((emission) => {
+      const item = presentationFor(emission.emissionId);
+      if (!isRecord(item.chart) || typeof item.chart.type !== 'string')
+        return [];
+      return [
+        {
+          column: fieldNameFor(emission),
+          type: item.chart.type,
+          ...(typeof item.chart.title === 'string'
+            ? { title: item.chart.title }
+            : {}),
+        },
+      ];
+    });
+    const title = tab?.title ?? document.output.title ?? outputId;
+    return {
+      name: outputId,
+      title,
+      rootResourceType: baseResourceType,
+      rowGrain: binding?.rowGrain,
+      fields: fieldsFor(document.baseNodeId),
+      traversals,
+      view: {
+        id: tab?.id ?? outputId,
+        title,
+        output: outputId,
+        rowLabel: binding?.rowResourceType,
+        table: { columns: tableColumns },
+        filters,
+        charts,
+        fixedFilters: {},
+      },
+    };
+  });
+
+  return {
+    apiVersion: 'loom.calypr.org/explorer-config/v2',
+    kind: 'ExplorerConfig',
+    project,
+    explorer: {
+      id: builder.explorerId,
+      title: builder.title,
+      management:
+        builder.explorerId === 'default' ? 'repository' : 'interactive',
+    },
+    recipe: {
+      name: builder.bundle.title,
+      outputs: outputConfig.map(({ view: _view, ...output }) => output),
+    },
+    views: outputConfig.map(({ view }) => view),
+  };
+};
+
+const catalogFromBuilderState = (
+  builder: ExplorerBuilderStateV1,
+): BuilderCatalogProjection => {
+  const nodesById = new Map(
+    builder.catalog.nodes.map((node) => [node.nodeId, node]),
+  );
+  const documents = [
+    ...(builder.bundle.documents ?? []),
+    ...(builder.bundle.document ? [builder.bundle.document] : []),
+  ];
+  const candidates = builder.catalog.candidates.flatMap((candidate) => {
+    const node = nodesById.get(candidate.nodeId);
+    if (!node?.resourceType) return [];
+    const occurrences = documents.flatMap((document) => {
+      if (document.baseNodeId === candidate.nodeId)
+        return [{ output: document.output.id, nodePath: [] }];
+      const binding = builder.bindings.find(
+        (item) => item.outputId === document.output.id,
+      );
+      const occurrence =
+        (document.routeOccurrences ?? []).find(
+          (item) => item.nodeId === candidate.nodeId,
+        ) ??
+        (binding?.routeOccurrences ?? []).find(
+          (item) => item.nodeId === candidate.nodeId,
+        );
+      return occurrence
+        ? [
+            {
+              output: document.output.id,
+              nodePath: [`route_${occurrence.index}`],
+            },
+          ]
+        : [];
+    });
+    const scopes =
+      occurrences.length > 0
+        ? occurrences
+        : [{ output: undefined, nodePath: [] }];
+    return scopes.map(({ output, nodePath }) => ({
+      id: candidate.candidateId,
+      nodeId: candidate.nodeId,
+      resourceType: node.resourceType,
+      path: candidate.label || candidate.candidateId,
+      label: candidate.label || candidate.candidateId,
+      logicalType: candidate.logicalType || 'string',
+      repeated: false,
+      filterable: candidate.filterable,
+      chartable: candidate.chartable,
+      family: 'catalog',
+      ...(output ? { output } : {}),
+      ...(nodePath.length > 0 ? { nodePath } : {}),
+    }));
+  });
+  const resources = builder.catalog.nodes.map((node) => ({
+    resourceType: node.resourceType,
+    label: titleForResource(node.resourceType),
+    fields: candidates.filter((candidate) => candidate.nodeId === node.nodeId),
+  }));
+  const relationships = builder.catalog.edges.flatMap((edge) => {
+    const source = nodesById.get(edge.fromNodeId)?.resourceType;
+    const target = nodesById.get(edge.toNodeId)?.resourceType;
+    return source && target
+      ? [{ id: edge.edgeId, source, target, label: edge.label }]
+      : [];
+  });
+  const diagnostics = builder.diagnostics.map((diagnostic) => ({
+    severity: diagnostic.severity,
+    code: diagnostic.code,
+    message: diagnostic.message,
+    fieldPath: diagnostic.fieldPath,
+  }));
+  return {
+    snapshotToken: builder.catalog.snapshotToken,
+    sourceGeneration: builder.catalog.generation,
+    resolvedSchemaDigest: builder.catalog.resolvedSchemaDigest,
+    authScopeDigest: builder.catalog.authorizationScopeDigest,
+    complete: diagnostics.every(
+      (diagnostic) => diagnostic.severity !== 'error',
+    ),
+    diagnostics,
+    resources,
+    relationships,
+    candidates,
+  };
+};
+
+const lifecycleMetadataFromBuilderState = (
+  builder: ExplorerBuilderStateV1,
+): ExplorerLifecycleMetadataV2 => ({
+  sourceGeneration: builder.active.generation,
+  publishedAt: builder.active.publishedAt,
+});
 
 const requireServerConfig = (
   candidate: ExplorerState | Record<string, unknown>,
@@ -2532,7 +2828,9 @@ const BuilderWorkspace = ({
     useCreateExplorerMutation();
   const [deleteExplorer, { isLoading: isDeletingExplorer }] =
     useDeleteExplorerMutation();
-  const configs = useGetExplorerConfigsQuery(projectId);
+  const configs = useGetExplorerAuthoringExplorersV1Query({
+    project: projectId,
+  });
   const [compileAuthoring] = useCompileExplorerAuthoringMutation();
   const [saveDraft, { isLoading: isSavingDraftRequest }] =
     useSaveExplorerDraftMutation();
@@ -2568,56 +2866,40 @@ const BuilderWorkspace = ({
       document.getElementById('explorer-builder-toolbar-host'),
     );
   }, []);
-  const selectedServerConfig = configs.data?.find(
-    (candidate) => candidate.explorerId === selectedId,
-  );
-  const selectedConfigFromList = selectedServerConfig
-    ? configForBuilder(selectedServerConfig, selectedId === 'default')
-    : undefined;
-  const selectedExplorer = useGetExplorerQuery(
-    { project: projectId, explorerId: selectedId },
-    { skip: Boolean(selectedConfigFromList) },
-  );
-  const selectedServerState = selectedConfigFromList
-    ? selectedServerConfig
-    : (selectedExplorer.data ?? selectedServerConfig);
-  const selectedConfig =
-    selectedConfigFromList ??
-    (selectedExplorer.data
-      ? configForBuilder(selectedExplorer.data, selectedId === 'default')
-      : undefined);
-  const authoringConfig = state.config;
-  const authoringCatalogConfig = useMemo(
+  const selectedBuilderState = useGetExplorerBuilderStateV1Query({
+    project: projectId,
+    explorerId: selectedId,
+  });
+  const selectedConfig = useMemo(
     () =>
-      authoringConfig && state.selectedOutput
-        ? catalogConfigFor(authoringConfig, state.selectedOutput)
+      selectedBuilderState.data
+        ? configFromBuilderState(selectedBuilderState.data, projectId)
         : undefined,
-    [authoringConfig, state.selectedOutput],
+    [projectId, selectedBuilderState.data],
   );
-  const authoringCatalog = useGetExplorerAuthoringCatalogQuery(
-    {
-      project: projectId,
-      explorerId: selectedId,
-      output: state.selectedOutput ?? '',
-      config: authoringCatalogConfig as ExplorerConfigV2,
-      authResourcePath,
-    },
-    // The repository/default Explorer is editable in the browser, and its
-    // graph and field picker require the live authoring catalog.
-    { skip: !authoringCatalogConfig || !state.selectedOutput },
+  const builderCatalog = useMemo(
+    () =>
+      selectedBuilderState.data
+        ? catalogFromBuilderState(selectedBuilderState.data)
+        : undefined,
+    [selectedBuilderState.data],
   );
-  const authoringCatalogScopeKey = authoringCatalogConfig
-    ? canonicalizeExplorerConfig(authoringCatalogConfig)
-    : undefined;
+  const authoringCatalog = {
+    data: builderCatalog,
+    error: selectedBuilderState.error,
+    isFetching: selectedBuilderState.isFetching,
+    refetch: selectedBuilderState.refetch,
+  };
+  // The combined Builder response owns the catalog snapshot. It is project-
+  // wide, so changing tables does not require another discovery request.
+  const authoringCatalogScopeKey = builderCatalog?.snapshotToken;
   const authoringCatalogScopeKeyRef = useRef(authoringCatalogScopeKey);
   authoringCatalogScopeKeyRef.current = authoringCatalogScopeKey;
-  // Loom's supported authoring catalog is project-wide: its nodes and route
-  // edges replace the removed legacy project-map call. Candidate
-  // fields remain in state.catalog, where they are joined to the same graph
-  // snapshot and opaque selection IDs.
   const catalogCandidatesByResource = new Map<string, CatalogCandidate[]>();
   for (const candidate of authoringCatalog.data?.candidates ?? []) {
-    const resourceType = candidate.resourceType?.trim();
+    const resourceType = isResourceType(candidate.resourceType)
+      ? candidate.resourceType.trim()
+      : undefined;
     if (!resourceType) continue;
     const normalized = normalizeCatalogCandidate(candidate, resourceType);
     if (!normalized) continue;
@@ -2668,26 +2950,28 @@ const BuilderWorkspace = ({
     ? lifecycleError(authoringCatalog.error).diagnostics[0]?.message
     : undefined;
   const resourceSuggestions = [
-    ...(configs.data ?? []).flatMap((candidate) =>
-      resourceTypesFromConfig(configFromServer(candidate)),
-    ),
     ...resourceTypesFromConfig(selectedConfig),
     ...projectGraph.resources.map((resource) => resource.resourceType),
   ].filter(
     (resourceType, index, values) => values.indexOf(resourceType) === index,
   );
-  const activeConfig = selectedServerState
-    ? (activeConfigFromServer(selectedServerState) ??
-      (selectedId === 'default' && selectedConfig ? selectedConfig : undefined))
-    : undefined;
+  const activeConfig =
+    selectedBuilderState.data?.active.revisionId && selectedConfig
+      ? selectedConfig
+      : undefined;
+  // This object participates in the hydration effect below; keep its identity
+  // stable or every reducer update re-runs the async load cycle.
+  const selectedLifecycleMetadata = useMemo(
+    () =>
+      selectedBuilderState.data
+        ? lifecycleMetadataFromBuilderState(selectedBuilderState.data)
+        : undefined,
+    [selectedBuilderState.data],
+  );
   const tableList = builderTables(state.config);
   const selectedTable = tableList.find(
     (table) => table.output === state.selectedOutput,
   );
-  const authoringTraversalKey = selectedTable
-    ? JSON.stringify(selectedTable.traversal)
-    : '';
-  const authoringRoot = selectedTable?.rootResourceType;
   const derivedId = slugifyExplorerId(newName);
   // Column order is presentation-only. Keep it out of the preview effect's
   // identity so dragging a header does not recompile and refetch the same rows.
@@ -2707,7 +2991,6 @@ const BuilderWorkspace = ({
     : '';
 
   // The seed intentionally captures the current reducer state once per server config.
-  // eslint-disable-next-line reactHooks/exhaustive-deps
   useEffect(() => {
     let cancelled = false;
     if (!selectedConfig) return;
@@ -2718,43 +3001,35 @@ const BuilderWorkspace = ({
         selectedId === 'default'
           ? ('REPOSITORY' as const)
           : ('INTERACTIVE' as const),
+      activeRevisionId: selectedBuilderState.data?.active.revisionId,
+      publishedAt: selectedBuilderState.data?.active.publishedAt,
     };
     const published = activeConfig ?? null;
     void initialStateFromConfig(
       projectId,
       seed,
       selectedConfig,
-      selectedServerState?.draftVersion ?? 0,
-      selectedServerState?.draftDigest,
+      0,
+      selectedBuilderState.data?.active.intentDigest,
       published,
-      selectedServerState?.updatedAt,
-      selectedServerState,
+      selectedBuilderState.data?.active.publishedAt,
+      selectedLifecycleMetadata,
     ).then((next) => {
       if (!cancelled) dispatch({ type: 'load', state: next });
     });
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line reactHooks/exhaustive-deps
   }, [
     projectId,
     selectedId,
     selectedConfig,
     activeConfig,
-    selectedServerState?.draftDigest,
-    selectedServerState?.draftVersion,
-    selectedServerState?.updatedAt,
+    selectedBuilderState.data?.active.intentDigest,
+    selectedBuilderState.data?.active.publishedAt,
+    selectedLifecycleMetadata,
   ]);
-  useEffect(() => {
-    dispatch({
-      type: 'setCatalog',
-      catalog: {
-        complete: false,
-        diagnostics: [],
-        resources: [],
-        relationships: [],
-      },
-    });
-  }, [selectedId, state.selectedOutput, authoringRoot, authoringTraversalKey]);
   useEffect(() => {
     const catalog = authoringCatalog.data;
     if (!catalog) return;
@@ -2808,11 +3083,9 @@ const BuilderWorkspace = ({
       catalog: {
         snapshotToken: catalog.snapshotToken,
         scopeKey: authoringCatalogScopeKeyRef.current,
-        catalogDigest: catalog.catalogDigest,
         sourceGeneration: catalog.sourceGeneration,
         resolvedSchemaDigest: catalog.resolvedSchemaDigest,
         authScopeDigest: catalog.authScopeDigest,
-        baseRecipeDigest: catalog.baseRecipeDigest,
         complete: catalog.complete && invalidEntries === 0,
         diagnostics,
         resources: normalizedResources.map((resource) => ({
@@ -3033,7 +3306,6 @@ const BuilderWorkspace = ({
     }
   };
   // Preview is keyed by the digest and selected output; the callback is recreated with the current draft.
-  // eslint-disable-next-line reactHooks/exhaustive-deps
   useEffect(() => {
     // Repository defaults preview their canonical packet directly; custom
     // Explorers run the authoring compiler before previewing.
@@ -3047,6 +3319,7 @@ const BuilderWorkspace = ({
       window.clearTimeout(timer);
       if (previewTimer.current === timer) previewTimer.current = undefined;
     };
+    // eslint-disable-next-line reactHooks/exhaustive-deps
   }, [
     previewConfigDigest,
     state.selectedOutput,
@@ -3121,6 +3394,7 @@ const BuilderWorkspace = ({
         }).unwrap();
       }
       setSelectedId(result.explorerId);
+      void configs.refetch();
       setNewName('');
       setMessage(
         startingConfig
@@ -3367,28 +3641,28 @@ const BuilderWorkspace = ({
   };
   const reloadServer = async () => {
     try {
-      const result = await configs.refetch().unwrap();
-      const serverState = result.find(
-        (candidate) => candidate.explorerId === selectedId,
-      );
-      const serverConfig = serverState
-        ? configForBuilder(serverState, selectedId === 'default')
-        : undefined;
-      if (!serverState || !serverConfig) {
+      const serverState = await selectedBuilderState.refetch().unwrap();
+      const serverConfig = configFromBuilderState(serverState, projectId);
+      if (!serverConfig) {
         setMessage(
-          'The selected Explorer is no longer available in the authenticated listing.',
+          'The selected Explorer did not return an editable V1 authoring bundle.',
         );
         return;
       }
       const next = await initialStateFromConfig(
         projectId,
-        { ...state, explorerId: selectedId },
+        {
+          ...state,
+          explorerId: selectedId,
+          activeRevisionId: serverState.active.revisionId,
+          publishedAt: serverState.active.publishedAt,
+        },
         serverConfig,
-        serverState.draftVersion ?? 0,
-        serverState.draftDigest,
-        activeConfigFromServer(serverState) ?? null,
-        serverState.updatedAt,
-        serverState,
+        0,
+        serverState.active.intentDigest,
+        serverState.active.revisionId ? serverConfig : null,
+        serverState.active.publishedAt,
+        lifecycleMetadataFromBuilderState(serverState),
       );
       dispatch({ type: 'load', state: next });
       setMessage(
@@ -3415,6 +3689,13 @@ const BuilderWorkspace = ({
         and try again.
       </main>
     );
+  if (selectedBuilderState.isError)
+    return (
+      <main className="p-6" role="alert">
+        The selected Explorer authoring state could not be loaded. Check your
+        project access and try again.
+      </main>
+    );
   if (
     !(configs.data ?? []).some(
       (candidate) => candidate.explorerId === 'default',
@@ -3427,15 +3708,7 @@ const BuilderWorkspace = ({
         configuration.
       </main>
     );
-  if (selectedId === 'default' && selectedServerState && !selectedConfig)
-    return (
-      <main className="p-6" role="status">
-        The repository default configuration is not available yet. Its
-        executable recipe is still managed by ETL, but browser presentation
-        edits will be stored separately when the configuration is available.
-      </main>
-    );
-  if (!selectedServerState || !selectedConfig)
+  if (selectedBuilderState.isLoading || !selectedConfig)
     return (
       <main className="p-6" role="status">
         Loading the selected Explorer configuration…
@@ -3494,12 +3767,13 @@ const BuilderWorkspace = ({
               backgroundImage: 'none',
             }}
             value={selectedId}
-            onChange={(event) => setSelectedId(event.currentTarget.value)}
+            onChange={(event) => {
+              setSelectedId(event.currentTarget.value);
+            }}
           >
             {(configs.data ?? []).map((candidate) => (
               <option key={candidate.explorerId} value={candidate.explorerId}>
-                {configFromServer(candidate)?.explorer.title ??
-                  candidate.explorerId}
+                {candidate.title || candidate.explorerId}
                 {candidate.explorerId === 'default'
                   ? ' · repository default'
                   : ' · custom'}

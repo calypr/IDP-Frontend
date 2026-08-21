@@ -2,15 +2,11 @@ import React, { useMemo } from 'react';
 import Link from 'next/link';
 import {
   useGetAuthzMappingsQuery,
-  useGetRepositoryExplorerConfigQuery,
+  useGetExplorerStateV1Query,
   userHasMethodForServiceOnResource,
 } from '@gen3/core';
 
-type ProjectWorkspaceTabKey =
-  | 'git'
-  | 'presentation'
-  | 'explorer'
-  | 'storage';
+type ProjectWorkspaceTabKey = 'git' | 'presentation' | 'explorer' | 'storage';
 
 interface ProjectWorkspaceTabsProps {
   readonly activeTab: ProjectWorkspaceTabKey;
@@ -38,8 +34,9 @@ const ProjectWorkspaceTabs = ({
   toolbarContent,
 }: ProjectWorkspaceTabsProps) => {
   const { data: authzMapping = {} } = useGetAuthzMappingsQuery();
-  const { data: repositoryExplorer } = useGetRepositoryExplorerConfigQuery(
-    `${organization}-${project}`, { skip: !organization || !project },
+  const { data: repositoryExplorer } = useGetExplorerStateV1Query(
+    { project: `${organization}/${project}`, explorerId: 'default' },
+    { skip: !organization || !project || hasExplorerConfig },
   );
   const hasConfiguredExplorer =
     hasExplorerConfig || Boolean(repositoryExplorer);
@@ -55,7 +52,7 @@ const ProjectWorkspaceTabs = ({
       '*',
     ];
     return candidatePaths.some((path) =>
-      userHasMethodForServiceOnResource('update', '*', path, authzMapping)
+      userHasMethodForServiceOnResource('update', '*', path, authzMapping),
     );
   }, [organization, project, authzMapping]);
 
@@ -70,7 +67,7 @@ const ProjectWorkspaceTabs = ({
       '*',
     ];
     return candidatePaths.some((path) =>
-      userHasMethodForServiceOnResource('read', '*', path, authzMapping)
+      userHasMethodForServiceOnResource('read', '*', path, authzMapping),
     );
   }, [organization, project, authzMapping]);
 
@@ -82,50 +79,46 @@ const ProjectWorkspaceTabs = ({
     `/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}/presentation`;
   const explorerBaseHref =
     explorerHref ||
-    `/Explorer/${encodeURIComponent(`${organization}-${project}`)}`;
+    `/Explorer/${encodeURIComponent(`${organization}/${project}`)}`;
   const storageBaseHref =
     storageHref ||
     `/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}/storage`;
 
   const visibleTabs = useMemo(
-    () =>
-      [
-        {
-          key: 'presentation' as const,
-          label: 'Home',
-          href: presentationBaseHref,
-        },
-        ...(
-          hasConfiguredExplorer ||
-          hasGitAccess ||
-          activeTab === 'explorer'
-          ? [
-              {
-                key: 'explorer' as const,
-                label: 'Explorer',
-                href: explorerBaseHref,
-              },
-            ]
-          : []),
-        ...(hasGitAccess || activeTab === 'git'
-          ? [
-              {
-                key: 'git' as const,
-                label: 'Source',
-                href: gitBaseHref,
-              },
-            ]
-          : []),
-        ...(hasReadAccess || activeTab === 'storage'
-          ? [
-              {
-                key: 'storage' as const,
-                label: 'Storage',
-                href: storageBaseHref,
-              },
-            ]
-          : []),
-      ],
+    () => [
+      {
+        key: 'presentation' as const,
+        label: 'Home',
+        href: presentationBaseHref,
+      },
+      ...(hasConfiguredExplorer || hasGitAccess || activeTab === 'explorer'
+        ? [
+            {
+              key: 'explorer' as const,
+              label: 'Explorer',
+              href: explorerBaseHref,
+            },
+          ]
+        : []),
+      ...(hasGitAccess || activeTab === 'git'
+        ? [
+            {
+              key: 'git' as const,
+              label: 'Source',
+              href: gitBaseHref,
+            },
+          ]
+        : []),
+      ...(hasReadAccess || activeTab === 'storage'
+        ? [
+            {
+              key: 'storage' as const,
+              label: 'Storage',
+              href: storageBaseHref,
+            },
+          ]
+        : []),
+    ],
     [
       explorerBaseHref,
       gitBaseHref,

@@ -395,6 +395,7 @@ export const loomApi = createApi({
     'LOOM_AGGREGATE',
     'LOOM_EXPLORER',
     'LOOM_EXPLORER_REVISION',
+    'LOOM_EXPLORER_AUTHORING',
   ],
   endpoints: () => ({}),
 });

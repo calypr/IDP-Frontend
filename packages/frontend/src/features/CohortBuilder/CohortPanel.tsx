@@ -46,7 +46,7 @@ import {
   useClearFilters,
   useFieldNameToTitle,
 } from '../../components/facets/hooks';
-import { Charts, CollapsableCharts } from '../../components/charts';
+import { Charts } from '../../components/charts';
 import ExplorerTable from './ExplorerTable/ExplorerTable';
 import CountsValue from '../../components/counts/CountsValue';
 import DownloadsPanel from './DownloadsPanel';
@@ -55,7 +55,6 @@ import {
   useDeepCompareEffect,
   useDeepCompareMemo,
 } from 'use-deep-compare';
-import { toDisplayName } from '../../utils';
 import {
   useCohortFilterCombineState,
   useFilterExpandedState,
@@ -64,10 +63,6 @@ import {
 } from './hooks';
 import DropdownPanel from '../../components/facets/Panels/DropdownPanel';
 import QueryExpression from './QueryExpression';
-import {
-  hasUsableFilterConfiguration,
-  normalizeCohortPanelForDataset,
-} from './runtimeConfiguration';
 
 const EmptyData = {};
 
@@ -183,23 +178,8 @@ export const CohortPanel = ({
   }, [cohortFilters]);
   const activeDataset = tableRender?.materialization ?? fallbackDataset ?? null;
   const runtimePanel = useMemo(
-    () =>
-      normalizeCohortPanelForDataset(
-        {
-          guppyConfig,
-          tabTitle,
-          chartsSection,
-          charts,
-          filters,
-          table,
-          dropdowns,
-          buttons,
-          loginForDownload,
-        },
-        activeDataset?.columns,
-      ),
+    () => ({ guppyConfig, tabTitle, chartsSection, charts, filters, table, dropdowns, buttons, loginForDownload }),
     [
-      activeDataset?.columns,
       buttons,
       charts,
       chartsSection,
@@ -213,7 +193,7 @@ export const CohortPanel = ({
   );
   const runtimeGuppyConfig = runtimePanel.guppyConfig;
   const runtimeFilters = runtimePanel.filters;
-  const hasConfiguredFilters = hasUsableFilterConfiguration(runtimeFilters);
+  const hasConfiguredFilters = Boolean(runtimeFilters?.tabs?.some((tab) => tab.fields.length > 0));
   const hasActiveFilters = Object.keys(cohortFilters.root ?? {}).length > 0;
   const runtimeCharts = runtimePanel.charts;
   const runtimeChartsSection = runtimePanel.chartsSection;
@@ -418,6 +398,7 @@ export const CohortPanel = ({
     tableRender,
   ]);
   const isSuccess = Boolean(data && Object.keys(data).length > 0);
+  const isChartSuccess = isSuccess;
   const facetMetadata = useDeepCompareMemo(() => {
     if (!facetResponse) return {};
     return Object.values(facetResponse.aggregations).reduce(
@@ -443,32 +424,6 @@ export const CohortPanel = ({
     facetPlan.specs,
     facetResponse,
   ]);
-  const chartData = data;
-  const isChartSuccess = isSuccess;
-
-  const cleanChartData = useDeepCompareMemo(() => {
-    if (isChartSuccess && chartData) {
-      const cleanedData: AggregationsData = {};
-      Object.keys(summaryCharts).forEach((key) => {
-        if (chartData[key]) {
-          cleanedData[key] = chartData[key].filter((x) =>
-            typeof x.key !== 'string' ? true : x.key !== '',
-          );
-          const facetDef = facetDefinitions?.[key];
-          if (facetDef?.excludeValues) {
-            cleanedData[key] = cleanedData[key].filter((x) =>
-              typeof x.key !== 'string'
-                ? true
-                : facetDef?.excludeValues?.includes(String(x.key)) === false,
-            );
-          }
-        }
-      });
-      return cleanedData;
-    }
-    return chartData;
-  }, [chartData, isChartSuccess, summaryCharts]);
-
   const getEnumFacetData = useDeepCompareCallback(
     (field: string) => {
       let filters = undefined;
