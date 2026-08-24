@@ -25,7 +25,12 @@ import type {
 } from './explorer';
 import { isExplorerStateV1 } from './explorerAuthoring';
 import type { ExplorerStateV1 } from './explorerAuthoring';
-import { encodeLoomProjectPath } from './projectId';
+import {
+  bindAuthoringPreview,
+  type AuthoringColumnBinding,
+  type AuthoringPreviewResponse,
+} from './authoringPreview';
+import { canonicalLoomProjectId, encodeLoomProjectPath } from './projectId';
 
 export interface ExplorerProjectRef {
   readonly project: string;
@@ -75,9 +80,10 @@ export interface PreviewExplorerDraftRequest extends ExplorerProjectRef {
 }
 
 export interface PublishExplorerRequest extends ExplorerProjectRef {
+  readonly config: ExplorerConfigV2;
   /** Canonical Fence resource path used by scoped Loom write authorization. */
   readonly authResourcePath?: string;
-  /** Publish always activates the server-owned draft identified by CAS. */
+  /** Retained for callers compiled against the draft-based lifecycle. */
   readonly expectedDraftVersion: number;
   readonly expectedDraftDigest?: string;
 }
@@ -206,6 +212,27 @@ const canonicalBundleCache = new Map<
   { readonly draft?: unknown; readonly active?: unknown; readonly draftReceiptId?: string; readonly runtime?: ExplorerStateV1['runtime']; readonly generated?: ExplorerStateV1['generated'] }
 >();
 const authoringCatalogCache = new Map<string, AuthoringV1Catalog>();
+type AuthoringResolvedEmission = {
+  readonly outputId: string;
+  readonly emissionId: string;
+  readonly candidateId?: string;
+  readonly occurrenceId?: string;
+};
+const authoringEmissionCache = new Map<
+  string,
+  ReadonlyArray<AuthoringResolvedEmission>
+>();
+type AuthoringResolvedRoute = {
+  readonly outputId: string;
+  readonly baseNodeId?: string;
+  readonly baseResourceType?: string;
+  readonly rowNodeId?: string;
+  readonly rowResourceType?: string;
+};
+const authoringRouteCache = new Map<
+  string,
+  ReadonlyArray<AuthoringResolvedRoute>
+>();
 
 const authoringCacheKey = (project: string, explorerId: string): string =>
   `${project}:${explorerId}`;
@@ -811,12 +838,14 @@ const explorerConfigFromCanonicalBundle = (
   state: ExplorerStateV1,
 ): ExplorerConfigV2 | undefined => {
   if (!isRecord(bundle)) return undefined;
-  const documents = [
-    ...(Array.isArray(bundle.documents)
-      ? bundle.documents.filter(isRecord)
-      : []),
-    ...(isRecord(bundle.document) ? [bundle.document] : []),
-  ];
+  const pluralDocuments = Array.isArray(bundle.documents)
+    ? bundle.documents.filter(isRecord)
+    : [];
+  const documents = pluralDocuments.length > 0
+    ? pluralDocuments
+    : isRecord(bundle.document)
+      ? [bundle.document]
+      : [];
   const runtimeOutputs = state.runtime?.outputs ?? [];
   const generatedOutputs = state.generated.dataset?.outputs ?? [];
   const outputFor = (document: Record<string, unknown>) => {
@@ -1113,7 +1142,7 @@ const rawAuthoringCatalog = async (
 ): Promise<{ readonly data?: AuthoringV1Catalog; readonly error?: ExplorerApiError }> => {
   const key = authoringCacheKey(project, explorerId);
   const cached = authoringCatalogCache.get(key);
-  if (cached) return { data: cached };
+  if (cached && authoringEmissionCache.has(key)) return { data: cached };
   const endpoint = withAuthResourcePath(
     authoringV1Endpoint(project, explorerId, '/builder'),
     authResourcePath,
@@ -1125,6 +1154,52 @@ const rawAuthoringCatalog = async (
   );
   if (result.error) return { error: result.error };
   const builderPayload = unwrapExplorerEnvelope(result.data);
+  if (isRecord(builderPayload)) {
+    // The combined Builder response is the authoritative source for opaque
+    // route identities. Keep its bundle alongside the parsed catalog so the
+    // V2 compatibility editor does not have to rediscover base/row nodes from
+    // resource labels when a presentation-only edit triggers preview.
+    if (isRecord(builderPayload.bundle)) {
+      const cachedBundle = canonicalBundleCache.get(key);
+      canonicalBundleCache.set(key, {
+        ...cachedBundle,
+        draft: builderPayload.bundle,
+      });
+    }
+    const bindings = (Array.isArray(builderPayload.bindings)
+      ? builderPayload.bindings
+      : []
+    ).filter(isRecord);
+    authoringRouteCache.set(
+      key,
+      bindings.flatMap((binding) => {
+        const outputId = stringValue(binding.outputId);
+        if (!outputId) return [];
+        return [{
+          outputId,
+          baseNodeId: stringValue(binding.baseNodeId),
+          baseResourceType: stringValue(binding.baseResourceType),
+          rowNodeId: stringValue(binding.rowNodeId),
+          rowResourceType: stringValue(binding.rowResourceType),
+        }];
+      }),
+    );
+    const emissions = bindings.flatMap((binding) => {
+      const outputId = stringValue(binding.outputId);
+      if (!outputId || !Array.isArray(binding.candidateEmissions)) return [];
+      return binding.candidateEmissions.filter(isRecord).flatMap((emission) => {
+        const emissionId = stringValue(emission.emissionId);
+        if (!emissionId) return [];
+        return [{
+          outputId,
+          emissionId,
+          candidateId: stringValue(emission.candidateId),
+          occurrenceId: stringValue(emission.occurrenceId),
+        }];
+      });
+    });
+    authoringEmissionCache.set(key, emissions);
+  }
   const payload = isRecord(builderPayload) && isRecord(builderPayload.catalog)
     ? builderPayload.catalog
     : builderPayload;
@@ -1248,18 +1323,23 @@ const presentationFromLegacyView = (
     const candidateId = emittedById.get(emissionId)?.candidateId;
     if (!candidateId || !candidateIds.includes(candidateId)) delete presentation[emissionId];
   }
-  for (const [index, column] of runtimeColumns.entries()) {
+  for (const column of runtimeColumns) {
     const emissionId = stringValue(column.emissionId);
     const name = stringValue(column.name);
     if (!emissionId || !name) continue;
     const candidateId = emittedById.get(emissionId)?.candidateId;
     if (!runtimeEmissionIds.has(emissionId) || !candidateId || !candidateIds.includes(candidateId)) continue;
     const existing = {};
-    const tableColumn = view.table.columns.find((candidate) => candidate.column === name);
+    const tableColumnIndex = view.table.columns.findIndex(
+      (candidate) => candidate.column === name,
+    );
+    const tableColumn = tableColumnIndex >= 0
+      ? view.table.columns[tableColumnIndex]
+      : undefined;
     const next: Record<string, unknown> = {
       ...existing,
       visible: tableColumn?.visible ?? false,
-      order: tableColumn ? index : undefined,
+      order: tableColumn ? tableColumnIndex : undefined,
       ...(tableColumn?.label ? { label: tableColumn.label } : {}),
       table: {},
     };
@@ -1347,14 +1427,6 @@ const v1CandidateMatchesSemanticColumn = (
     });
 };
 
-type AuthoringColumnBinding = {
-  readonly outputId: string;
-  readonly semanticColumn: string;
-  readonly label?: string;
-  readonly candidateId: string;
-  readonly occurrenceId: string;
-};
-
 type AuthoringBundleBuild = {
   readonly bundle: AuthoringV1Bundle;
   readonly columnBindings: ReadonlyArray<AuthoringColumnBinding>;
@@ -1385,10 +1457,24 @@ const authoringBundleFromV2Config = (
     const cachedBaseResource = cachedBase
       ? nodeById.get(cachedBase)?.resourceType ?? nodeById.get(cachedBase)?.label
       : undefined;
+    const cachedBinding = authoringRouteCache
+      .get(authoringCacheKey(project, explorerId))
+      ?.find(
+        (binding) =>
+          outputIdFor(binding.outputId) === outputIdFor(outputId),
+      );
+    const cachedRootResourceTypes = [
+      cachedBaseResource,
+      cachedBinding?.baseResourceType,
+    ].filter((value): value is string => Boolean(value));
     const cachedBaseMatchesRoot = Boolean(
       cachedBase &&
+      nodeById.has(cachedBase) &&
       rootResourceType &&
-      cachedBaseResource?.toLowerCase() === rootResourceType.toLowerCase(),
+      cachedRootResourceTypes.some(
+        (resourceType) =>
+          resourceType.toLowerCase() === rootResourceType.toLowerCase(),
+      ),
     );
     const baseNode = (cachedBaseMatchesRoot
       ? cachedBase
@@ -1495,16 +1581,31 @@ const authoringBundleFromV2Config = (
           const occurrence = normalizedRouteOccurrences.find((item) => item.nodeId === candidate.nodeId);
           return occurrence ? [{ candidateId, occurrenceId: occurrence.id }] : [];
         });
-    for (const candidateId of candidateIds) {
+    for (const selection of candidateOccurrences) {
+      const { candidateId, occurrenceId } = selection;
       const candidate = candidateById.get(candidateId);
-      const occurrenceId = candidateOccurrences.find((item) => item.candidateId === candidateId)?.occurrenceId;
       if (!candidate || !occurrenceId) continue;
+      const cachedEmission = authoringEmissionCache
+        .get(authoringCacheKey(project, explorerId))
+        ?.find(
+          (emission) =>
+            emission.outputId === outputId &&
+            emission.candidateId === candidateId &&
+            emission.occurrenceId === occurrenceId,
+        );
       const fields = [
         ...(output.fields ?? []),
         ...traversals.flatMap((traversal) => traversal.fields ?? []),
       ];
       const field = fields.find((item) => fieldMatchesV1Candidate(item, candidate));
-      const tableColumn = view?.table.columns.find((item) => v1CandidateMatchesSemanticColumn(item.column, candidate));
+      const tableColumn = view?.table.columns.find((item) => {
+        const identity = item as typeof item & { readonly emissionId?: string };
+        return cachedEmission?.emissionId
+          ? identity.emissionId === cachedEmission.emissionId
+          : v1CandidateMatchesSemanticColumn(item.column, candidate);
+      }) ?? view?.table.columns.find((item) =>
+        v1CandidateMatchesSemanticColumn(item.column, candidate),
+      );
       const semanticColumn = tableColumn?.column ?? field?.name ?? candidate.path ?? candidate.label ?? candidateId;
       columnBindings.push({
         outputId,
@@ -1512,6 +1613,7 @@ const authoringBundleFromV2Config = (
         ...(tableColumn?.label ? { label: tableColumn.label } : {}),
         candidateId,
         occurrenceId,
+        emissionId: cachedEmission?.emissionId,
       });
     }
     return {
@@ -1551,26 +1653,17 @@ const authoringBundleFromV2Config = (
   };
 };
 
-type CompiledAuthoringEmission = {
-  readonly emissionId: string;
-  readonly candidateId?: string;
-  readonly occurrenceId?: string;
-};
-
 /**
  * V1 presentation is keyed by server-owned emission IDs, while the legacy
- * Builder stores presentation against semantic column names. Compile the
- * migrated documents once before saving so labels, order, filters, and charts
- * survive the V2 -> V1 boundary instead of being silently discarded.
+ * Builder stores presentation against semantic column names. The combined
+ * Builder read already resolves those emission IDs; reuse that response when
+ * publishing instead of calling the removed standalone compile route.
  */
-const hydrateAuthoringPresentation = async (
+const hydrateAuthoringPresentation = (
   bundle: AuthoringV1Bundle,
   config: ExplorerConfigV2,
   catalog: AuthoringV1Catalog,
-  authResourcePath: string | undefined,
-  signal: AbortSignal | undefined,
-  apiState: CoreState,
-): Promise<{ readonly bundle?: AuthoringV1Bundle; readonly error?: ExplorerApiError }> => {
+): { readonly bundle?: AuthoringV1Bundle; readonly error?: ExplorerApiError } => {
   const bindingsByIdentity = new Map(
     bundle.documents.flatMap((document) =>
       (document.candidateOccurrences ?? []).flatMap((occurrence) => {
@@ -1586,42 +1679,18 @@ const hydrateAuthoringPresentation = async (
       }),
     ),
   );
+  const resolvedEmissions = authoringEmissionCache.get(
+    authoringCacheKey(config.project, config.explorer.id),
+  ) ?? [];
   const builtDocuments: AuthoringV1Document[] = [];
   for (const document of bundle.documents) {
     if (!document.candidateIds || document.candidateIds.length === 0) {
       builtDocuments.push(document);
       continue;
     }
-    const result = await requestJson<unknown>(
-      withAuthResourcePath(
-        authoringV1Endpoint(config.project, config.explorer.id, '/compile'),
-        authResourcePath,
-      ),
-      {
-        method: 'POST',
-        signal,
-        body: JSON.stringify({
-          document,
-          snapshotToken: catalog.snapshotToken,
-          scope: 'DOCUMENT',
-        }),
-      },
-      selectCSRFToken(apiState),
+    const emittedColumns = resolvedEmissions.filter(
+      (emission) => emission.outputId === document.output.id,
     );
-    if (result.error) return { error: result.error };
-    const payload = unwrapExplorerEnvelope(result.data);
-    const emittedColumns = isRecord(payload) && Array.isArray(payload.emittedColumns)
-      ? payload.emittedColumns.flatMap((value): CompiledAuthoringEmission[] => {
-          if (!isRecord(value)) return [];
-          const emissionId = stringValue(value.emissionId);
-          if (!emissionId) return [];
-          return [{
-            emissionId,
-            candidateId: stringValue(value.candidateId),
-            occurrenceId: stringValue(value.occurrenceId),
-          }];
-        })
-      : [];
     if (emittedColumns.length === 0) {
       builtDocuments.push(document);
       continue;
@@ -1631,26 +1700,35 @@ const hydrateAuthoringPresentation = async (
     )?.name;
     const view = config.views.find((candidate) => candidate.output === outputName);
     const presentation: Record<string, unknown> = {};
-    emittedColumns.forEach((emission, index) => {
+    emittedColumns.forEach((emission) => {
       if (!emission.candidateId) return;
       const occurrenceId = emission.occurrenceId ?? 'base';
       const binding = bindingsByIdentity.get(
         `${document.output.id}\u0000${emission.candidateId}\u0000${occurrenceId}`,
       );
       if (!binding) return;
-      const tableColumn = view?.table.columns.find((column) =>
-        v1CandidateMatchesSemanticColumn(column.column, binding.candidate),
-      );
-      const filter = view?.filters?.find((item) =>
-        v1CandidateMatchesSemanticColumn(item.column, binding.candidate),
-      );
-      const chart = view?.charts?.find((item) =>
-        v1CandidateMatchesSemanticColumn(item.column, binding.candidate),
-      );
+      const matchesEmission = (item: { readonly column: string }) => {
+        const identified = item as typeof item & {
+          readonly emissionId?: string;
+        };
+        return identified.emissionId
+          ? identified.emissionId === emission.emissionId
+          : v1CandidateMatchesSemanticColumn(
+              item.column,
+              binding.candidate,
+            );
+      };
+      const tableColumnIndex =
+        view?.table.columns.findIndex(matchesEmission) ?? -1;
+      const tableColumn = tableColumnIndex >= 0
+        ? view?.table.columns[tableColumnIndex]
+        : undefined;
+      const filter = view?.filters?.find(matchesEmission);
+      const chart = view?.charts?.find(matchesEmission);
       if (!tableColumn && !filter && !chart && view) return;
       presentation[emission.emissionId] = {
         visible: tableColumn?.visible ?? !view,
-        ...(tableColumn ? { order: index } : {}),
+        ...(tableColumn ? { order: tableColumnIndex } : {}),
         ...(tableColumn?.label ? { label: tableColumn.label } : {}),
         table: {},
         ...(filter ? { filter: filter.label ? { label: filter.label } : {} } : {}),
@@ -1686,8 +1764,44 @@ const buildAuthoringV1Bundle = async (
   if (catalogResult.error || !catalogResult.data) return { error: catalogResult.error };
   const built = authoringBundleFromV2Config(config, project, explorerId, selectedCandidateIdsByNode, catalogResult.data, selectedOutput);
   const { bundle } = built;
-  if (bundle.documents.some((document) => !document.baseNodeId || !document.rowNodeId)) {
-    return { error: { status: 422, code: 'AUTHORING_ROUTE_NODE_MISSING', message: 'The Builder could not map an output to the current Loom catalog.' } };
+  const missingRouteDocuments = bundle.documents.filter(
+    (document) => !document.baseNodeId || !document.rowNodeId,
+  );
+  if (missingRouteDocuments.length > 0) {
+    const missing = missingRouteDocuments[0];
+    const output = config.recipe.outputs?.find(
+      (candidate) =>
+        outputIdFor(candidate.name) === outputIdFor(missing.output.id),
+    );
+    const rootResourceType = output?.rootResourceType?.trim();
+    const outputLabel = missing.output.title || missing.output.id;
+    return {
+      error: {
+        status: 422,
+        code: 'AUTHORING_ROUTE_NODE_MISSING',
+        message: rootResourceType
+          ? `The Builder could not map output "${outputLabel}" with root resource "${rootResourceType}" to the current Loom catalog.`
+          : `The Builder output "${outputLabel}" does not identify a root resource that exists in the current Loom catalog.`,
+        fieldPath: `recipe.outputs.${Math.max(
+          0,
+          bundle.documents.indexOf(missing),
+        )}.rootResourceType`,
+        retryable: false,
+        details: {
+          outputId: missing.output.id,
+          rootResourceType,
+          baseNodeId: missing.baseNodeId || undefined,
+          rowNodeId: missing.rowNodeId || undefined,
+          catalogResourceTypes: [
+            ...new Set(
+              catalogResult.data.nodes.flatMap((node) =>
+                node.resourceType ? [node.resourceType] : [],
+              ),
+            ),
+          ],
+        },
+      },
+    };
   }
   return { catalog: catalogResult.data, bundle, columnBindings: built.columnBindings, snapshotToken: catalogResult.data.snapshotToken };
 };
@@ -1901,9 +2015,6 @@ export const loomExplorerApi = loomApi.injectEndpoints({
               built.bundle,
               config,
               built.catalog,
-              authResourcePath,
-              api.signal,
-              api.getState() as CoreState,
             )
           : { bundle: built.bundle };
         if (hydrated.error || !hydrated.bundle)
@@ -1978,15 +2089,7 @@ export const loomExplorerApi = loomApi.injectEndpoints({
         if (built.error || !built.bundle)
           return { error: built.error ?? { status: 502, code: 'INVALID_AUTHORING_BUNDLE', message: 'The Builder could not construct an authoring bundle.' } };
         const previewOutputId = outputIdFromBundle(built.bundle, output);
-        const result = await requestJson<{
-          readonly outputId?: string;
-          readonly columns?: ReadonlyArray<Record<string, unknown> | string>;
-          readonly rows?: ReadonlyArray<Record<string, unknown>>;
-          readonly rowCount?: number;
-          readonly intentDigest?: string;
-          readonly sourceGeneration?: string;
-          readonly diagnostics?: ReadonlyArray<unknown>;
-        }>(
+        const result = await requestJson<AuthoringPreviewResponse>(
           withAuthResourcePath(
             authoringV1Endpoint(project, explorerId, '/preview'),
             authResourcePath,
@@ -1995,7 +2098,7 @@ export const loomExplorerApi = loomApi.injectEndpoints({
             method: 'POST',
             signal: api.signal,
             body: JSON.stringify({
-              ...built.bundle,
+              bundle: built.bundle,
               snapshotToken: built.snapshotToken,
               outputId: previewOutputId,
               limit,
@@ -2007,70 +2110,15 @@ export const loomExplorerApi = loomApi.injectEndpoints({
         const response = result.data;
         if (!response || !Array.isArray(response.rows) || !Array.isArray(response.columns))
           return { error: { status: 502, code: 'INVALID_PREVIEW_RESPONSE', message: 'Loom returned an invalid Explorer preview response.' } };
-        const rows = response.rows;
-        const responseColumns = response.columns;
-        const emissions = responseColumns.flatMap((column) =>
-          typeof column === 'string' ? [] : [column],
-        );
         const bindings = (built.columnBindings ?? []).filter(
           (binding) => binding.outputId === previewOutputId,
         );
-        const emissionByPublicColumn = new Map(
-          emissions
-            .filter((emission) => emission.publicColumn)
-            .map((emission) => [stringValue(emission.publicColumn), emission]),
+        return bindAuthoringPreview(
+          response,
+          bindings,
+          output,
+          authoringDiagnosticToExplorer,
         );
-        const bindingByIdentity = new Map(
-          bindings.map((binding) => [
-            `${binding.candidateId}\u0000${binding.occurrenceId}`,
-            binding,
-          ]),
-        );
-        const columns = response.columns.flatMap((column) => {
-          const rowKey = typeof column === 'string'
-            ? stringValue(column)
-            : stringValue(column.publicColumn) || stringValue(column.name);
-          if (!rowKey) return [];
-          const emission = emissionByPublicColumn.get(rowKey);
-          const binding = emission?.candidateId && emission.occurrenceId
-            ? bindingByIdentity.get(`${emission.candidateId}\u0000${emission.occurrenceId}`)
-            : undefined;
-          if (!binding) return [];
-          return [{
-            name: binding.semanticColumn,
-            rowKey,
-            ...(emission?.emissionId ? { emissionId: emission.emissionId } : {}),
-            ...(emission?.candidateId ? { candidateId: emission.candidateId } : {}),
-            ...(emission?.occurrenceId ? { occurrenceId: emission.occurrenceId } : {}),
-            ...(binding.label ? { label: binding.label } : {}),
-            logicalType: typeof column === 'string' ? emission?.logicalType : stringValue(column.logicalType) || emission?.logicalType,
-            filterable: typeof column === 'string' ? emission?.filterable !== false : column.filterable !== false,
-            chartable: typeof column !== 'string' && column.chartable === true,
-          }];
-        });
-        if (columns.length !== responseColumns.length || columns.some((column) =>
-          rows.some((row) => !Object.prototype.hasOwnProperty.call(row, column.rowKey)))) {
-          return {
-            error: {
-              status: 502,
-              code: 'PREVIEW_COLUMN_BINDING_FAILED',
-              message: 'Loom returned preview rows that could not be bound to the current Builder columns.',
-            },
-          };
-        }
-        return {
-          data: {
-            output,
-            columns,
-            rows,
-            rowCount: typeof response.rowCount === 'number' ? response.rowCount : rows.length,
-            digest: response.intentDigest,
-            recipeDigest: undefined,
-            resolvedSchemaDigest: undefined,
-            sourceGeneration: response.sourceGeneration,
-            diagnostics: (response.diagnostics ?? []).map(authoringDiagnosticToExplorer),
-          },
-        };
       },
     }),
     getExplorerAuthoringCatalog: builder.query<
@@ -2378,21 +2426,56 @@ export const loomExplorerApi = loomApi.injectEndpoints({
         {
           project,
           explorerId,
+          config,
           authResourcePath,
-          expectedDraftVersion,
-          expectedDraftDigest,
         },
         api,
       ) {
-        const key = authoringCacheKey(project, explorerId);
-        const receiptId = canonicalBundleCache.get(key)?.draftReceiptId;
-        const result = await requestJson<{
-          readonly receiptId?: string;
-          readonly publicationId?: string;
-          readonly state?: string;
-          readonly sourceGeneration?: string;
-          readonly requestId?: string;
-        }>(
+        const invalidConfig = configValidationError(
+          config,
+          project,
+          explorerId,
+        );
+        if (invalidConfig) return invalidConfig;
+        const incompatibleTraversal = nestedTraversalCompatibilityError(config);
+        if (incompatibleTraversal) return incompatibleTraversal;
+        const built = await buildAuthoringV1Bundle(
+          config,
+          project,
+          explorerId,
+          undefined,
+          authResourcePath,
+          api.signal,
+          api.getState() as CoreState,
+        );
+        if (built.error || !built.bundle || !built.catalog)
+          return {
+            error:
+              built.error ??
+              {
+                status: 502,
+                code: 'INVALID_AUTHORING_BUNDLE',
+                message:
+                  'The Builder could not construct an authoring bundle for publication.',
+              },
+          };
+        const hydrated = await hydrateAuthoringPresentation(
+          built.bundle,
+          config,
+          built.catalog,
+        );
+        if (hydrated.error || !hydrated.bundle)
+          return {
+            error:
+              hydrated.error ??
+              {
+                status: 502,
+                code: 'AUTHORING_PRESENTATION_COMPILE_FAILED',
+                message:
+                  'The Builder could not compile the presentation for publication.',
+              },
+          };
+        const result = await requestJson<unknown>(
           withAuthResourcePath(
             authoringV1Endpoint(project, explorerId, '/publish'),
             authResourcePath,
@@ -2401,9 +2484,8 @@ export const loomExplorerApi = loomApi.injectEndpoints({
             method: 'POST',
             signal: api.signal,
             body: JSON.stringify({
-              ...(receiptId ? { receiptId } : {}),
-              expectedDraftVersion,
-              ...(expectedDraftDigest ? { expectedDraftDigest } : {}),
+              bundle: hydrated.bundle,
+              snapshotToken: built.snapshotToken,
             }),
           },
           selectCSRFToken(api.getState() as CoreState),
@@ -2421,15 +2503,28 @@ export const loomExplorerApi = loomApi.injectEndpoints({
         return {
           data: {
             ...refreshed.data,
+            // Authoring V1 publishes the submitted bundle and returns
+            // lifecycle/runtime state, not the removed legacy activeConfig
+            // projection. Preserve the exact config accepted by the 200
+            // publication response for the compatibility Builder reducer.
+            draftConfig: config,
+            activeConfig: config,
             activeUrl: refreshed.data.activeUrl ?? '',
-            publicationId: result.data?.publicationId,
           },
         };
       },
-      invalidatesTags: (_result, _error, args) => [
-        { type: 'LOOM_EXPLORER', id: `${args.project}:${args.explorerId}` },
-        { type: 'LOOM_EXPLORER', id: args.project },
-      ],
+      invalidatesTags: (_result, _error, args) => {
+        const project = canonicalLoomProjectId(args.project);
+        return [
+          {
+            type: 'LOOM_EXPLORER_AUTHORING',
+            id: `${project}:${args.explorerId}`,
+          },
+          { type: 'LOOM_EXPLORER_AUTHORING', id: project },
+          { type: 'LOOM_EXPLORER', id: `${project}:${args.explorerId}` },
+          { type: 'LOOM_EXPLORER', id: project },
+        ];
+      },
     }),
     getActiveExplorer: builder.query<
       RepositoryExplorerConfig,

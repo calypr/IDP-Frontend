@@ -1,4 +1,5 @@
 import { explorerAuthoringApi } from '../explorerAuthoringApi';
+import { authoringDocumentsV1 } from '../explorerAuthoring';
 import { setupCoreStore } from '../../../store';
 
 describe('Loom publish-only Builder V1 API', () => {
@@ -6,6 +7,32 @@ describe('Loom publish-only Builder V1 API', () => {
   let fetchMock: jest.Mock;
   beforeEach(() => { fetchMock = jest.fn(); global.fetch = fetchMock as typeof global.fetch; });
   afterEach(() => { global.fetch = originalFetch; });
+
+  it('prefers canonical plural documents over the legacy singular compatibility field', () => {
+    const canonical = {
+      kind: 'ExplorerBuilderDocument' as const,
+      output: { id: 'patient' },
+      baseNodeId: 'node-patient',
+      rowNodeId: 'node-patient',
+    };
+    const legacy = {
+      kind: 'ExplorerBuilderDocument' as const,
+      output: { id: '' },
+      baseNodeId: '',
+      rowNodeId: '',
+    };
+    const bundle = {
+      apiVersion: 'loom.calypr.org/explorer-authoring/v1' as const,
+      kind: 'ExplorerAuthoringBundle' as const,
+      project: 'p',
+      explorerId: 'default',
+      documents: [canonical],
+      document: legacy,
+    };
+
+    expect(authoringDocumentsV1(bundle)).toEqual([canonical]);
+    expect(authoringDocumentsV1({ ...bundle, documents: [] })).toEqual([legacy]);
+  });
 
   it('uses summaries for collection selection and one combined Builder request', async () => {
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify([{ project: 'HTAN_INT/BForePC', explorerId: 'default', title: 'Default', management: 'REPOSITORY', updatedAt: '2026-08-21T00:00:00Z' }]), { status: 200 }));
@@ -15,6 +42,72 @@ describe('Loom publish-only Builder V1 API', () => {
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ apiVersion: 'loom.calypr.org/explorer-authoring/v1', kind: 'ExplorerBuilderState', project: 'HTAN_INT/BForePC', explorerId: 'default', title: 'Default', bundle: { apiVersion: 'loom.calypr.org/explorer-authoring/v1', kind: 'ExplorerAuthoringBundle', project: 'HTAN_INT/BForePC', explorerId: 'default', documents: [] }, catalog: { snapshotToken: 'snap', generation: 'gen', nodes: [], edges: [], candidates: [] }, bindings: [], active: {}, diagnostics: [] }), { status: 200 }));
     await store.dispatch(explorerAuthoringApi.endpoints.getExplorerBuilderStateV1.initiate({ project: 'BForePC', explorerId: 'default' })).unwrap();
     expect(String(fetchMock.mock.calls[1][0])).toContain('/explorers/default/authoring/v1/builder');
+    expect(fetchMock.mock.calls[1][1]).toMatchObject({ cache: 'no-store' });
+  });
+
+  it('normalizes nullable emissions and fieldRef-only candidates at the API boundary', async () => {
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({
+      apiVersion: 'loom.calypr.org/explorer-authoring/v1',
+      kind: 'ExplorerBuilderState',
+      project: 'HTAN_INT/BForePC',
+      explorerId: 'default',
+      title: 'Default',
+      bundle: {
+        apiVersion: 'loom.calypr.org/explorer-authoring/v1',
+        kind: 'ExplorerAuthoringBundle',
+        project: 'HTAN_INT/BForePC',
+        explorerId: 'default',
+        documents: [{
+          kind: 'ExplorerBuilderDocument',
+          output: { id: 'specimens' },
+          baseNodeId: 'specimen-node',
+          rowNodeId: 'specimen-node',
+          candidateIds: null,
+          routeOccurrences: null,
+        }],
+      },
+      catalog: {
+        snapshotToken: 'snap',
+        generation: 'gen',
+        nodes: [{ nodeId: 'specimen-node', resourceType: 'Specimen' }],
+        routeEdges: [],
+        candidates: [{
+          candidateId: 'specimen-id',
+          nodeId: 'specimen-node',
+          fieldRef: 'Specimen.id',
+          logicalType: 'string',
+          filterable: true,
+          chartable: false,
+        }],
+      },
+      bindings: [{
+        outputId: 'specimens',
+        baseNodeId: 'specimen-node',
+        baseResourceType: 'Specimen',
+        rowNodeId: 'specimen-node',
+        rowResourceType: 'Specimen',
+        rowGrain: 'specimen',
+        routeKind: 'ZERO_HOP',
+        routeOccurrences: null,
+        candidateEmissions: null,
+      }],
+      active: {},
+      diagnostics: null,
+    }), { status: 200 }));
+
+    const builder = await setupCoreStore().dispatch(
+      explorerAuthoringApi.endpoints.getExplorerBuilderStateV1.initiate({
+        project: 'BForePC',
+        explorerId: 'default',
+      }),
+    ).unwrap();
+
+    expect(builder.bindings[0].candidateEmissions).toEqual([]);
+    expect(builder.bindings[0].routeOccurrences).toEqual([]);
+    expect(builder.bundle.documents?.[0].candidateIds).toEqual([]);
+    expect(builder.catalog.candidates[0].label).toBe('Specimen.id');
+    expect(builder.catalog.edges).toEqual([]);
+    expect(builder.diagnostics).toEqual([]);
   });
 
   it('sends only bundle intent and snapshot identity for preview and publish', async () => {
@@ -26,6 +119,33 @@ describe('Loom publish-only Builder V1 API', () => {
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ apiVersion: 'loom.calypr.org/explorer-authoring/v1', kind: 'ExplorerBuilderState', project: 'p', explorerId: 'e', title: 'E', bundle, catalog: { snapshotToken: 'snap', generation: 'gen', nodes: [], edges: [], candidates: [] }, bindings: [], active: {}, diagnostics: [] }), { status: 200 }));
     await store.dispatch(explorerAuthoringApi.endpoints.publishExplorerAuthoringV1.initiate({ project: 'p', explorerId: 'e', bundle, snapshotToken: 'snap', requestId: 'req-publish' })).unwrap();
     expect(JSON.parse(String(fetchMock.mock.calls[1][1].body))).toEqual({ bundle, snapshotToken: 'snap' });
+  });
+
+  it('invalidates the canonical Viewer state after publishing through a legacy project alias', async () => {
+    const state = {
+      apiVersion: 'loom.calypr.org/explorer-state/v1',
+      kind: 'ExplorerState',
+      project: 'HTAN_INT/BForePC',
+      explorerId: 'default',
+      title: 'Default',
+      management: 'REPOSITORY',
+      generated: { emittedColumns: [], materializations: [], dataset: { outputs: [] }, diagnostics: [] },
+      runtime: { outputs: [], sharedFilters: {}, diagnostics: [] },
+    };
+    const bundle = { apiVersion: 'loom.calypr.org/explorer-authoring/v1', kind: 'ExplorerAuthoringBundle', project: 'HTAN_INT/BForePC', explorerId: 'default', documents: [] } as const;
+    const builderState = { apiVersion: 'loom.calypr.org/explorer-authoring/v1', kind: 'ExplorerBuilderState', project: 'HTAN_INT/BForePC', explorerId: 'default', title: 'Default', bundle, catalog: { snapshotToken: 'snap', generation: 'gen', nodes: [], edges: [], candidates: [] }, bindings: [], active: {}, diagnostics: [] };
+    fetchMock
+      .mockResolvedValueOnce(new Response(JSON.stringify(state), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(builderState), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(state), { status: 200 }));
+    const store = setupCoreStore();
+    const viewer = store.dispatch(explorerAuthoringApi.endpoints.getExplorerStateV1.initiate({ project: 'HTAN_INT/BForePC', explorerId: 'default' }));
+    await viewer.unwrap();
+    await store.dispatch(explorerAuthoringApi.endpoints.publishExplorerAuthoringV1.initiate({ project: 'HTAN_INT-BForePC', explorerId: 'default', bundle, snapshotToken: 'snap' })).unwrap();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    viewer.unsubscribe();
   });
 
   it('unwraps Loom service envelopes and preserves structured Builder errors', async () => {

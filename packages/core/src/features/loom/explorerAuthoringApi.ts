@@ -3,7 +3,7 @@ import { selectCSRFToken } from '../user/userSliceRTK';
 import { handleUnauthorizedStatus } from '../user/unauthorized';
 import type { CoreState } from '../../reducers';
 import { fetchLoomResponse, loomApi } from './loomApi';
-import { encodeLoomProjectPath } from './projectId';
+import { canonicalLoomProjectId, encodeLoomProjectPath } from './projectId';
 import type {
   ExplorerAuthoringDiagnosticV1,
   ExplorerBuilderStateV1,
@@ -89,7 +89,63 @@ const request = async <T>(endpoint: string, init: RequestInit, csrfToken: string
 };
 const assertBuilderState = (value: unknown): ExplorerBuilderStateV1 => {
   if (!isRecord(value) || value.kind !== 'ExplorerBuilderState' || !isRecord(value.bundle) || !isRecord(value.catalog) || !Array.isArray(value.bindings)) throw new Error('Loom returned an invalid ExplorerBuilderStateV1 response.');
-  return value as unknown as ExplorerBuilderStateV1;
+  const bundle = value.bundle;
+  const catalog = value.catalog;
+  const normalizeDocument = (candidate: unknown): LoomBuilderDocument | undefined => {
+    if (!isRecord(candidate)) return undefined;
+    return {
+      ...(candidate as unknown as LoomBuilderDocument),
+      routeEdgeIds: Array.isArray(candidate.routeEdgeIds) ? candidate.routeEdgeIds.filter((item): item is string => typeof item === 'string') : [],
+      routeOccurrences: Array.isArray(candidate.routeOccurrences) ? candidate.routeOccurrences as LoomBuilderDocument['routeOccurrences'] : [],
+      candidateIds: Array.isArray(candidate.candidateIds) ? candidate.candidateIds.filter((item): item is string => typeof item === 'string') : [],
+      candidateOccurrences: Array.isArray(candidate.candidateOccurrences) ? candidate.candidateOccurrences as LoomBuilderDocument['candidateOccurrences'] : [],
+      presentation: isRecord(candidate.presentation) ? candidate.presentation as LoomBuilderDocument['presentation'] : {},
+    };
+  };
+  const documents = Array.isArray(bundle.documents)
+    ? bundle.documents.flatMap((candidate) => {
+        const document = normalizeDocument(candidate);
+        return document ? [document] : [];
+      })
+    : [];
+  const document = normalizeDocument(bundle.document);
+  const nodes = (Array.isArray(catalog.nodes) ? catalog.nodes : []).filter(isRecord);
+  const edges = (Array.isArray(catalog.edges)
+    ? catalog.edges
+    : Array.isArray(catalog.routeEdges)
+      ? catalog.routeEdges
+      : []).filter(isRecord);
+  const candidates = (Array.isArray(catalog.candidates) ? catalog.candidates : []).filter(isRecord).map((candidate) => ({
+    ...candidate,
+    label:
+      (typeof candidate.label === 'string' && candidate.label.trim()) ||
+      (typeof candidate.path === 'string' && candidate.path.trim()) ||
+      (typeof candidate.fieldRef === 'string' && candidate.fieldRef.trim()) ||
+      (typeof candidate.candidateId === 'string' && candidate.candidateId.trim()) ||
+      '',
+  }));
+  const bindings = value.bindings.filter(isRecord).map((binding) => ({
+    ...binding,
+    routeOccurrences: Array.isArray(binding.routeOccurrences) ? binding.routeOccurrences : [],
+    candidateEmissions: Array.isArray(binding.candidateEmissions) ? binding.candidateEmissions : [],
+  }));
+  return {
+    ...(value as unknown as ExplorerBuilderStateV1),
+    bundle: {
+      ...(bundle as unknown as ExplorerBuilderStateV1['bundle']),
+      ...(document ? { document } : {}),
+      documents,
+      tabs: Array.isArray(bundle.tabs) ? bundle.tabs as ExplorerBuilderStateV1['bundle']['tabs'] : [],
+    },
+    catalog: {
+      ...(catalog as unknown as ExplorerBuilderStateV1['catalog']),
+      nodes: nodes as unknown as ExplorerBuilderStateV1['catalog']['nodes'],
+      edges: edges as unknown as ExplorerBuilderStateV1['catalog']['edges'],
+      candidates: candidates as unknown as ExplorerBuilderStateV1['catalog']['candidates'],
+    },
+    bindings: bindings as unknown as ExplorerBuilderStateV1['bindings'],
+    diagnostics: Array.isArray(value.diagnostics) ? value.diagnostics as ExplorerBuilderStateV1['diagnostics'] : [],
+  };
 };
 
 export const explorerAuthoringApi = loomApi.injectEndpoints({
@@ -99,7 +155,7 @@ export const explorerAuthoringApi = loomApi.injectEndpoints({
       providesTags: (_result, _error, args) => [{ type: 'LOOM_EXPLORER_AUTHORING', id: args.project }],
     }),
     getExplorerBuilderStateV1: builder.query<ExplorerBuilderStateV1, ExplorerAuthoringStateArgs>({
-      async queryFn(args, api) { const result = await request<unknown>(`${authoringRoot(args)}/builder`, { method: 'GET', signal: api.signal }, selectCSRFToken(api.getState() as CoreState)); if (result.error) return { error: result.error }; try { return { data: assertBuilderState(unwrapData(result.data)) }; } catch (error) { return { error: { status: 502, code: 'INVALID_EXPLORER_BUILDER_STATE', message: error instanceof Error ? error.message : String(error), retryable: false } }; } },
+      async queryFn(args, api) { const result = await request<unknown>(`${authoringRoot(args)}/builder`, { method: 'GET', cache: 'no-store', signal: api.signal }, selectCSRFToken(api.getState() as CoreState)); if (result.error) return { error: result.error }; try { return { data: assertBuilderState(unwrapData(result.data)) }; } catch (error) { return { error: { status: 502, code: 'INVALID_EXPLORER_BUILDER_STATE', message: error instanceof Error ? error.message : String(error), retryable: false } }; } },
       providesTags: (_result, _error, args) => [{ type: 'LOOM_EXPLORER_AUTHORING', id: `${args.project}:${args.explorerId}` }],
     }),
     // Runtime/viewer consumers retain the lightweight selected Explorer
@@ -126,7 +182,15 @@ export const explorerAuthoringApi = loomApi.injectEndpoints({
     }),
     publishExplorerAuthoringV1: builder.mutation<ExplorerBuilderStateV1, PublishArgs>({
       async queryFn(args, api) { const result = await request<unknown>(`${authoringRoot(args)}/publish`, { method: 'POST', signal: api.signal, body: JSON.stringify({ bundle: args.bundle, snapshotToken: args.snapshotToken }) }, selectCSRFToken(api.getState() as CoreState), args.requestId); if (result.error) return { error: result.error }; try { return { data: assertBuilderState(unwrapData(result.data)) }; } catch (error) { return { error: { status: 502, code: 'INVALID_EXPLORER_BUILDER_STATE', message: error instanceof Error ? error.message : String(error), retryable: false } }; } },
-      invalidatesTags: (_result, _error, args) => [{ type: 'LOOM_EXPLORER_AUTHORING', id: `${args.project}:${args.explorerId}` }, { type: 'LOOM_EXPLORER_AUTHORING', id: args.project }],
+      invalidatesTags: (_result, _error, args) => {
+        const project = canonicalLoomProjectId(args.project);
+        return [
+          { type: 'LOOM_EXPLORER_AUTHORING', id: `${args.project}:${args.explorerId}` },
+          { type: 'LOOM_EXPLORER_AUTHORING', id: args.project },
+          { type: 'LOOM_EXPLORER', id: `${project}:${args.explorerId}` },
+          { type: 'LOOM_EXPLORER', id: project },
+        ];
+      },
     }),
     createExplorerAuthoringIdentityV1: builder.mutation<IdentityV1, IdentityArgs>({
       async queryFn(args, api) { const result = await request<IdentityV1>(`${root(args.project)}/authoring/v1/identity`, { method: 'POST', signal: api.signal, body: JSON.stringify({ name: args.name, ...(args.title ? { title: args.title } : {}) }) }, selectCSRFToken(api.getState() as CoreState), args.requestId); return result.error ? { error: result.error } : { data: result.data as IdentityV1 }; },

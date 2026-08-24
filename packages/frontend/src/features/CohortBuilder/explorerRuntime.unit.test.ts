@@ -13,7 +13,9 @@ const runtime: ExplorerRuntimeV1 = {
       'em-name': { emissionId: 'em-name', name: 'patient_name', label: 'Name', logicalType: 'string', visible: true, order: 0, filterable: true, chartable: false },
       'em-status': { emissionId: 'em-status', name: 'patient_status', label: 'Status', logicalType: 'string', visible: true, order: 1, filterable: true, chartable: true },
     },
-    table: { columns: [{ emissionId: 'em-name', visible: true }, { emissionId: 'em-status', visible: true }] },
+    // Binding order may reflect emission/materialization order. Presentation
+    // order on the runtime columns is authoritative for the rendered table.
+    table: { columns: [{ emissionId: 'em-status', visible: true }, { emissionId: 'em-name', visible: true }] },
     filters: [{ emissionId: 'em-status', label: 'State' }],
     charts: [{ emissionId: 'em-status', type: 'pie', title: 'State' }],
     fixedFilters: { 'em-status': ['active'] },

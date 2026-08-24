@@ -8,10 +8,11 @@ const path = require('path');
 const basePath = process.env.NEXT_PUBLIC_BASEPATH;
 const workspaceRoot = path.resolve(__dirname, '../..');
 const turbopackAliases = {
-  // Turbopack resolves alias targets relative to `turbopack.root`. Absolute
-  // filesystem targets are rewritten as `./Users/...` and fail to compile.
-  '@gen3/core': './packages/core/src/index.ts',
-  '@gen3/frontend': './packages/frontend/src/index.ts',
+  // Resolve aliases from the Next application directory. `turbopack.root`
+  // controls the filesystem boundary, but relative alias targets are still
+  // interpreted from `packages/sampleCommons`.
+  '@gen3/core': '../core/src/index.ts',
+  '@gen3/frontend': '../frontend/src/index.ts',
 };
 
 dns.setDefaultResultOrder('ipv4first');
@@ -46,6 +47,13 @@ const nextConfig = {
   pageExtensions: ['mdx', 'md', 'jsx', 'js', 'tsx', 'ts'],
   basePath: basePath,
   transpilePackages: ['@gen3/core', '@gen3/frontend'],
+  experimental: {
+    // Next 16.1 enables Turbopack's persistent dev cache by default. In this
+    // monorepo the app aliases sibling workspace source directly, and restored
+    // module graphs can miss edits under packages/core and packages/frontend.
+    // Keep Turbopack/HMR, but rebuild its in-memory graph on each dev start.
+    turbopackFileSystemCacheForDev: false,
+  },
   turbopack: {
     root: workspaceRoot,
     resolveAlias: turbopackAliases,

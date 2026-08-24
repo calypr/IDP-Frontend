@@ -38,12 +38,16 @@ const panelFor = (
   project: string,
 ): CohortPanelConfiguration => {
   const byEmission = columnByEmission(output);
-  const tableBindings = output.table.columns.length > 0
-    ? output.table.columns
+  const tableBindings = (output.table.columns.length > 0
+    ? [...output.table.columns]
     : columnsFor(output).filter((column) => column.visible).map((column) => ({
         emissionId: column.emissionId,
         visible: column.visible,
-      }));
+      })))
+    .sort((left, right) =>
+      (byEmission.get(left.emissionId)?.order ?? Number.MAX_SAFE_INTEGER) -
+      (byEmission.get(right.emissionId)?.order ?? Number.MAX_SAFE_INTEGER),
+    );
   const tableColumns = tableBindings
     .map((binding) => {
       const column = byEmission.get(binding.emissionId);

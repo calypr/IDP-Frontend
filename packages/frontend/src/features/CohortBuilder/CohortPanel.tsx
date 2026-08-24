@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { partial } from 'lodash';
 import { skipToken } from '@reduxjs/toolkit/query';
 import {
@@ -25,13 +31,11 @@ import {
 import { type CohortPanelConfiguration, type FileActionsConfig } from './types';
 import { type SummaryChart } from '../../components/charts/types';
 import { ErrorCard } from '../../components/MessageCards';
-import { useMediaQuery } from '@mantine/hooks';
 import {
   EnumFacetDataHooks,
   FacetDataHooks,
 } from '../../components/facets/types';
 
-import { Gen3Button } from '../../components/Buttons';
 import {
   classifyFacets,
   extractRangeValues,
@@ -50,11 +54,7 @@ import { Charts } from '../../components/charts';
 import ExplorerTable from './ExplorerTable/ExplorerTable';
 import CountsValue from '../../components/counts/CountsValue';
 import DownloadsPanel from './DownloadsPanel';
-import {
-  useDeepCompareCallback,
-  useDeepCompareEffect,
-  useDeepCompareMemo,
-} from 'use-deep-compare';
+import { useDeepCompareCallback, useDeepCompareMemo } from 'use-deep-compare';
 import {
   useCohortFilterCombineState,
   useFilterExpandedState,
@@ -84,10 +84,7 @@ export const CohortPanel = ({
   showAccessLevel = false,
   fileActions,
 }: CohortPanelConfigurationWithAccessLevel): JSX.Element => {
-  const isSm = useMediaQuery('(min-width: 639px)');
-  const isMd = useMediaQuery('(min-width: 1373px)');
-  const isXl = useMediaQuery('(min-width: 1600px)');
-  const [showCharts, setShowCharts] = useState(false);
+  const [showCharts, setShowCharts] = useState(true);
   const [accessLevel, setAccessLevel] = useState<Accessibility>(
     Accessibility.ALL,
   );
@@ -98,13 +95,6 @@ export const CohortPanel = ({
 
   const defaultDropdowns = useMemo(() => dropdowns ?? {}, [dropdowns]);
   const defaultButtons = useMemo(() => buttons ?? [], [buttons]);
-
-  const numCols = useMemo(() => {
-    if (isSm) return 1;
-    if (isMd) return 2;
-    if (isXl) return 4;
-    return 3;
-  }, [isSm, isMd, isXl]);
 
   const index = guppyConfig.dataType;
   const loomDataset = guppyConfig.loomDataset;
@@ -124,9 +114,8 @@ export const CohortPanel = ({
   } = useGetLoomDatasetBySelectorQuery(loomIdentity ?? skipToken, {
     skip: usesTableRender || !loomIdentity,
   });
-  const [tableRender, setTableRender] = useState<LoomTableRenderResponse | null>(
-    null,
-  );
+  const [tableRender, setTableRender] =
+    useState<LoomTableRenderResponse | null>(null);
   const [acceptedRenderSignature, setAcceptedRenderSignature] = useState('');
   const renderSignatureRef = useRef('');
   const [tableRenderState, setTableRenderState] = useState({
@@ -152,13 +141,6 @@ export const CohortPanel = ({
     [],
   );
 
-  const [facetDefinitions, setFacetDefinitions] = useState<
-    Record<string, FacetDefinition>
-  >({});
-  const [summaryCharts, setSummaryCharts] = useState<
-    Record<string, SummaryChart>
-  >({});
-
   const cohortFilters = useCoreSelector((state: CoreState) =>
     selectIndexFilters(state, index),
   );
@@ -178,7 +160,17 @@ export const CohortPanel = ({
   }, [cohortFilters]);
   const activeDataset = tableRender?.materialization ?? fallbackDataset ?? null;
   const runtimePanel = useMemo(
-    () => ({ guppyConfig, tabTitle, chartsSection, charts, filters, table, dropdowns, buttons, loginForDownload }),
+    () => ({
+      guppyConfig,
+      tabTitle,
+      chartsSection,
+      charts,
+      filters,
+      table,
+      dropdowns,
+      buttons,
+      loginForDownload,
+    }),
     [
       buttons,
       charts,
@@ -193,7 +185,9 @@ export const CohortPanel = ({
   );
   const runtimeGuppyConfig = runtimePanel.guppyConfig;
   const runtimeFilters = runtimePanel.filters;
-  const hasConfiguredFilters = Boolean(runtimeFilters?.tabs?.some((tab) => tab.fields.length > 0));
+  const hasConfiguredFilters = Boolean(
+    runtimeFilters?.tabs?.some((tab) => tab.fields.length > 0),
+  );
   const hasActiveFilters = Object.keys(cohortFilters.root ?? {}).length > 0;
   const runtimeCharts = runtimePanel.charts;
   const runtimeChartsSection = runtimePanel.chartsSection;
@@ -287,7 +281,7 @@ export const CohortPanel = ({
                       ? 1
                       : Math.max(1, span > 0 ? span / 20 : 1),
                 }
-            : {}),
+              : {}),
           size: 50,
           excludeSelfFilter: !chartFieldSet.has(field),
         };
@@ -370,23 +364,21 @@ export const CohortPanel = ({
     : fallbackRichAggregations;
   const data = useDeepCompareMemo(() => {
     return facetPlan.specs.reduce((acc, spec) => {
-        const aggregation =
-          facetResponse?.aggregations[spec.name] ??
-          (loomIdentity
-            ? facetCache.current.get(
-                loomFacetCacheKey({
-                  identity: loomIdentity,
-                  revision: activeDataset?.revision,
-                  spec,
-                  filters: effectiveLoomFilters.filters,
-                }),
-              )
-            : undefined);
-        if (aggregation) acc[spec.column] = aggregation.data;
-        return acc;
-      },
-      {} as AggregationsData,
-    );
+      const aggregation =
+        facetResponse?.aggregations[spec.name] ??
+        (loomIdentity
+          ? facetCache.current.get(
+              loomFacetCacheKey({
+                identity: loomIdentity,
+                revision: activeDataset?.revision,
+                spec,
+                filters: effectiveLoomFilters.filters,
+              }),
+            )
+          : undefined);
+      if (aggregation) acc[spec.column] = aggregation.data;
+      return acc;
+    }, {} as AggregationsData);
   }, [
     activeDataset?.revision,
     effectiveLoomFilters.filters,
@@ -420,10 +412,7 @@ export const CohortPanel = ({
         { missingCount: number; truncated: boolean; isPartial: boolean }
       >,
     );
-  }, [
-    facetPlan.specs,
-    facetResponse,
-  ]);
+  }, [facetPlan.specs, facetResponse]);
   const getEnumFacetData = useDeepCompareCallback(
     (field: string) => {
       let filters = undefined;
@@ -516,65 +505,56 @@ export const CohortPanel = ({
       };
     }, [demandFacet, getEnumFacetData, getRangeFacetData, index]);
 
-  useDeepCompareEffect(() => {
-    if (isSuccess || fields.length > 0) {
-      const configFacetDefs = facetConfig;
-      const configuredFacetDefs = fields.reduce(
-        (acc: Record<string, FacetDefinition>, field) => {
-          const configured = configFacetDefs[field] ?? {};
-          acc[field] = {
-            ...configured,
-            field,
-            dataField: configured.dataField ?? field.split('.').at(-1) ?? field,
-            type: configured.type ?? 'enum',
-            index,
-            label: configured.label ?? field,
-          } as FacetDefinition;
-          return acc;
-        },
-        {},
-      );
-      const classifiedFacetDefs = classifyFacets(
-        data ?? {},
-        index,
-        runtimeGuppyConfig?.fieldMapping ?? [],
-        configFacetDefs ?? {},
-        sharedFiltersMap,
-      );
-      const facetDefs = { ...configuredFacetDefs, ...classifiedFacetDefs };
-      setFacetDefinitions(facetDefs);
-
-      const chartDefinitions =
-        runtimeChartsSection?.charts ?? runtimeCharts ?? {};
-      const summaryCharts = Object.keys(chartDefinitions).reduce(
-        (acc, field) => {
-          let chartField = field;
-          if (facetDefs?.[field] === undefined) {
-            const res = Object.values(facetDefs).filter(
-              (def) => def.dataField === field,
-            );
-            if (res.length > 0) {
-              chartField = res[0].field;
-            }
-          }
-          return { ...acc, [chartField]: chartDefinitions[field] };
-        },
-        {},
-      );
-      setSummaryCharts(summaryCharts);
-    }
+  const facetDefinitions = useDeepCompareMemo(() => {
+    const configuredFacetDefs = fields.reduce(
+      (acc: Record<string, FacetDefinition>, field) => {
+        const configured = facetConfig[field] ?? {};
+        acc[field] = {
+          ...configured,
+          field,
+          dataField: configured.dataField ?? field.split('.').at(-1) ?? field,
+          type: configured.type ?? 'enum',
+          index,
+          label: configured.label ?? field,
+        } as FacetDefinition;
+        return acc;
+      },
+      {},
+    );
+    const classifiedFacetDefs = classifyFacets(
+      data ?? {},
+      index,
+      runtimeGuppyConfig?.fieldMapping ?? [],
+      facetConfig,
+      sharedFiltersMap,
+    );
+    return { ...configuredFacetDefs, ...classifiedFacetDefs };
   }, [
-    isSuccess,
     data,
+    facetConfig,
+    fields,
     index,
     runtimeGuppyConfig.fieldMapping,
-    runtimeCharts,
-    runtimeChartsSection,
-    runtimeFilters?.tabs,
     sharedFiltersMap,
-    fields,
-    facetConfig,
   ]);
+
+  const summaryCharts = useDeepCompareMemo(() => {
+    const chartDefinitions =
+      runtimeChartsSection?.charts ?? runtimeCharts ?? {};
+    return Object.keys(chartDefinitions).reduce(
+      (acc: Record<string, SummaryChart>, field) => {
+        const matchingFacet = Object.values(facetDefinitions).find(
+          (definition) => definition.dataField === field,
+        );
+        const chartField = facetDefinitions[field]
+          ? field
+          : (matchingFacet?.field ?? field);
+        acc[chartField] = chartDefinitions[field];
+        return acc;
+      },
+      {},
+    );
+  }, [facetDefinitions, runtimeCharts, runtimeChartsSection]);
 
   const columnTitles = useMemo(
     () =>
@@ -611,8 +591,8 @@ export const CohortPanel = ({
     },
   );
   const counts = usesTableRender
-    ? tableRender?.totalCount ?? activeDataset?.rowCount
-    : fallbackCount ?? activeDataset?.rowCount;
+    ? (tableRender?.totalCount ?? activeDataset?.rowCount)
+    : (fallbackCount ?? activeDataset?.rowCount);
   const isCountsFetching = usesTableRender
     ? tableRenderState.isFetching
     : isFallbackCountFetching;
@@ -631,7 +611,9 @@ export const CohortPanel = ({
     return <ErrorCard message={effectiveLoomFilters.error} />;
   }
   if (!usesTableRender && isFallbackDatasetError) {
-    return <ErrorCard message="Unable to discover the authorized Loom dataset" />;
+    return (
+      <ErrorCard message="Unable to discover the authorized Loom dataset" />
+    );
   }
   if (!usesTableRender && isFallbackDatasetLoading) {
     return (
@@ -693,27 +675,29 @@ export const CohortPanel = ({
             </div>
           )}
 
-          <div className="flex justify-between my-2">
+          <div className="flex min-h-10 items-center justify-between gap-3 py-1">
             <DownloadsPanel
               dropdowns={defaultDropdowns}
               buttons={defaultButtons}
               loginForDownload={loginForDownload}
               index={index}
               totalCount={counts ?? 0}
-                fields={runtimeTable?.fields ?? []}
+              fields={runtimeTable?.fields ?? []}
               filter={cohortFilters}
               loomDataset={loomDataset}
               loomProjectIds={loomProjectIds}
             />
-            <div className="flex justify-between flex-row items-center my-2">
+            <div className="ml-auto flex items-center gap-3">
               {Object.keys(summaryCharts).length !== 0 && (
-                <Gen3Button
-                  colors="primary"
-                  onClick={() => setShowCharts(!showCharts)}
-                  className="px-2 py-1 text-primary-contrast rounded mr-4 active:scale-95"
+                <button
+                  type="button"
+                  onClick={() => setShowCharts((current) => !current)}
+                  className="rounded-md border border-primary px-3 py-1.5 text-sm font-semibold text-primary transition-colors hover:bg-primary-lightest active:scale-95"
+                  aria-expanded={showCharts}
+                  aria-controls="explorer-summary-charts"
                 >
-                  {showCharts ? 'Hide Charts' : 'Show Charts'}
-                </Gen3Button>
+                  {showCharts ? 'Hide charts' : 'Show charts'}
+                </button>
               )}
               <CountsValue
                 label={guppyConfig.nodeCountTitle ?? ''}
@@ -724,14 +708,22 @@ export const CohortPanel = ({
             </div>
           </div>
 
-          {showCharts && (
-            <Charts
-              charts={summaryCharts}
-              data={data ?? EmptyData}
-              counts={counts}
-              isSuccess={isChartSuccess}
-              numCols={numCols}
-            />
+          {showCharts && Object.keys(summaryCharts).length !== 0 && (
+            <section
+              id="explorer-summary-charts"
+              className="mb-2 rounded-lg border border-base-lighter bg-base-max p-3 shadow-sm"
+            >
+              <h2 className="mb-2 text-sm font-semibold text-base-darkest">
+                Data overview
+              </h2>
+              <Charts
+                charts={summaryCharts}
+                data={data ?? EmptyData}
+                counts={counts}
+                isSuccess={isChartSuccess}
+                layout="horizontal"
+              />
+            </section>
           )}
 
           {runtimeTable?.enabled && (

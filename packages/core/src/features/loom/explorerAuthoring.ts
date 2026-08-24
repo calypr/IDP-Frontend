@@ -35,6 +35,15 @@ export interface LoomAuthoringBundle {
   readonly documents?: ReadonlyArray<LoomBuilderDocument>;
   readonly tabs?: ReadonlyArray<{ readonly id: string; readonly title: string; readonly outputId: string; readonly order: number; readonly visible?: boolean }>;
 }
+
+export const authoringDocumentsV1 = (
+  bundle: LoomAuthoringBundle,
+): ReadonlyArray<LoomBuilderDocument> => {
+  const documents = bundle.documents ?? [];
+  if (documents.length > 0) return documents;
+  return bundle.document ? [bundle.document] : [];
+};
+
 export interface LoomBuilderCatalog {
   readonly snapshotToken: string;
   readonly generation: string;

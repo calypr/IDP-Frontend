@@ -16,6 +16,27 @@ const CohortBuilder = dynamic(
   { ssr: false },
 );
 
+const explorerQueryProblem = (error: unknown): PageLoadProblem => {
+  const record =
+    typeof error === 'object' && error !== null
+      ? (error as Record<string, unknown>)
+      : {};
+  return {
+    severity: 'error',
+    source: 'loom',
+    status: typeof record.status === 'number' ? record.status : 502,
+    code:
+      typeof record.code === 'string'
+        ? record.code
+        : 'EXPLORER_STATE_REQUEST_FAILED',
+    retryable: record.retryable !== false,
+    message:
+      typeof record.message === 'string'
+        ? record.message
+        : 'The published Explorer configuration could not be loaded.',
+  };
+};
+
 interface ExplorerMainContentProps {
   runtime: ExplorerRuntimeV1 | null;
   project?: string;
@@ -83,35 +104,62 @@ const ExplorerPage = ({
   pageProblems,
 }: ExplorerPageProps): JSX.Element => {
   const router = useRouter();
-  const routeProject = typeof router.query.configId === 'string'
-    ? canonicalLoomProjectId(router.query.configId)
-    : project;
-  const routeExplorerId = typeof router.query.explorerId === 'string' ? router.query.explorerId : 'default';
+  const routeProject =
+    typeof router.query.configId === 'string'
+      ? canonicalLoomProjectId(router.query.configId)
+      : project;
+  const routeExplorerId =
+    typeof router.query.explorerId === 'string'
+      ? router.query.explorerId
+      : 'default';
   const explorerState = useGetExplorerStateV1Query(
     { project: routeProject ?? '', explorerId: routeExplorerId },
     { skip: !routeProject },
   );
   const effectiveRuntime = explorerState.data?.runtime ?? runtime;
-  const pageHeaderMetadata =
-    headerMetadata ?? {
-      title: 'Gen3 Explorer Page',
-      content: 'Explorer Page',
-      key: 'gen3-explorer-page',
-    };
+  const clientProblems =
+    !effectiveRuntime && explorerState.error
+      ? [explorerQueryProblem(explorerState.error)]
+      : !effectiveRuntime && explorerState.data
+        ? [
+            {
+              severity: 'error' as const,
+              source: 'loom' as const,
+              status: 422,
+              code: 'EXPLORER_RUNTIME_REQUIRED',
+              retryable: false,
+              message:
+                'Loom returned Explorer state without its server-generated runtime.',
+            },
+          ]
+        : [];
+  const problems = [...(pageProblems ?? []), ...clientProblems];
+  const pageHeaderMetadata = headerMetadata ?? {
+    title: 'Gen3 Explorer Page',
+    content: 'Explorer Page',
+    key: 'gen3-explorer-page',
+  };
 
   return (
     <NavPageLayout
       headerProps={headerProps}
       footerProps={footerProps}
       headerMetadata={pageHeaderMetadata}
-      pageProblems={pageProblems}
+      pageProblems={problems}
     >
-      <ExplorerMainContent
-        runtime={effectiveRuntime}
-        project={explorerState.data?.project ?? project}
-        sharedFiltersMap={sharedFiltersMap}
-        pageProblems={pageProblems}
-      />
+      {!effectiveRuntime &&
+      (explorerState.isLoading || explorerState.isFetching) ? (
+        <main className="mx-auto max-w-screen-2xl p-6">
+          <p role="status">Loading Explorer…</p>
+        </main>
+      ) : (
+        <ExplorerMainContent
+          runtime={effectiveRuntime}
+          project={explorerState.data?.project ?? project}
+          sharedFiltersMap={sharedFiltersMap}
+          pageProblems={problems}
+        />
+      )}
     </NavPageLayout>
   );
 };
