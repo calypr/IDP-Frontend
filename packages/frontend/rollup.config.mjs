@@ -74,7 +74,6 @@ const globals = {
   '@iconify-icon/react': 'iconify-iconReact ',
   '@uiw/react-codemirror': 'uiwReactCodemirror',
   'cm6-graphql': 'cm6Graphql',
-  'js-cookie': 'jsCookie',
   '@codemirror/autocomplete': 'codemirrorAutocomplete',
   zod: 'zod',
 };

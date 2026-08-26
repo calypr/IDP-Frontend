@@ -2,7 +2,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   AdminAuthzConfigurationSchema,
-  AnalysisConfigurationSchema,
   AnalysisToolsConfigurationSchema,
   CrosswalkConfigurationSchema,
   DataLibraryConfigurationSchema,
@@ -15,7 +14,6 @@ import {
   LoginConfigurationSchema,
   ModalsConfigurationSchema,
   NavPageLayoutConfigurationSchema,
-  NavigationConfigurationSchema,
   ProfileConfigurationSchema,
   QueryConfigurationSchema,
   ReportsConfigurationSchema,
@@ -25,7 +23,6 @@ import {
   TabbedCohortBuilderConfigurationSchema,
   ThemeColorsConfigurationSchema,
   ThemeFontsConfigurationSchema,
-  WorkspaceConfigurationSchema,
 } from './schemas';
 
 const fixtureRoot = path.resolve(__dirname, '../../../../sampleCommons/config');
@@ -35,10 +32,6 @@ const readFixture = (relativePath: string): unknown =>
 
 describe('runtime configuration schemas', () => {
   test.each([
-    ['gen3/navigation.json', NavigationConfigurationSchema],
-    ['datacommons/navigation.json', NavigationConfigurationSchema],
-    ['aced/navigation.json', NavigationConfigurationSchema],
-    ['brh/navigation.json', NavigationConfigurationSchema],
     ['gen3/modals.json', ModalsConfigurationSchema],
     ['cbds/modals.json', ModalsConfigurationSchema],
     ['gen3/session.json', SessionConfigurationSchema],
@@ -51,8 +44,6 @@ describe('runtime configuration schemas', () => {
     ['icons/dataDictionary.json', IconRegistryConfigurationSchema],
     ['icons/workspace.json', IconRegistryConfigurationSchema],
     ['gen3/analysisTools.json', AnalysisToolsConfigurationSchema],
-    ['datacommons/analysisCenterSample.json', AnalysisConfigurationSchema],
-    ['gen3/analysisCenterSample.json', AnalysisConfigurationSchema],
     ['gen3/crosswalk.json', CrosswalkConfigurationSchema],
     ['datacommons/crosswalk.json', CrosswalkConfigurationSchema],
     ['gen3/dictionary.json', DictionaryConfigurationSchema],
@@ -71,8 +62,6 @@ describe('runtime configuration schemas', () => {
     ['cbds/reports/medicationadministration.json', ReportsConfigurationSchema],
     ['gen3/submission.json', SubmissionConfigurationSchema],
     ['cbds/submission.json', SubmissionConfigurationSchema],
-    ['gen3/workspaces.json', WorkspaceConfigurationSchema],
-    ['brh/workspace.json', WorkspaceConfigurationSchema],
     ['gen3/query.json', QueryConfigurationSchema],
     ['cbds/query.json', QueryConfigurationSchema],
     ['brh/query.json', QueryConfigurationSchema],
