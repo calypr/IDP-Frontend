@@ -32,7 +32,25 @@ describe('ExplorerStateV1 contract', () => {
   });
 
   it('rejects legacy top-level lifecycle fields', () => {
-    expect(isExplorerStateV1({ ...canonicalState, draftConfig: {} })).toBe(false);
-    expect(() => assertExplorerStateV1({ ...canonicalState, activeConfig: {} })).toThrow('legacy Explorer configuration fields are not supported');
+    expect(isExplorerStateV1({ ...canonicalState, draftConfig: {} })).toBe(
+      false,
+    );
+    expect(() =>
+      assertExplorerStateV1({ ...canonicalState, activeConfig: {} }),
+    ).toThrow('legacy Explorer configuration fields are not supported');
+  });
+
+  it('requires the complete server-owned runtime projection', () => {
+    const { runtime: _runtime, ...missingRuntime } = canonicalState;
+    expect(isExplorerStateV1(missingRuntime)).toBe(false);
+    expect(
+      isExplorerStateV1({
+        ...canonicalState,
+        runtime: {
+          ...canonicalState.runtime,
+          outputs: [{ columns: null }],
+        },
+      }),
+    ).toBe(false);
   });
 });

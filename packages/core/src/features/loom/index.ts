@@ -5,7 +5,6 @@ export * from './filters';
 export * from './processing';
 export * from './types';
 export * from './explorer';
-export * from './explorerApi';
 export * from './facetPolicy';
 export * from './explorerAuthoring';
 export * from './explorerAuthoringApi';

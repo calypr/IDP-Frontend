@@ -1,4 +1,9 @@
-import type { ExplorerRuntimeColumnV1, ExplorerRuntimeOutputV1, ExplorerRuntimeV1, SharedFieldMapping } from '@gen3/core';
+import type {
+  ExplorerRuntimeColumnV1,
+  ExplorerRuntimeOutputV1,
+  ExplorerRuntimeV1,
+  SharedFieldMapping,
+} from '@gen3/core';
 import type { SummaryChart } from '../../components/charts/types';
 import type { CohortPanelConfiguration } from './types';
 
@@ -9,15 +14,8 @@ export interface ExplorerRuntimeProjection {
 
 const columnsFor = (
   output: ExplorerRuntimeOutputV1,
-): ReadonlyArray<ExplorerRuntimeColumnV1> => {
-  const columns = Array.isArray(output.columns)
-    ? [...output.columns]
-    : Object.entries(output.columns).map(([emissionId, column]) => ({
-        ...column,
-        emissionId: column.emissionId || emissionId,
-      }));
-  return columns.sort((left, right) => left.order - right.order);
-};
+): ReadonlyArray<ExplorerRuntimeColumnV1> =>
+  [...output.columns].sort((left, right) => left.order - right.order);
 
 const columnByEmission = (output: ExplorerRuntimeOutputV1) =>
   new Map(columnsFor(output).map((column) => [column.emissionId, column]));
@@ -28,8 +26,19 @@ const logicalTypeToTableType = (
   const value = logicalType.toLowerCase();
   if (value.includes('bool')) return 'boolean';
   if (value.includes('date') || value.includes('time')) return 'date';
-  if (value.includes('int') || value.includes('float') || value.includes('decimal') || value.includes('number')) return 'number';
-  if (value.includes('array') || value.includes('list') || value.includes('repeat')) return 'array';
+  if (
+    value.includes('int') ||
+    value.includes('float') ||
+    value.includes('decimal') ||
+    value.includes('number')
+  )
+    return 'number';
+  if (
+    value.includes('array') ||
+    value.includes('list') ||
+    value.includes('repeat')
+  )
+    return 'array';
   return 'string';
 };
 
@@ -38,16 +47,11 @@ const panelFor = (
   project: string,
 ): CohortPanelConfiguration => {
   const byEmission = columnByEmission(output);
-  const tableBindings = (output.table.columns.length > 0
-    ? [...output.table.columns]
-    : columnsFor(output).filter((column) => column.visible).map((column) => ({
-        emissionId: column.emissionId,
-        visible: column.visible,
-      })))
-    .sort((left, right) =>
+  const tableBindings = [...output.table.columns].sort(
+    (left, right) =>
       (byEmission.get(left.emissionId)?.order ?? Number.MAX_SAFE_INTEGER) -
       (byEmission.get(right.emissionId)?.order ?? Number.MAX_SAFE_INTEGER),
-    );
+  );
   const tableColumns = tableBindings
     .map((binding) => {
       const column = byEmission.get(binding.emissionId);
@@ -99,18 +103,32 @@ const panelFor = (
     },
     table: {
       enabled: true,
-      fields: tableColumns.filter((column) => column.visible !== false).map((column) => column.field),
-      columns: Object.fromEntries(tableColumns.map((column) => [column.field, column])),
+      fields: tableColumns
+        .filter((column) => column.visible !== false)
+        .map((column) => column.field),
+      columns: Object.fromEntries(
+        tableColumns.map((column) => [column.field, column]),
+      ),
     },
     ...(filters.length > 0
       ? {
           filters: {
-            tabs: [{ title: 'Filters', fields: filters.map((filter) => filter.field), fieldsConfig: Object.fromEntries(filters.map((filter) => [filter.field, filter])) }],
+            tabs: [
+              {
+                title: 'Filters',
+                fields: filters.map((filter) => filter.field),
+                fieldsConfig: Object.fromEntries(
+                  filters.map((filter) => [filter.field, filter]),
+                ),
+              },
+            ],
           },
         }
       : {}),
     ...(Object.keys(charts).length > 0 ? { charts } : {}),
-    ...(Object.keys(fixedFilters).length > 0 ? { preFilters: fixedFilters } : {}),
+    ...(Object.keys(fixedFilters).length > 0
+      ? { preFilters: fixedFilters }
+      : {}),
     runtimeOwned: true,
   } as CohortPanelConfiguration;
 };
@@ -125,7 +143,9 @@ export const cohortBuilderPanelsFromRuntime = (
   project: string,
 ): ExplorerRuntimeProjection => {
   const panels = runtime.outputs.map((output) => panelFor(output, project));
-  const outputById = new Map(runtime.outputs.map((output) => [output.outputId, output]));
+  const outputById = new Map(
+    runtime.outputs.map((output) => [output.outputId, output]),
+  );
   const sharedFilters = Object.fromEntries(
     Object.entries(runtime.sharedFilters).flatMap(([name, bindings]) => {
       const mappings = bindings.flatMap((binding) => {
@@ -134,14 +154,19 @@ export const cohortBuilderPanelsFromRuntime = (
           : runtime.outputs.find((candidate) =>
               Boolean(columnByEmission(candidate).get(binding.emissionId)),
             );
-        const column = output ? columnByEmission(output).get(binding.emissionId) : undefined;
-        return output && column ? [{ index: output.outputId, field: column.name }] : [];
+        const column = output
+          ? columnByEmission(output).get(binding.emissionId)
+          : undefined;
+        return output && column
+          ? [{ index: output.outputId, field: column.name }]
+          : [];
       });
       return mappings.length > 0 ? [[name, mappings] as const] : [];
     }),
   );
   return {
     panels,
-    sharedFiltersMap: Object.keys(sharedFilters).length > 0 ? sharedFilters : null,
+    sharedFiltersMap:
+      Object.keys(sharedFilters).length > 0 ? sharedFilters : null,
   };
 };

@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 
 const fixtureDirectory = resolve(
   process.cwd(),
-  '../../docs/contracts/explorer-builder/v1',
+  '../../docs/contracts/explorer-builder/v2',
 );
 
 describe('Explorer Builder contract fixtures', () => {
@@ -25,5 +25,28 @@ describe('Explorer Builder contract fixtures', () => {
         .digest('hex');
       expect(digest).toBe(expectedDigest);
     }
+  });
+
+  it('strictly decodes the ordered five-table V2 workspace fixture', () => {
+    const fixture = JSON.parse(
+      readFileSync(
+        resolve(fixtureDirectory, 'five-table-builder-state.json'),
+        'utf8',
+      ),
+    ) as unknown;
+    expect(fixture).toMatchObject({
+      apiVersion: 'loom.calypr.org/explorer-authoring/v2',
+      kind: 'ExplorerBuilderState',
+    });
+    const state = fixture as {
+      workspace: { tabs: ReadonlyArray<{ outputId: string }> };
+    };
+    expect(state.workspace.tabs.map((tab) => tab.outputId)).toEqual([
+      'patients',
+      'specimens',
+      'documents',
+      'observations',
+      'conditions',
+    ]);
   });
 });

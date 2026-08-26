@@ -19,6 +19,7 @@ interface ProjectWorkspaceTabsProps {
   readonly explorerHref?: string;
   readonly storageHref?: string;
   readonly toolbarContent?: React.ReactNode;
+  readonly belowTabsContent?: React.ReactNode;
 }
 
 const ProjectWorkspaceTabs = ({
@@ -32,6 +33,7 @@ const ProjectWorkspaceTabs = ({
   explorerHref,
   storageHref,
   toolbarContent,
+  belowTabsContent,
 }: ProjectWorkspaceTabsProps) => {
   const { data: authzMapping = {} } = useGetAuthzMappingsQuery();
   const { data: repositoryExplorer } = useGetExplorerStateV1Query(
@@ -169,6 +171,7 @@ const ProjectWorkspaceTabs = ({
           ) : null}
         </div>
       </div>
+      {belowTabsContent ? <div>{belowTabsContent}</div> : null}
 
       <div>{children}</div>
     </div>

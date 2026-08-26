@@ -35,7 +35,8 @@
     "test:watch": "jest unit --watch",
     "test:int": "jest int",
     "test:all": "jest",
-    "dev": "npm run build:watch"
+    "dev": "npm run build:watch",
+    "devssh": "npm run dev"
   },
   "peerDependencies": {
     "react": "^19.0.0",
@@ -63,7 +64,8 @@
     "redux": "^5.0.1",
     "redux-persist": "^6.0.0",
     "swr": "^2.4.0",
-    "uuid": "^13.0.0"
+    "uuid": "^13.0.0",
+    "zod": "^4.3.6"
   },
   "files": [
     "dist"

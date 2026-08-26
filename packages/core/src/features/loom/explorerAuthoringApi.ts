@@ -1,14 +1,27 @@
 import { GEN3_LOOM_API } from '../../constants';
+import type { CoreState } from '../../reducers';
 import { selectCSRFToken } from '../user/userSliceRTK';
 import { handleUnauthorizedStatus } from '../user/unauthorized';
-import type { CoreState } from '../../reducers';
 import { fetchLoomResponse, loomApi } from './loomApi';
 import { canonicalLoomProjectId, encodeLoomProjectPath } from './projectId';
+import {
+  assertExplorerBuilderCompileResult,
+  assertExplorerBuilderPreviewResult,
+  assertExplorerBuilderPublishResult,
+  assertExplorerBuilderState,
+  assertExplorerStateV1,
+  explorerAuthoringCapabilitiesSchema,
+  explorerBuilderSuggestionsResultSchema,
+} from './explorerAuthoring';
 import type {
-  ExplorerAuthoringDiagnosticV1,
-  ExplorerBuilderStateV1,
-  LoomBuilderDocument,
-  LoomAuthoringBundle,
+  ExplorerAuthoringCapabilities,
+  ExplorerAuthoringDiagnostic,
+  ExplorerBuilderCompileResult,
+  ExplorerBuilderPreviewResult,
+  ExplorerBuilderPublishResult,
+  ExplorerBuilderState,
+  ExplorerBuilderSuggestionsResult,
+  ExplorerBuilderWorkspace,
   ExplorerStateV1,
 } from './explorerAuthoring';
 
@@ -18,12 +31,12 @@ export interface ExplorerAuthoringApiError {
   readonly status: number | 'FETCH_ERROR' | 'CUSTOM_ERROR';
   readonly code?: string;
   readonly message: string;
-  readonly diagnostics?: ReadonlyArray<ExplorerAuthoringDiagnosticV1>;
+  readonly diagnostics?: ReadonlyArray<ExplorerAuthoringDiagnostic>;
   readonly requestId?: string;
   readonly details?: Readonly<Record<string, unknown>>;
   readonly retryable?: boolean;
 }
-export interface ExplorerSummaryV1 {
+export interface ExplorerSummary {
   readonly project: string;
   readonly explorerId: string;
   readonly title: string;
@@ -31,184 +44,440 @@ export interface ExplorerSummaryV1 {
   readonly activeRevisionId?: string;
   readonly updatedAt: string;
 }
-export interface ExplorerAuthoringStateArgs { readonly project: string; readonly explorerId: string }
-export interface ExplorerAuthoringProjectArgs { readonly project: string }
-export interface PreviewArgs extends ExplorerAuthoringStateArgs { readonly bundle: LoomAuthoringBundle; readonly snapshotToken: string; readonly outputId: string; readonly limit: number; readonly requestId?: string }
-export interface CompileArgs extends ExplorerAuthoringStateArgs { readonly document: LoomBuilderDocument; readonly snapshotToken: string; readonly scope: 'DOCUMENT'; readonly intentDigest?: string; readonly requestId?: string }
-export interface CompileResult { readonly receiptId?: string; readonly intentDigest?: string; readonly documentDigest?: string; readonly snapshotToken: string; readonly normalizedDocument?: LoomBuilderDocument; readonly outputs: ReadonlyArray<Record<string, unknown>>; readonly diagnostics: ReadonlyArray<ExplorerAuthoringDiagnosticV1>; readonly complete?: boolean }
-export interface PublishArgs extends ExplorerAuthoringStateArgs { readonly bundle: LoomAuthoringBundle; readonly snapshotToken: string; readonly requestId?: string }
-export interface IdentityArgs extends ExplorerAuthoringProjectArgs { readonly name: string; readonly title?: string; readonly requestId?: string }
-export interface CreateArgs extends ExplorerAuthoringProjectArgs { readonly name: string; readonly title?: string; readonly requestId?: string }
-export interface PreviewResult { readonly outputId: string; readonly columns: ReadonlyArray<Record<string, unknown>>; readonly rows: ReadonlyArray<Record<string, unknown>>; readonly rowCount: number; readonly snapshotToken: string; readonly generation?: string; readonly diagnostics: ReadonlyArray<ExplorerAuthoringDiagnosticV1> }
-export interface CapabilitiesV1 { readonly apiVersion: string; readonly kind: string; readonly operations: ReadonlyArray<string>; readonly publication?: string }
-export interface IdentityV1 { readonly apiVersion: string; readonly kind: 'ExplorerIdentity'; readonly explorerId: string; readonly title: string }
+export interface ExplorerAuthoringStateArgs {
+  readonly project: string;
+  readonly explorerId: string;
+  readonly authResourcePath?: string;
+}
+export interface ExplorerAuthoringProjectArgs {
+  readonly project: string;
+  readonly authResourcePath?: string;
+}
+export interface CompileExplorerBuilderArgs extends ExplorerAuthoringStateArgs {
+  readonly workspace: ExplorerBuilderWorkspace;
+  readonly snapshotToken: string;
+  readonly requestId?: string;
+}
+export interface PreviewExplorerBuilderArgs extends ExplorerAuthoringStateArgs {
+  readonly receiptId: string;
+  readonly outputId: string;
+  readonly limit?: number;
+  readonly requestId?: string;
+}
+export interface PublishExplorerBuilderArgs extends ExplorerAuthoringStateArgs {
+  readonly receiptId: string;
+  readonly requestId?: string;
+}
+export interface ExplorerCandidateSuggestionsArgs
+  extends ExplorerAuthoringStateArgs {
+  readonly snapshotToken: string;
+  readonly nodeId: string;
+  readonly query?: string;
+  readonly requestId?: string;
+}
+export interface CreateExplorerArgs extends ExplorerAuthoringProjectArgs {
+  readonly name: string;
+  readonly title?: string;
+  readonly requestId?: string;
+}
 
-const root = (project: string) => `${GEN3_LOOM_API}/api/v1/projects/${encodeLoomProjectPath(project)}/explorers`;
-const authoringRoot = (args: ExplorerAuthoringStateArgs) => `${root(args.project)}/${encodeURIComponent(args.explorerId)}/authoring/v1`;
-const requestIdFrom = (response: Response) => response.headers.get('x-request-id') ?? response.headers.get('request-id') ?? undefined;
-const parseJSON = async (response: Response): Promise<unknown> => { const text = await response.text(); if (!text) return {}; try { return JSON.parse(text) as unknown } catch { return { message: text } } };
-const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
-const diagnosticsFrom = (value: unknown): ReadonlyArray<ExplorerAuthoringDiagnosticV1> => Array.isArray(value) ? value as ReadonlyArray<ExplorerAuthoringDiagnosticV1> : [];
-const unwrapData = (value: unknown): unknown => {
-  if (!isRecord(value) || !('data' in value)) return value;
-  return value.data;
+const root = (project: string) =>
+  `${GEN3_LOOM_API}/api/v1/projects/${encodeLoomProjectPath(project)}/explorers`;
+const withAuthResourcePath = (endpoint: string, authResourcePath?: string) => {
+  const path = authResourcePath?.trim();
+  if (!path) return endpoint;
+  const separator = endpoint.includes('?') ? '&' : '?';
+  return `${endpoint}${separator}auth_resource_path=${encodeURIComponent(path)}`;
 };
-const summaryListFrom = (value: unknown): ReadonlyArray<ExplorerSummaryV1> => {
-  const payload = unwrapData(value);
-  if (Array.isArray(payload)) return payload as ReadonlyArray<ExplorerSummaryV1>;
-  if (isRecord(payload) && Array.isArray(payload.explorers)) {
-    return payload.explorers as ReadonlyArray<ExplorerSummaryV1>;
+const authoringRoot = (args: ExplorerAuthoringStateArgs, suffix = '') =>
+  withAuthResourcePath(
+    `${root(args.project)}/${encodeURIComponent(args.explorerId)}/authoring/v2${suffix}`,
+    args.authResourcePath,
+  );
+const requestIdFrom = (response: Response) =>
+  response.headers.get('x-request-id') ??
+  response.headers.get('request-id') ??
+  undefined;
+const parseJSON = async (response: Response): Promise<unknown> => {
+  const text = await response.text();
+  if (!text) return {};
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return { message: text };
   }
-  return [];
 };
-const errorFrom = async (response: Response): Promise<ExplorerAuthoringApiError> => {
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+const diagnosticsFrom = (
+  value: unknown,
+): ReadonlyArray<ExplorerAuthoringDiagnostic> =>
+  Array.isArray(value)
+    ? (value as ReadonlyArray<ExplorerAuthoringDiagnostic>)
+    : [];
+const errorFrom = async (
+  response: Response,
+): Promise<ExplorerAuthoringApiError> => {
   const payload = await parseJSON(response);
   const record = isRecord(payload) ? payload : {};
-  const nested = isRecord(record.error) ? record.error : {};
-  const diagnostics = diagnosticsFrom(record.diagnostics ?? nested.diagnostics);
-  const requestId = requestIdFrom(response) ?? (typeof nested.requestId === 'string' ? nested.requestId : typeof record.requestId === 'string' ? record.requestId : diagnostics.find((diagnostic) => typeof diagnostic.requestId === 'string')?.requestId);
+  const nested = isRecord(record.error) ? record.error : record;
+  const diagnostics = diagnosticsFrom(nested.diagnostics);
+  const requestId =
+    requestIdFrom(response) ??
+    (typeof nested.requestId === 'string' ? nested.requestId : undefined) ??
+    diagnostics.find((diagnostic) => diagnostic.requestId)?.requestId;
   return {
     status: response.status,
-    code: typeof nested.code === 'string' ? nested.code : typeof record.code === 'string' ? record.code : undefined,
-    message: typeof nested.message === 'string' ? nested.message : typeof record.message === 'string' ? record.message : `Loom authoring request failed (${response.status}).`,
+    code: typeof nested.code === 'string' ? nested.code : undefined,
+    message:
+      typeof nested.message === 'string'
+        ? nested.message
+        : `Loom authoring request failed (${response.status}).`,
     diagnostics,
     requestId,
-    details: isRecord(nested.details) ? nested.details : isRecord(record.details) ? record.details : undefined,
-    retryable: response.status >= 500 || response.status === 429,
+    details: isRecord(nested.details) ? nested.details : undefined,
+    retryable:
+      response.status >= 500 || response.status === 408 || response.status === 429,
   };
 };
-const request = async <T>(endpoint: string, init: RequestInit, csrfToken: string | undefined, requestId?: string): Promise<{ data?: T; error?: ExplorerAuthoringApiError }> => {
+const request = async (
+  endpoint: string,
+  init: RequestInit,
+  csrfToken: string | undefined,
+  requestId?: string,
+): Promise<
+  | { data: unknown; error?: never }
+  | { error: ExplorerAuthoringApiError; data?: never }
+> => {
   try {
-    const response = await fetchLoomResponse(endpoint, { ...init, headers: { 'Content-Type': 'application/json', ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}), ...(requestId ? { 'X-Request-ID': requestId } : {}), ...(init.headers ?? {}) } });
+    const response = await fetchLoomResponse(endpoint, {
+      ...init,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
+        ...(requestId ? { 'X-Request-ID': requestId } : {}),
+        ...(init.headers ?? {}),
+      },
+    });
     handleUnauthorizedStatus(response.status);
     if (!response.ok) return { error: await errorFrom(response) };
-    return { data: (await parseJSON(response)) as T };
+    return { data: await parseJSON(response) };
   } catch (error) {
-    return { error: { status: 'FETCH_ERROR', message: error instanceof Error ? error.message : String(error), retryable: true } };
+    if (init.signal?.aborted) {
+      return {
+        error: {
+          status: 'CUSTOM_ERROR',
+          code: 'CLIENT_CANCELLED',
+          message: 'The obsolete authoring request was cancelled.',
+          retryable: false,
+        },
+      };
+    }
+    return {
+      error: {
+        status: 'FETCH_ERROR',
+        message: error instanceof Error ? error.message : String(error),
+        retryable: true,
+      },
+    };
   }
 };
-const assertBuilderState = (value: unknown): ExplorerBuilderStateV1 => {
-  if (!isRecord(value) || value.kind !== 'ExplorerBuilderState' || !isRecord(value.bundle) || !isRecord(value.catalog) || !Array.isArray(value.bindings)) throw new Error('Loom returned an invalid ExplorerBuilderStateV1 response.');
-  const bundle = value.bundle;
-  const catalog = value.catalog;
-  const normalizeDocument = (candidate: unknown): LoomBuilderDocument | undefined => {
-    if (!isRecord(candidate)) return undefined;
+const decode = <T>(
+  value: unknown,
+  parser: (value: unknown) => T,
+  code: string,
+):
+  | { data: T; error?: never }
+  | { error: ExplorerAuthoringApiError; data?: never } => {
+  try {
+    return { data: parser(value) };
+  } catch (error) {
     return {
-      ...(candidate as unknown as LoomBuilderDocument),
-      routeEdgeIds: Array.isArray(candidate.routeEdgeIds) ? candidate.routeEdgeIds.filter((item): item is string => typeof item === 'string') : [],
-      routeOccurrences: Array.isArray(candidate.routeOccurrences) ? candidate.routeOccurrences as LoomBuilderDocument['routeOccurrences'] : [],
-      candidateIds: Array.isArray(candidate.candidateIds) ? candidate.candidateIds.filter((item): item is string => typeof item === 'string') : [],
-      candidateOccurrences: Array.isArray(candidate.candidateOccurrences) ? candidate.candidateOccurrences as LoomBuilderDocument['candidateOccurrences'] : [],
-      presentation: isRecord(candidate.presentation) ? candidate.presentation as LoomBuilderDocument['presentation'] : {},
+      error: {
+        status: 502,
+        code,
+        message: error instanceof Error ? error.message : String(error),
+        retryable: false,
+      },
     };
-  };
-  const documents = Array.isArray(bundle.documents)
-    ? bundle.documents.flatMap((candidate) => {
-        const document = normalizeDocument(candidate);
-        return document ? [document] : [];
-      })
-    : [];
-  const document = normalizeDocument(bundle.document);
-  const nodes = (Array.isArray(catalog.nodes) ? catalog.nodes : []).filter(isRecord);
-  const edges = (Array.isArray(catalog.edges)
-    ? catalog.edges
-    : Array.isArray(catalog.routeEdges)
-      ? catalog.routeEdges
-      : []).filter(isRecord);
-  const candidates = (Array.isArray(catalog.candidates) ? catalog.candidates : []).filter(isRecord).map((candidate) => ({
-    ...candidate,
-    label:
-      (typeof candidate.label === 'string' && candidate.label.trim()) ||
-      (typeof candidate.path === 'string' && candidate.path.trim()) ||
-      (typeof candidate.fieldRef === 'string' && candidate.fieldRef.trim()) ||
-      (typeof candidate.candidateId === 'string' && candidate.candidateId.trim()) ||
-      '',
-  }));
-  const bindings = value.bindings.filter(isRecord).map((binding) => ({
-    ...binding,
-    routeOccurrences: Array.isArray(binding.routeOccurrences) ? binding.routeOccurrences : [],
-    candidateEmissions: Array.isArray(binding.candidateEmissions) ? binding.candidateEmissions : [],
-  }));
-  return {
-    ...(value as unknown as ExplorerBuilderStateV1),
-    bundle: {
-      ...(bundle as unknown as ExplorerBuilderStateV1['bundle']),
-      ...(document ? { document } : {}),
-      documents,
-      tabs: Array.isArray(bundle.tabs) ? bundle.tabs as ExplorerBuilderStateV1['bundle']['tabs'] : [],
-    },
-    catalog: {
-      ...(catalog as unknown as ExplorerBuilderStateV1['catalog']),
-      nodes: nodes as unknown as ExplorerBuilderStateV1['catalog']['nodes'],
-      edges: edges as unknown as ExplorerBuilderStateV1['catalog']['edges'],
-      candidates: candidates as unknown as ExplorerBuilderStateV1['catalog']['candidates'],
-    },
-    bindings: bindings as unknown as ExplorerBuilderStateV1['bindings'],
-    diagnostics: Array.isArray(value.diagnostics) ? value.diagnostics as ExplorerBuilderStateV1['diagnostics'] : [],
-  };
+  }
 };
 
 export const explorerAuthoringApi = loomApi.injectEndpoints({
   endpoints: (builder) => ({
-    getExplorerAuthoringExplorersV1: builder.query<ReadonlyArray<ExplorerSummaryV1>, ExplorerAuthoringProjectArgs>({
-      async queryFn(args, api) { const result = await request<unknown>(root(args.project), { method: 'GET', signal: api.signal }, selectCSRFToken(api.getState() as CoreState)); return result.error ? { error: result.error } : { data: summaryListFrom(result.data) }; },
-      providesTags: (_result, _error, args) => [{ type: 'LOOM_EXPLORER_AUTHORING', id: args.project }],
-    }),
-    getExplorerBuilderStateV1: builder.query<ExplorerBuilderStateV1, ExplorerAuthoringStateArgs>({
-      async queryFn(args, api) { const result = await request<unknown>(`${authoringRoot(args)}/builder`, { method: 'GET', cache: 'no-store', signal: api.signal }, selectCSRFToken(api.getState() as CoreState)); if (result.error) return { error: result.error }; try { return { data: assertBuilderState(unwrapData(result.data)) }; } catch (error) { return { error: { status: 502, code: 'INVALID_EXPLORER_BUILDER_STATE', message: error instanceof Error ? error.message : String(error), retryable: false } }; } },
-      providesTags: (_result, _error, args) => [{ type: 'LOOM_EXPLORER_AUTHORING', id: `${args.project}:${args.explorerId}` }],
-    }),
-    // Runtime/viewer consumers retain the lightweight selected Explorer
-    // projection. Authoring hydration always uses the combined Builder query
-    // above, so this endpoint never carries editable bundle state.
-    getExplorerStateV1: builder.query<ExplorerStateV1, ExplorerAuthoringStateArgs>({
+    getExplorerAuthoringExplorers: builder.query<
+      ReadonlyArray<ExplorerSummary>,
+      ExplorerAuthoringProjectArgs
+    >({
       async queryFn(args, api) {
-        const result = await request<ExplorerStateV1>(`${root(args.project)}/${encodeURIComponent(args.explorerId)}`, { method: 'GET', signal: api.signal }, selectCSRFToken(api.getState() as CoreState));
-        return result.error ? { error: result.error } : { data: unwrapData(result.data) as ExplorerStateV1 };
+        const result = await request(
+          withAuthResourcePath(root(args.project), args.authResourcePath),
+          { method: 'GET', signal: api.signal },
+          selectCSRFToken(api.getState() as CoreState),
+        );
+        if (result.error) return { error: result.error };
+        if (!Array.isArray(result.data)) {
+          return {
+            error: {
+              status: 502,
+              code: 'INVALID_EXPLORER_LIST',
+              message: 'Loom returned a non-canonical Explorer list.',
+              retryable: false,
+            },
+          };
+        }
+        return { data: result.data as ReadonlyArray<ExplorerSummary> };
       },
-      providesTags: (_result, _error, args) => [{ type: 'LOOM_EXPLORER', id: `${args.project}:${args.explorerId}` }],
+      providesTags: (_result, _error, args) => [
+        { type: 'LOOM_EXPLORER_AUTHORING', id: args.project },
+      ],
     }),
-    getExplorerAuthoringCapabilitiesV1: builder.query<CapabilitiesV1, ExplorerAuthoringStateArgs>({
-      async queryFn(args, api) { const result = await request<CapabilitiesV1>(`${authoringRoot(args)}/capabilities`, { method: 'GET', signal: api.signal }, selectCSRFToken(api.getState() as CoreState)); return result.error ? { error: result.error } : { data: result.data as CapabilitiesV1 }; },
-    }),
-    compileExplorerAuthoringV1: builder.mutation<CompileResult, CompileArgs>({
+    getExplorerBuilderStateV2: builder.query<
+      ExplorerBuilderState,
+      ExplorerAuthoringStateArgs
+    >({
       async queryFn(args, api) {
-        const result = await request<CompileResult>(`${authoringRoot(args)}/compile`, { method: 'POST', signal: api.signal, body: JSON.stringify({ document: args.document, snapshotToken: args.snapshotToken, scope: args.scope, ...(args.intentDigest ? { intentDigest: args.intentDigest } : {}) }) }, selectCSRFToken(api.getState() as CoreState), args.requestId);
-        return result.error ? { error: result.error } : { data: { ...(result.data as CompileResult), snapshotToken: result.data?.snapshotToken ?? args.snapshotToken, outputs: result.data?.outputs ?? [], diagnostics: diagnosticsFrom(result.data?.diagnostics) } };
+        const result = await request(
+          authoringRoot(args, '/builder'),
+          { method: 'GET', cache: 'no-store', signal: api.signal },
+          selectCSRFToken(api.getState() as CoreState),
+        );
+        if (result.error) return { error: result.error };
+        return decode(
+          result.data,
+          assertExplorerBuilderState,
+          'INVALID_EXPLORER_BUILDER_STATE',
+        );
+      },
+      providesTags: (_result, _error, args) => [
+        {
+          type: 'LOOM_EXPLORER_AUTHORING',
+          id: `${args.project}:${args.explorerId}`,
+        },
+      ],
+    }),
+    getExplorerStateV1: builder.query<
+      ExplorerStateV1,
+      ExplorerAuthoringStateArgs
+    >({
+      async queryFn(args, api) {
+        const result = await request(
+          withAuthResourcePath(
+            `${root(args.project)}/${encodeURIComponent(args.explorerId)}`,
+            args.authResourcePath,
+          ),
+          { method: 'GET', signal: api.signal },
+          selectCSRFToken(api.getState() as CoreState),
+        );
+        if (result.error) return { error: result.error };
+        return decode(
+          result.data,
+          assertExplorerStateV1,
+          'INVALID_EXPLORER_STATE',
+        );
+      },
+      providesTags: (_result, _error, args) => [
+        { type: 'LOOM_EXPLORER', id: `${args.project}:${args.explorerId}` },
+      ],
+    }),
+    getExplorerAuthoringCapabilityV2: builder.query<
+      ExplorerAuthoringCapabilities,
+      ExplorerAuthoringStateArgs
+    >({
+      async queryFn(args, api) {
+        const result = await request(
+          authoringRoot(args, '/capability'),
+          { method: 'GET', signal: api.signal },
+          selectCSRFToken(api.getState() as CoreState),
+        );
+        if (result.error) return { error: result.error };
+        return decode(
+          result.data,
+          (value) => explorerAuthoringCapabilitiesSchema.parse(value),
+          'INVALID_EXPLORER_AUTHORING_CAPABILITY',
+        );
       },
     }),
-    previewExplorerAuthoringV1: builder.mutation<PreviewResult, PreviewArgs>({
-      async queryFn(args, api) { const result = await request<PreviewResult>(`${authoringRoot(args)}/preview`, { method: 'POST', signal: api.signal, body: JSON.stringify({ bundle: args.bundle, snapshotToken: args.snapshotToken, outputId: args.outputId, limit: args.limit }) }, selectCSRFToken(api.getState() as CoreState), args.requestId); return result.error ? { error: result.error } : { data: result.data as PreviewResult }; },
+    compileExplorerBuilderV2: builder.mutation<
+      ExplorerBuilderCompileResult,
+      CompileExplorerBuilderArgs
+    >({
+      async queryFn(args, api) {
+        const result = await request(
+          authoringRoot(args, '/builder'),
+          {
+            method: 'POST',
+            signal: api.signal,
+            body: JSON.stringify({
+              workspace: args.workspace,
+              snapshotToken: args.snapshotToken,
+            }),
+          },
+          selectCSRFToken(api.getState() as CoreState),
+          args.requestId,
+        );
+        if (result.error) return { error: result.error };
+        return decode(
+          result.data,
+          assertExplorerBuilderCompileResult,
+          'INVALID_EXPLORER_BUILDER_RECEIPT',
+        );
+      },
     }),
-    publishExplorerAuthoringV1: builder.mutation<ExplorerBuilderStateV1, PublishArgs>({
-      async queryFn(args, api) { const result = await request<unknown>(`${authoringRoot(args)}/publish`, { method: 'POST', signal: api.signal, body: JSON.stringify({ bundle: args.bundle, snapshotToken: args.snapshotToken }) }, selectCSRFToken(api.getState() as CoreState), args.requestId); if (result.error) return { error: result.error }; try { return { data: assertBuilderState(unwrapData(result.data)) }; } catch (error) { return { error: { status: 502, code: 'INVALID_EXPLORER_BUILDER_STATE', message: error instanceof Error ? error.message : String(error), retryable: false } }; } },
+    compileExplorerBuilderAliasV2: builder.mutation<
+      ExplorerBuilderCompileResult,
+      CompileExplorerBuilderArgs
+    >({
+      async queryFn(args, api) {
+        const result = await request(
+          authoringRoot(args, '/compile'),
+          {
+            method: 'POST',
+            signal: api.signal,
+            body: JSON.stringify({
+              workspace: args.workspace,
+              snapshotToken: args.snapshotToken,
+            }),
+          },
+          selectCSRFToken(api.getState() as CoreState),
+          args.requestId,
+        );
+        if (result.error) return { error: result.error };
+        return decode(
+          result.data,
+          assertExplorerBuilderCompileResult,
+          'INVALID_EXPLORER_BUILDER_RECEIPT',
+        );
+      },
+    }),
+    getExplorerCandidateSuggestionsV2: builder.mutation<
+      ExplorerBuilderSuggestionsResult,
+      ExplorerCandidateSuggestionsArgs
+    >({
+      async queryFn(args, api) {
+        const result = await request(
+          authoringRoot(args, '/suggestions'),
+          {
+            method: 'POST',
+            signal: api.signal,
+            body: JSON.stringify({
+              snapshotToken: args.snapshotToken,
+              nodeId: args.nodeId,
+              ...(args.query ? { query: args.query } : {}),
+            }),
+          },
+          selectCSRFToken(api.getState() as CoreState),
+          args.requestId,
+        );
+        if (result.error) return { error: result.error };
+        return decode(
+          result.data,
+          (value) => explorerBuilderSuggestionsResultSchema.parse(value),
+          'INVALID_EXPLORER_CANDIDATE_SUGGESTIONS',
+        );
+      },
+    }),
+    previewExplorerAuthoringV2: builder.mutation<
+      ExplorerBuilderPreviewResult,
+      PreviewExplorerBuilderArgs
+    >({
+      async queryFn(args, api) {
+        const result = await request(
+          authoringRoot(args, '/preview'),
+          {
+            method: 'POST',
+            signal: api.signal,
+            body: JSON.stringify({
+              receiptId: args.receiptId,
+              outputId: args.outputId,
+              ...(args.limit === undefined ? {} : { limit: args.limit }),
+            }),
+          },
+          selectCSRFToken(api.getState() as CoreState),
+          args.requestId,
+        );
+        if (result.error) return { error: result.error };
+        return decode(
+          result.data,
+          assertExplorerBuilderPreviewResult,
+          'INVALID_EXPLORER_PREVIEW',
+        );
+      },
+    }),
+    publishExplorerAuthoringV2: builder.mutation<
+      ExplorerBuilderPublishResult,
+      PublishExplorerBuilderArgs
+    >({
+      async queryFn(args, api) {
+        const result = await request(
+          authoringRoot(args, '/publish'),
+          {
+            method: 'POST',
+            signal: api.signal,
+            body: JSON.stringify({ receiptId: args.receiptId }),
+          },
+          selectCSRFToken(api.getState() as CoreState),
+          args.requestId,
+        );
+        if (result.error) return { error: result.error };
+        return decode(
+          result.data,
+          assertExplorerBuilderPublishResult,
+          'INVALID_EXPLORER_PUBLICATION',
+        );
+      },
       invalidatesTags: (_result, _error, args) => {
         const project = canonicalLoomProjectId(args.project);
         return [
-          { type: 'LOOM_EXPLORER_AUTHORING', id: `${args.project}:${args.explorerId}` },
+          {
+            type: 'LOOM_EXPLORER_AUTHORING',
+            id: `${args.project}:${args.explorerId}`,
+          },
           { type: 'LOOM_EXPLORER_AUTHORING', id: args.project },
           { type: 'LOOM_EXPLORER', id: `${project}:${args.explorerId}` },
           { type: 'LOOM_EXPLORER', id: project },
         ];
       },
     }),
-    createExplorerAuthoringIdentityV1: builder.mutation<IdentityV1, IdentityArgs>({
-      async queryFn(args, api) { const result = await request<IdentityV1>(`${root(args.project)}/authoring/v1/identity`, { method: 'POST', signal: api.signal, body: JSON.stringify({ name: args.name, ...(args.title ? { title: args.title } : {}) }) }, selectCSRFToken(api.getState() as CoreState), args.requestId); return result.error ? { error: result.error } : { data: result.data as IdentityV1 }; },
-    }),
-    createExplorerAuthoringV1: builder.mutation<ExplorerSummaryV1, CreateArgs>({
-      async queryFn(args, api) { const result = await request<ExplorerSummaryV1>(root(args.project), { method: 'POST', signal: api.signal, body: JSON.stringify({ name: args.name, ...(args.title ? { title: args.title } : {}) }) }, selectCSRFToken(api.getState() as CoreState), args.requestId); return result.error ? { error: result.error } : { data: result.data as ExplorerSummaryV1 }; },
-      invalidatesTags: (_result, _error, args) => [{ type: 'LOOM_EXPLORER_AUTHORING', id: args.project }],
+    createExplorerAuthoring: builder.mutation<
+      ExplorerSummary,
+      CreateExplorerArgs
+    >({
+      async queryFn(args, api) {
+        const result = await request(
+          withAuthResourcePath(root(args.project), args.authResourcePath),
+          {
+            method: 'POST',
+            signal: api.signal,
+            body: JSON.stringify({
+              name: args.name,
+              ...(args.title ? { title: args.title } : {}),
+            }),
+          },
+          selectCSRFToken(api.getState() as CoreState),
+          args.requestId,
+        );
+        return result.error
+          ? { error: result.error }
+          : { data: result.data as ExplorerSummary };
+      },
+      invalidatesTags: (_result, _error, args) => [
+        { type: 'LOOM_EXPLORER_AUTHORING', id: args.project },
+      ],
     }),
   }),
   overrideExisting: false,
 });
 
-export const { useGetExplorerAuthoringExplorersV1Query, useGetExplorerBuilderStateV1Query, useGetExplorerStateV1Query, useGetExplorerAuthoringCapabilitiesV1Query, useCompileExplorerAuthoringV1Mutation, usePreviewExplorerAuthoringV1Mutation, usePublishExplorerAuthoringV1Mutation, useCreateExplorerAuthoringIdentityV1Mutation, useCreateExplorerAuthoringV1Mutation } = explorerAuthoringApi;
-
-export const downloadExplorerAuthoringBundle = async ({ project, explorerId, requestId }: ExplorerAuthoringStateArgs & { readonly requestId?: string }): Promise<{ readonly blob: Blob; readonly filename: string; readonly etag?: string }> => {
-  const response = await fetchLoomResponse(`${authoringRoot({ project, explorerId })}/bundle/active`, { method: 'GET', headers: requestId ? { 'X-Request-ID': requestId } : {} });
-  handleUnauthorizedStatus(response.status);
-  if (!response.ok) throw await errorFrom(response);
-  const disposition = response.headers.get('content-disposition') ?? '';
-  return { blob: await response.blob(), filename: /filename="?([^";]+)"?/i.exec(disposition)?.[1] ?? `${explorerId}-active.json`, etag: response.headers.get('etag') ?? undefined };
-};
+export const {
+  useGetExplorerAuthoringExplorersQuery,
+  useGetExplorerBuilderStateV2Query,
+  useGetExplorerStateV1Query,
+  useGetExplorerAuthoringCapabilityV2Query,
+  useCompileExplorerBuilderV2Mutation,
+  useCompileExplorerBuilderAliasV2Mutation,
+  useGetExplorerCandidateSuggestionsV2Mutation,
+  usePreviewExplorerAuthoringV2Mutation,
+  usePublishExplorerAuthoringV2Mutation,
+  useCreateExplorerAuthoringMutation,
+} = explorerAuthoringApi;
