@@ -16,8 +16,7 @@ const runtime: ExplorerRuntimeV1 = {
       },
       columns: [
         {
-          emissionId: 'em-name',
-          name: 'patient_name',
+          column: 'patient_name',
           label: 'Name',
           logicalType: 'string',
           visible: true,
@@ -26,8 +25,7 @@ const runtime: ExplorerRuntimeV1 = {
           chartable: false,
         },
         {
-          emissionId: 'em-status',
-          name: 'patient_status',
+          column: 'patient_status',
           label: 'Status',
           logicalType: 'string',
           visible: true,
@@ -40,13 +38,13 @@ const runtime: ExplorerRuntimeV1 = {
       // order on the runtime columns is authoritative for the rendered table.
       table: {
         columns: [
-          { emissionId: 'em-status', visible: true },
-          { emissionId: 'em-name', visible: true },
+          { column: 'patient_status', visible: true },
+          { column: 'patient_name', visible: true },
         ],
       },
-      filters: [{ emissionId: 'em-status', label: 'State' }],
-      charts: [{ emissionId: 'em-status', type: 'pie', title: 'State' }],
-      fixedFilters: { 'em-status': ['active'] },
+      filters: [{ column: 'patient_status', label: 'State' }],
+      charts: [{ column: 'patient_status', type: 'pie', title: 'State' }],
+      fixedFilters: { patient_status: ['active'] },
     },
   ],
   sharedFilters: {},
@@ -54,7 +52,7 @@ const runtime: ExplorerRuntimeV1 = {
 };
 
 describe('ExplorerRuntimeV1 viewer projection', () => {
-  it('uses server emissions, labels, selectors, filters, and charts directly', () => {
+  it('uses server columns, labels, selectors, filters, and charts directly', () => {
     const configuration = cohortBuilderPanelsFromRuntime(runtime, 'project-1');
     const panel = configuration.panels[0];
 

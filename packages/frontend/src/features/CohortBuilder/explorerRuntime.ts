@@ -10,6 +10,7 @@ import type { CohortPanelConfiguration } from './types';
 export interface ExplorerRuntimeProjection {
   readonly panels: ReadonlyArray<CohortPanelConfiguration>;
   readonly sharedFiltersMap: SharedFieldMapping | null;
+  readonly fileActions?: ExplorerRuntimeV1['fileActions'];
 }
 
 const columnsFor = (
@@ -17,8 +18,8 @@ const columnsFor = (
 ): ReadonlyArray<ExplorerRuntimeColumnV1> =>
   [...output.columns].sort((left, right) => left.order - right.order);
 
-const columnByEmission = (output: ExplorerRuntimeOutputV1) =>
-  new Map(columnsFor(output).map((column) => [column.emissionId, column]));
+const columnByName = (output: ExplorerRuntimeOutputV1) =>
+  new Map(columnsFor(output).map((column) => [column.column, column]));
 
 const logicalTypeToTableType = (
   logicalType: string,
@@ -46,31 +47,34 @@ const panelFor = (
   output: ExplorerRuntimeOutputV1,
   project: string,
 ): CohortPanelConfiguration => {
-  const byEmission = columnByEmission(output);
+  const byColumn = columnByName(output);
   const tableBindings = [...output.table.columns].sort(
     (left, right) =>
-      (byEmission.get(left.emissionId)?.order ?? Number.MAX_SAFE_INTEGER) -
-      (byEmission.get(right.emissionId)?.order ?? Number.MAX_SAFE_INTEGER),
+      (byColumn.get(left.column)?.order ?? Number.MAX_SAFE_INTEGER) -
+      (byColumn.get(right.column)?.order ?? Number.MAX_SAFE_INTEGER),
   );
   const tableColumns = tableBindings
     .map((binding) => {
-      const column = byEmission.get(binding.emissionId);
+      const column = byColumn.get(binding.column);
       if (!column) return undefined;
       return {
-        field: column.name,
+        field: column.column,
         title: column.label,
         type: logicalTypeToTableType(column.logicalType),
         visible: binding.visible && column.visible,
         sortable: column.sortable ?? false,
+        ...(binding.cellRenderer
+          ? { cellRenderFunction: binding.cellRenderer }
+          : {}),
       };
     })
     .filter((column): column is NonNullable<typeof column> => Boolean(column));
   const filters = output.filters
     .map((binding) => {
-      const column = byEmission.get(binding.emissionId);
+      const column = byColumn.get(binding.column);
       if (!column || !column.filterable) return undefined;
       return {
-        field: column.name,
+        field: column.column,
         index: output.outputId,
         label: binding.label ?? column.label,
         type: 'enum',
@@ -79,17 +83,17 @@ const panelFor = (
     .filter((filter): filter is NonNullable<typeof filter> => Boolean(filter));
   const charts: Record<string, SummaryChart> = {};
   output.charts.forEach((binding) => {
-    const column = byEmission.get(binding.emissionId);
+    const column = byColumn.get(binding.column);
     if (!column || !column.chartable) return;
-    charts[column.name] = {
+    charts[column.column] = {
       chartType: binding.type ?? 'bar',
       ...(binding.title ? { title: binding.title } : {}),
     };
   });
   const fixedFilters = Object.fromEntries(
-    Object.entries(output.fixedFilters).flatMap(([emissionId, values]) => {
-      const column = byEmission.get(emissionId);
-      return column ? [[column.name, [...values]] as const] : [];
+    Object.entries(output.fixedFilters).flatMap(([columnName, values]) => {
+      const column = byColumn.get(columnName);
+      return column ? [[column.column, [...values]] as const] : [];
     }),
   );
   return {
@@ -129,6 +133,21 @@ const panelFor = (
     ...(Object.keys(fixedFilters).length > 0
       ? { preFilters: fixedFilters }
       : {}),
+    ...(output.actions?.length
+      ? {
+          buttons: output.actions.map((action) => ({
+            title: action.title,
+            action: 'data-table',
+            actionArgs: {
+              type: output.outputId,
+              fileFields: action.columns ?? [],
+              filename: action.fileName ?? `${output.outputId}.csv`,
+              selector: output.selector,
+              projectIds: [project],
+            },
+          })) as unknown as CohortPanelConfiguration['buttons'],
+        }
+      : {}),
     runtimeOwned: true,
   } as CohortPanelConfiguration;
 };
@@ -152,13 +171,13 @@ export const cohortBuilderPanelsFromRuntime = (
         const output = binding.outputId
           ? outputById.get(binding.outputId)
           : runtime.outputs.find((candidate) =>
-              Boolean(columnByEmission(candidate).get(binding.emissionId)),
+              Boolean(columnByName(candidate).get(binding.column)),
             );
         const column = output
-          ? columnByEmission(output).get(binding.emissionId)
+          ? columnByName(output).get(binding.column)
           : undefined;
         return output && column
-          ? [{ index: output.outputId, field: column.name }]
+          ? [{ index: output.outputId, field: column.column }]
           : [];
       });
       return mappings.length > 0 ? [[name, mappings] as const] : [];
@@ -168,5 +187,6 @@ export const cohortBuilderPanelsFromRuntime = (
     panels,
     sharedFiltersMap:
       Object.keys(sharedFilters).length > 0 ? sharedFilters : null,
+    fileActions: runtime.fileActions,
   };
 };

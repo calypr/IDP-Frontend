@@ -2,18 +2,19 @@ import type {
   ExplorerAuthoringDiagnostic,
   ExplorerBuilderCandidate,
   ExplorerBuilderCatalog,
+  ExplorerBuilderColumn,
   ExplorerBuilderCompileResult,
   ExplorerBuilderPreviewResult,
-  ExplorerBuilderSelection,
   ExplorerBuilderState,
 } from '@gen3/core';
 import {
   derivedOccurrences,
-  selectionPresentationKey,
+  replaceRouteNode,
+  routeNode,
+  routeSubtreeOccurrenceIds,
   stateFromBuilder,
   type BuilderAuthoringState,
   type DraftTable,
-  type PresentationBinding,
 } from './model';
 
 export type BuilderAction =
@@ -26,51 +27,109 @@ export type BuilderAction =
   | { readonly type: 'selectOccurrence'; readonly occurrenceId: string }
   | { readonly type: 'addTable'; readonly table: DraftTable }
   | { readonly type: 'removeTable'; readonly outputId: string }
-  | { readonly type: 'renameTable'; readonly outputId: string; readonly title: string }
-  | { readonly type: 'reorderTable'; readonly outputId: string; readonly before?: string }
-  | { readonly type: 'setRoot'; readonly outputId: string; readonly nodeId: string }
-  | { readonly type: 'changeRoot'; readonly outputId: string; readonly nodeId: string }
   | {
-      readonly type: 'appendEdge';
+      readonly type: 'renameTable';
       readonly outputId: string;
+      readonly title: string;
+    }
+  | {
+      readonly type: 'reorderTable';
+      readonly outputId: string;
+      readonly before?: string;
+    }
+  | {
+      readonly type: 'setRoot';
+      readonly outputId: string;
+      readonly nodeId: string;
+    }
+  | {
+      readonly type: 'changeRoot';
+      readonly outputId: string;
+      readonly nodeId: string;
+    }
+  | {
+      readonly type: 'addRouteChild';
+      readonly outputId: string;
+      readonly parentOccurrenceId: string;
       readonly edgeId: string;
       readonly occurrenceId: string;
     }
-  | { readonly type: 'truncateRoute'; readonly outputId: string; readonly occurrenceId: string }
   | {
-      readonly type: 'toggleCandidate';
+      readonly type: 'removeRouteSubtree';
       readonly outputId: string;
       readonly occurrenceId: string;
-      readonly candidateId: string;
-      readonly projectionMode: string;
-      readonly selected: boolean;
     }
   | {
-      readonly type: 'setProjection';
+      readonly type: 'addColumn';
       readonly outputId: string;
-      readonly occurrenceId: string;
-      readonly candidateId: string;
-      readonly projectionMode: string;
+      readonly value: ExplorerBuilderColumn;
     }
   | {
-      readonly type: 'setPresentation';
+      readonly type: 'addColumns';
       readonly outputId: string;
-      readonly selection: ExplorerBuilderSelection;
-      readonly value: PresentationBinding;
+      readonly values: ReadonlyArray<ExplorerBuilderColumn>;
+    }
+  | {
+      readonly type: 'updateColumn';
+      readonly outputId: string;
+      readonly column: string;
+      readonly value: ExplorerBuilderColumn;
+    }
+  | {
+      readonly type: 'removeColumn';
+      readonly outputId: string;
+      readonly column: string;
     }
   | { readonly type: 'compiling' }
   | { readonly type: 'compiled'; readonly value: ExplorerBuilderCompileResult }
-  | { readonly type: 'catalogRefreshed'; readonly catalog: ExplorerBuilderCatalog }
-  | { readonly type: 'candidatesLoaded'; readonly candidates: ReadonlyArray<ExplorerBuilderCandidate> }
-  | { readonly type: 'repair'; readonly diagnostics: ReadonlyArray<ExplorerAuthoringDiagnostic> }
+  | {
+      readonly type: 'catalogRefreshed';
+      readonly catalog: ExplorerBuilderCatalog;
+    }
+  | {
+      readonly type: 'candidatesLoaded';
+      readonly candidates: ReadonlyArray<ExplorerBuilderCandidate>;
+    }
+  | {
+      readonly type: 'repair';
+      readonly diagnostics: ReadonlyArray<ExplorerAuthoringDiagnostic>;
+    }
   | { readonly type: 'requestRecompile' }
   | { readonly type: 'preview'; readonly value?: ExplorerBuilderPreviewResult }
   | { readonly type: 'published' };
 
-const invalidate = (state: BuilderAuthoringState): BuilderAuthoringState => ({
+const reconcileSharedFilters = (
+  state: BuilderAuthoringState,
+): BuilderAuthoringState['workspace'] => {
+  if (!state.workspace?.sharedFilters) return state.workspace;
+  const columnsByOutput = new Map(
+    state.tables.map((table) => [
+      table.outputId,
+      new Set(table.document.columns.map((column) => column.column)),
+    ]),
+  );
+  const entries = Object.entries(state.workspace.sharedFilters).flatMap(
+    ([name, bindings]) => {
+      const retained = bindings.filter((binding) =>
+        columnsByOutput.get(binding.outputId)?.has(binding.column),
+      );
+      return retained.length ? [[name, retained] as const] : [];
+    },
+  );
+  return {
+    ...state.workspace,
+    sharedFilters: entries.length ? Object.fromEntries(entries) : undefined,
+  };
+};
+
+const invalidate = (
+  state: BuilderAuthoringState,
+  { preservePreview = false }: { readonly preservePreview?: boolean } = {},
+): BuilderAuthoringState => ({
   ...state,
+  workspace: reconcileSharedFilters(state),
   receipt: undefined,
-  preview: undefined,
+  preview: preservePreview ? state.preview : undefined,
   diagnostics: [],
   dirty: true,
   reconciliation: 'pending',
@@ -80,33 +139,37 @@ const updateTable = (
   state: BuilderAuthoringState,
   outputId: string,
   update: (table: DraftTable) => DraftTable,
+  options?: { readonly preservePreview?: boolean },
 ): BuilderAuthoringState => {
   const current = state.tables.find((table) => table.outputId === outputId);
   if (!current) return state;
-  return invalidate({
-    ...state,
-    tables: state.tables.map((table) =>
-      table.outputId === outputId ? update(table) : table,
-    ),
-  });
+  return invalidate(
+    {
+      ...state,
+      tables: state.tables.map((table) =>
+        table.outputId === outputId ? update(table) : table,
+      ),
+    },
+    options,
+  );
 };
 
-const sameSelection = (
-  selection: ExplorerBuilderSelection,
-  candidateId: string,
-  occurrenceId: string,
-) =>
-  selection.candidateId === candidateId &&
-  selection.occurrenceId === occurrenceId;
-
-const keepPresentationFor = (
-  presentation: DraftTable['presentation'],
-  selections: ReadonlyArray<ExplorerBuilderSelection>,
-) => {
-  const keys = new Set(selections.map(selectionPresentationKey));
-  return Object.fromEntries(
-    Object.entries(presentation).filter(([key]) => keys.has(key)),
-  );
+const keepColumnReferences = (
+  document: DraftTable['document'],
+  columns: DraftTable['document']['columns'],
+): DraftTable['document'] => {
+  const names = new Set(columns.map((column) => column.column));
+  return {
+    ...document,
+    columns,
+    fixedFilters: document.fixedFilters?.filter((filter) =>
+      names.has(filter.column),
+    ),
+    actions: document.actions?.map((action) => ({
+      ...action,
+      columns: action.columns?.filter((column) => names.has(column.column)),
+    })),
+  };
 };
 
 export const builderAuthoringReducer = (
@@ -144,7 +207,9 @@ export const builderAuthoringReducer = (
         tables: [...state.tables, action.table],
         selectedOutputId: action.table.outputId,
         selectedOccurrenceId: 'base',
-        reconciliation: action.table.rootNodeId ? 'pending' : 'idle',
+        reconciliation: action.table.document.rootResourceType
+          ? 'pending'
+          : 'idle',
       });
     case 'removeTable': {
       const tables = state.tables.filter(
@@ -189,31 +254,51 @@ export const builderAuthoringReducer = (
       const table = state.tables.find(
         (candidate) => candidate.outputId === action.outputId,
       );
-      if (!table || (action.type === 'setRoot' && table.rootNodeId)) return state;
-      if (action.type === 'changeRoot' && table.rootNodeId === action.nodeId)
+      const currentRoot = state.catalog.nodes.find(
+        (candidate) =>
+          candidate.resourceType === table?.document.rootResourceType,
+      );
+      if (!table || (action.type === 'setRoot' && currentRoot)) return state;
+      if (action.type === 'changeRoot' && currentRoot?.nodeId === action.nodeId)
         return state;
       return {
         ...updateTable(state, action.outputId, (current) => ({
           ...current,
-          rootNodeId: action.nodeId,
-          routeSteps: [],
-          selections: [],
-          presentation: {},
+          document: {
+            ...current.document,
+            rootResourceType: node.resourceType,
+            route: {
+              occurrenceId: 'base',
+              resourceType: node.resourceType,
+            },
+            columns: [],
+            fixedFilters: undefined,
+            actions: undefined,
+          },
         })),
         selectedOccurrenceId: 'base',
       };
     }
-    case 'appendEdge': {
+    case 'addRouteChild': {
       const table = state.tables.find(
         (candidate) => candidate.outputId === action.outputId,
       );
-      const tail = derivedOccurrences(table, state.catalog).at(-1)?.nodeId;
+      const occurrences = derivedOccurrences(table, state.catalog);
+      const parent = occurrences.find(
+        (occurrence) => occurrence.id === action.parentOccurrenceId,
+      );
       const edge = state.catalog.edges.find(
         (candidate) =>
-          candidate.edgeId === action.edgeId && candidate.fromNodeId === tail,
+          candidate.edgeId === action.edgeId &&
+          candidate.fromNodeId === parent?.nodeId,
       );
-      if (!table?.rootNodeId || !edge) return state;
-      const repeated = table.routeSteps.some((step) => step.edgeId === edge.edgeId);
+      const target = state.catalog.nodes.find(
+        (candidate) => candidate.nodeId === edge?.toNodeId,
+      );
+      if (!table || !parent || !edge || !target) return state;
+      const repeated = occurrences.some(
+        (occurrence) => occurrence.incomingEdgeId === edge.edgeId,
+      );
       const allowsRepeated =
         state.catalog.routePolicy.allowRepeatedEdges ??
         state.catalog.routePolicy.repeatedEdges ??
@@ -225,111 +310,118 @@ export const builderAuthoringReducer = (
       if (repeated && !allowsRepeated) return state;
       if (edge.fromNodeId === edge.toNodeId && !allowsSelfLoop) return state;
       const maxSteps = state.catalog.routePolicy.maxSteps;
-      if (maxSteps && table.routeSteps.length >= maxSteps) return state;
-      return updateTable(state, action.outputId, (current) => ({
-        ...current,
-        routeSteps: [
-          ...current.routeSteps,
-          { edgeId: action.edgeId, occurrenceId: action.occurrenceId },
-        ],
-      }));
+      if (maxSteps && parent.depth + 1 > maxSteps) return state;
+      const route = replaceRouteNode(
+        table.document.route,
+        action.parentOccurrenceId,
+        (current) => ({
+          ...current,
+          children: [
+            ...(current.children ?? []),
+            {
+              occurrenceId: action.occurrenceId,
+              resourceType: target.resourceType,
+              relationship: edge.label,
+            },
+          ],
+        }),
+      );
+      if (!route) return state;
+      return {
+        ...updateTable(state, action.outputId, (current) => ({
+          ...current,
+          document: { ...current.document, route },
+        })),
+        selectedOccurrenceId: action.occurrenceId,
+      };
     }
-    case 'truncateRoute': {
+    case 'removeRouteSubtree': {
       const table = state.tables.find(
         (candidate) => candidate.outputId === action.outputId,
       );
-      const occurrences = derivedOccurrences(table, state.catalog);
-      const occurrenceIndex = occurrences.findIndex(
-        (occurrence) => occurrence.id === action.occurrenceId,
+      if (!table || action.occurrenceId === 'base') return state;
+      const subtree = routeNode(table.document.route, action.occurrenceId);
+      if (!subtree) return state;
+      const removedOccurrences = routeSubtreeOccurrenceIds(subtree);
+      const route = replaceRouteNode(
+        table.document.route,
+        action.occurrenceId,
+        () => undefined,
       );
-      if (!table || occurrenceIndex < 0) return state;
-      const retained = new Set(
-        occurrences.slice(0, occurrenceIndex + 1).map(({ id }) => id),
-      );
-      return updateTable(state, action.outputId, (current) => {
-        const selections = current.selections.filter((selection) =>
-          retained.has(selection.occurrenceId),
+      if (!route) return state;
+      const next = updateTable(state, action.outputId, (current) => {
+        const columns = current.document.columns.filter(
+          (column) => !removedOccurrences.has(column.occurrenceId),
         );
         return {
           ...current,
-          routeSteps: current.routeSteps.slice(0, occurrenceIndex),
-          selections,
-          presentation: keepPresentationFor(current.presentation, selections),
+          document: {
+            ...keepColumnReferences(current.document, columns),
+            route,
+          },
         };
       });
+      return { ...next, selectedOccurrenceId: 'base' };
     }
-    case 'toggleCandidate': {
-      const table = state.tables.find(
-        (candidate) => candidate.outputId === action.outputId,
-      );
-      if (
-        !derivedOccurrences(table, state.catalog).some(
-          (occurrence) => occurrence.id === action.occurrenceId,
-        )
-      )
-        return state;
-      return updateTable(state, action.outputId, (current) => {
-        const selections = action.selected
-          ? [
-              ...current.selections.filter(
-                (selection) =>
-                  !sameSelection(
-                    selection,
-                    action.candidateId,
-                    action.occurrenceId,
-                  ),
-              ),
-              {
-                candidateId: action.candidateId,
-                occurrenceId: action.occurrenceId,
-                projectionMode: action.projectionMode,
-              },
-            ]
-          : current.selections.filter(
-              (selection) =>
-                !sameSelection(
-                  selection,
-                  action.candidateId,
-                  action.occurrenceId,
-                ),
-            );
-        return {
-          ...current,
-          selections,
-          presentation: keepPresentationFor(current.presentation, selections),
-        };
-      });
-    }
-    case 'setProjection':
+    case 'addColumn':
       return updateTable(state, action.outputId, (table) => {
-        const current = table.selections.find((selection) =>
-          sameSelection(selection, action.candidateId, action.occurrenceId),
-        );
-        if (!current || current.projectionMode === action.projectionMode)
+        if (
+          table.document.columns.some(
+            (column) => column.column === action.value.column,
+          )
+        )
           return table;
-        const next = { ...current, projectionMode: action.projectionMode };
-        const previousKey = selectionPresentationKey(current);
-        const nextKey = selectionPresentationKey(next);
-        const presentation = { ...table.presentation };
-        if (presentation[previousKey]) {
-          presentation[nextKey] = presentation[previousKey];
-          delete presentation[previousKey];
-        }
         return {
           ...table,
-          selections: table.selections.map((selection) =>
-            selection === current ? next : selection,
-          ),
-          presentation,
+          document: {
+            ...table.document,
+            columns: [...table.document.columns, action.value],
+          },
         };
       });
-    case 'setPresentation':
+    case 'addColumns':
+      return updateTable(state, action.outputId, (table) => {
+        const names = new Set(
+          table.document.columns.map((column) => column.column),
+        );
+        const additions = action.values.filter((column) => {
+          if (names.has(column.column)) return false;
+          names.add(column.column);
+          return true;
+        });
+        if (!additions.length) return table;
+        return {
+          ...table,
+          document: {
+            ...table.document,
+            columns: [...table.document.columns, ...additions],
+          },
+        };
+      });
+    case 'updateColumn':
+      return updateTable(
+        state,
+        action.outputId,
+        (table) => ({
+          ...table,
+          document: {
+            ...table.document,
+            columns: table.document.columns.map((column) =>
+              column.column === action.column ? action.value : column,
+            ),
+          },
+        }),
+        { preservePreview: true },
+      );
+    case 'removeColumn':
       return updateTable(state, action.outputId, (table) => ({
         ...table,
-        presentation: {
-          ...table.presentation,
-          [selectionPresentationKey(action.selection)]: action.value,
-        },
+        document: keepColumnReferences(
+          table.document,
+          table.document.columns.filter(
+            (column) => column.column !== action.column,
+          ),
+        ),
       }));
     case 'compiling':
       return { ...state, reconciliation: 'pending', diagnostics: [] };
@@ -338,39 +430,23 @@ export const builderAuthoringReducer = (
         {
           apiVersion: 'loom.calypr.org/explorer-authoring/v2',
           kind: 'ExplorerBuilderState',
+          lifecycleState: 'READY',
           workspace: action.value.builder,
           catalog: state.catalog,
         },
         { project: state.project, explorerId: state.explorerId },
       );
-      const tables = normalized.tables.map((table) => {
-        const local = state.tables.find(
-          (candidate) => candidate.outputId === table.outputId,
-        );
-        const presentation = { ...table.presentation, ...local?.presentation };
-        const output = action.value.outputs.find(
-          (candidate) => candidate.outputId === table.outputId,
-        );
-        output?.emissions.forEach((emission, index) => {
-          const key = selectionPresentationKey(emission);
-          presentation[key] ??= {
-            label: emission.label,
-            visible: true,
-            order: index,
-            table: {},
-          };
-        });
-        return { ...table, presentation };
-      });
+      const tables = normalized.tables;
       return {
         ...state,
+        workspace: action.value.builder,
         tables,
-        selectedOutputId:
-          tables.some((table) => table.outputId === state.selectedOutputId)
-            ? state.selectedOutputId
-            : tables[0]?.outputId,
+        selectedOutputId: tables.some(
+          (table) => table.outputId === state.selectedOutputId,
+        )
+          ? state.selectedOutputId
+          : tables[0]?.outputId,
         receipt: action.value,
-        emissions: action.value.outputs.flatMap((output) => output.emissions),
         diagnostics: action.value.diagnostics,
         reconciliation: action.value.diagnostics.some(
           (diagnostic) => diagnostic.severity === 'error',
@@ -385,7 +461,14 @@ export const builderAuthoringReducer = (
         catalog: action.catalog,
         receipt: undefined,
         preview: undefined,
-        reconciliation: 'stale',
+        diagnostics: [],
+        reconciliation:
+          state.tables.length > 0 &&
+          state.tables.every((table) =>
+            Boolean(table.document.rootResourceType),
+          )
+            ? 'pending'
+            : 'idle',
       };
     case 'candidatesLoaded': {
       const candidates = new Map(
@@ -403,9 +486,13 @@ export const builderAuthoringReducer = (
       };
     }
     case 'repair':
-      return { ...state, reconciliation: 'repair', diagnostics: action.diagnostics };
+      return {
+        ...state,
+        reconciliation: 'repair',
+        diagnostics: action.diagnostics,
+      };
     case 'requestRecompile':
-      return { ...state, reconciliation: 'pending', diagnostics: [] };
+      return invalidate(state);
     case 'preview':
       return { ...state, preview: action.value };
     case 'published':

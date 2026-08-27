@@ -30,7 +30,12 @@ const CohortBuilder = ({
   const configuration = runtimeProjection.panels;
   const resolvedSharedFiltersMap = sharedFiltersMap ?? runtimeProjection.sharedFiltersMap;
   const tabsLayout = 'left' as const;
-  const fileActions = undefined;
+  const fileActions = runtimeProjection.fileActions?.extensions && runtimeProjection.fileActions.actions
+    ? {
+        extensions: Object.fromEntries(Object.entries(runtimeProjection.fileActions.extensions).map(([key, values]) => [key, [...values]])),
+        actions: { ...runtimeProjection.fileActions.actions },
+      }
+    : undefined;
   const dispatch = useCoreDispatch();
 
   const [isTransitioning, setIsTransitioning] = React.useState(false);

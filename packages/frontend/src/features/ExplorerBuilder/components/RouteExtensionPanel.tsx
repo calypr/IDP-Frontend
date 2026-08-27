@@ -1,10 +1,7 @@
 import React, { useMemo } from 'react';
 import type { ExplorerBuilderCatalog } from '@gen3/core';
-import { routeTailNodeId, type DraftTable } from '../authoring/model';
-import {
-  legalEdgesToNode,
-  legalOutgoingEdges,
-} from '../authoring/routeActions';
+import { derivedOccurrences, type DraftTable } from '../authoring/model';
+import { legalEdgesToNode } from '../authoring/routeActions';
 
 const titleForNode = (
   catalog: ExplorerBuilderCatalog,
@@ -17,6 +14,7 @@ const titleForNode = (
 export const RouteExtensionPanel = ({
   catalog,
   table,
+  selectedOccurrenceId,
   inspectedNodeId,
   selectedEdgeId,
   disabled,
@@ -27,6 +25,7 @@ export const RouteExtensionPanel = ({
 }: {
   readonly catalog: ExplorerBuilderCatalog;
   readonly table?: DraftTable;
+  readonly selectedOccurrenceId: string;
   readonly inspectedNodeId?: string;
   readonly selectedEdgeId?: string;
   readonly disabled: boolean;
@@ -35,118 +34,112 @@ export const RouteExtensionPanel = ({
   readonly onChangeRowStart: (nodeId: string) => void;
   readonly onAddEdge: (edgeId: string, nodeId: string) => void;
 }) => {
-  const outgoingEdges = useMemo(
-    () => legalOutgoingEdges(catalog, table),
-    [catalog, table],
-  );
   const inspectedEdges = useMemo(
-    () => legalEdgesToNode(catalog, table, inspectedNodeId),
-    [catalog, inspectedNodeId, table],
+    () =>
+      legalEdgesToNode(catalog, table, selectedOccurrenceId, inspectedNodeId),
+    [catalog, inspectedNodeId, selectedOccurrenceId, table],
   );
-  const edgeOptions = inspectedNodeId ? inspectedEdges : outgoingEdges;
-  const selectedEdge = edgeOptions.find(
+  const selectedEdge = inspectedEdges.find(
     (edge) => edge.edgeId === selectedEdgeId,
   );
   const inspectedResource = titleForNode(catalog, inspectedNodeId);
-  const baseResource = titleForNode(catalog, table?.rootNodeId);
-  const tailResource = titleForNode(catalog, routeTailNodeId(table, catalog));
-  const canChangeRowStart = Boolean(
-    inspectedNodeId &&
-      inspectedNodeId !== table?.rootNodeId &&
-      catalog.nodes.find((node) => node.nodeId === inspectedNodeId)
-        ?.rowRootEligible,
+  const occurrences = derivedOccurrences(table, catalog);
+  const parent = occurrences.find((item) => item.id === selectedOccurrenceId);
+  const parentResource = titleForNode(catalog, parent?.nodeId);
+  const inspectedNode = catalog.nodes.find(
+    (node) => node.nodeId === inspectedNodeId,
   );
+  const alreadyInQuery = occurrences.some(
+    (occurrence) => occurrence.nodeId === inspectedNodeId,
+  );
+  const hasRoot = occurrences.some((occurrence) => occurrence.id === 'base');
 
-  if (!table) return null;
+  if (!table || !inspectedNodeId || alreadyInQuery) return null;
 
-  if (!table.rootNodeId) {
+  if (!hasRoot) {
     return (
-      <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 text-xs">
-        <span className="rounded border border-slate-300 bg-white px-2 py-1 font-semibold uppercase tracking-wide text-slate-600">
-          Row start
-        </span>
-        <span className="mr-auto text-slate-600">
-          Inspect a resource, then make it the first step in each row.
-        </span>
+      <div className="absolute left-3 top-3 z-20 flex max-w-md items-center gap-3 rounded-xl border border-violet-300 bg-white/95 p-3 text-xs shadow-xl backdrop-blur">
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold text-slate-900">{inspectedResource}</p>
+          <p className="mt-0.5 text-slate-600">
+            Start the query with this resource.
+          </p>
+        </div>
         <button
           type="button"
-          className="rounded-md bg-violet-700 px-2.5 py-1.5 font-semibold text-white shadow-sm hover:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-50"
-          disabled={
-            disabled ||
-            !inspectedNodeId ||
-            !catalog.nodes.find((node) => node.nodeId === inspectedNodeId)
-              ?.rowRootEligible
-          }
-          onClick={() => inspectedNodeId && onUseAsRowStart(inspectedNodeId)}
+          className="shrink-0 rounded-md bg-violet-700 px-3 py-2 font-semibold text-white hover:bg-violet-800 disabled:opacity-50"
+          disabled={disabled || !inspectedNode?.rowRootEligible}
+          onClick={() => onUseAsRowStart(inspectedNodeId)}
         >
-          Use {inspectedNodeId ? inspectedResource : 'selected resource'}
+          Start query here
+        </button>
+      </div>
+    );
+  }
+
+  // The graph click applies a single unambiguous relationship directly.
+  // Controls are only necessary when Loom reports multiple valid edges.
+  if (inspectedEdges.length === 1) return null;
+
+  if (inspectedEdges.length === 0) {
+    if (!inspectedNode?.rowRootEligible) return null;
+    return (
+      <div className="absolute left-3 top-3 z-20 flex max-w-lg items-center gap-3 rounded-xl border border-amber-300 bg-white/95 p-3 text-xs shadow-xl backdrop-blur">
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold text-slate-900">{inspectedResource}</p>
+          <p className="mt-0.5 text-slate-600">
+            Use this resource as a different query starting point.
+          </p>
+        </div>
+        <button
+          type="button"
+          className="shrink-0 rounded-md border border-amber-400 bg-amber-50 px-3 py-2 font-semibold text-amber-950 hover:bg-amber-100 disabled:opacity-50"
+          disabled={disabled}
+          onClick={() => onChangeRowStart(inspectedNodeId)}
+        >
+          Start new query from {inspectedResource}
         </button>
       </div>
     );
   }
 
   return (
-    <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 text-xs">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="rounded border border-slate-300 bg-white px-2 py-1 font-semibold uppercase tracking-wide text-slate-600">
-          Route
-        </span>
-        <span className="rounded border border-blue-200 bg-blue-50 px-2 py-1 text-blue-900">
-          Row start: <strong>{baseResource}</strong>
-        </span>
-        <span className="rounded border border-slate-200 bg-white px-2 py-1 text-slate-700">
-          Current tail: <strong>{tailResource}</strong>
-        </span>
-        {canChangeRowStart && (
-          <button
-            type="button"
-            className="rounded border border-violet-300 bg-white px-2 py-1 font-semibold text-violet-800 hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={disabled}
-            onClick={() => inspectedNodeId && onChangeRowStart(inspectedNodeId)}
-          >
-            Change start to {inspectedResource}
-          </button>
-        )}
-        <span className="ml-auto text-slate-500">Next step</span>
+    <div className="absolute left-3 top-3 z-20 max-w-lg rounded-xl border border-blue-300 bg-white/95 p-3 text-xs shadow-xl backdrop-blur">
+      <p className="font-semibold text-slate-900">
+        Add {inspectedResource} under {parentResource}
+      </p>
+      <p className="mt-0.5 text-slate-600">
+        Choose which relationship this branch should follow.
+      </p>
+      <div className="mt-2 flex gap-2">
         <select
           aria-label="Relationship to add"
-          className="min-w-52 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-800 outline-blue-500"
+          className="min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-800 outline-blue-500"
           value={selectedEdge?.edgeId ?? ''}
-          disabled={disabled || edgeOptions.length === 0}
+          disabled={disabled}
           onChange={(event) =>
             onSelectEdge(event.currentTarget.value || undefined)
           }
         >
-          <option value="">
-            {inspectedNodeId
-              ? `Choose a relationship to ${inspectedResource}`
-              : 'Choose a relationship'}
-          </option>
-          {edgeOptions.map((edge) => (
+          <option value="">Choose relationship</option>
+          {inspectedEdges.map((edge) => (
             <option key={edge.edgeId} value={edge.edgeId}>
-              {edge.label} → {titleForNode(catalog, edge.toNodeId)}
+              {edge.label}
             </option>
           ))}
         </select>
         <button
           type="button"
-          className="rounded-md bg-blue-700 px-2.5 py-1.5 font-semibold text-white shadow-sm hover:bg-blue-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+          className="rounded-md bg-blue-700 px-3 py-1.5 font-semibold text-white hover:bg-blue-800 disabled:bg-slate-400"
           disabled={disabled || !selectedEdge}
           onClick={() =>
             selectedEdge &&
             onAddEdge(selectedEdge.edgeId, selectedEdge.toNodeId)
           }
         >
-          Add step
+          Add branch
         </button>
       </div>
-      {edgeOptions.length === 0 && (
-        <p className="mt-2 border-l-2 border-amber-400 pl-2 text-amber-800">
-          {inspectedNodeId
-            ? `${inspectedResource} is not a valid next step from ${tailResource}. Select a highlighted outgoing relationship.`
-            : `There are no available outgoing relationships from ${tailResource}.`}
-        </p>
-      )}
     </div>
   );
 };

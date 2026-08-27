@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Background,
   Controls,
@@ -17,13 +18,11 @@ import { RouteExtensionPanel } from './RouteExtensionPanel';
 const GraphViewportFitter = ({
   expanded,
   graphIdentity,
-  focusRoute,
   hostRef,
   nodeCount,
 }: {
   readonly expanded: boolean;
   readonly graphIdentity: string;
-  readonly focusRoute: boolean;
   readonly hostRef: React.RefObject<HTMLDivElement | null>;
   readonly nodeCount: number;
 }) => {
@@ -33,12 +32,7 @@ const GraphViewportFitter = ({
 
   useEffect(() => {
     const host = hostRef.current;
-    if (
-      !host ||
-      !nodesInitialized ||
-      !viewportInitialized ||
-      nodeCount === 0
-    )
+    if (!host || !nodesInitialized || !viewportInitialized || nodeCount === 0)
       return undefined;
 
     let firstFrame = 0;
@@ -52,7 +46,7 @@ const GraphViewportFitter = ({
         // screen instead of fitting the previous/fallback layout.
         secondFrame = window.requestAnimationFrame(() => {
           void flow.fitView({
-            padding: focusRoute ? 0.2 : 0.08,
+            padding: 0.08,
             minZoom: 0.05,
             maxZoom: 1.8,
             duration: 200,
@@ -62,7 +56,9 @@ const GraphViewportFitter = ({
     };
 
     const observer =
-      typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(fit);
+      typeof ResizeObserver === 'undefined'
+        ? undefined
+        : new ResizeObserver(fit);
     observer?.observe(host);
     fit();
 
@@ -74,7 +70,6 @@ const GraphViewportFitter = ({
   }, [
     expanded,
     flow,
-    focusRoute,
     graphIdentity,
     hostRef,
     nodeCount,
@@ -103,7 +98,11 @@ export const GuidedGraphWorkspace = ({
   readonly onSelectOccurrence: (id: string) => void;
   readonly onSetBase: (nodeId: string) => void;
   readonly onChangeBase: (nodeId: string) => void;
-  readonly onAppendEdge: (edgeId: string, nodeId: string) => void;
+  readonly onAppendEdge: (
+    parentOccurrenceId: string,
+    edgeId: string,
+    nodeId: string,
+  ) => void;
   readonly onTruncate: (occurrenceId: string) => void;
 }) => {
   const graphHostRef = React.useRef<HTMLDivElement>(null);
@@ -115,10 +114,6 @@ export const GuidedGraphWorkspace = ({
   const [selectedEdgeId, setSelectedEdgeId] = useState<string>();
   const [isExpanded, setIsExpanded] = useState(false);
   const [showOrphans, setShowOrphans] = useState(false);
-  // Keep the catalog visible when opening an existing table. Route focus is a
-  // useful opt-in inspection mode, but hiding the rest of the catalog makes
-  // the Builder look like it has only one or two available resources.
-  const [focusRoute, setFocusRoute] = useState(false);
   const catalogIdentity = useMemo(
     () =>
       JSON.stringify({
@@ -164,8 +159,10 @@ export const GuidedGraphWorkspace = ({
   useEffect(() => {
     setInspectedNodeId(undefined);
     setSelectedEdgeId(undefined);
-    setFocusRoute(false);
-  }, [table?.rootNodeId, table?.outputId]);
+  }, [table?.document.rootResourceType, table?.outputId]);
+  useEffect(() => {
+    setSelectedEdgeId(undefined);
+  }, [selectedOccurrenceId]);
   useEffect(() => {
     if (!isExpanded) return undefined;
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -184,38 +181,38 @@ export const GuidedGraphWorkspace = ({
           catalog.nodes.find((node) => node.nodeId === occurrence.nodeId)
             ?.resourceType ?? occurrence.nodeId,
         incomingEdgeId: occurrence.incomingEdgeId,
+        parentId: occurrence.parentId,
+        depth: occurrence.depth,
       })),
     [catalog, table],
   );
-  const occurrenceByNode = useMemo(
-    () =>
-      new Map(occurrences.map((occurrence) => [occurrence.nodeId, occurrence])),
-    [occurrences],
-  );
-  const tailNodeId = occurrences.at(-1)?.nodeId;
+  const occurrencesByNode = useMemo(() => {
+    const result = new Map<string, typeof occurrences>();
+    occurrences.forEach((occurrence) => {
+      result.set(occurrence.nodeId, [
+        ...(result.get(occurrence.nodeId) ?? []),
+        occurrence,
+      ]);
+    });
+    return result;
+  }, [occurrences]);
   const legalNextEdges = useMemo(
-    () =>
-      table?.rootNodeId && tailNodeId ? legalOutgoingEdges(catalog, table) : [],
-    [catalog, table, tailNodeId],
+    () => legalOutgoingEdges(catalog, table, selectedOccurrenceId),
+    [catalog, selectedOccurrenceId, table],
   );
   const legalNextNodeIds = useMemo(
     () => new Set(legalNextEdges.map((edge) => edge.toNodeId)),
     [legalNextEdges],
   );
-  const focusedNodeIds = useMemo(() => {
-    const ids = new Set(occurrences.map((occurrence) => occurrence.nodeId));
-    legalNextEdges.forEach((edge) => {
-      ids.add(edge.fromNodeId);
-      ids.add(edge.toNodeId);
-    });
-    return ids;
-  }, [legalNextEdges, occurrences]);
   const nodes: Node[] = catalog.nodes.map((node, index) => {
-    const occurrence = occurrenceByNode.get(node.nodeId);
-    const inRoute = Boolean(occurrence);
-    const isSelected = occurrence?.occurrenceId === selectedOccurrenceId;
+    const nodeOccurrences = occurrencesByNode.get(node.nodeId) ?? [];
+    const inRoute = nodeOccurrences.length > 0;
+    const isSelected = nodeOccurrences.some(
+      (occurrence) => occurrence.occurrenceId === selectedOccurrenceId,
+    );
+    const isInspected = inspectedNodeId === node.nodeId;
     const isReachable = legalNextNodeIds.has(node.nodeId);
-    const canStart = !table?.rootNodeId && node.rowRootEligible;
+    const canStart = occurrences.length === 0 && node.rowRootEligible;
     const duplicate =
       catalog.nodes.filter(
         (candidate) => candidate.resourceType === node.resourceType,
@@ -234,25 +231,35 @@ export const GuidedGraphWorkspace = ({
             </div>
             <div className="mt-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-500">
               {isSelected
-                ? 'Selected occurrence'
-                : inRoute
-                  ? 'In traversal'
-                  : canStart
-                    ? 'Available row start'
-                    : !table?.rootNodeId
-                      ? 'Not eligible as a row start'
-                    : isReachable
-                      ? 'Available next step'
-                      : 'Not reachable from current tail'}
+                ? 'Editing this query node'
+                : isInspected
+                  ? 'Selected resource'
+                  : inRoute
+                    ? 'In traversal'
+                    : canStart
+                      ? 'Available row start'
+                      : occurrences.length === 0
+                        ? 'Not eligible as a row start'
+                        : isReachable
+                          ? 'Click to add to query'
+                          : node.rowRootEligible
+                            ? 'Click to start a new query'
+                            : 'Available resource'}
             </div>
             {duplicate && (
               <div className="mt-0.5 truncate font-mono text-[10px] text-slate-400">
                 {node.nodeId.slice(-8)}
               </div>
             )}
+            {nodeOccurrences.length > 1 && (
+              <div className="mt-0.5 text-[10px] font-semibold text-violet-700">
+                {nodeOccurrences.length} query occurrences
+              </div>
+            )}
             <div className="mt-1 text-[10px] text-slate-500">
               {node.rowGrain ?? 'row grain unavailable'} ·{' '}
-              {node.populated ? node.documentCount.toLocaleString() : '0'} documents
+              {node.populated ? node.documentCount.toLocaleString() : '0'}{' '}
+              documents
             </div>
           </div>
         ),
@@ -260,24 +267,28 @@ export const GuidedGraphWorkspace = ({
       style: {
         border: isSelected
           ? '3px solid #7c3aed'
-          : inRoute
-            ? '3px solid #2f5aac'
-            : isReachable
-              ? '3px solid #16a34a'
-              : '1px solid #94a3b8',
+          : isInspected
+            ? '3px solid #f59e0b'
+            : inRoute
+              ? '3px solid #2f5aac'
+              : isReachable
+                ? '3px solid #16a34a'
+                : '1px solid #94a3b8',
         borderRadius: 12,
         background: isSelected
           ? '#f3e8ff'
-          : inRoute
-            ? '#dbeafe'
-            : isReachable
-              ? '#f0fdf4'
-              : '#ffffff',
+          : isInspected
+            ? '#fffbeb'
+            : inRoute
+              ? '#dbeafe'
+              : isReachable
+                ? '#f0fdf4'
+                : '#ffffff',
         boxShadow:
-          isSelected || inRoute || isReachable
+          isSelected || isInspected || inRoute || isReachable
             ? '0 8px 24px rgba(30,64,175,.18)'
             : '0 3px 10px rgba(15,23,42,.08)',
-        opacity: isSelected || inRoute || isReachable ? 1 : 0.42,
+        opacity: isSelected || isInspected || inRoute || isReachable ? 1 : 0.42,
         padding: 8,
         width: 190,
         cursor: disabled ? 'default' : 'pointer',
@@ -286,9 +297,9 @@ export const GuidedGraphWorkspace = ({
     };
   });
   const edges: Edge[] = catalog.edges.map((edge) => {
-    const isRouteEdge = table?.routeSteps.some(
-      (step) => step.edgeId === edge.edgeId,
-    ) ?? false;
+    const isRouteEdge = occurrences.some(
+      (occurrence) => occurrence.incomingEdgeId === edge.edgeId,
+    );
     const isLegalNextEdge = legalNextEdges.some(
       (candidate) => candidate.edgeId === edge.edgeId,
     );
@@ -319,7 +330,7 @@ export const GuidedGraphWorkspace = ({
         strokeWidth: edgeWidth,
         opacity: isRouteEdge
           ? 1
-          : !table?.rootNodeId || isLegalNextEdge
+          : occurrences.length === 0 || isLegalNextEdge
             ? 0.7
             : 0.28,
       },
@@ -352,33 +363,38 @@ export const GuidedGraphWorkspace = ({
     (edge) =>
       catalogNodeIds.has(edge.source) && catalogNodeIds.has(edge.target),
   );
-  const routeNodes =
-    focusRoute && focusedNodeIds.size
-      ? catalogNodes.filter((node) => focusedNodeIds.has(node.id))
-      : catalogNodes;
-  // A stale route identity must not blank the graph. Fall back to the
-  // connected catalog, while still keeping orphan visibility opt-in.
-  const nodesForViewport = routeNodes.length > 0 ? routeNodes : catalogNodes;
-  const visibleNodeIds = new Set(routeNodes.map((node) => node.id));
-  const visibleEdges =
-    focusRoute && focusedNodeIds.size && routeNodes.length > 0
-      ? catalogEdges.filter(
-          (edge) =>
-            visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target),
-        )
-      : catalogEdges;
-  const graphIdentity = `${layoutIdentity ?? 'layout-pending'}:${focusRoute ? 'focus' : 'full'}:${nodesForViewport.map((node) => node.id).join(',')}`;
+  const nodesForViewport = catalogNodes;
+  const graphIdentity = `${layoutIdentity ?? 'layout-pending'}:${nodesForViewport.map((node) => node.id).join(',')}`;
   const inspectNode = (nodeId: string) => {
     if (disabled) return;
+    if (!isExpanded) setIsExpanded(true);
     setInspectedNodeId(nodeId);
     setSelectedEdgeId(undefined);
-    const routeOccurrence = occurrences
-      .filter((occurrence) => occurrence.nodeId === nodeId)
-      .at(-1);
-    if (routeOccurrence) onSelectOccurrence(routeOccurrence.occurrenceId);
+    const routeOccurrences = occurrences.filter(
+      (occurrence) => occurrence.nodeId === nodeId,
+    );
+    if (routeOccurrences.length === 1) {
+      onSelectOccurrence(routeOccurrences[0].occurrenceId);
+      return;
+    } else if (routeOccurrences.length > 1) {
+      const currentIndex = routeOccurrences.findIndex(
+        (occurrence) => occurrence.occurrenceId === selectedOccurrenceId,
+      );
+      const next =
+        routeOccurrences[(currentIndex + 1) % routeOccurrences.length];
+      onSelectOccurrence(next.occurrenceId);
+      return;
+    }
+    const matchingEdges = legalNextEdges.filter(
+      (edge) => edge.toNodeId === nodeId,
+    );
+    if (matchingEdges.length === 1) {
+      onAppendEdge(selectedOccurrenceId, matchingEdges[0].edgeId, nodeId);
+    }
   };
   const inspectEdge = (edgeId: string) => {
     if (disabled) return;
+    if (!isExpanded) setIsExpanded(true);
     const edge = catalog.edges.find((candidate) => candidate.edgeId === edgeId);
     if (!edge) return;
     setInspectedNodeId(edge.toNodeId);
@@ -396,106 +412,100 @@ export const GuidedGraphWorkspace = ({
   const addRelationship = (edgeId: string, nodeId: string) => {
     if (disabled || !legalNextEdges.some((edge) => edge.edgeId === edgeId))
       return;
-    onAppendEdge(edgeId, nodeId);
+    onAppendEdge(selectedOccurrenceId, edgeId, nodeId);
     setSelectedEdgeId(undefined);
   };
-  return (
+  const content = (
     <>
       {isExpanded && <div className="fixed inset-0 z-40 bg-slate-950/30" />}
       <section
         role={isExpanded ? 'dialog' : undefined}
         aria-modal={isExpanded ? true : undefined}
         aria-label={isExpanded ? 'Expanded dataset graph' : undefined}
-        className={`relative flex min-w-0 flex-col rounded-xl border border-slate-200 bg-white p-3 shadow-sm ${isExpanded ? 'fixed inset-3 z-50 h-[calc(100dvh-1.5rem)] min-h-0' : 'h-[min(70dvh,52rem)] min-h-[43rem]'}`}
+        className={`flex min-w-0 flex-col rounded-xl border border-slate-200 bg-white p-3 shadow-sm ${isExpanded ? 'fixed inset-3 z-50 h-[calc(100dvh-1.5rem)] min-h-0' : 'relative h-[min(70dvh,52rem)] min-h-[43rem]'}`}
       >
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
-          <div>
+          <div className="min-w-0">
             <h2 className="text-base font-semibold text-slate-900">
-              Dataset graph
+              Dataset graph{' '}
+              <span className="ml-1 text-xs font-normal text-slate-400">
+                {catalog.nodes.length} resources · {catalog.edges.length}{' '}
+                relationships
+              </span>
             </h2>
             <p className="mt-0.5 text-xs text-slate-500">
-              Arrows show each catalog relationship from source to target.
-              Inspect nodes freely; route changes happen only from the controls
-              below.
+              Click a resource to select it, extend the current query, or start
+              a new one.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="rounded border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-medium text-slate-600">
-              {catalog.nodes.length} resources · {catalog.edges.length}{' '}
-              relationships
-            </span>
-            <button
-              type="button"
-              className="rounded border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
-              onClick={() => setFocusRoute((value) => !value)}
-            >
-              {focusRoute ? 'Show full graph' : 'Focus route'}
-            </button>
-            <button
-              type="button"
-              className="rounded border border-blue-300 bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-800 hover:bg-blue-100"
-              onClick={() => setIsExpanded((value) => !value)}
-            >
-              {isExpanded ? 'Close graph' : 'Expand graph'}
-            </button>
+            {isExpanded && (
+              <button
+                type="button"
+                className="rounded border border-blue-300 bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-800 hover:bg-blue-100"
+                onClick={() => setIsExpanded(false)}
+              >
+                Close graph
+              </button>
+            )}
           </div>
         </div>
         <nav
           aria-label="Current traversal"
-          className="mt-2 flex shrink-0 flex-wrap items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50/70 px-2 py-1.5 text-xs"
+          className="mt-2 flex shrink-0 items-center gap-2 overflow-x-auto rounded-lg border border-blue-200 bg-blue-50/70 px-2 py-1.5 text-xs"
         >
-          <span className="mr-1 font-semibold uppercase tracking-wide text-blue-800">
-            Traversal
-          </span>
+          <div className="shrink-0 border-r border-blue-200 pr-2">
+            <p className="font-semibold text-blue-950">Current query</p>
+            <p className="text-[10px] text-blue-600">
+              Selected parent:{' '}
+              {occurrences.find(
+                (occurrence) =>
+                  occurrence.occurrenceId === selectedOccurrenceId,
+              )?.resourceType ?? 'none'}
+            </p>
+          </div>
           {occurrences.length === 0 ? (
-            <span className="text-blue-950">
-              Choose a base resource in the graph.
-            </span>
+            <span className="text-blue-950">Click a resource to start.</span>
           ) : (
-            occurrences.map((occurrence, index) => (
-              <React.Fragment key={occurrence.occurrenceId}>
-                {index > 0 && (
-                  <span className="font-bold text-blue-500">→</span>
-                )}
-                <button
-                  type="button"
-                  className={`rounded-md border px-2 py-1 font-semibold ${occurrence.occurrenceId === selectedOccurrenceId ? 'border-blue-500 bg-white text-blue-950 shadow-sm' : 'border-blue-300 bg-white text-blue-900'}`}
-                  onClick={() => onSelectOccurrence(occurrence.occurrenceId)}
+            <div className="flex min-w-max items-center gap-1">
+              {occurrences.map((occurrence) => (
+                <div
+                  key={occurrence.occurrenceId}
+                  className="flex items-center gap-1.5"
                 >
-                  <span className="mr-1 text-blue-500">{index + 1}</span>
-                  {occurrence.resourceType}
-                </button>
-                {index > 0 && index === occurrences.length - 1 && (
+                  {occurrence.depth > 0 && (
+                    <span className="font-bold text-blue-400">↳</span>
+                  )}
                   <button
                     type="button"
-                    className="rounded-md border-l border-blue-200 px-2 py-1 text-blue-700 hover:bg-blue-100"
-                    onClick={() => onTruncate(occurrence.occurrenceId)}
+                    className={`rounded-md border px-2 py-1 font-semibold ${occurrence.occurrenceId === selectedOccurrenceId ? 'border-blue-600 bg-blue-600 text-white shadow-sm' : 'border-blue-300 bg-white text-blue-900'}`}
+                    onClick={() => onSelectOccurrence(occurrence.occurrenceId)}
                   >
-                    Remove from here
+                    {occurrence.resourceType}
                   </button>
-                )}
-              </React.Fragment>
-            ))
+                  {occurrence.occurrenceId !== 'base' && (
+                    <button
+                      type="button"
+                      aria-label={`Remove ${occurrence.resourceType} branch`}
+                      title={`Remove ${occurrence.resourceType} branch`}
+                      className="rounded-full px-1.5 py-0.5 text-base leading-none text-blue-500 hover:bg-blue-100 hover:text-red-600"
+                      onClick={() => onTruncate(occurrence.occurrenceId)}
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
           )}
         </nav>
-        <RouteExtensionPanel
-          catalog={catalog}
-          table={table}
-          inspectedNodeId={inspectedNodeId}
-          selectedEdgeId={selectedEdgeId}
-          disabled={disabled}
-          onSelectEdge={setSelectedEdgeId}
-          onUseAsRowStart={useAsRowStart}
-          onChangeRowStart={onChangeBase}
-          onAddEdge={addRelationship}
-        />
         <div
           ref={graphHostRef}
           className={`relative mt-2 min-h-0 flex-1 overflow-hidden rounded-xl border border-slate-200 bg-slate-50 shadow-inner ${isExpanded ? '' : 'min-h-[32rem]'}`}
         >
           <ReactFlow
             nodes={nodesForViewport}
-            edges={routeNodes.length > 0 ? visibleEdges : catalogEdges}
+            edges={catalogEdges}
             nodesDraggable={false}
             nodesConnectable={false}
             nodesFocusable={false}
@@ -504,7 +514,7 @@ export const GuidedGraphWorkspace = ({
             proOptions={{ hideAttribution: true }}
             onInit={(instance) => {
               void instance.fitView({
-                padding: focusRoute ? 0.2 : 0.08,
+                padding: 0.08,
                 minZoom: 0.05,
                 maxZoom: 1.8,
                 duration: 200,
@@ -512,17 +522,31 @@ export const GuidedGraphWorkspace = ({
             }}
             onNodeClick={(_event, node) => inspectNode(node.id)}
             onEdgeClick={(_event, edge) => inspectEdge(edge.id)}
+            onPaneClick={() => {
+              if (!isExpanded) setIsExpanded(true);
+            }}
           >
             <GraphViewportFitter
               expanded={isExpanded}
               graphIdentity={graphIdentity}
-              focusRoute={focusRoute}
               hostRef={graphHostRef}
               nodeCount={nodesForViewport.length}
             />
             <Background color="#cbd5e1" gap={28} size={1} />
             <Controls showInteractive={false} />
           </ReactFlow>
+          <RouteExtensionPanel
+            catalog={catalog}
+            table={table}
+            selectedOccurrenceId={selectedOccurrenceId}
+            inspectedNodeId={inspectedNodeId}
+            selectedEdgeId={selectedEdgeId}
+            disabled={disabled}
+            onSelectEdge={setSelectedEdgeId}
+            onUseAsRowStart={useAsRowStart}
+            onChangeRowStart={onChangeBase}
+            onAddEdge={addRelationship}
+          />
           <label className="absolute right-3 top-3 z-10 flex cursor-pointer items-center gap-1.5 rounded border border-slate-300 bg-white/95 px-2 py-1 text-[11px] font-semibold text-slate-700 shadow-sm">
             <input
               type="checkbox"
@@ -537,4 +561,7 @@ export const GuidedGraphWorkspace = ({
       </section>
     </>
   );
+  return isExpanded && typeof document !== 'undefined'
+    ? createPortal(content, document.body)
+    : content;
 };

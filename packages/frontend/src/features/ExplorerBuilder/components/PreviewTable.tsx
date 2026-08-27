@@ -1,13 +1,10 @@
 import React, { useState } from 'react';
 import type {
+  ExplorerBuilderColumn,
+  ExplorerBuilderEmission,
   ExplorerBuilderPreviewResult,
-  ExplorerBuilderSelection,
 } from '@gen3/core';
-import {
-  presentationForEmission,
-  type DraftTable,
-  type PresentationBinding,
-} from '../authoring/model';
+import type { DraftTable } from '../authoring/model';
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -75,47 +72,72 @@ export const PreviewTable = ({
   table,
   limit,
   onLimitChange,
-  onPresentation,
+  onColumnChange,
 }: {
   readonly preview?: ExplorerBuilderPreviewResult;
   readonly table?: DraftTable;
   readonly limit: number;
   readonly onLimitChange: (value: 10 | 25 | 50 | 100) => void;
-  readonly onPresentation: (
-    selection: ExplorerBuilderSelection,
-    value: PresentationBinding,
-  ) => void;
+  readonly onColumnChange: (column: ExplorerBuilderColumn) => void;
 }) => {
   const [columnsOpen, setColumnsOpen] = useState(false);
-  const orderedColumns = [...(preview?.columns ?? [])].sort(
-    (left, right) =>
-      (presentationForEmission(table, left)?.order ?? Number.MAX_SAFE_INTEGER) -
-      (presentationForEmission(table, right)?.order ?? Number.MAX_SAFE_INTEGER),
+  const [draggedColumn, setDraggedColumn] = useState<string>();
+  const [dropIndex, setDropIndex] = useState<number>();
+  const draggedColumnRef = React.useRef<string | undefined>(undefined);
+  const authoredByColumn = new Map(
+    table?.document.columns.map((column) => [column.column, column]) ?? [],
   );
-  const columns = orderedColumns.filter(
-    (column) => presentationForEmission(table, column)?.visible !== false,
-  );
-  const selectionFor = (column: (typeof orderedColumns)[number]) => ({
-    candidateId: column.candidateId,
-    occurrenceId: column.occurrenceId,
-    projectionMode: column.projectionMode,
+  const orderedColumns: ExplorerBuilderEmission[] = (preview?.columns ?? [])
+    .map((column) => {
+      const authored = authoredByColumn.get(column.column);
+      return {
+        ...column,
+        outputId: preview?.outputId ?? table?.outputId ?? '',
+        candidateId: column.column,
+        occurrenceId: authored?.occurrenceId ?? 'base',
+        projectionMode: authored?.source.projectionMode ?? 'FIRST',
+        emissionId: column.column,
+        publicColumn: column.column,
+      };
+    })
+    .sort(
+      (left, right) =>
+        (authoredByColumn.get(left.column)?.table?.order ??
+          Number.MAX_SAFE_INTEGER) -
+        (authoredByColumn.get(right.column)?.table?.order ??
+          Number.MAX_SAFE_INTEGER),
+    );
+  const columns = orderedColumns.filter((column) => {
+    const authored = authoredByColumn.get(column.column);
+    return authored?.table?.visible ?? Boolean(authored?.table);
   });
-  const moveColumn = (
-    column: (typeof orderedColumns)[number],
-    offset: -1 | 1,
-  ) => {
-    const index = orderedColumns.indexOf(column);
-    const neighbor = orderedColumns[index + offset];
-    if (!neighbor) return;
-    const currentPresentation = presentationForEmission(table, column) ?? {};
-    const neighborPresentation = presentationForEmission(table, neighbor) ?? {};
-    onPresentation(selectionFor(column), {
-      ...currentPresentation,
-      order: index + offset,
-    });
-    onPresentation(selectionFor(neighbor), {
-      ...neighborPresentation,
-      order: index,
+  const resetDrag = () => {
+    draggedColumnRef.current = undefined;
+    setDraggedColumn(undefined);
+    setDropIndex(undefined);
+  };
+  const reorderColumns = (columnName: string, insertionIndex: number) => {
+    const fromIndex = orderedColumns.findIndex(
+      (column) => column.column === columnName,
+    );
+    if (fromIndex < 0) return;
+    const reordered = [...orderedColumns];
+    const [moved] = reordered.splice(fromIndex, 1);
+    const adjustedIndex = Math.max(
+      0,
+      Math.min(
+        reordered.length,
+        insertionIndex - (fromIndex < insertionIndex ? 1 : 0),
+      ),
+    );
+    reordered.splice(adjustedIndex, 0, moved);
+    reordered.forEach((column, order) => {
+      const authored = authoredByColumn.get(column.column);
+      if (!authored || authored.table?.order === order) return;
+      onColumnChange({
+        ...authored,
+        table: { ...(authored.table ?? {}), order },
+      });
     });
   };
   return (
@@ -126,7 +148,7 @@ export const PreviewTable = ({
             Preview and configure
           </h3>
           <p className="mt-0.5 text-xs text-slate-500">
-            Rows are addressed by Loom’s exact emitted public columns.
+            Rows are addressed by Loom’s exact configured columns.
           </p>
         </div>
         <div className="relative ml-auto">
@@ -138,50 +160,104 @@ export const PreviewTable = ({
             Columns
           </button>
           {columnsOpen && (
-            <div className="absolute right-0 z-20 mt-1 w-64 rounded-lg border border-slate-200 bg-white p-2 shadow-lg">
-              {orderedColumns.map((column, index) => {
-                const presentation =
-                  presentationForEmission(table, column) ?? {};
-                const selection = selectionFor(column);
-                return (
-                  <div
-                    key={column.emissionId}
-                    className="flex items-center gap-1 rounded px-2 py-1 text-xs hover:bg-slate-50"
-                  >
-                    <label className="min-w-0 flex-1 truncate">
-                      <input
-                        type="checkbox"
-                        checked={presentation.visible !== false}
-                        onChange={(event) =>
-                          onPresentation(selection, {
-                            ...presentation,
-                            visible: event.currentTarget.checked,
-                          })
+            <div className="absolute right-0 z-20 mt-1 w-[min(32rem,calc(100vw-2rem))] rounded-lg border border-slate-200 bg-white p-2 shadow-lg">
+              <p className="border-b border-slate-100 px-2 pb-2 text-[11px] text-slate-500">
+                Check columns to show them. Drag rows to change table order.
+              </p>
+              <div
+                role="list"
+                aria-label="Table columns"
+                className="max-h-[min(60dvh,28rem)] overflow-y-auto overflow-x-hidden py-1 pr-1"
+              >
+                {orderedColumns.map((column, index) => {
+                  const authored = authoredByColumn.get(column.column);
+                  const visible =
+                    authored?.table?.visible ?? Boolean(authored?.table);
+                  return (
+                    <div
+                      key={column.emissionId}
+                      role="listitem"
+                      onDragOver={(event) => {
+                        if (!draggedColumnRef.current) return;
+                        event.preventDefault();
+                        const bounds =
+                          event.currentTarget.getBoundingClientRect();
+                        setDropIndex(
+                          index +
+                            (event.clientY > bounds.top + bounds.height / 2
+                              ? 1
+                              : 0),
+                        );
+                      }}
+                      onDrop={(event) => {
+                        event.preventDefault();
+                        const columnName =
+                          draggedColumnRef.current ??
+                          event.dataTransfer.getData('text/plain');
+                        if (columnName) {
+                          const bounds =
+                            event.currentTarget.getBoundingClientRect();
+                          const insertionIndex =
+                            index +
+                            (event.clientY > bounds.top + bounds.height / 2
+                              ? 1
+                              : 0);
+                          reorderColumns(columnName, insertionIndex);
                         }
-                      />{' '}
-                      {presentation.label ?? column.label}
-                    </label>
-                    <button
-                      type="button"
-                      aria-label={`Move ${column.label} earlier`}
-                      disabled={index === 0}
-                      onClick={() => moveColumn(column, -1)}
-                      className="rounded px-1 text-slate-500 hover:bg-slate-200 disabled:opacity-30"
+                        resetDrag();
+                      }}
+                      className={`relative flex items-center gap-2 rounded px-2 py-2 text-xs hover:bg-slate-50 ${draggedColumn === column.column ? 'opacity-50' : ''}`}
                     >
-                      ↑
-                    </button>
-                    <button
-                      type="button"
-                      aria-label={`Move ${column.label} later`}
-                      disabled={index === orderedColumns.length - 1}
-                      onClick={() => moveColumn(column, 1)}
-                      className="rounded px-1 text-slate-500 hover:bg-slate-200 disabled:opacity-30"
-                    >
-                      ↓
-                    </button>
-                  </div>
-                );
-              })}
+                      {draggedColumn && dropIndex === index && (
+                        <span className="pointer-events-none absolute inset-x-1 -top-px h-0.5 rounded bg-blue-500" />
+                      )}
+                      <span
+                        aria-label={`Drag ${authored?.label ?? column.label}`}
+                        draggable={Boolean(authored)}
+                        onDragStart={(event) => {
+                          event.dataTransfer.effectAllowed = 'move';
+                          event.dataTransfer.setData(
+                            'text/plain',
+                            column.column,
+                          );
+                          draggedColumnRef.current = column.column;
+                          setDraggedColumn(column.column);
+                          setDropIndex(index);
+                        }}
+                        onDragEnd={resetDrag}
+                        className="cursor-grab select-none text-base leading-none text-slate-400 active:cursor-grabbing"
+                      >
+                        ⋮⋮
+                      </span>
+                      <label className="flex min-w-0 flex-1 items-start gap-2 leading-5">
+                        <input
+                          type="checkbox"
+                          className="mt-0.5 shrink-0"
+                          checked={visible}
+                          disabled={!authored}
+                          onChange={(event) =>
+                            authored &&
+                            onColumnChange({
+                              ...authored,
+                              table: {
+                                ...(authored.table ?? {}),
+                                visible: event.currentTarget.checked,
+                                order: authored.table?.order ?? index,
+                              },
+                            })
+                          }
+                        />
+                        <span className="min-w-0 break-words">
+                          {authored?.label ?? column.label}
+                        </span>
+                      </label>
+                    </div>
+                  );
+                })}
+                {draggedColumn && dropIndex === orderedColumns.length && (
+                  <div className="mx-1 h-0.5 rounded bg-blue-500" />
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -203,13 +279,16 @@ export const PreviewTable = ({
           </select>
         </label>
       </div>
-      <div className="overflow-auto">
+      <div
+        data-testid="preview-table-scroll"
+        className="max-w-full overflow-x-auto overscroll-x-contain"
+      >
         {!preview ? (
           <p className="px-4 py-8 text-sm text-slate-500">
             Choose a row resource and at least one visible column, then preview.
           </p>
         ) : (
-          <table className="min-w-[42rem] w-full border-collapse text-left text-xs">
+          <table className="w-max min-w-full border-collapse text-left text-xs">
             <thead className="sticky top-0 z-10 bg-slate-100 text-[11px] uppercase tracking-wide text-slate-600">
               <tr>
                 {columns.map((column) => (
@@ -217,8 +296,7 @@ export const PreviewTable = ({
                     key={column.emissionId}
                     className="whitespace-nowrap border-b border-slate-200 px-4 py-2.5 font-semibold"
                   >
-                    {presentationForEmission(table, column)?.label ??
-                      column.label}
+                    {authoredByColumn.get(column.column)?.label ?? column.label}
                   </th>
                 ))}
               </tr>

@@ -9,34 +9,48 @@ const apiVersion = 'loom.calypr.org/explorer-authoring/v2' as const;
 const candidate = {
   candidateId: 'candidate-id',
   nodeId: 'node-specimen',
+  fieldPath: 'id',
   label: 'Specimen.id',
   logicalType: 'string',
   filterable: true,
   chartable: false,
-  projectionModes: ['VALUE', 'COUNT'],
+  projectionModes: ['VALUE', 'FIRST'],
   defaultProjectionMode: 'VALUE',
 };
 const workspace = {
   apiVersion,
   kind: 'ExplorerBuilderWorkspace' as const,
+  explorer: { title: 'Biospecimens' },
   documents: [
     {
       kind: 'ExplorerBuilderDocument' as const,
       output: { id: 'specimens', title: 'Biospecimens' },
-      rootNodeId: 'node-specimen',
-      routeSteps: [],
-      selections: [
+      rootResourceType: 'Specimen',
+      route: { occurrenceId: 'base', resourceType: 'Specimen' },
+      columns: [
         {
-          candidateId: candidate.candidateId,
+          column: 'specimen_identifier',
+          label: 'Identifier',
+          logicalType: 'string',
           occurrenceId: 'base',
-          projectionMode: 'VALUE',
+          source: {
+            kind: 'field' as const,
+            fieldPath: 'identifier[].value',
+            projectionMode: 'FIRST' as const,
+          },
+          table: { visible: true, order: 0 },
         },
       ],
-      presentation: {},
     },
   ],
   tabs: [
-    { id: 'tab-specimens', title: 'Biospecimens', outputId: 'specimens', order: 0 },
+    {
+      id: 'tab-specimens',
+      title: 'Biospecimens',
+      outputId: 'specimens',
+      order: 0,
+      visible: true,
+    },
   ],
 };
 const catalog = {
@@ -59,16 +73,12 @@ const catalog = {
 const builderState = {
   apiVersion,
   kind: 'ExplorerBuilderState' as const,
+  lifecycleState: 'READY' as const,
   workspace,
   catalog,
 };
-const emission = {
-  outputId: 'specimens',
-  candidateId: candidate.candidateId,
-  occurrenceId: 'base',
-  projectionMode: 'VALUE',
-  emissionId: 'emission-id',
-  publicColumn: 'c_specimen_id',
+const contractColumn = {
+  column: 'specimen_identifier',
   label: 'Identifier',
   logicalType: 'string',
   filterable: true,
@@ -80,7 +90,14 @@ const receipt = {
   receiptId: 'receipt-1',
   snapshotToken: 'snapshot-1',
   builder: workspace,
-  outputs: [{ outputId: 'specimens', emissions: [emission] }],
+  outputs: [
+    {
+      outputId: 'specimens',
+      title: 'Biospecimens',
+      rowGrain: 'specimen',
+      columns: [contractColumn],
+    },
+  ],
   diagnostics: [],
 };
 
@@ -95,11 +112,22 @@ describe('native Loom Builder V2 API', () => {
     global.fetch = originalFetch;
   });
 
-  it('strictly decodes workspaces and nullable new Explorer state', () => {
+  it('strictly decodes NEW and READY lifecycle states', () => {
     expect(explorerBuilderWorkspaceSchema.parse(workspace)).toEqual(workspace);
     expect(
-      explorerBuilderStateSchema.parse({ ...builderState, workspace: null }),
-    ).toMatchObject({ workspace: null });
+      explorerBuilderStateSchema.parse({
+        ...builderState,
+        lifecycleState: 'NEW',
+        workspace: null,
+      }),
+    ).toMatchObject({ lifecycleState: 'NEW', workspace: null });
+    expect(() =>
+      explorerBuilderStateSchema.parse({
+        ...builderState,
+        lifecycleState: 'READY',
+        workspace: null,
+      }),
+    ).toThrow();
     expect(() =>
       explorerBuilderWorkspaceSchema.parse({ ...workspace, legacy: true }),
     ).toThrow();
@@ -133,13 +161,19 @@ describe('native Loom Builder V2 API', () => {
         }),
       )
       .unwrap();
-    expect(String(fetchMock.mock.calls[0][0])).toContain('/authoring/v2/builder');
-    expect(String(fetchMock.mock.calls[1][0])).toContain('/authoring/v2/builder');
+    expect(String(fetchMock.mock.calls[0][0])).toContain(
+      '/authoring/v2/builder',
+    );
+    expect(String(fetchMock.mock.calls[1][0])).toContain(
+      '/authoring/v2/builder',
+    );
     expect(JSON.parse(String(fetchMock.mock.calls[1][1].body))).toEqual({
       workspace,
       snapshotToken: 'snapshot-1',
     });
-    expect(fetchMock.mock.calls.flat().join(' ')).not.toContain('/authoring/v1');
+    expect(fetchMock.mock.calls.flat().join(' ')).not.toContain(
+      '/authoring/v1',
+    );
   });
 
   it('previews and publishes by receipt only', async () => {
@@ -151,7 +185,7 @@ describe('native Loom Builder V2 API', () => {
             kind: 'ExplorerBuilderPreview',
             receiptId: 'receipt-1',
             outputId: 'specimens',
-            columns: [emission],
+            columns: [contractColumn],
             rows: null,
             rowCount: 0,
             diagnostics: [],

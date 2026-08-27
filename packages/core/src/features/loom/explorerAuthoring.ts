@@ -5,7 +5,7 @@ export const EXPLORER_AUTHORING_API_VERSION =
   'loom.calypr.org/explorer-authoring/v2' as const;
 
 const opaqueIdSchema = z.string().trim().min(1);
-const projectionModeSchema = opaqueIdSchema.regex(/^[A-Z][A-Z0-9_]*$/);
+const projectionModeSchema = z.enum(['VALUE', 'FIRST', 'ALL', 'DISTINCT']);
 const unknownRecordSchema = z.record(z.string(), z.unknown());
 
 /** Strict wire contracts for Loom's browser authoring surface. */
@@ -25,53 +25,116 @@ export type ExplorerAuthoringDiagnostic = z.infer<
   typeof explorerAuthoringDiagnosticSchema
 >;
 
-export const explorerPresentationIntentSchema = z
+export const explorerTablePresentationSchema = z
   .object({
-    label: z.string().optional(),
     visible: z.boolean().optional(),
     order: z.number().int().nonnegative().optional(),
-    table: z.object({ pinned: z.boolean().optional() }).strict().optional(),
-    filter: z.object({ label: z.string().optional() }).strict().optional(),
-    chart: z
-      .object({ type: opaqueIdSchema, title: z.string().optional() })
-      .strict()
-      .optional(),
+    pinned: z.boolean().optional(),
+    cellRenderer: z.literal('fileActions').optional(),
   })
   .strict();
-export type ExplorerPresentationIntent = z.infer<
-  typeof explorerPresentationIntentSchema
->;
-
-export const explorerBuilderRouteStepSchema = z
+export const explorerFilterPresentationSchema = z
   .object({
-    edgeId: opaqueIdSchema,
-    occurrenceId: opaqueIdSchema.optional(),
+    label: z.string().optional(),
+    order: z.number().int().nonnegative().optional(),
   })
   .strict();
-export type ExplorerBuilderRouteStep = z.infer<
-  typeof explorerBuilderRouteStepSchema
->;
-export const explorerBuilderSelectionSchema = z
+export const explorerChartPresentationSchema = z
   .object({
-    candidateId: opaqueIdSchema,
+    type: opaqueIdSchema,
+    title: z.string().optional(),
+    order: z.number().int().nonnegative().optional(),
+  })
+  .strict();
+export const explorerColumnSourceSchema = z
+  .object({
+    kind: z.enum([
+      'field',
+      'identifierBySystem',
+      'extensionByUrl',
+      'codingBySystem',
+      'observationComponentByCode',
+      'projectId',
+    ]),
+    fieldPath: z.string().optional(),
+    match: z.string().optional(),
+    projectionMode: projectionModeSchema.optional(),
+  })
+  .strict();
+export type ExplorerColumnSource = z.infer<typeof explorerColumnSourceSchema>;
+export type ExplorerBuilderRouteNode = {
+  occurrenceId: string;
+  resourceType: string;
+  relationship?: string;
+  children?: ExplorerBuilderRouteNode[];
+};
+export const explorerBuilderRouteNodeSchema: z.ZodType<ExplorerBuilderRouteNode> =
+  z.lazy(() =>
+    z
+      .object({
+        occurrenceId: opaqueIdSchema,
+        resourceType: opaqueIdSchema,
+        relationship: z.string().optional(),
+        children: z.array(explorerBuilderRouteNodeSchema).optional(),
+      })
+      .strict(),
+  );
+export const explorerBuilderColumnSchema = z
+  .object({
+    column: opaqueIdSchema.regex(/^[A-Za-z_][A-Za-z0-9_]*$/),
+    label: z.string().min(1),
+    logicalType: z.string().optional(),
     occurrenceId: opaqueIdSchema,
-    projectionMode: projectionModeSchema,
+    source: explorerColumnSourceSchema,
+    table: explorerTablePresentationSchema.optional(),
+    filter: explorerFilterPresentationSchema.optional(),
+    chart: explorerChartPresentationSchema.optional(),
   })
   .strict();
-export type ExplorerBuilderSelection = z.infer<
-  typeof explorerBuilderSelectionSchema
->;
+export type ExplorerBuilderColumn = z.infer<typeof explorerBuilderColumnSchema>;
 export const explorerBuilderDocumentSchema = z
   .object({
     kind: z.literal('ExplorerBuilderDocument'),
     output: z
-      .object({ id: opaqueIdSchema, title: z.string().optional() })
+      .object({
+        id: opaqueIdSchema,
+        title: z.string().min(1),
+        rowLabel: z.string().optional(),
+      })
       .strict(),
-    rootNodeId: opaqueIdSchema,
-    routeSteps: z.array(explorerBuilderRouteStepSchema),
-    selections: z.array(explorerBuilderSelectionSchema),
-    presentation: z
-      .record(z.string(), explorerPresentationIntentSchema)
+    rootResourceType: opaqueIdSchema,
+    route: explorerBuilderRouteNodeSchema,
+    columns: z.array(explorerBuilderColumnSchema),
+    fixedFilters: z
+      .array(
+        z
+          .object({
+            column: opaqueIdSchema,
+            values: z.array(z.string()).min(1),
+          })
+          .strict(),
+      )
+      .optional(),
+    actions: z
+      .array(
+        z
+          .object({
+            type: opaqueIdSchema,
+            title: z.string().min(1),
+            fileName: z.string().optional(),
+            columns: z
+              .array(
+                z
+                  .object({
+                    column: opaqueIdSchema,
+                    exportHeader: z.string().optional(),
+                  })
+                  .strict(),
+              )
+              .optional(),
+          })
+          .strict(),
+      )
       .optional(),
   })
   .strict();
@@ -92,8 +155,28 @@ export const explorerBuilderWorkspaceSchema = z
   .object({
     apiVersion: z.literal(EXPLORER_AUTHORING_API_VERSION),
     kind: z.literal('ExplorerBuilderWorkspace'),
+    explorer: z
+      .object({ title: z.string().min(1), description: z.string().optional() })
+      .strict(),
     documents: z.array(explorerBuilderDocumentSchema),
     tabs: z.array(explorerBuilderTabSchema),
+    sharedFilters: z
+      .record(
+        z.string(),
+        z.array(
+          z
+            .object({ outputId: opaqueIdSchema, column: opaqueIdSchema })
+            .strict(),
+        ),
+      )
+      .optional(),
+    fileActions: z
+      .object({
+        extensions: z.record(z.string(), z.array(z.string())),
+        actions: z.record(z.string(), z.string()),
+      })
+      .strict()
+      .optional(),
   })
   .strict()
   .superRefine((workspace, context) => {
@@ -164,6 +247,7 @@ export const explorerBuilderCandidateSchema = z
   .object({
     candidateId: opaqueIdSchema,
     nodeId: opaqueIdSchema,
+    fieldPath: opaqueIdSchema,
     label: z.string(),
     logicalType: opaqueIdSchema,
     repeated: z.boolean().optional(),
@@ -197,35 +281,62 @@ export const explorerBuilderStateSchema = z
   .object({
     apiVersion: z.literal(EXPLORER_AUTHORING_API_VERSION),
     kind: z.literal('ExplorerBuilderState'),
-    workspace: explorerBuilderWorkspaceSchema.nullable().optional(),
+    lifecycleState: z.enum(['NEW', 'READY']),
+    workspace: explorerBuilderWorkspaceSchema.nullable(),
     catalog: explorerBuilderCatalogSchema,
   })
-  .strict();
+  .strict()
+  .superRefine((state, context) => {
+    if ((state.lifecycleState === 'NEW') !== (state.workspace === null)) {
+      context.addIssue({
+        code: 'custom',
+        path: ['workspace'],
+        message: 'NEW requires null workspace and READY requires a workspace.',
+      });
+    }
+  });
 export type ExplorerBuilderState = z.infer<typeof explorerBuilderStateSchema>;
 
-export const explorerBuilderEmissionSchema = z
+export const explorerBuilderContractColumnSchema = z
   .object({
-    outputId: opaqueIdSchema,
-    candidateId: opaqueIdSchema,
-    occurrenceId: opaqueIdSchema,
-    projectionMode: projectionModeSchema,
-    emissionId: opaqueIdSchema,
-    publicColumn: opaqueIdSchema,
+    column: opaqueIdSchema,
     label: z.string(),
     logicalType: opaqueIdSchema,
     filterable: z.boolean(),
     chartable: z.boolean(),
   })
   .strict();
-export type ExplorerBuilderEmission = z.infer<
-  typeof explorerBuilderEmissionSchema
+export type ExplorerBuilderContractColumn = z.infer<
+  typeof explorerBuilderContractColumnSchema
 >;
+// Local Builder view-model identities are not part of Loom's wire contract.
+export interface ExplorerBuilderSelection {
+  readonly candidateId: string;
+  readonly occurrenceId: string;
+  readonly projectionMode: string;
+}
+export interface ExplorerPresentationIntent {
+  readonly label?: string;
+  readonly visible?: boolean;
+  readonly order?: number;
+  readonly table?: { readonly pinned?: boolean };
+  readonly filter?: { readonly label?: string };
+  readonly chart?: { readonly type: string; readonly title?: string };
+}
+export interface ExplorerBuilderEmission extends ExplorerBuilderContractColumn {
+  readonly outputId: string;
+  readonly candidateId: string;
+  readonly occurrenceId: string;
+  readonly projectionMode: string;
+  readonly emissionId: string;
+  readonly publicColumn: string;
+}
 export const explorerBuilderReceiptOutputSchema = z
   .object({
     outputId: opaqueIdSchema,
     title: z.string().optional(),
     rowGrain: z.string().optional(),
-    emissions: z.array(explorerBuilderEmissionSchema),
+    columns: z.array(explorerBuilderContractColumnSchema),
   })
   .strict();
 export const explorerBuilderCompileResultSchema = z
@@ -247,7 +358,7 @@ export type ExplorerBuilderCompileResult = z.infer<
 >;
 
 export const explorerBuilderPreviewColumnSchema =
-  explorerBuilderEmissionSchema;
+  explorerBuilderContractColumnSchema;
 export const explorerBuilderPreviewResultSchema = z
   .object({
     apiVersion: z.literal(EXPLORER_AUTHORING_API_VERSION),
@@ -354,8 +465,7 @@ export interface PublicationMetadata {
   readonly updatedAt?: string;
 }
 export interface ExplorerRuntimeColumnV1 {
-  readonly emissionId: string;
-  readonly name: string;
+  readonly column: string;
   readonly label: string;
   readonly logicalType: string;
   readonly visible: boolean;
@@ -368,7 +478,7 @@ export interface ExplorerRuntimeColumnV1 {
 }
 export type ExplorerRuntimeColumnsV1 = ReadonlyArray<ExplorerRuntimeColumnV1>;
 export interface ExplorerRuntimeBindingV1 {
-  readonly emissionId: string;
+  readonly column: string;
   readonly outputId?: string;
   readonly label?: string;
   readonly type?: string;
@@ -383,12 +493,23 @@ export interface ExplorerRuntimeOutputV1 {
   readonly columns: ExplorerRuntimeColumnsV1;
   readonly table: {
     readonly columns: ReadonlyArray<
-      ExplorerRuntimeBindingV1 & { readonly visible: boolean }
+      ExplorerRuntimeBindingV1 & { readonly visible: boolean } & {
+        readonly pinned?: boolean;
+        readonly cellRenderer?: 'fileActions';
+      }
     >;
   };
   readonly filters: ReadonlyArray<ExplorerRuntimeBindingV1>;
   readonly charts: ReadonlyArray<ExplorerRuntimeBindingV1>;
   readonly fixedFilters: Readonly<Record<string, ReadonlyArray<string>>>;
+  readonly actions?: ReadonlyArray<{
+    readonly type: string;
+    readonly title: string;
+    readonly fileName?: string;
+    readonly output?: string;
+    readonly columns?: ReadonlyArray<string>;
+    readonly exportHeaders?: Readonly<Record<string, string>>;
+  }>;
   readonly query?: Readonly<Record<string, unknown>>;
   readonly materialization?: Readonly<Record<string, unknown>>;
 }
@@ -400,6 +521,10 @@ export interface ExplorerRuntimeV1 {
   readonly sharedFilters: Readonly<
     Record<string, ReadonlyArray<ExplorerRuntimeBindingV1>>
   >;
+  readonly fileActions?: {
+    readonly extensions?: Readonly<Record<string, ReadonlyArray<string>>>;
+    readonly actions?: Readonly<Record<string, string>>;
+  };
   readonly diagnostics: ReadonlyArray<ExplorerAuthoringDiagnostic>;
 }
 
@@ -499,7 +624,8 @@ export interface ExplorerStateV1 {
   readonly activeUrl: string;
   readonly updatedBy?: string;
   readonly updatedAt?: string;
-  readonly runtime: ExplorerRuntimeV1;
+  /** Runtime is null when Loom has no valid published runtime to serve. */
+  readonly runtime?: ExplorerRuntimeV1 | null;
 }
 
 const allowedKeys = new Set([
@@ -519,6 +645,7 @@ const allowedKeys = new Set([
 ]);
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
+const legacyExplorerStateKeys = new Set(['draftConfig', 'activeConfig']);
 export const isExplorerStateV1 = (value: unknown): value is ExplorerStateV1 => {
   if (
     !isRecord(value) ||
@@ -531,32 +658,53 @@ export const isExplorerStateV1 = (value: unknown): value is ExplorerStateV1 => {
     typeof value.project !== 'string' ||
     typeof value.explorerId !== 'string' ||
     typeof value.title !== 'string' ||
-    typeof value.management !== 'string' ||
-    !isRecord(value.runtime)
+    typeof value.management !== 'string'
   )
     return false;
+  if (value.runtime === undefined || value.runtime === null) return true;
+  if (!isRecord(value.runtime)) return false;
   const runtime = value.runtime;
-  if (
-    !Array.isArray(runtime.outputs) ||
-    !isRecord(runtime.sharedFilters) ||
-    !Array.isArray(runtime.diagnostics)
-  )
-    return false;
-  return runtime.outputs.every(
-    (output) =>
-      isRecord(output) &&
-      Array.isArray(output.columns) &&
-      isRecord(output.table) &&
-      Array.isArray(output.table.columns) &&
-      Array.isArray(output.filters) &&
-      Array.isArray(output.charts) &&
-      isRecord(output.fixedFilters),
+  return (
+    Array.isArray(runtime.outputs) &&
+    isRecord(runtime.sharedFilters) &&
+    Array.isArray(runtime.diagnostics) &&
+    runtime.outputs.every(
+      (output) =>
+        isRecord(output) &&
+        Array.isArray(output.columns) &&
+        isRecord(output.table) &&
+        Array.isArray(output.table.columns) &&
+        Array.isArray(output.filters) &&
+        Array.isArray(output.charts) &&
+        isRecord(output.fixedFilters),
+    )
   );
 };
+
+const normalizeExplorerStateV1 = (value: unknown): unknown => {
+  if (!isRecord(value) || !isRecord(value.runtime)) return value;
+  if (value.runtime.diagnostics !== null) return value;
+
+  // Go encodes a nil diagnostics slice as null. Treat that wire-level empty
+  // value as the empty collection promised by ExplorerRuntimeV1.
+  return {
+    ...value,
+    runtime: {
+      ...value.runtime,
+      diagnostics: [],
+    },
+  };
+};
+
 export const assertExplorerStateV1 = (value: unknown): ExplorerStateV1 => {
-  if (!isExplorerStateV1(value))
+  const normalized = normalizeExplorerStateV1(value);
+  if (isExplorerStateV1(normalized)) return normalized;
+  const hasLegacyConfiguration =
+    isRecord(value) &&
+    Object.keys(value).some((key) => legacyExplorerStateKeys.has(key));
+  if (hasLegacyConfiguration)
     throw new Error(
       'Loom returned an invalid ExplorerStateV1 response; legacy Explorer configuration fields are not supported.',
     );
-  return value;
+  throw new Error('Loom returned an invalid ExplorerStateV1 response.');
 };

@@ -42,32 +42,36 @@ const catalog: ExplorerBuilderCatalog = {
   ],
   candidates: [],
 };
-const table = (rootNodeId?: string): DraftTable => ({
+const table = (resourceType = ''): DraftTable => ({
   outputId: 'table',
   tabId: 'tab-table',
   title: 'Table',
-  rootNodeId,
-  routeSteps: [],
-  selections: [],
-  presentation: {},
+  document: {
+    kind: 'ExplorerBuilderDocument',
+    output: { id: 'table', title: 'Table' },
+    rootResourceType: resourceType,
+    route: { occurrenceId: 'base', resourceType },
+    columns: [],
+  },
 });
 
 describe('Builder V2 route actions', () => {
   it('does not offer edges before a row root exists', () => {
-    expect(legalOutgoingEdges(catalog, table())).toEqual([]);
+    expect(legalOutgoingEdges(catalog, table(), 'base')).toEqual([]);
   });
 
-  it('offers directed edges from the derived route tail', () => {
-    expect(legalOutgoingEdges(catalog, table('patient'))).toEqual([
-      catalog.edges[0],
-    ]);
-    expect(legalEdgesToNode(catalog, table('patient'), 'specimen')).toEqual([
+  it('offers directed edges from the selected occurrence', () => {
+    expect(legalOutgoingEdges(catalog, table('Patient'), 'base')).toEqual([
       catalog.edges[0],
     ]);
     expect(
+      legalEdgesToNode(catalog, table('Patient'), 'base', 'specimen'),
+    ).toEqual([catalog.edges[0]]);
+    expect(
       isLegalRouteExtension(
         catalog,
-        table('patient'),
+        table('Patient'),
+        'base',
         'patient-specimen',
         'specimen',
       ),
@@ -76,16 +80,23 @@ describe('Builder V2 route actions', () => {
 
   it('honors self-loop and repeated-edge policy without a hidden hop cap', () => {
     const atSpecimen: DraftTable = {
-      ...table('patient'),
-      routeSteps: [
-        { edgeId: 'patient-specimen', occurrenceId: 'specimen-1' },
-        ...Array.from({ length: 20 }, (_, index) => ({
-          edgeId: 'specimen-self',
-          occurrenceId: `specimen-${index + 2}`,
-        })),
-      ],
+      ...table('Patient'),
+      document: {
+        ...table('Patient').document,
+        route: {
+          occurrenceId: 'base',
+          resourceType: 'Patient',
+          children: [
+            {
+              occurrenceId: 'specimen',
+              resourceType: 'Specimen',
+              relationship: 'specimens',
+            },
+          ],
+        },
+      },
     };
-    expect(legalOutgoingEdges(catalog, atSpecimen)).toContainEqual(
+    expect(legalOutgoingEdges(catalog, atSpecimen, 'specimen')).toContainEqual(
       catalog.edges[1],
     );
   });

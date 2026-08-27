@@ -1,4 +1,11 @@
-import React, { useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from 'react';
 import { createPortal } from 'react-dom';
 import {
   useCompileExplorerBuilderV2Mutation,
@@ -17,20 +24,28 @@ import type {
 } from '@gen3/core';
 import { BuilderToolbar } from './components/BuilderToolbar';
 import { GuidedGraphWorkspace } from './components/GuidedGraphWorkspace';
-import { ColumnSelector } from './components/ColumnSelector';
+import {
+  ColumnSelector,
+  columnFromCandidate,
+} from './components/ColumnSelector';
 import { PreviewTable } from './components/PreviewTable';
-import { PresentationPanels } from './components/PresentationPanels';
 import {
   derivedOccurrences,
   intentFingerprint,
-  selectedEmissions,
+  nextRouteOccurrenceId,
+  routeNode,
+  routeSubtreeOccurrenceIds,
   selectedTable,
-  visibleEmissions,
   workspaceFromState,
   type BuilderAuthoringState,
   type DraftTable,
 } from './authoring/model';
 import { builderAuthoringReducer } from './authoring/reducer';
+import {
+  lowerPreviewLimit,
+  previewRecoveryAction,
+  type PreviewLimit,
+} from './authoring/previewRecovery';
 
 const emptyCatalog = (): ExplorerBuilderCatalog => ({
   snapshotToken: '',
@@ -44,9 +59,9 @@ const emptyBuilderState = (project: string): BuilderAuthoringState => ({
   project,
   explorerId: 'default',
   catalog: emptyCatalog(),
+  workspace: null,
   tables: [],
   selectedOccurrenceId: 'base',
-  emissions: [],
   diagnostics: [],
   dirty: false,
   reconciliation: 'idle',
@@ -74,9 +89,8 @@ const isStaleSnapshot = (code: string | undefined) =>
     'STALE_RECEIPT',
     'RECEIPT_STALE',
     'COMPILE_RECEIPT_NOT_FOUND',
+    'RECEIPT_RECOMPILE_REQUIRED',
   ].includes(code ?? '');
-const lowerPreviewLimit = (limit: 10 | 25 | 50 | 100) =>
-  (limit === 100 ? 50 : limit === 50 ? 25 : 10) as 10 | 25 | 50 | 100;
 const opaqueId = (prefix: 'output' | 'tab' | 'step') =>
   `${prefix}-${window.crypto.randomUUID()}`;
 
@@ -106,8 +120,7 @@ const BuilderWorkspace = ({
     authResourcePath,
   });
   const [createExplorer, createStatus] = useCreateExplorerAuthoringMutation();
-  const [compileBuilder, compileStatus] =
-    useCompileExplorerBuilderV2Mutation();
+  const [compileBuilder] = useCompileExplorerBuilderV2Mutation();
   const [getSuggestions, suggestionsStatus] =
     useGetExplorerCandidateSuggestionsV2Mutation();
   const [previewBuilder, previewStatus] =
@@ -120,23 +133,41 @@ const BuilderWorkspace = ({
     emptyBuilderState,
   );
   const [message, setMessage] = useState<string>();
-  const [previewLimit, setPreviewLimit] = useState<10 | 25 | 50 | 100>(25);
+  const [previewLimit, setPreviewLimit] = useState<PreviewLimit>(25);
   const [toolbarHost, setToolbarHost] = useState<HTMLElement | null>(null);
+  const [tableToolbarHost, setTableToolbarHost] = useState<HTMLElement | null>(
+    null,
+  );
   const hydratedKey = useRef('');
   const preserveDraftOnRefetch = useRef(false);
   const compileGeneration = useRef(0);
   const activeCompile = useRef<{ abort: () => void } | undefined>(undefined);
+  const pendingPreview = useRef<
+    | {
+        outputId: string;
+        limit: PreviewLimit;
+        fingerprint: string;
+        receiptRefreshes: number;
+      }
+    | undefined
+  >(undefined);
   const latestState = useRef(state);
   const pendingClone = useRef<
     { explorerId: string; tables: ReadonlyArray<DraftTable> } | undefined
   >(undefined);
   latestState.current = state;
 
-  useEffect(
-    () =>
-      setToolbarHost(document.getElementById('explorer-builder-toolbar-host')),
-    [],
-  );
+  useEffect(() => {
+    const nextToolbarHost = document.getElementById(
+      'explorer-builder-toolbar-host',
+    );
+    const nextTableToolbarHost = document.getElementById(
+      'explorer-builder-table-toolbar-host',
+    );
+    if (nextToolbarHost !== toolbarHost) setToolbarHost(nextToolbarHost);
+    if (nextTableToolbarHost !== tableToolbarHost)
+      setTableToolbarHost(nextTableToolbarHost);
+  }, [tableToolbarHost, toolbarHost]);
 
   useEffect(() => {
     if (!builder.data) return;
@@ -163,9 +194,10 @@ const BuilderWorkspace = ({
           type: 'addTable',
           table: {
             ...table,
-            routeSteps: [...table.routeSteps],
-            selections: [...table.selections],
-            presentation: { ...table.presentation },
+            document: {
+              ...table.document,
+              columns: [...table.document.columns],
+            },
           },
         }),
       );
@@ -174,11 +206,17 @@ const BuilderWorkspace = ({
   }, [builder.data, selectedExplorerId]);
 
   const workspace = useMemo(() => workspaceFromState(state), [state]);
-  const fingerprint = useMemo(
-    () => intentFingerprint(workspace),
-    [workspace],
+  const fingerprint = useMemo(() => intentFingerprint(workspace), [workspace]);
+  const incomplete = state.tables.some(
+    (table) => !table.document.rootResourceType,
   );
-  const incomplete = state.tables.some((table) => !table.rootNodeId);
+
+  useEffect(() => {
+    if (!state.dirty) return undefined;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [state.dirty]);
 
   useEffect(() => {
     if (
@@ -229,9 +267,7 @@ const BuilderWorkspace = ({
                   type: 'catalogRefreshed',
                   catalog: refreshed.data.catalog,
                 });
-                setMessage(
-                  'Loom’s catalog changed. Your edits are preserved; review them and choose Recompile.',
-                );
+                setMessage(undefined);
               }
               return;
             }
@@ -274,7 +310,6 @@ const BuilderWorkspace = ({
   const occurrence = occurrences.find(
     (candidate) => candidate.id === state.selectedOccurrenceId,
   );
-  const emissions = selectedEmissions(state);
 
   useEffect(() => {
     if (!occurrence || !state.catalog.snapshotToken) return;
@@ -301,7 +336,10 @@ const BuilderWorkspace = ({
       })
       .catch((error: ExplorerAuthoringApiError) => {
         if (error.code !== 'CLIENT_CANCELLED') {
-          dispatch({ type: 'repair', diagnostics: diagnosticsFromError(error) });
+          const suffix = error.code ? ` (${error.code})` : '';
+          setMessage(
+            `Available columns could not be loaded: ${error.message}${suffix}`,
+          );
         }
       });
     return () => request.abort();
@@ -314,20 +352,21 @@ const BuilderWorkspace = ({
     state.catalog.snapshotToken,
     state.explorerId,
   ]);
-
   const busy =
     previewStatus.isLoading ||
     publishStatus.isLoading ||
-    compileStatus.isLoading ||
     createStatus.isLoading;
   const blockingDiagnostics = state.diagnostics.some(
     (diagnostic) => diagnostic.severity === 'error',
   );
+  const hasVisibleSelectedColumn = Boolean(
+    table?.document.columns.some(
+      (column) => column.table?.visible ?? Boolean(column.table),
+    ),
+  );
   const previewDisabled =
-    !table?.rootNodeId ||
-    visibleEmissions(state).length === 0 ||
-    !state.receipt ||
-    state.reconciliation !== 'resolved' ||
+    !table?.document.rootResourceType ||
+    !hasVisibleSelectedColumn ||
     blockingDiagnostics;
   const publishDisabled =
     !state.dirty ||
@@ -337,23 +376,29 @@ const BuilderWorkspace = ({
     blockingDiagnostics ||
     state.tables.some(
       (candidate) =>
-        !state.emissions.some(
-          (emission) => emission.outputId === candidate.outputId,
+        !state.receipt?.outputs.some(
+          (output) =>
+            output.outputId === candidate.outputId && output.columns.length > 0,
         ),
     );
 
   const addTable = () => {
     const title = window.prompt('Table name')?.trim();
     if (!title) return;
+    const outputId = opaqueId('output');
     dispatch({
       type: 'addTable',
       table: {
-        outputId: opaqueId('output'),
+        outputId,
         tabId: opaqueId('tab'),
         title,
-        routeSteps: [],
-        selections: [],
-        presentation: {},
+        document: {
+          kind: 'ExplorerBuilderDocument',
+          output: { id: outputId, title },
+          rootResourceType: '',
+          route: { occurrenceId: 'base', resourceType: '' },
+          columns: [],
+        },
       },
     });
   };
@@ -366,9 +411,10 @@ const BuilderWorkspace = ({
         outputId: opaqueId('output'),
         tabId: opaqueId('tab'),
         title: `${table.title} copy`,
-        routeSteps: [...table.routeSteps],
-        selections: [...table.selections],
-        presentation: { ...table.presentation },
+        document: {
+          ...table.document,
+          columns: [...table.document.columns],
+        },
       },
     });
   };
@@ -389,51 +435,140 @@ const BuilderWorkspace = ({
       hydratedKey.current = '';
       setSelectedExplorerId(created.explorerId);
       void explorers.refetch();
-      setMessage(
-        fromCurrent
-          ? `Created ${title} with a copy of the complete workspace.`
-          : `Created ${title}.`,
-      );
-    } catch (error) {
-      dispatch({ type: 'repair', diagnostics: diagnosticsFromError(error) });
-    }
-  };
-  const preview = async () => {
-    if (!table || !state.receipt || previewDisabled) return;
-    try {
-      const value = await previewBuilder({
-        project: projectId,
-        explorerId: state.explorerId,
-        authResourcePath,
-        receiptId: state.receipt.receiptId,
-        outputId: table.outputId,
-        limit: previewLimit,
-      }).unwrap();
-      if (value.receiptId !== latestState.current.receipt?.receiptId) return;
-      dispatch({ type: 'preview', value });
-      setMessage(`Loaded ${value.rowCount.toLocaleString()} preview rows.`);
+      setMessage(undefined);
     } catch (error) {
       const apiError = error as ExplorerAuthoringApiError;
-      if (isStaleSnapshot(apiError.code)) {
-        preserveDraftOnRefetch.current = true;
-        const refreshed = await refetchBuilder();
-        if (refreshed.data) {
-          dispatch({ type: 'catalogRefreshed', catalog: refreshed.data.catalog });
-          setMessage('The receipt expired. Your edits are preserved; choose Recompile.');
-        }
-        return;
-      }
-      if (['PREVIEW_TOO_LARGE', 'RESPONSE_TOO_LARGE'].includes(apiError.code ?? '')) {
-        const nextLimit = lowerPreviewLimit(previewLimit);
-        setPreviewLimit(nextLimit);
-        setMessage(`Preview was too large. The row limit is now ${nextLimit}; try again.`);
-        return;
-      }
-      if (['PLAN_TOO_EXPENSIVE', 'EXPENSIVE_PLAN'].includes(apiError.code ?? '')) {
-        setMessage('This plan is too expensive to preview. Remove outputs or columns, then recompile.');
-      }
-      dispatch({ type: 'repair', diagnostics: diagnosticsFromError(error) });
+      const suffix = apiError.code ? ` (${apiError.code})` : '';
+      setMessage(`Explorer creation failed: ${apiError.message}${suffix}`);
     }
+  };
+  const executePreview = useCallback(
+    async (
+      request: {
+        outputId: string;
+        limit: PreviewLimit;
+        fingerprint: string;
+        receiptRefreshes: number;
+      },
+      receiptId: string,
+    ) => {
+      let limit = request.limit;
+      let transientRetries = 0;
+      for (;;) {
+        try {
+          const value = await previewBuilder({
+            project: projectId,
+            explorerId: latestState.current.explorerId,
+            authResourcePath,
+            receiptId,
+            outputId: request.outputId,
+            limit,
+          }).unwrap();
+          const current = latestState.current;
+          if (
+            value.receiptId !== current.receipt?.receiptId ||
+            request.fingerprint !==
+              intentFingerprint(workspaceFromState(current))
+          )
+            return;
+          pendingPreview.current = undefined;
+          dispatch({ type: 'preview', value });
+          setMessage(undefined);
+          return;
+        } catch (error) {
+          const apiError = error as ExplorerAuthoringApiError;
+          if (apiError.code === 'CLIENT_CANCELLED') return;
+          const recovery = previewRecoveryAction(apiError, {
+            receiptRefreshes: request.receiptRefreshes,
+            transientRetries,
+            limit,
+          });
+          if (recovery === 'reduce-limit') {
+            limit = lowerPreviewLimit(limit);
+            setPreviewLimit(limit);
+            continue;
+          }
+          if (recovery === 'retry') {
+            transientRetries += 1;
+            continue;
+          }
+          if (recovery === 'recompile') {
+            pendingPreview.current = {
+              ...request,
+              limit,
+              receiptRefreshes: request.receiptRefreshes + 1,
+            };
+            dispatch({ type: 'requestRecompile' });
+            setMessage(undefined);
+            return;
+          }
+          if (recovery === 'refresh-catalog') {
+            pendingPreview.current = {
+              ...request,
+              limit,
+              receiptRefreshes: request.receiptRefreshes + 1,
+            };
+            preserveDraftOnRefetch.current = true;
+            const refreshed = await refetchBuilder();
+            if (refreshed.data) {
+              dispatch({
+                type: 'catalogRefreshed',
+                catalog: refreshed.data.catalog,
+              });
+              setMessage(undefined);
+            } else {
+              pendingPreview.current = undefined;
+            }
+            return;
+          }
+          pendingPreview.current = undefined;
+          if (
+            ['PLAN_TOO_EXPENSIVE', 'EXPENSIVE_PLAN'].includes(
+              apiError.code ?? '',
+            )
+          ) {
+            setMessage(
+              'This plan is too expensive to preview. Remove columns or shorten the route.',
+            );
+          } else {
+            const suffix = apiError.code ? ` (${apiError.code})` : '';
+            setMessage(`Preview failed: ${apiError.message}${suffix}`);
+          }
+          return;
+        }
+      }
+    },
+    [authResourcePath, previewBuilder, projectId, refetchBuilder],
+  );
+
+  useEffect(() => {
+    const request = pendingPreview.current;
+    if (!request || state.reconciliation !== 'resolved' || !state.receipt)
+      return;
+    if (request.fingerprint !== fingerprint) {
+      pendingPreview.current = undefined;
+      return;
+    }
+    pendingPreview.current = undefined;
+    void executePreview(request, state.receipt.receiptId);
+  }, [executePreview, fingerprint, state.receipt, state.reconciliation]);
+
+  const preview = () => {
+    if (!table || previewDisabled) return;
+    const request = {
+      outputId: table.outputId,
+      limit: previewLimit,
+      fingerprint,
+      receiptRefreshes: 0,
+    };
+    if (!state.receipt || state.reconciliation !== 'resolved') {
+      pendingPreview.current = request;
+      if (state.reconciliation !== 'pending')
+        dispatch({ type: 'requestRecompile' });
+      setMessage(undefined);
+      return;
+    }
+    void executePreview(request, state.receipt.receiptId);
   };
   const publish = async () => {
     if (!state.receipt || publishDisabled) return;
@@ -445,30 +580,40 @@ const BuilderWorkspace = ({
         receiptId: state.receipt.receiptId,
       }).unwrap();
       dispatch({ type: 'published' });
-      setMessage('Published every table atomically. The Viewer runtime is ready.');
+      setMessage(undefined);
     } catch (error) {
       const apiError = error as ExplorerAuthoringApiError;
       if (isStaleSnapshot(apiError.code)) {
         preserveDraftOnRefetch.current = true;
         const refreshed = await refetchBuilder();
         if (refreshed.data) {
-          dispatch({ type: 'catalogRefreshed', catalog: refreshed.data.catalog });
-          setMessage('The publish receipt expired. Local edits remain; choose Recompile.');
+          dispatch({
+            type: 'catalogRefreshed',
+            catalog: refreshed.data.catalog,
+          });
+          setMessage(undefined);
         }
         return;
       }
-      dispatch({ type: 'repair', diagnostics: diagnosticsFromError(error) });
-      setMessage('Publication failed. The previously active Viewer revision remains available.');
+      const suffix = apiError.code ? ` (${apiError.code})` : '';
+      setMessage(
+        `Publication failed; the previously active Viewer revision remains available: ${apiError.message}${suffix}`,
+      );
     }
   };
 
   if (explorers.isLoading || builder.isLoading) {
-    return <main className="p-6" role="status">Loading the selected Explorer configuration…</main>;
+    return (
+      <main className="p-6" role="status">
+        Loading the selected Explorer configuration…
+      </main>
+    );
   }
   if (explorers.error || builder.error || !builder.data) {
     return (
       <main className="p-6" role="alert">
-        Loom’s V2 Builder state could not be loaded. This Builder has no V1 fallback.
+        Loom’s V2 Builder state could not be loaded. This Builder has no V1
+        fallback.
       </main>
     );
   }
@@ -477,9 +622,9 @@ const BuilderWorkspace = ({
     <BuilderToolbar
       explorers={explorers.data ?? []}
       selectedExplorerId={selectedExplorerId}
-      projectId={projectId}
       onExplorerChange={(id) => {
         activeCompile.current?.abort();
+        pendingPreview.current = undefined;
         hydratedKey.current = '';
         setSelectedExplorerId(id);
       }}
@@ -508,6 +653,8 @@ const BuilderWorkspace = ({
       previewDisabled={previewDisabled}
       publishDisabled={publishDisabled}
       busy={busy}
+      columnCreationSupported={false}
+      tableToolbarHost={toolbarHost ? tableToolbarHost : undefined}
     />
   );
 
@@ -515,25 +662,30 @@ const BuilderWorkspace = ({
     <main className="min-h-screen bg-slate-50 p-2 pb-10 text-slate-900 sm:p-3">
       {toolbarHost ? createPortal(toolbar, toolbarHost) : toolbar}
       <div className="mx-auto max-w-[1920px] space-y-3">
-        {(message || state.diagnostics.length > 0 || state.reconciliation === 'pending' || state.reconciliation === 'stale') && (
+        {(message ||
+          blockingDiagnostics ||
+          state.reconciliation === 'stale') && (
           <section
-            className={`rounded-lg border px-3 py-2 text-xs ${blockingDiagnostics ? 'border-red-300 bg-red-50 text-red-900' : 'border-blue-200 bg-blue-50 text-blue-900'}`}
-            role={blockingDiagnostics ? 'alert' : 'status'}
+            className="rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-900"
+            role="alert"
           >
             <div className="font-semibold">
               {blockingDiagnostics
                 ? 'Builder needs attention'
-                : state.reconciliation === 'pending'
-                  ? 'Compiling workspace changes…'
-                  : state.reconciliation === 'stale'
-                    ? 'Catalog or receipt changed'
-                    : 'Last operation'}
+                : state.reconciliation === 'stale'
+                  ? 'Catalog or receipt changed'
+                  : 'Builder needs attention'}
             </div>
             <p>{state.diagnostics[0]?.message ?? message}</p>
             {state.diagnostics[0]?.code ? (
-              <p className="mt-1">Technical details · Code: {state.diagnostics[0].code}</p>
+              <p className="mt-1">
+                Technical details · Code: {state.diagnostics[0].code}
+              </p>
             ) : null}
-            {(state.reconciliation === 'stale' || state.reconciliation === 'repair') && state.tables.length > 0 && !incomplete ? (
+            {(state.reconciliation === 'stale' ||
+              state.reconciliation === 'repair') &&
+            state.tables.length > 0 &&
+            !incomplete ? (
               <button
                 type="button"
                 className="mt-2 rounded border border-blue-300 bg-white px-2.5 py-1 font-semibold text-blue-800 hover:bg-blue-50"
@@ -546,17 +698,15 @@ const BuilderWorkspace = ({
         )}
         {state.tables.length === 0 ? (
           <section className="rounded-xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-            <h2 className="text-lg font-semibold">Create the first table</h2>
+            <h2 className="text-lg font-semibold">No configured tables</h2>
             <p className="mt-1 text-sm text-slate-500">
-              Add a table, choose its row resource, and select at least one column.
+              Load a V2 configuration with at least one table or copy an
+              existing Explorer.
             </p>
-            <button
-              type="button"
-              className="mt-4 rounded-md bg-[#2f5aac] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[#264a8c]"
-              onClick={addTable}
-            >
-              New table
-            </button>
+            <p className="mt-3 text-xs text-slate-500">
+              Interactive table and dataset-column creation is deferred from the
+              configured-column MVP.
+            </p>
           </section>
         ) : (
           <>
@@ -570,59 +720,126 @@ const BuilderWorkspace = ({
                   dispatch({ type: 'selectOccurrence', occurrenceId })
                 }
                 onSetBase={(nodeId) =>
-                  table && dispatch({ type: 'setRoot', outputId: table.outputId, nodeId })
-                }
-                onChangeBase={(nodeId) =>
-                  table && dispatch({ type: 'changeRoot', outputId: table.outputId, nodeId })
-                }
-                onAppendEdge={(edgeId) =>
                   table &&
                   dispatch({
-                    type: 'appendEdge',
+                    type: 'setRoot',
                     outputId: table.outputId,
-                    edgeId,
-                    occurrenceId: opaqueId('step'),
+                    nodeId,
                   })
                 }
-                onTruncate={(occurrenceId) =>
+                onChangeBase={(nodeId) =>
                   table &&
-                  dispatch({ type: 'truncateRoute', outputId: table.outputId, occurrenceId })
+                  window.confirm(
+                    `Start a new query from ${state.catalog.nodes.find((node) => node.nodeId === nodeId)?.resourceType ?? 'this resource'}? This replaces the current ${occurrences.length}-node query and removes ${table.document.columns.length} configured columns from this local draft.`,
+                  ) &&
+                  dispatch({
+                    type: 'changeRoot',
+                    outputId: table.outputId,
+                    nodeId,
+                  })
                 }
+                onAppendEdge={(parentOccurrenceId, edgeId, nodeId) => {
+                  if (!table) return;
+                  const edge = state.catalog.edges.find(
+                    (candidate) => candidate.edgeId === edgeId,
+                  );
+                  const node = state.catalog.nodes.find(
+                    (candidate) => candidate.nodeId === nodeId,
+                  );
+                  if (!edge || !node) return;
+                  dispatch({
+                    type: 'addRouteChild',
+                    outputId: table.outputId,
+                    parentOccurrenceId,
+                    edgeId,
+                    occurrenceId: nextRouteOccurrenceId(
+                      table.document.route,
+                      parentOccurrenceId,
+                      node.resourceType,
+                      edge.label,
+                    ),
+                  });
+                }}
+                onTruncate={(occurrenceId) => {
+                  if (!table) return;
+                  const subtree = routeNode(table.document.route, occurrenceId);
+                  if (!subtree) return;
+                  const ids = routeSubtreeOccurrenceIds(subtree);
+                  const columnCount = table.document.columns.filter((column) =>
+                    ids.has(column.occurrenceId),
+                  ).length;
+                  if (
+                    !window.confirm(
+                      `Remove this local branch (${ids.size} occurrence${ids.size === 1 ? '' : 's'}, ${columnCount} column${columnCount === 1 ? '' : 's'})?`,
+                    )
+                  )
+                    return;
+                  dispatch({
+                    type: 'removeRouteSubtree',
+                    outputId: table.outputId,
+                    occurrenceId,
+                  });
+                }}
               />
               <ColumnSelector
                 catalog={state.catalog}
                 table={table}
-                emissions={emissions}
                 occurrenceId={state.selectedOccurrenceId}
-                disabled={!occurrence || state.reconciliation === 'pending' || suggestionsStatus.isLoading}
-                onToggle={(candidateId, projectionMode, selected) =>
+                disabled={!occurrence}
+                loadingCandidates={suggestionsStatus.isLoading}
+                onAdd={(candidate, displayName) =>
                   table &&
                   dispatch({
-                    type: 'toggleCandidate',
+                    type: 'addColumn',
                     outputId: table.outputId,
-                    occurrenceId: state.selectedOccurrenceId,
-                    candidateId,
-                    projectionMode,
-                    selected,
+                    value: columnFromCandidate(
+                      candidate,
+                      state.selectedOccurrenceId,
+                      table.document.columns,
+                      displayName,
+                      state.catalog.nodes.find(
+                        (node) => node.nodeId === candidate.nodeId,
+                      )?.resourceType ?? '',
+                    ),
                   })
                 }
-                onProjection={(candidateId, projectionMode) =>
+                onAddAll={(candidates) => {
+                  if (!table) return;
+                  const existing = [...table.document.columns];
+                  const values = candidates.map((candidate) => {
+                    const value = columnFromCandidate(
+                      candidate,
+                      state.selectedOccurrenceId,
+                      existing,
+                      candidate.label,
+                      state.catalog.nodes.find(
+                        (node) => node.nodeId === candidate.nodeId,
+                      )?.resourceType ?? '',
+                    );
+                    existing.push(value);
+                    return value;
+                  });
+                  dispatch({
+                    type: 'addColumns',
+                    outputId: table.outputId,
+                    values,
+                  });
+                }}
+                onChange={(column) =>
                   table &&
                   dispatch({
-                    type: 'setProjection',
+                    type: 'updateColumn',
                     outputId: table.outputId,
-                    occurrenceId: state.selectedOccurrenceId,
-                    candidateId,
-                    projectionMode,
+                    column: column.column,
+                    value: column,
                   })
                 }
-                onPresentation={(selection, value) =>
+                onRemove={(column) =>
                   table &&
                   dispatch({
-                    type: 'setPresentation',
+                    type: 'removeColumn',
                     outputId: table.outputId,
-                    selection,
-                    value,
+                    column,
                   })
                 }
               />
@@ -632,17 +849,16 @@ const BuilderWorkspace = ({
               table={table}
               limit={previewLimit}
               onLimitChange={setPreviewLimit}
-              onPresentation={(selection, value) =>
+              onColumnChange={(column) =>
                 table &&
                 dispatch({
-                  type: 'setPresentation',
+                  type: 'updateColumn',
                   outputId: table.outputId,
-                  selection,
-                  value,
+                  column: column.column,
+                  value: column,
                 })
               }
             />
-            <PresentationPanels features={capabilities.data?.features} />
           </>
         )}
       </div>

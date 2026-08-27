@@ -1,29 +1,20 @@
 import type {
   ExplorerAuthoringDiagnostic,
-  ExplorerBuilderCandidate,
   ExplorerBuilderCatalog,
   ExplorerBuilderCompileResult,
   ExplorerBuilderDocument,
-  ExplorerBuilderEmission,
   ExplorerBuilderPreviewResult,
-  ExplorerBuilderSelection,
   ExplorerBuilderState,
   ExplorerBuilderWorkspace,
-  ExplorerPresentationIntent,
 } from '@gen3/core';
-
-export type PresentationBinding = ExplorerPresentationIntent;
-export type DraftSelection = ExplorerBuilderSelection;
 
 export interface DraftTable {
   readonly outputId: string;
   readonly tabId: string;
   readonly title: string;
   readonly visible?: boolean;
-  readonly rootNodeId?: string;
-  readonly routeSteps: ExplorerBuilderDocument['routeSteps'];
-  readonly selections: ReadonlyArray<DraftSelection>;
-  readonly presentation: Readonly<Record<string, PresentationBinding>>;
+  /** The V2 authoring document is the editable source of truth. */
+  readonly document: ExplorerBuilderDocument;
 }
 
 export interface DerivedOccurrence {
@@ -31,62 +22,131 @@ export interface DerivedOccurrence {
   readonly index: number;
   readonly nodeId: string;
   readonly incomingEdgeId?: string;
+  readonly parentId?: string;
+  readonly depth: number;
+  readonly resourceType: string;
 }
 
 export interface BuilderAuthoringState {
   readonly project: string;
   readonly explorerId: string;
   readonly catalog: ExplorerBuilderCatalog;
+  /** Canonical server workspace; typed source bindings are intentionally read-only. */
+  readonly workspace: ExplorerBuilderWorkspace | null;
   readonly tables: ReadonlyArray<DraftTable>;
   readonly selectedOutputId?: string;
   readonly selectedOccurrenceId: string;
   readonly receipt?: ExplorerBuilderCompileResult;
-  readonly emissions: ReadonlyArray<ExplorerBuilderEmission>;
   readonly diagnostics: ReadonlyArray<ExplorerAuthoringDiagnostic>;
   readonly dirty: boolean;
   readonly reconciliation: 'idle' | 'pending' | 'resolved' | 'stale' | 'repair';
   readonly preview?: ExplorerBuilderPreviewResult;
 }
 
-export const selectionPresentationKey = ({
-  candidateId,
-  occurrenceId,
-  projectionMode,
-}: DraftSelection): string =>
-  [candidateId, occurrenceId, projectionMode]
-    .map((value) => encodeURIComponent(value))
-    .join('::');
-
 export const derivedOccurrences = (
   table: DraftTable | undefined,
   catalog: ExplorerBuilderCatalog,
 ): ReadonlyArray<DerivedOccurrence> => {
-  if (!table?.rootNodeId) return [];
-  const occurrences: DerivedOccurrence[] = [
-    { id: 'base', index: 0, nodeId: table.rootNodeId },
-  ];
-  let tail = table.rootNodeId;
-  table.routeSteps.forEach((step, stepIndex) => {
-    const edge = catalog.edges.find(
-      (candidate) =>
-        candidate.edgeId === step.edgeId && candidate.fromNodeId === tail,
+  if (!table) return [];
+  const occurrences: DerivedOccurrence[] = [];
+  const walk = (
+    route: ExplorerBuilderDocument['route'],
+    parentNodeId: string | undefined,
+    parentId: string | undefined,
+    depth: number,
+  ) => {
+    const node = catalog.nodes.find(
+      (candidate) => candidate.resourceType === route.resourceType,
     );
-    if (!edge) return;
+    if (!node) return;
+    const edge = parentNodeId
+      ? catalog.edges.find(
+          (candidate) =>
+            candidate.fromNodeId === parentNodeId &&
+            candidate.toNodeId === node.nodeId &&
+            candidate.label === route.relationship,
+        )
+      : undefined;
+    if (parentNodeId && !edge) return;
     occurrences.push({
-      id: step.occurrenceId ?? `step-${stepIndex + 1}`,
-      index: stepIndex + 1,
-      nodeId: edge.toNodeId,
-      incomingEdgeId: edge.edgeId,
+      id: route.occurrenceId,
+      index: occurrences.length,
+      nodeId: node.nodeId,
+      incomingEdgeId: edge?.edgeId,
+      parentId,
+      depth,
+      resourceType: route.resourceType,
     });
-    tail = edge.toNodeId;
-  });
+    route.children?.forEach((child) =>
+      walk(child, node.nodeId, route.occurrenceId, depth + 1),
+    );
+  };
+  walk(table.document.route, undefined, undefined, 0);
   return occurrences;
 };
 
-export const routeTailNodeId = (
-  table: DraftTable | undefined,
-  catalog: ExplorerBuilderCatalog,
-): string | undefined => derivedOccurrences(table, catalog).at(-1)?.nodeId;
+export const routeNode = (
+  route: ExplorerBuilderDocument['route'],
+  occurrenceId: string,
+): ExplorerBuilderDocument['route'] | undefined => {
+  if (route.occurrenceId === occurrenceId) return route;
+  for (const child of route.children ?? []) {
+    const found = routeNode(child, occurrenceId);
+    if (found) return found;
+  }
+  return undefined;
+};
+
+export const routeSubtreeOccurrenceIds = (
+  route: ExplorerBuilderDocument['route'],
+): ReadonlySet<string> => {
+  const values = new Set<string>();
+  const walk = (node: ExplorerBuilderDocument['route']) => {
+    values.add(node.occurrenceId);
+    node.children?.forEach(walk);
+  };
+  walk(route);
+  return values;
+};
+
+export const replaceRouteNode = (
+  route: ExplorerBuilderDocument['route'],
+  occurrenceId: string,
+  update: (
+    node: ExplorerBuilderDocument['route'],
+  ) => ExplorerBuilderDocument['route'] | undefined,
+): ExplorerBuilderDocument['route'] | undefined => {
+  if (route.occurrenceId === occurrenceId) return update(route);
+  const children = (route.children ?? []).flatMap((child) => {
+    const next = replaceRouteNode(child, occurrenceId, update);
+    return next ? [next] : [];
+  });
+  return { ...route, children: children.length ? children : undefined };
+};
+
+const routeIdPart = (value: string): string =>
+  value
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, '_')
+    .replace(/^_+|_+$/g, '') || 'resource';
+
+export const nextRouteOccurrenceId = (
+  route: ExplorerBuilderDocument['route'],
+  parentOccurrenceId: string,
+  resourceType: string,
+  relationship: string,
+): string => {
+  const used = routeSubtreeOccurrenceIds(route);
+  const resource = routeIdPart(resourceType);
+  const prefix = parentOccurrenceId === 'base' ? '' : `${parentOccurrenceId}__`;
+  let base = `${prefix}${resource}`;
+  if (used.has(base)) base = `${base}__${routeIdPart(relationship)}`;
+  let value = base;
+  let suffix = 2;
+  while (used.has(value)) value = `${base}_${suffix++}`;
+  return value;
+};
 
 const tableFromDocument = (
   document: ExplorerBuilderDocument,
@@ -96,14 +156,11 @@ const tableFromDocument = (
   tabId: tab?.id ?? document.output.id,
   title: tab?.title ?? document.output.title ?? document.output.id,
   visible: tab?.visible,
-  rootNodeId: document.rootNodeId,
-  routeSteps: document.routeSteps,
-  selections: document.selections,
-  presentation: document.presentation ?? {},
+  document,
 });
 
 const tablesFromWorkspace = (
-  workspace: ExplorerBuilderWorkspace | null | undefined,
+  workspace: ExplorerBuilderWorkspace | null,
 ): ReadonlyArray<DraftTable> => {
   if (!workspace) return [];
   const documents = new Map(
@@ -127,15 +184,18 @@ export const stateFromBuilder = (
   value: ExplorerBuilderState,
   identity: { readonly project: string; readonly explorerId: string },
 ): BuilderAuthoringState => {
+  if (value.lifecycleState === 'READY' && !value.workspace) {
+    throw new Error('Loom violated the READY authoring-state invariant.');
+  }
   const tables = tablesFromWorkspace(value.workspace);
   return {
     ...identity,
     catalog: value.catalog,
+    workspace: value.workspace,
     tables,
     selectedOutputId: tables[0]?.outputId,
     selectedOccurrenceId: 'base',
     diagnostics: [],
-    emissions: [],
     dirty: false,
     reconciliation: value.workspace?.documents.length ? 'pending' : 'idle',
   };
@@ -143,27 +203,15 @@ export const stateFromBuilder = (
 
 export const completeDocument = (
   table: DraftTable,
-  catalog: ExplorerBuilderCatalog,
 ): ExplorerBuilderDocument | undefined => {
-  if (!table.rootNodeId) return undefined;
-  const occurrenceIds = new Set(
-    derivedOccurrences(table, catalog).map((occurrence) => occurrence.id),
-  );
-  const selections = table.selections.filter((selection) =>
-    occurrenceIds.has(selection.occurrenceId),
-  );
-  const presentationKeys = new Set(selections.map(selectionPresentationKey));
+  const title = table.title.trim() || table.document.output.title;
   return {
-    kind: 'ExplorerBuilderDocument',
-    output: { id: table.outputId, title: table.title },
-    rootNodeId: table.rootNodeId,
-    routeSteps: table.routeSteps,
-    selections,
-    presentation: Object.fromEntries(
-      Object.entries(table.presentation).filter(([key]) =>
-        presentationKeys.has(key),
-      ),
-    ),
+    ...table.document,
+    output: {
+      ...table.document.output,
+      id: table.outputId,
+      title,
+    },
   };
 };
 
@@ -171,20 +219,39 @@ export const workspaceFromState = (
   state: BuilderAuthoringState,
 ): ExplorerBuilderWorkspace => {
   const complete = state.tables.flatMap((table) => {
-    const document = completeDocument(table, state.catalog);
+    const document = completeDocument(table);
     return document ? [{ table, document }] : [];
   });
+  const validColumns = new Map(
+    complete.map(({ document }) => [
+      document.output.id,
+      new Set(document.columns.map((column) => column.column)),
+    ]),
+  );
+  const sharedFilterEntries = Object.entries(
+    state.workspace?.sharedFilters ?? {},
+  ).flatMap(([name, bindings]) => {
+    const retained = bindings.filter((binding) =>
+      validColumns.get(binding.outputId)?.has(binding.column),
+    );
+    return retained.length ? [[name, retained] as const] : [];
+  });
   return {
+    ...state.workspace,
     apiVersion: 'loom.calypr.org/explorer-authoring/v2',
     kind: 'ExplorerBuilderWorkspace',
+    explorer: state.workspace?.explorer ?? { title: state.explorerId },
     documents: complete.map(({ document }) => document),
-    tabs: complete.map(({ table }, order) => ({
+    tabs: complete.map(({ table, document }, order) => ({
       id: table.tabId,
-      title: table.title,
+      title: document.output.title,
       outputId: table.outputId,
       order,
       visible: table.visible ?? true,
     })),
+    sharedFilters: sharedFilterEntries.length
+      ? Object.fromEntries(sharedFilterEntries)
+      : undefined,
   };
 };
 
@@ -199,51 +266,9 @@ const canonicalize = (value: unknown): unknown => {
   }
   return value;
 };
-export const intentFingerprint = (workspace: ExplorerBuilderWorkspace): string =>
-  JSON.stringify(canonicalize(workspace));
+export const intentFingerprint = (
+  workspace: ExplorerBuilderWorkspace,
+): string => JSON.stringify(canonicalize(workspace));
 
 export const selectedTable = (state: BuilderAuthoringState) =>
   state.tables.find((table) => table.outputId === state.selectedOutputId);
-
-export const emissionsForOutput = (
-  receipt: ExplorerBuilderCompileResult | undefined,
-  outputId: string | undefined,
-): ReadonlyArray<ExplorerBuilderEmission> =>
-  receipt?.outputs.find((output) => output.outputId === outputId)?.emissions ??
-  [];
-
-export const selectedEmissions = (state: BuilderAuthoringState) =>
-  state.emissions.filter(
-    (emission) => emission.outputId === state.selectedOutputId,
-  );
-
-export const presentationForEmission = (
-  table: DraftTable | undefined,
-  emission: ExplorerBuilderEmission,
-): PresentationBinding | undefined =>
-  table?.presentation[
-    selectionPresentationKey({
-      candidateId: emission.candidateId,
-      occurrenceId: emission.occurrenceId,
-      projectionMode: emission.projectionMode,
-    })
-  ];
-
-export const visibleEmissions = (state: BuilderAuthoringState) => {
-  const table = selectedTable(state);
-  return [...selectedEmissions(state)]
-    .filter(
-      (emission) => presentationForEmission(table, emission)?.visible !== false,
-    )
-    .sort(
-      (left, right) =>
-        (presentationForEmission(table, left)?.order ?? Number.MAX_SAFE_INTEGER) -
-        (presentationForEmission(table, right)?.order ?? Number.MAX_SAFE_INTEGER),
-    );
-};
-
-export const catalogCandidates = (
-  catalog: ExplorerBuilderCatalog,
-  nodeId: string | undefined,
-): ReadonlyArray<ExplorerBuilderCandidate> =>
-  (catalog.candidates ?? []).filter((candidate) => candidate.nodeId === nodeId);

@@ -45,28 +45,33 @@ const ProjectExplorerBuilder = ({
           toolbarContent={
             <div
               aria-label="Explorer workspace"
-              className="ml-auto flex shrink-0 self-stretch gap-5 border-l border-slate-200 pl-5"
-              role="tablist"
+              className="flex min-w-0 items-center gap-4 border-l border-slate-200 pl-5"
             >
-              <Link
-                className="rounded-none border-0 border-b-2 border-transparent bg-transparent px-0 pb-3 pt-3 text-sm font-semibold text-slate-500 hover:text-slate-800"
-                href={explorerHref}
-                role="tab"
-              >
-                View
-              </Link>
-              <span
-                aria-selected="true"
-                className="rounded-none border-0 border-b-2 border-[#2f5aac] px-0 pb-3 pt-3 text-sm font-semibold text-[#2f5aac]"
-                role="tab"
-              >
-                Builder
-              </span>
+              <div className="flex shrink-0 self-stretch gap-5" role="tablist">
+                <Link
+                  className="rounded-none border-0 border-b-2 border-transparent bg-transparent px-0 pb-3 pt-3 text-sm font-semibold text-slate-500 hover:text-slate-800"
+                  href={explorerHref}
+                  role="tab"
+                >
+                  View
+                </Link>
+                <span
+                  aria-selected="true"
+                  className="rounded-none border-0 border-b-2 border-[#2f5aac] px-0 pb-3 pt-3 text-sm font-semibold text-[#2f5aac]"
+                  role="tab"
+                >
+                  Builder
+                </span>
+              </div>
+              <div
+                id="explorer-builder-toolbar-host"
+                className="min-w-0 flex-1 bg-white"
+              />
             </div>
           }
           belowTabsContent={
             <div
-              id="explorer-builder-toolbar-host"
+              id="explorer-builder-table-toolbar-host"
               className="min-w-0 bg-white"
             />
           }

@@ -1,31 +1,39 @@
 import type { ExplorerBuilderCatalog } from '@gen3/core';
-import { routeTailNodeId, type DraftTable } from './model';
+import { derivedOccurrences, type DraftTable } from './model';
 
 /**
  * The graph is allowed to inspect the full catalog, but authoring may only
- * use edges that leave the current route tail. Keeping this rule pure makes
+ * use edges that leave the selected authored occurrence. Keeping this rule pure makes
  * it reusable by the canvas, the explicit route controls, and tests.
  */
 export const legalOutgoingEdges = (
   catalog: ExplorerBuilderCatalog,
   table: DraftTable | undefined,
+  parentOccurrenceId: string,
 ): ExplorerBuilderCatalog['edges'] => {
-  const tailNodeId = routeTailNodeId(table, catalog);
-  if (!table?.rootNodeId || !tailNodeId) return [];
+  const occurrences = derivedOccurrences(table, catalog);
+  const parent = occurrences.find(
+    (occurrence) => occurrence.id === parentOccurrenceId,
+  );
+  if (!table || !parent) return [];
   const allowsRepeated =
     catalog.routePolicy.allowRepeatedEdges ??
     catalog.routePolicy.repeatedEdges ??
     false;
   const allowsSelfLoops =
-    catalog.routePolicy.allowSelfLoops ?? catalog.routePolicy.selfLoops ?? false;
+    catalog.routePolicy.allowSelfLoops ??
+    catalog.routePolicy.selfLoops ??
+    false;
   const maxSteps = catalog.routePolicy.maxSteps;
-  if (maxSteps && table.routeSteps.length >= maxSteps) return [];
+  if (maxSteps && parent.depth + 1 > maxSteps) return [];
   return catalog.edges.filter((edge) => {
-    if (edge.fromNodeId !== tailNodeId) return false;
+    if (edge.fromNodeId !== parent.nodeId) return false;
     if (edge.fromNodeId === edge.toNodeId && !allowsSelfLoops) return false;
     return (
       allowsRepeated ||
-      !table.routeSteps.some((step) => step.edgeId === edge.edgeId)
+      !occurrences.some(
+        (occurrence) => occurrence.incomingEdgeId === edge.edgeId,
+      )
     );
   });
 };
@@ -33,10 +41,11 @@ export const legalOutgoingEdges = (
 export const legalEdgesToNode = (
   catalog: ExplorerBuilderCatalog,
   table: DraftTable | undefined,
+  parentOccurrenceId: string,
   nodeId: string | undefined,
 ): ExplorerBuilderCatalog['edges'] => {
   if (!nodeId) return [];
-  return legalOutgoingEdges(catalog, table).filter(
+  return legalOutgoingEdges(catalog, table, parentOccurrenceId).filter(
     (edge) => edge.toNodeId === nodeId,
   );
 };
@@ -44,9 +53,10 @@ export const legalEdgesToNode = (
 export const isLegalRouteExtension = (
   catalog: ExplorerBuilderCatalog,
   table: DraftTable | undefined,
+  parentOccurrenceId: string,
   edgeId: string,
   targetNodeId: string,
 ): boolean =>
-  legalOutgoingEdges(catalog, table).some(
+  legalOutgoingEdges(catalog, table, parentOccurrenceId).some(
     (edge) => edge.edgeId === edgeId && edge.toNodeId === targetNodeId,
   );

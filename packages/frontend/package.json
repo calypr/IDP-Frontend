@@ -110,6 +110,7 @@
     "@types/pluralize": "^0.0.33",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.0.0",
+    "@types/react-plotly.js": "^2.6.4",
     "@types/react-table": "^7.7.20",
     "@types/tinycolor2": "^1.4.6",
     "@types/uuid": "^11.0.0",
