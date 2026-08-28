@@ -69,12 +69,6 @@ const ProjectExplorerBuilder = ({
               />
             </div>
           }
-          belowTabsContent={
-            <div
-              id="explorer-builder-table-toolbar-host"
-              className="min-w-0 bg-white"
-            />
-          }
         >
           <ExplorerBuilderPage organization={organization} project={project} />
         </ProjectWorkspaceTabs>

@@ -161,13 +161,8 @@ const BuilderWorkspace = ({
     const nextToolbarHost = document.getElementById(
       'explorer-builder-toolbar-host',
     );
-    const nextTableToolbarHost = document.getElementById(
-      'explorer-builder-table-toolbar-host',
-    );
     if (nextToolbarHost !== toolbarHost) setToolbarHost(nextToolbarHost);
-    if (nextTableToolbarHost !== tableToolbarHost)
-      setTableToolbarHost(nextTableToolbarHost);
-  }, [tableToolbarHost, toolbarHost]);
+  }, [toolbarHost]);
 
   useEffect(() => {
     if (!builder.data) return;
@@ -553,11 +548,11 @@ const BuilderWorkspace = ({
     void executePreview(request, state.receipt.receiptId);
   }, [executePreview, fingerprint, state.receipt, state.reconciliation]);
 
-  const preview = () => {
+  const preview = (limit: PreviewLimit = previewLimit) => {
     if (!table || previewDisabled) return;
     const request = {
       outputId: table.outputId,
-      limit: previewLimit,
+      limit,
       fingerprint,
       receiptRefreshes: 0,
     };
@@ -654,7 +649,7 @@ const BuilderWorkspace = ({
       publishDisabled={publishDisabled}
       busy={busy}
       columnCreationSupported={false}
-      tableToolbarHost={toolbarHost ? tableToolbarHost : undefined}
+      tableToolbarHost={tableToolbarHost}
     />
   );
 
@@ -780,6 +775,7 @@ const BuilderWorkspace = ({
                     occurrenceId,
                   });
                 }}
+                onTableToolbarHostChange={setTableToolbarHost}
               />
               <ColumnSelector
                 catalog={state.catalog}
@@ -848,7 +844,10 @@ const BuilderWorkspace = ({
               preview={state.preview}
               table={table}
               limit={previewLimit}
-              onLimitChange={setPreviewLimit}
+              onLimitChange={(limit) => {
+                setPreviewLimit(limit);
+                if (state.preview) preview(limit);
+              }}
               onColumnChange={(column) =>
                 table &&
                 dispatch({

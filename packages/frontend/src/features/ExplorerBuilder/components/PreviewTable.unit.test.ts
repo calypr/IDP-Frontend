@@ -89,6 +89,24 @@ describe('formatPreviewCell', () => {
 });
 
 describe('PreviewTable column controls', () => {
+  it('reports row-limit changes to the preview owner', () => {
+    const onLimitChange = jest.fn();
+    render(
+      React.createElement(PreviewTable, {
+        preview,
+        table,
+        limit: 25,
+        onLimitChange,
+        onColumnChange: jest.fn(),
+      }),
+    );
+
+    fireEvent.change(screen.getByRole('combobox'), {
+      target: { value: '100' },
+    });
+    expect(onLimitChange).toHaveBeenCalledWith(100);
+  });
+
   it('uses scrollable table and selector surfaces', () => {
     render(
       React.createElement(PreviewTable, {
@@ -110,6 +128,10 @@ describe('PreviewTable column controls', () => {
     expect(
       screen.getByText(/Drag rows to change table order/),
     ).toBeInTheDocument();
+    fireEvent.pointerDown(document.body);
+    expect(
+      screen.queryByRole('list', { name: 'Table columns' }),
+    ).not.toBeInTheDocument();
   });
 
   it('toggles visibility and drag-reorders columns from the selector', () => {

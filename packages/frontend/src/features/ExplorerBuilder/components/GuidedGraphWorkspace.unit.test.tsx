@@ -345,8 +345,9 @@ describe('GuidedGraphWorkspace', () => {
     expect(onSelectOccurrence).toHaveBeenCalledWith('patient');
   });
 
-  it('expands on graph interaction, highlights the clicked node, and directly adds one legal edge', async () => {
+  it('keeps node interaction inline, expands from the background, and directly adds one legal edge', async () => {
     const onAppendEdge = jest.fn();
+    const onTableToolbarHostChange = jest.fn();
     render(
       <GuidedGraphWorkspace
         catalog={catalog}
@@ -358,6 +359,7 @@ describe('GuidedGraphWorkspace', () => {
         onChangeBase={jest.fn()}
         onAppendEdge={onAppendEdge}
         onTruncate={jest.fn()}
+        onTableToolbarHostChange={onTableToolbarHostChange}
       />,
     );
 
@@ -375,15 +377,33 @@ describe('GuidedGraphWorkspace', () => {
       'document-file',
       'node-file',
     );
+    expect(
+      screen.queryByRole('dialog', { name: 'Expanded dataset graph' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId('graph-node-node-file')).toHaveAttribute(
+      'data-border',
+      '3px solid #f59e0b',
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Graph background' }));
+
     const expandedGraph = screen.getByRole('dialog', {
       name: 'Expanded dataset graph',
     });
     expect(expandedGraph).toBeInTheDocument();
     expect(expandedGraph).toHaveClass('fixed', 'inset-3');
     expect(expandedGraph).not.toHaveClass('relative');
-    expect(screen.getByTestId('graph-node-node-file')).toHaveAttribute(
-      'data-border',
-      '3px solid #f59e0b',
-    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close graph' }));
+
+    expect(
+      screen.queryByRole('dialog', { name: 'Expanded dataset graph' }),
+    ).not.toBeInTheDocument();
+    expect(
+      onTableToolbarHostChange.mock.calls.some(([host]) => host === null),
+    ).toBe(true);
+    const currentHost = onTableToolbarHostChange.mock.calls.at(-1)?.[0];
+    expect(currentHost).toBeInstanceOf(HTMLDivElement);
+    expect(currentHost?.isConnected).toBe(true);
   });
 });

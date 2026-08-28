@@ -17,6 +17,55 @@ const draftTable = (outputId: string, title: string): DraftTable => ({
 });
 
 describe('BuilderToolbar', () => {
+  it('dismisses table and explorer menus when clicking away', () => {
+    render(
+      <BuilderToolbar
+        explorers={[
+          {
+            project: 'HTAN_INT/BForePC',
+            explorerId: 'default',
+            title: 'Default',
+            management: 'repository',
+            updatedAt: '2026-08-27T00:00:00Z',
+          },
+        ]}
+        selectedExplorerId="default"
+        onExplorerChange={jest.fn()}
+        onCreateExplorer={jest.fn()}
+        deleteSupported={false}
+        tables={[draftTable('Patient', 'Patient')]}
+        selectedOutputId="Patient"
+        onSelectTable={jest.fn()}
+        onRenameTable={jest.fn()}
+        onNewTable={jest.fn()}
+        onDuplicateTable={jest.fn()}
+        onDeleteTable={jest.fn()}
+        onReorderTable={jest.fn()}
+        onPreview={jest.fn()}
+        onPublish={jest.fn()}
+        previewDisabled={false}
+        publishDisabled={false}
+      />,
+    );
+
+    const tableMenu = screen
+      .getByLabelText('Table selector')
+      .closest('details');
+    expect(tableMenu).not.toBeNull();
+    fireEvent.click(screen.getByLabelText('Table selector'));
+    expect(tableMenu).toHaveAttribute('open');
+    fireEvent.pointerDown(document.body);
+    expect(tableMenu).not.toHaveAttribute('open');
+
+    fireEvent.click(screen.getByText('New explorer'));
+    const explorerMenu = screen
+      .getByLabelText('Explorer name')
+      .closest('details');
+    expect(explorerMenu).toHaveAttribute('open');
+    fireEvent.pointerDown(document.body);
+    expect(explorerMenu).not.toHaveAttribute('open');
+  });
+
   it('uses one draggable table menu for selection, naming, and ordering', () => {
     const onSelectTable = jest.fn();
     const onRenameTable = jest.fn();

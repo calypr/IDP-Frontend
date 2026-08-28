@@ -344,26 +344,62 @@ export const ColumnSelector = ({
     if (disabled) return;
     onAdd(candidate, displayName);
   };
+  const allTableColumnsSelected =
+    available.length === 0 &&
+    configured.length > 0 &&
+    configured.every(
+      (column) => column.table?.visible ?? Boolean(column.table),
+    );
+  const toggleAllTableColumns = () => {
+    if (disabled) return;
+    if (allTableColumnsSelected) {
+      configured.forEach((column) =>
+        onChange({
+          ...column,
+          table: {
+            ...(column.table ?? {}),
+            visible: false,
+          },
+        }),
+      );
+      return;
+    }
+    configured
+      .filter((column) => !(column.table?.visible ?? Boolean(column.table)))
+      .forEach((column, order) =>
+        onChange({
+          ...column,
+          table: {
+            ...(column.table ?? {}),
+            visible: true,
+            order: column.table?.order ?? order,
+          },
+        }),
+      );
+    if (available.length > 0) onAddAll(available);
+  };
 
   return (
-    <aside className="flex h-[min(70dvh,52rem)] min-h-[36rem] min-w-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white p-3 shadow-sm xl:sticky xl:top-3">
+    <aside className="flex h-[min(70dvh,52rem)] min-h-[43rem] min-w-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white p-3 shadow-sm xl:sticky xl:top-3">
       <div className="flex min-w-0 items-start gap-3">
         <div className="min-w-0 flex-1">
           <h2 className="text-base font-semibold text-slate-900">
             {titleForResource(resourceType)} columns
           </h2>
-          <p className="mt-0.5 text-xs text-slate-600">
-            Edit display names directly; source fields stay fixed.
-          </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <button
             type="button"
-            disabled={disabled || available.length === 0}
-            onClick={() => onAddAll(available)}
+            disabled={
+              disabled || (configured.length === 0 && available.length === 0)
+            }
+            aria-pressed={allTableColumnsSelected}
+            onClick={toggleAllTableColumns}
             className="rounded border border-blue-300 bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-800 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            Select all table columns
+            {allTableColumnsSelected
+              ? 'Deselect all table columns'
+              : 'Select all table columns'}
           </button>
           <span className="rounded bg-slate-100 px-2 py-1 text-[11px] text-slate-600">
             {configured.length} configured · {available.length} available

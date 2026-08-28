@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Background,
@@ -90,6 +90,7 @@ export const GuidedGraphWorkspace = ({
   onChangeBase,
   onAppendEdge,
   onTruncate,
+  onTableToolbarHostChange,
 }: {
   readonly catalog: ExplorerBuilderCatalog;
   readonly table?: DraftTable;
@@ -104,8 +105,10 @@ export const GuidedGraphWorkspace = ({
     nodeId: string,
   ) => void;
   readonly onTruncate: (occurrenceId: string) => void;
+  readonly onTableToolbarHostChange?: (host: HTMLDivElement | null) => void;
 }) => {
   const graphHostRef = React.useRef<HTMLDivElement>(null);
+  const traversalRef = React.useRef<HTMLElement>(null);
   const [positions, setPositions] = useState<
     ReadonlyMap<string, { x: number; y: number }>
   >(new Map());
@@ -114,6 +117,7 @@ export const GuidedGraphWorkspace = ({
   const [selectedEdgeId, setSelectedEdgeId] = useState<string>();
   const [isExpanded, setIsExpanded] = useState(false);
   const [showOrphans, setShowOrphans] = useState(false);
+  const [isTraversalOverflowing, setIsTraversalOverflowing] = useState(false);
   const catalogIdentity = useMemo(
     () =>
       JSON.stringify({
@@ -186,6 +190,34 @@ export const GuidedGraphWorkspace = ({
       })),
     [catalog, table],
   );
+  useLayoutEffect(() => {
+    const graphHost = graphHostRef.current;
+    const traversal = traversalRef.current;
+    if (!graphHost || !traversal) return undefined;
+
+    const measure = () => {
+      const truncatedWidth = Array.from(
+        traversal.querySelectorAll<HTMLElement>('[data-traversal-label]'),
+      ).reduce(
+        (width, label) =>
+          width + Math.max(0, label.scrollWidth - label.clientWidth),
+        0,
+      );
+      const naturalWidth = traversal.scrollWidth + truncatedWidth;
+      // Keep the same right-side reservation used by the overlay's max-width
+      // so its expansion affordance only appears when that space is exhausted.
+      const allottedWidth = Math.max(0, graphHost.clientWidth - 9 * 16);
+      setIsTraversalOverflowing(naturalWidth > allottedWidth + 1);
+    };
+
+    const observer =
+      typeof ResizeObserver === 'undefined'
+        ? undefined
+        : new ResizeObserver(measure);
+    observer?.observe(graphHost);
+    measure();
+    return () => observer?.disconnect();
+  }, [isExpanded, occurrences]);
   const occurrencesByNode = useMemo(() => {
     const result = new Map<string, typeof occurrences>();
     occurrences.forEach((occurrence) => {
@@ -367,7 +399,6 @@ export const GuidedGraphWorkspace = ({
   const graphIdentity = `${layoutIdentity ?? 'layout-pending'}:${nodesForViewport.map((node) => node.id).join(',')}`;
   const inspectNode = (nodeId: string) => {
     if (disabled) return;
-    if (!isExpanded) setIsExpanded(true);
     setInspectedNodeId(nodeId);
     setSelectedEdgeId(undefined);
     const routeOccurrences = occurrences.filter(
@@ -394,7 +425,6 @@ export const GuidedGraphWorkspace = ({
   };
   const inspectEdge = (edgeId: string) => {
     if (disabled) return;
-    if (!isExpanded) setIsExpanded(true);
     const edge = catalog.edges.find((candidate) => candidate.edgeId === edgeId);
     if (!edge) return;
     setInspectedNodeId(edge.toNodeId);
@@ -433,12 +463,13 @@ export const GuidedGraphWorkspace = ({
                 relationships
               </span>
             </h2>
-            <p className="mt-0.5 text-xs text-slate-500">
-              Click a resource to select it, extend the current query, or start
-              a new one.
-            </p>
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
+            <div
+              ref={onTableToolbarHostChange}
+              id="explorer-builder-table-toolbar-host"
+              className="min-w-0"
+            />
             {isExpanded && (
               <button
                 type="button"
@@ -450,55 +481,6 @@ export const GuidedGraphWorkspace = ({
             )}
           </div>
         </div>
-        <nav
-          aria-label="Current traversal"
-          className="mt-2 flex shrink-0 items-center gap-2 overflow-x-auto rounded-lg border border-blue-200 bg-blue-50/70 px-2 py-1.5 text-xs"
-        >
-          <div className="shrink-0 border-r border-blue-200 pr-2">
-            <p className="font-semibold text-blue-950">Current query</p>
-            <p className="text-[10px] text-blue-600">
-              Selected parent:{' '}
-              {occurrences.find(
-                (occurrence) =>
-                  occurrence.occurrenceId === selectedOccurrenceId,
-              )?.resourceType ?? 'none'}
-            </p>
-          </div>
-          {occurrences.length === 0 ? (
-            <span className="text-blue-950">Click a resource to start.</span>
-          ) : (
-            <div className="flex min-w-max items-center gap-1">
-              {occurrences.map((occurrence) => (
-                <div
-                  key={occurrence.occurrenceId}
-                  className="flex items-center gap-1.5"
-                >
-                  {occurrence.depth > 0 && (
-                    <span className="font-bold text-blue-400">↳</span>
-                  )}
-                  <button
-                    type="button"
-                    className={`rounded-md border px-2 py-1 font-semibold ${occurrence.occurrenceId === selectedOccurrenceId ? 'border-blue-600 bg-blue-600 text-white shadow-sm' : 'border-blue-300 bg-white text-blue-900'}`}
-                    onClick={() => onSelectOccurrence(occurrence.occurrenceId)}
-                  >
-                    {occurrence.resourceType}
-                  </button>
-                  {occurrence.occurrenceId !== 'base' && (
-                    <button
-                      type="button"
-                      aria-label={`Remove ${occurrence.resourceType} branch`}
-                      title={`Remove ${occurrence.resourceType} branch`}
-                      className="rounded-full px-1.5 py-0.5 text-base leading-none text-blue-500 hover:bg-blue-100 hover:text-red-600"
-                      onClick={() => onTruncate(occurrence.occurrenceId)}
-                    >
-                      ×
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </nav>
         <div
           ref={graphHostRef}
           className={`relative mt-2 min-h-0 flex-1 overflow-hidden rounded-xl border border-slate-200 bg-slate-50 shadow-inner ${isExpanded ? '' : 'min-h-[32rem]'}`}
@@ -547,6 +529,65 @@ export const GuidedGraphWorkspace = ({
             onChangeRowStart={onChangeBase}
             onAddEdge={addRelationship}
           />
+          <nav
+            ref={traversalRef}
+            aria-label="Current traversal"
+            className={`absolute left-3 top-3 z-10 flex w-fit max-w-[calc(100%-9rem)] items-center gap-2 overflow-x-auto rounded-lg border border-blue-200 bg-blue-50/95 px-2 py-1.5 text-xs shadow-sm ${isTraversalOverflowing ? 'group transition-[max-width] hover:max-w-[calc(100%-1.5rem)]' : ''}`}
+          >
+            <div className="shrink-0 border-r border-blue-200 pr-2">
+              <p className="font-semibold text-blue-950">Current query</p>
+              <p
+                data-traversal-label
+                className={`${isTraversalOverflowing ? 'max-w-28 truncate group-hover:max-w-48' : ''} text-[10px] text-blue-600`}
+              >
+                Selected parent:{' '}
+                {occurrences.find(
+                  (occurrence) =>
+                    occurrence.occurrenceId === selectedOccurrenceId,
+                )?.resourceType ?? 'none'}
+              </p>
+            </div>
+            {occurrences.length === 0 ? (
+              <span className="shrink-0 text-blue-950">
+                Click a resource to start.
+              </span>
+            ) : (
+              <div className="flex min-w-max items-center gap-1">
+                {occurrences.map((occurrence) => (
+                  <div
+                    key={occurrence.occurrenceId}
+                    className="flex items-center gap-1.5"
+                  >
+                    {occurrence.depth > 0 && (
+                      <span className="font-bold text-blue-400">↳</span>
+                    )}
+                    <button
+                      type="button"
+                      title={occurrence.resourceType}
+                      data-traversal-label
+                      className={`${isTraversalOverflowing ? 'max-w-24 truncate transition-[max-width] group-hover:max-w-40' : ''} rounded-md border px-2 py-1 font-semibold ${occurrence.occurrenceId === selectedOccurrenceId ? 'border-blue-600 bg-blue-600 text-white shadow-sm' : 'border-blue-300 bg-white text-blue-900'}`}
+                      onClick={() =>
+                        onSelectOccurrence(occurrence.occurrenceId)
+                      }
+                    >
+                      {occurrence.resourceType}
+                    </button>
+                    {occurrence.occurrenceId !== 'base' && (
+                      <button
+                        type="button"
+                        aria-label={`Remove ${occurrence.resourceType} branch`}
+                        title={`Remove ${occurrence.resourceType} branch`}
+                        className="rounded-full px-1.5 py-0.5 text-base leading-none text-blue-500 hover:bg-blue-100 hover:text-red-600"
+                        onClick={() => onTruncate(occurrence.occurrenceId)}
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </nav>
           <label className="absolute right-3 top-3 z-10 flex cursor-pointer items-center gap-1.5 rounded border border-slate-300 bg-white/95 px-2 py-1 text-[11px] font-semibold text-slate-700 shadow-sm">
             <input
               type="checkbox"

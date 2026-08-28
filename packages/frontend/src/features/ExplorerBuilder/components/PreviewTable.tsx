@@ -5,6 +5,7 @@ import type {
   ExplorerBuilderPreviewResult,
 } from '@gen3/core';
 import type { DraftTable } from '../authoring/model';
+import { useDismissibleLayer } from './useDismissibleLayer';
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -81,6 +82,10 @@ export const PreviewTable = ({
   readonly onColumnChange: (column: ExplorerBuilderColumn) => void;
 }) => {
   const [columnsOpen, setColumnsOpen] = useState(false);
+  const columnsMenuRef = useDismissibleLayer<HTMLDivElement>(
+    columnsOpen,
+    setColumnsOpen,
+  );
   const [draggedColumn, setDraggedColumn] = useState<string>();
   const [dropIndex, setDropIndex] = useState<number>();
   const draggedColumnRef = React.useRef<string | undefined>(undefined);
@@ -142,16 +147,11 @@ export const PreviewTable = ({
   };
   return (
     <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 bg-slate-50/80 px-4 py-3">
-        <div>
-          <h3 className="text-sm font-semibold text-slate-900">
-            Preview and configure
-          </h3>
-          <p className="mt-0.5 text-xs text-slate-500">
-            Rows are addressed by Loom’s exact configured columns.
-          </p>
-        </div>
-        <div className="relative ml-auto">
+      <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 bg-slate-50/80 px-4 py-2">
+        <h3 className="text-sm font-semibold text-slate-900">
+          Preview and configure
+        </h3>
+        <div ref={columnsMenuRef} className="relative ml-auto">
           <button
             type="button"
             className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50"

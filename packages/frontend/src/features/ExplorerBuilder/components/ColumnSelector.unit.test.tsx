@@ -151,6 +151,35 @@ describe('configured V2 columns', () => {
     expect(onAddAll).toHaveBeenCalledWith([candidate]);
   });
 
+  it('toggles all configured table columns off without removing their configuration', () => {
+    const onChange = jest.fn();
+    render(
+      <ColumnSelector
+        catalog={catalog}
+        table={table}
+        occurrenceId="base"
+        disabled={false}
+        onAdd={jest.fn()}
+        onAddAll={jest.fn()}
+        onChange={onChange}
+        onRemove={jest.fn()}
+      />,
+    );
+
+    const toggle = screen.getByRole('button', {
+      name: 'Deselect all table columns',
+    });
+    expect(toggle).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(toggle);
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        column: 'research_subject_identifier',
+        table: expect.objectContaining({ visible: false }),
+      }),
+    );
+  });
+
   it('converts a chosen candidate to one durable typed V2 column', () => {
     const column = columnFromCandidate(
       {
