@@ -1,19 +1,15 @@
-import React, { useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import {
-  Background,
-  Controls,
-  MarkerType,
-  ReactFlow,
-  useNodesInitialized,
-  useReactFlow,
-} from '@xyflow/react';
+import { Background, Controls, MarkerType, ReactFlow } from '@xyflow/react';
 import type { Edge, Node } from '@xyflow/react';
 import type { ExplorerBuilderCatalog } from '@gen3/core';
 import { derivedOccurrences, type DraftTable } from '../authoring/model';
 import { legalOutgoingEdges } from '../authoring/routeActions';
-import { layoutDatasetGraph } from '../graphLayout';
 import { RouteExtensionPanel } from './RouteExtensionPanel';
+import { useEscapeToClose } from '../../../hooks/explorerBuilder/useEscapeToClose';
+import { useGraphLayout } from '../../../hooks/explorerBuilder/useGraphLayout';
+import { useGraphViewportFitter } from '../../../hooks/explorerBuilder/useGraphViewportFitter';
+import { useTraversalOverflow } from '../../../hooks/explorerBuilder/useTraversalOverflow';
 
 const GraphViewportFitter = ({
   expanded,
@@ -26,57 +22,7 @@ const GraphViewportFitter = ({
   readonly hostRef: React.RefObject<HTMLDivElement | null>;
   readonly nodeCount: number;
 }) => {
-  const flow = useReactFlow();
-  const nodesInitialized = useNodesInitialized();
-  const viewportInitialized = flow.viewportInitialized;
-
-  useEffect(() => {
-    const host = hostRef.current;
-    if (!host || !nodesInitialized || !viewportInitialized || nodeCount === 0)
-      return undefined;
-
-    let firstFrame = 0;
-    let secondFrame = 0;
-    const fit = () => {
-      window.cancelAnimationFrame(firstFrame);
-      window.cancelAnimationFrame(secondFrame);
-      firstFrame = window.requestAnimationFrame(() => {
-        // React Flow measures node dimensions after paint. Waiting a second
-        // frame ensures fitView sees the same positioned nodes that are on
-        // screen instead of fitting the previous/fallback layout.
-        secondFrame = window.requestAnimationFrame(() => {
-          void flow.fitView({
-            padding: 0.08,
-            minZoom: 0.05,
-            maxZoom: 1.8,
-            duration: 200,
-          });
-        });
-      });
-    };
-
-    const observer =
-      typeof ResizeObserver === 'undefined'
-        ? undefined
-        : new ResizeObserver(fit);
-    observer?.observe(host);
-    fit();
-
-    return () => {
-      window.cancelAnimationFrame(firstFrame);
-      window.cancelAnimationFrame(secondFrame);
-      observer?.disconnect();
-    };
-  }, [
-    expanded,
-    flow,
-    graphIdentity,
-    hostRef,
-    nodeCount,
-    nodesInitialized,
-    viewportInitialized,
-  ]);
-
+  useGraphViewportFitter({ expanded, graphIdentity, hostRef, nodeCount });
   return null;
 };
 
@@ -109,15 +55,8 @@ export const GuidedGraphWorkspace = ({
 }) => {
   const graphHostRef = React.useRef<HTMLDivElement>(null);
   const traversalRef = React.useRef<HTMLElement>(null);
-  const [positions, setPositions] = useState<
-    ReadonlyMap<string, { x: number; y: number }>
-  >(new Map());
-  const [layoutIdentity, setLayoutIdentity] = useState<string>();
-  const [inspectedNodeId, setInspectedNodeId] = useState<string>();
-  const [selectedEdgeId, setSelectedEdgeId] = useState<string>();
   const [isExpanded, setIsExpanded] = useState(false);
   const [showOrphans, setShowOrphans] = useState(false);
-  const [isTraversalOverflowing, setIsTraversalOverflowing] = useState(false);
   const catalogIdentity = useMemo(
     () =>
       JSON.stringify({
@@ -130,51 +69,49 @@ export const GuidedGraphWorkspace = ({
       }),
     [catalog.edges, catalog.nodes],
   );
-  useEffect(() => {
-    let active = true;
-    setPositions(new Map());
-    setLayoutIdentity(undefined);
-    void layoutDatasetGraph(
+  const layoutNodes = useMemo(
+    () =>
       catalog.nodes.map((node) => ({
         id: node.nodeId,
         width: 170,
         height: 54,
       })),
+    [catalog.nodes],
+  );
+  const layoutEdges = useMemo(
+    () =>
       catalog.edges.map((edge) => ({
         id: edge.edgeId,
         source: edge.fromNodeId,
         target: edge.toNodeId,
       })),
-    )
-      .then((value) => {
-        if (!active) return;
-        setPositions(value.positions);
-        setLayoutIdentity(catalogIdentity);
-      })
-      .catch(() => {
-        // The deterministic positions below keep the graph usable if a
-        // malformed relationship prevents ELK from laying out the catalog.
-        if (active) setLayoutIdentity(catalogIdentity);
-      });
-    return () => {
-      active = false;
-    };
-  }, [catalog, catalogIdentity]);
-  useEffect(() => {
-    setInspectedNodeId(undefined);
-    setSelectedEdgeId(undefined);
-  }, [table?.document.rootResourceType, table?.outputId]);
-  useEffect(() => {
-    setSelectedEdgeId(undefined);
-  }, [selectedOccurrenceId]);
-  useEffect(() => {
-    if (!isExpanded) return undefined;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setIsExpanded(false);
-    };
-    window.addEventListener('keydown', closeOnEscape);
-    return () => window.removeEventListener('keydown', closeOnEscape);
-  }, [isExpanded]);
+    [catalog.edges],
+  );
+  const layout = useGraphLayout(catalogIdentity, layoutNodes, layoutEdges);
+  useEscapeToClose(isExpanded, setIsExpanded);
+  const tableIdentity = `${table?.outputId ?? ''}:${table?.document.rootResourceType ?? ''}`;
+  const [inspection, setInspection] = useState<{
+    readonly tableIdentity: string;
+    readonly occurrenceId: string;
+    readonly nodeId?: string;
+    readonly edgeId?: string;
+  }>({ tableIdentity, occurrenceId: selectedOccurrenceId });
+  const activeInspectedNodeId =
+    inspection.tableIdentity === tableIdentity ? inspection.nodeId : undefined;
+  const activeSelectedEdgeId =
+    inspection.tableIdentity === tableIdentity &&
+    inspection.occurrenceId === selectedOccurrenceId
+      ? inspection.edgeId
+      : undefined;
+  const updateInspection = (nodeId?: string, edgeId?: string) =>
+    setInspection({
+      tableIdentity,
+      occurrenceId: selectedOccurrenceId,
+      nodeId,
+      edgeId,
+    });
+  const selectEdge = (edgeId?: string) =>
+    updateInspection(activeInspectedNodeId, edgeId);
   const occurrences = useMemo(
     () =>
       derivedOccurrences(table, catalog).map((occurrence) => ({
@@ -190,34 +127,12 @@ export const GuidedGraphWorkspace = ({
       })),
     [catalog, table],
   );
-  useLayoutEffect(() => {
-    const graphHost = graphHostRef.current;
-    const traversal = traversalRef.current;
-    if (!graphHost || !traversal) return undefined;
-
-    const measure = () => {
-      const truncatedWidth = Array.from(
-        traversal.querySelectorAll<HTMLElement>('[data-traversal-label]'),
-      ).reduce(
-        (width, label) =>
-          width + Math.max(0, label.scrollWidth - label.clientWidth),
-        0,
-      );
-      const naturalWidth = traversal.scrollWidth + truncatedWidth;
-      // Keep the same right-side reservation used by the overlay's max-width
-      // so its expansion affordance only appears when that space is exhausted.
-      const allottedWidth = Math.max(0, graphHost.clientWidth - 9 * 16);
-      setIsTraversalOverflowing(naturalWidth > allottedWidth + 1);
-    };
-
-    const observer =
-      typeof ResizeObserver === 'undefined'
-        ? undefined
-        : new ResizeObserver(measure);
-    observer?.observe(graphHost);
-    measure();
-    return () => observer?.disconnect();
-  }, [isExpanded, occurrences]);
+  const traversalIdentity = `${isExpanded}:${occurrences.map((occurrence) => occurrence.occurrenceId).join(',')}`;
+  const isTraversalOverflowing = useTraversalOverflow(
+    graphHostRef,
+    traversalRef,
+    traversalIdentity,
+  );
   const occurrencesByNode = useMemo(() => {
     const result = new Map<string, typeof occurrences>();
     occurrences.forEach((occurrence) => {
@@ -239,10 +154,17 @@ export const GuidedGraphWorkspace = ({
   const nodes: Node[] = catalog.nodes.map((node, index) => {
     const nodeOccurrences = occurrencesByNode.get(node.nodeId) ?? [];
     const inRoute = nodeOccurrences.length > 0;
-    const isSelected = nodeOccurrences.some(
-      (occurrence) => occurrence.occurrenceId === selectedOccurrenceId,
-    );
-    const isInspected = inspectedNodeId === node.nodeId;
+    const isPendingRowStart =
+      occurrences.length === 0 &&
+      node.rowRootEligible &&
+      activeInspectedNodeId === node.nodeId;
+    const isSelected =
+      isPendingRowStart ||
+      nodeOccurrences.some(
+        (occurrence) => occurrence.occurrenceId === selectedOccurrenceId,
+      );
+    const isInspected =
+      !isPendingRowStart && activeInspectedNodeId === node.nodeId;
     const isReachable = legalNextNodeIds.has(node.nodeId);
     const canStart = occurrences.length === 0 && node.rowRootEligible;
     const duplicate =
@@ -251,7 +173,7 @@ export const GuidedGraphWorkspace = ({
       ).length > 1;
     return {
       id: node.nodeId,
-      position: positions.get(node.nodeId) ?? {
+      position: layout.positions.get(node.nodeId) ?? {
         x: (index % 4) * 210,
         y: Math.floor(index / 4) * 100,
       },
@@ -396,11 +318,17 @@ export const GuidedGraphWorkspace = ({
       catalogNodeIds.has(edge.source) && catalogNodeIds.has(edge.target),
   );
   const nodesForViewport = catalogNodes;
-  const graphIdentity = `${layoutIdentity ?? 'layout-pending'}:${nodesForViewport.map((node) => node.id).join(',')}`;
+  const graphIdentity = `${layout.identity ?? 'layout-pending'}:${nodesForViewport.map((node) => node.id).join(',')}`;
   const inspectNode = (nodeId: string) => {
     if (disabled) return;
-    setInspectedNodeId(nodeId);
-    setSelectedEdgeId(undefined);
+    updateInspection(nodeId);
+    if (occurrences.length === 0) {
+      const node = catalog.nodes.find(
+        (candidate) => candidate.nodeId === nodeId,
+      );
+      if (node?.rowRootEligible) onSetBase(nodeId);
+      return;
+    }
     const routeOccurrences = occurrences.filter(
       (occurrence) => occurrence.nodeId === nodeId,
     );
@@ -427,8 +355,7 @@ export const GuidedGraphWorkspace = ({
     if (disabled) return;
     const edge = catalog.edges.find((candidate) => candidate.edgeId === edgeId);
     if (!edge) return;
-    setInspectedNodeId(edge.toNodeId);
-    setSelectedEdgeId(edgeId);
+    updateInspection(edge.toNodeId, edgeId);
     const routeOccurrence = occurrences
       .filter((occurrence) => occurrence.nodeId === edge.toNodeId)
       .at(-1);
@@ -437,13 +364,13 @@ export const GuidedGraphWorkspace = ({
   const useAsRowStart = (nodeId: string) => {
     if (disabled) return;
     onSetBase(nodeId);
-    setSelectedEdgeId(undefined);
+    selectEdge(undefined);
   };
   const addRelationship = (edgeId: string, nodeId: string) => {
     if (disabled || !legalNextEdges.some((edge) => edge.edgeId === edgeId))
       return;
     onAppendEdge(selectedOccurrenceId, edgeId, nodeId);
-    setSelectedEdgeId(undefined);
+    selectEdge(undefined);
   };
   const content = (
     <>
@@ -452,7 +379,7 @@ export const GuidedGraphWorkspace = ({
         role={isExpanded ? 'dialog' : undefined}
         aria-modal={isExpanded ? true : undefined}
         aria-label={isExpanded ? 'Expanded dataset graph' : undefined}
-        className={`flex min-w-0 flex-col rounded-xl border border-slate-200 bg-white p-3 shadow-sm ${isExpanded ? 'fixed inset-3 z-50 h-[calc(100dvh-1.5rem)] min-h-0' : 'relative h-[min(70dvh,52rem)] min-h-[43rem]'}`}
+        className={`flex min-w-0 flex-col p-3 ${isExpanded ? 'fixed inset-3 z-50 h-[calc(100dvh-1.5rem)] min-h-0 rounded-xl border border-slate-200 bg-white shadow-xl' : 'relative h-[min(70dvh,52rem)] min-h-[43rem] bg-white/60'}`}
       >
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
           <div className="min-w-0">
@@ -483,7 +410,7 @@ export const GuidedGraphWorkspace = ({
         </div>
         <div
           ref={graphHostRef}
-          className={`relative mt-2 min-h-0 flex-1 overflow-hidden rounded-xl border border-slate-200 bg-slate-50 shadow-inner ${isExpanded ? '' : 'min-h-[32rem]'}`}
+          className={`relative mt-2 min-h-0 flex-1 overflow-hidden rounded-lg bg-slate-100/70 ${isExpanded ? '' : 'min-h-[32rem]'}`}
         >
           <ReactFlow
             nodes={nodesForViewport}
@@ -502,9 +429,21 @@ export const GuidedGraphWorkspace = ({
                 duration: 200,
               });
             }}
-            onNodeClick={(_event, node) => inspectNode(node.id)}
-            onEdgeClick={(_event, edge) => inspectEdge(edge.id)}
-            onPaneClick={() => {
+            onNodeClick={(event, node) => {
+              event.stopPropagation();
+              inspectNode(node.id);
+            }}
+            onEdgeClick={(event, edge) => {
+              event.stopPropagation();
+              inspectEdge(edge.id);
+            }}
+            onPaneClick={(event) => {
+              const target = event.target;
+              if (
+                target instanceof Element &&
+                target.closest('.react-flow__node, .react-flow__edge')
+              )
+                return;
               if (!isExpanded) setIsExpanded(true);
             }}
           >
@@ -521,10 +460,10 @@ export const GuidedGraphWorkspace = ({
             catalog={catalog}
             table={table}
             selectedOccurrenceId={selectedOccurrenceId}
-            inspectedNodeId={inspectedNodeId}
-            selectedEdgeId={selectedEdgeId}
+            inspectedNodeId={activeInspectedNodeId}
+            selectedEdgeId={activeSelectedEdgeId}
             disabled={disabled}
-            onSelectEdge={setSelectedEdgeId}
+            onSelectEdge={selectEdge}
             onUseAsRowStart={useAsRowStart}
             onChangeRowStart={onChangeBase}
             onAddEdge={addRelationship}

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useCallback, useRef } from 'react';
 import { MantineReactTable, useMantineReactTable } from 'mantine-react-table';
 import { JSONObject } from '@gen3/core';
 import type { ExplorerTableSubTableProps } from './types';
@@ -58,36 +58,27 @@ const ExplorerTableSubTable = ({
     },
   });
 
-  useEffect(() => {
-    // Function to measure the header height
-    const updateHeaderHeight = () => {
-      if (table.refs.tableHeadRef.current) {
-        // Get the height of the header cell
-        const height =
-          table.refs.tableHeadRef.current.getBoundingClientRect().height;
-        setHeaderHeight(height);
-      }
-    };
+  const resizeObserver = useRef<ResizeObserver | undefined>(undefined);
+  const observeTable = useCallback(
+    (container: HTMLDivElement | null) => {
+      resizeObserver.current?.disconnect();
+      resizeObserver.current = undefined;
+      const header = container?.querySelector('thead');
+      if (!header) return;
+      const updateHeaderHeight = () =>
+        setHeaderHeight(header.getBoundingClientRect().height);
+      updateHeaderHeight();
+      resizeObserver.current = new ResizeObserver(updateHeaderHeight);
+      resizeObserver.current.observe(header);
+    },
+    [setHeaderHeight],
+  );
 
-    // Initial measurement
-    updateHeaderHeight();
-
-    // Set up a resize observer to handle dynamic changes
-    const resizeObserver = new ResizeObserver(updateHeaderHeight);
-
-    if (table.refs.tableHeadRef.current) {
-      resizeObserver.observe(table.refs.tableHeadRef.current);
-    }
-
-    // Clean up
-    return () => {
-      if (table.refs.tableHeadRef.current) {
-        resizeObserver.unobserve(table.refs.tableHeadRef.current);
-      }
-    };
-  }, [table.refs.tableHeadRef, setHeaderHeight]);
-
-  return <MantineReactTable table={table} />;
+  return (
+    <div ref={observeTable}>
+      <MantineReactTable table={table} />
+    </div>
+  );
 };
 
 export default ExplorerTableSubTable;

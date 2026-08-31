@@ -97,7 +97,7 @@ export const explorerBuilderDocumentSchema = z
     kind: z.literal('ExplorerBuilderDocument'),
     output: z
       .object({
-        id: opaqueIdSchema,
+        id: opaqueIdSchema.regex(/^[A-Za-z_][A-Za-z0-9_]*$/),
         title: z.string().min(1),
         rowLabel: z.string().optional(),
       })
@@ -282,6 +282,8 @@ export const explorerBuilderStateSchema = z
     apiVersion: z.literal(EXPLORER_AUTHORING_API_VERSION),
     kind: z.literal('ExplorerBuilderState'),
     lifecycleState: z.enum(['NEW', 'READY']),
+    draftVersion: z.number().int().nonnegative(),
+    draftDigest: z.string(),
     workspace: explorerBuilderWorkspaceSchema.nullable(),
     catalog: explorerBuilderCatalogSchema,
   })
@@ -296,6 +298,67 @@ export const explorerBuilderStateSchema = z
     }
   });
 export type ExplorerBuilderState = z.infer<typeof explorerBuilderStateSchema>;
+
+export const explorerBuilderCommandSchema = z
+  .object({
+    type: z.enum([
+      'CREATE_TABLE',
+      'DUPLICATE_TABLE',
+      'DELETE_TABLE',
+      'RENAME_TABLE',
+      'REORDER_TABLES',
+      'SET_TABLE_ROOT',
+      'ADD_ROUTE',
+      'REMOVE_ROUTE',
+      'ADD_COLUMN',
+      'UPDATE_COLUMN',
+      'REMOVE_COLUMN',
+    ]),
+    outputId: opaqueIdSchema.optional(),
+    sourceOutputId: opaqueIdSchema.optional(),
+    title: z.string().optional(),
+    rootNodeId: opaqueIdSchema.optional(),
+    parentOccurrenceId: opaqueIdSchema.optional(),
+    occurrenceId: opaqueIdSchema.optional(),
+    edgeId: opaqueIdSchema.optional(),
+    candidateId: opaqueIdSchema.optional(),
+    projectionMode: projectionModeSchema.optional(),
+    initialPresentation: z.enum(['TABLE', 'FILTER', 'CHART']).optional(),
+    column: opaqueIdSchema.optional(),
+    columnValue: explorerBuilderColumnSchema.optional(),
+    outputIds: z.array(opaqueIdSchema).optional(),
+  })
+  .strict();
+export type ExplorerBuilderCommand = z.infer<
+  typeof explorerBuilderCommandSchema
+>;
+export const explorerBuilderCommandResultSchema = z
+  .object({
+    type: z.enum([
+      'TABLE_CREATED',
+      'TABLE_CHANGED',
+      'ROUTE_ADDED',
+      'COLUMN_ADDED',
+    ]),
+    outputId: opaqueIdSchema.optional(),
+    tabId: opaqueIdSchema.optional(),
+    occurrenceId: opaqueIdSchema.optional(),
+    column: opaqueIdSchema.optional(),
+  })
+  .strict();
+export const explorerBuilderCommandsResultSchema = z
+  .object({
+    commandId: opaqueIdSchema,
+    workspace: explorerBuilderWorkspaceSchema,
+    draftVersion: z.number().int().positive(),
+    draftDigest: opaqueIdSchema,
+    results: z.array(explorerBuilderCommandResultSchema),
+    diagnostics: z.array(explorerAuthoringDiagnosticSchema),
+  })
+  .strict();
+export type ExplorerBuilderCommandsResult = z.infer<
+  typeof explorerBuilderCommandsResultSchema
+>;
 
 export const explorerBuilderContractColumnSchema = z
   .object({

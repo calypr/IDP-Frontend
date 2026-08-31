@@ -1,6 +1,7 @@
 import { setupCoreStore } from '../../../store';
 import {
   explorerBuilderStateSchema,
+  explorerBuilderCommandsResultSchema,
   explorerBuilderWorkspaceSchema,
 } from '../explorerAuthoring';
 import { explorerAuthoringApi } from '../explorerAuthoringApi';
@@ -74,6 +75,8 @@ const builderState = {
   apiVersion,
   kind: 'ExplorerBuilderState' as const,
   lifecycleState: 'READY' as const,
+  draftVersion: 1,
+  draftDigest: 'sha256:draft',
   workspace,
   catalog,
 };
@@ -130,6 +133,38 @@ describe('native Loom Builder V2 API', () => {
     ).toThrow();
     expect(() =>
       explorerBuilderWorkspaceSchema.parse({ ...workspace, legacy: true }),
+    ).toThrow();
+  });
+
+  it('requires backend command responses to preserve empty column arrays', () => {
+    const emptyColumns = {
+      ...workspace,
+      documents: workspace.documents.map((document) => ({
+        ...document,
+        columns: [],
+      })),
+    };
+    const response = {
+      commandId: 'command-empty',
+      workspace: emptyColumns,
+      draftVersion: 1,
+      draftDigest: 'sha256:draft',
+      results: [{ type: 'TABLE_CREATED' as const }],
+      diagnostics: [],
+    };
+    expect(
+      explorerBuilderCommandsResultSchema.parse(response).workspace,
+    ).toEqual(emptyColumns);
+    expect(() =>
+      explorerBuilderCommandsResultSchema.parse({
+        ...response,
+        workspace: {
+          ...emptyColumns,
+          documents: emptyColumns.documents.map(
+            ({ columns: _columns, ...document }) => document,
+          ),
+        },
+      }),
     ).toThrow();
   });
 
@@ -236,5 +271,115 @@ describe('native Loom Builder V2 API', () => {
     expect(JSON.parse(String(fetchMock.mock.calls[1][1].body))).toEqual({
       receiptId: 'receipt-1',
     });
+  });
+
+  it('sends intent commands and reconciles by persisted draft identity', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            commandId: 'command-1',
+            workspace,
+            draftVersion: 2,
+            draftDigest: 'sha256:draft-2',
+            results: [
+              {
+                type: 'COLUMN_ADDED',
+                outputId: 'specimens',
+                column: 'specimen_status',
+              },
+            ],
+            diagnostics: [],
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(receipt), { status: 200 }),
+      );
+    const store = setupCoreStore();
+    await store
+      .dispatch(
+        explorerAuthoringApi.endpoints.applyExplorerBuilderCommandsV2.initiate({
+          project: 'BForePC',
+          explorerId: 'custom',
+          commandId: 'command-1',
+          snapshotToken: 'snapshot-1',
+          expectedDraftVersion: 1,
+          expectedDraftDigest: 'sha256:draft',
+          commands: [
+            {
+              type: 'ADD_COLUMN',
+              outputId: 'specimens',
+              occurrenceId: 'base',
+              candidateId: 'candidate-id',
+              projectionMode: 'VALUE',
+              initialPresentation: 'FILTER',
+              title: 'Status',
+            },
+          ],
+        }),
+      )
+      .unwrap();
+    await store
+      .dispatch(
+        explorerAuthoringApi.endpoints.reconcileExplorerBuilderV2.initiate({
+          project: 'BForePC',
+          explorerId: 'custom',
+          snapshotToken: 'snapshot-1',
+          draftVersion: 2,
+          draftDigest: 'sha256:draft-2',
+        }),
+      )
+      .unwrap();
+
+    expect(String(fetchMock.mock.calls[0][0])).toContain(
+      '/authoring/v2/commands',
+    );
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1].body))).toEqual({
+      commandId: 'command-1',
+      snapshotToken: 'snapshot-1',
+      expectedDraftVersion: 1,
+      expectedDraftDigest: 'sha256:draft',
+      commands: [
+        {
+          type: 'ADD_COLUMN',
+          outputId: 'specimens',
+          occurrenceId: 'base',
+          candidateId: 'candidate-id',
+          projectionMode: 'VALUE',
+          initialPresentation: 'FILTER',
+          title: 'Status',
+        },
+      ],
+    });
+    expect(String(fetchMock.mock.calls[1][0])).toContain(
+      '/authoring/v2/reconcile',
+    );
+    expect(JSON.parse(String(fetchMock.mock.calls[1][1].body))).toEqual({
+      snapshotToken: 'snapshot-1',
+      draftVersion: 2,
+      draftDigest: 'sha256:draft-2',
+    });
+  });
+
+  it('deletes an explorer through the project explorer resource', async () => {
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const store = setupCoreStore();
+
+    await store
+      .dispatch(
+        explorerAuthoringApi.endpoints.deleteExplorerAuthoring.initiate({
+          project: 'HTAN_INT/BForePC',
+          explorerId: 'custom explorer',
+          authResourcePath: '/programs/HTAN_INT/projects/BForePC',
+        }),
+      )
+      .unwrap();
+
+    expect(String(fetchMock.mock.calls[0][0])).toContain(
+      '/explorers/custom%20explorer?auth_resource_path=',
+    );
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({ method: 'DELETE' });
   });
 });

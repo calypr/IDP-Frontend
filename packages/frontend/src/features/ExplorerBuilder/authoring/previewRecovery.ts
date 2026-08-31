@@ -1,10 +1,9 @@
 import type { ExplorerAuthoringApiError } from '@gen3/core';
 
-export type PreviewLimit = 10 | 25 | 50 | 100;
+export type PreviewLimit = 25 | 50 | 100 | 500 | 1000;
 export type PreviewRecoveryAction =
   | 'recompile'
   | 'refresh-catalog'
-  | 'reduce-limit'
   | 'retry'
   | 'fail';
 
@@ -27,8 +26,8 @@ const responseSizeCodes = new Set([
   'RESPONSE_TOO_LARGE',
 ]);
 
-export const lowerPreviewLimit = (limit: PreviewLimit): PreviewLimit =>
-  limit === 100 ? 50 : limit === 50 ? 25 : 10;
+export const isPreviewResponseSizeError = (code: string | undefined): boolean =>
+  responseSizeCodes.has(code ?? '');
 
 export const previewRecoveryAction = (
   error: ExplorerAuthoringApiError,
@@ -42,8 +41,6 @@ export const previewRecoveryAction = (
     return 'recompile';
   if (catalogRefreshCodes.has(error.code ?? '') && options.receiptRefreshes < 1)
     return 'refresh-catalog';
-  if (responseSizeCodes.has(error.code ?? '') && options.limit > 10)
-    return 'reduce-limit';
   if (error.retryable && options.transientRetries < 1) return 'retry';
   return 'fail';
 };

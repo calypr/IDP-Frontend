@@ -2,6 +2,7 @@ import type {
   ExplorerAuthoringDiagnostic,
   ExplorerBuilderCatalog,
   ExplorerBuilderCompileResult,
+  ExplorerBuilderCommandsResult,
   ExplorerBuilderDocument,
   ExplorerBuilderPreviewResult,
   ExplorerBuilderState,
@@ -33,6 +34,8 @@ export interface BuilderAuthoringState {
   readonly catalog: ExplorerBuilderCatalog;
   /** Canonical server workspace; typed source bindings are intentionally read-only. */
   readonly workspace: ExplorerBuilderWorkspace | null;
+  readonly draftVersion: number;
+  readonly draftDigest: string;
   readonly tables: ReadonlyArray<DraftTable>;
   readonly selectedOutputId?: string;
   readonly selectedOccurrenceId: string;
@@ -192,12 +195,63 @@ export const stateFromBuilder = (
     ...identity,
     catalog: value.catalog,
     workspace: value.workspace,
+    draftVersion: value.draftVersion,
+    draftDigest: value.draftDigest,
     tables,
     selectedOutputId: tables[0]?.outputId,
     selectedOccurrenceId: 'base',
     diagnostics: [],
     dirty: false,
-    reconciliation: value.workspace?.documents.length ? 'pending' : 'idle',
+    reconciliation: 'idle',
+  };
+};
+
+export const stateFromCommands = (
+  state: BuilderAuthoringState,
+  value: ExplorerBuilderCommandsResult,
+): BuilderAuthoringState => {
+  const normalized = stateFromBuilder(
+    {
+      apiVersion: 'loom.calypr.org/explorer-authoring/v2',
+      kind: 'ExplorerBuilderState',
+      lifecycleState: 'READY',
+      draftVersion: value.draftVersion,
+      draftDigest: value.draftDigest,
+      workspace: value.workspace,
+      catalog: state.catalog,
+    },
+    { project: state.project, explorerId: state.explorerId },
+  );
+  const result = value.results.at(-1);
+  const selectedOutputId = normalized.tables.some(
+    (table) => table.outputId === result?.outputId,
+  )
+    ? result?.outputId
+    : normalized.tables.some(
+          (table) => table.outputId === state.selectedOutputId,
+        )
+      ? state.selectedOutputId
+      : normalized.tables[0]?.outputId;
+  const requestedOccurrenceId =
+    result?.occurrenceId ??
+    (selectedOutputId === state.selectedOutputId
+      ? state.selectedOccurrenceId
+      : 'base');
+  const selectedTable = normalized.tables.find(
+    (table) => table.outputId === selectedOutputId,
+  );
+  const selectedOccurrenceId =
+    selectedTable &&
+    routeNode(selectedTable.document.route, requestedOccurrenceId)
+      ? requestedOccurrenceId
+      : 'base';
+  return {
+    ...normalized,
+    selectedOutputId,
+    selectedOccurrenceId,
+    diagnostics: value.diagnostics,
+    dirty: true,
+    reconciliation: 'idle',
   };
 };
 

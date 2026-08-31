@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { skipToken } from '@reduxjs/toolkit/query';
 import { useRouter } from 'next/router';
 import { Stack } from '@mantine/core';
@@ -17,7 +17,6 @@ import {
   selectIndexFilters,
   useCoreSelector,
   useGetLoomRichAggregationsQuery,
-  usePrevious,
 } from '@gen3/core';
 import FacetTabs from '../../components/facets/FacetTabs';
 import { ErrorCard } from '../../components/MessageCards';
@@ -32,11 +31,7 @@ import {
   useUpdateFilters,
 } from '../../components/facets';
 import { QueryOptions } from '../../components/facets/types';
-import {
-  useDeepCompareCallback,
-  useDeepCompareEffect,
-  useDeepCompareMemo,
-} from 'use-deep-compare';
+import { useDeepCompareCallback, useDeepCompareMemo } from 'use-deep-compare';
 import { partial } from 'lodash';
 import {
   useClearFilters,
@@ -102,11 +97,23 @@ const TabbedCohortBuilder = ({
   ];
 
   const router = useRouter();
-  const routerTab = router?.query?.tab;
-  const prevRouterTab = usePrevious(routerTab);
-  const [activeTab, setActiveTab] = useState<string | null>(
-    routerTab ? (routerTab as string) : Object.keys(tabsConfig)[0],
-  );
+  const routerTab =
+    typeof router?.query?.tab === 'string' ? router.query.tab : null;
+  const defaultTab = routerTab ?? Object.keys(tabsConfig)[0] ?? null;
+  const [tabSelection, setTabSelection] = useState<{
+    readonly routerTab: string | null;
+    readonly value: string | null;
+  }>({ routerTab, value: defaultTab });
+  const activeTab =
+    tabSelection.routerTab === routerTab ? tabSelection.value : defaultTab;
+  const selectTab = (value: string | null) => {
+    setTabSelection({ routerTab, value });
+    if (value === routerTab) return;
+    const query = { ...router.query };
+    if (value) query.tab = value;
+    else delete query.tab;
+    void router.push({ query }, undefined, { scroll: false });
+  };
   const [accessLevel, setAccessLevel] = useState<Accessibility>(
     Accessibility.ALL,
   );
@@ -126,12 +133,13 @@ const TabbedCohortBuilder = ({
     } catch (error) {
       return {
         filters: [],
-        error: error instanceof Error ? error.message : 'Unsupported Loom filter',
+        error:
+          error instanceof Error ? error.message : 'Unsupported Loom filter',
       };
     }
   }, [cohortFilters]);
   const activeTabFacets = useMemo(
-    () => (activeTab ? tabsConfig[activeTab]?.facets ?? [] : []),
+    () => (activeTab ? (tabsConfig[activeTab]?.facets ?? []) : []),
     [activeTab, tabsConfig],
   );
   const facetPlan = useMemo(
@@ -160,9 +168,7 @@ const TabbedCohortBuilder = ({
       : skipToken,
     {
       skip:
-        !loomIdentity ||
-        !!loomFilters.error ||
-        facetPlan.specs.length === 0,
+        !loomIdentity || !!loomFilters.error || facetPlan.specs.length === 0,
     },
   );
   const isSuccess = isAggsSuccess && Boolean(richAggregationResponse);
@@ -202,34 +208,10 @@ const TabbedCohortBuilder = ({
     );
   }, [facetPlan.specs, richAggregationResponse]);
 
-  const [facetDefinitions, setFacetDefinitions] = useState<
-    Record<string, FacetDefinition>
-  >({});
-
-  useEffect(() => {
-    // Check if the router initiated the change
-    if (routerTab !== prevRouterTab) {
-      setActiveTab(routerTab as string);
-    } else {
-      // Change initiated by user interaction
-      if (activeTab !== routerTab) {
-        router.push({ query: { ...router.query, tab: activeTab } }, undefined, {
-          scroll: false,
-        });
-      }
-    }
-    // https://github.com/vercel/next.js/discussions/29403#discussioncomment-1908563
-  }, [activeTab, routerTab, prevRouterTab, router]);
-
-  // Set the facet definitions based on the data only the first time the data is loaded
-  useDeepCompareEffect(() => {
-    if (isSuccess && data) {
-      const facetDefs = classifyFacets(data ?? {}, index);
-      setFacetDefinitions(facetDefs);
-
-      // setup summary charts since nested fields can be listed by the split field nam
-    }
-  }, [isSuccess, data, index]);
+  const facetDefinitions = useMemo(
+    () => (isSuccess && data ? classifyFacets(data, index) : {}),
+    [data, index, isSuccess],
+  );
 
   const getEnumFacetData = useDeepCompareCallback(
     (field: string) => {
@@ -334,7 +316,7 @@ const TabbedCohortBuilder = ({
     <Stack gap="xs" align="stretch" classNames={{ root: 'w-full' }}>
       <FacetTabs
         activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        setActiveTab={selectTab}
         facetDefinitions={facetDefinitions}
         tabsConfig={tabsConfig}
         usedFacets={cohortBuilderFilters}

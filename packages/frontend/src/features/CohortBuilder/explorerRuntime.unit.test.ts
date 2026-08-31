@@ -16,6 +16,15 @@ const runtime: ExplorerRuntimeV1 = {
       },
       columns: [
         {
+          column: 'patient_status',
+          label: 'Status',
+          logicalType: 'string',
+          visible: false,
+          order: 1,
+          filterable: true,
+          chartable: true,
+        },
+        {
           column: 'patient_name',
           label: 'Name',
           logicalType: 'string',
@@ -24,21 +33,12 @@ const runtime: ExplorerRuntimeV1 = {
           filterable: true,
           chartable: false,
         },
-        {
-          column: 'patient_status',
-          label: 'Status',
-          logicalType: 'string',
-          visible: true,
-          order: 1,
-          filterable: true,
-          chartable: true,
-        },
       ],
       // Binding order may reflect emission/materialization order. Presentation
       // order on the runtime columns is authoritative for the rendered table.
       table: {
         columns: [
-          { column: 'patient_status', visible: true },
+          { column: 'patient_status', visible: false },
           { column: 'patient_name', visible: true },
         ],
       },
@@ -62,7 +62,7 @@ describe('ExplorerRuntimeV1 viewer projection', () => {
       output: 'Patient',
     });
     expect(panel.guppyConfig.nodeCountTitle).toBe('person');
-    expect(panel.table?.fields).toEqual(['patient_name', 'patient_status']);
+    expect(panel.table?.fields).toEqual(['patient_name']);
     expect(panel.filters?.tabs[0].fields).toEqual(['patient_status']);
     expect(panel.charts).toEqual({
       patient_status: { chartType: 'pie', title: 'State' },

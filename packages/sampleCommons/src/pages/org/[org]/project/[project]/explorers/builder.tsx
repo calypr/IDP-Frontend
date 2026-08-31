@@ -26,6 +26,16 @@ const ProjectExplorerBuilder = ({
       ? router.query.explorerId
       : undefined;
   const explorerHref = `/Explorer/${encodeURIComponent(`${organization}/${project}`)}${explorerId ? `?explorerId=${encodeURIComponent(explorerId)}` : ''}`;
+  const handleExplorerChange = (nextExplorerId: string) => {
+    void router.replace(
+      {
+        pathname: router.pathname,
+        query: { ...router.query, explorerId: nextExplorerId },
+      },
+      undefined,
+      { shallow: true },
+    );
+  };
   return (
     <NavPageLayout
       {...{ footerProps, headerProps, pageProblems }}
@@ -70,7 +80,12 @@ const ProjectExplorerBuilder = ({
             </div>
           }
         >
-          <ExplorerBuilderPage organization={organization} project={project} />
+          <ExplorerBuilderPage
+            organization={organization}
+            project={project}
+            explorerId={explorerId}
+            onExplorerChange={handleExplorerChange}
+          />
         </ProjectWorkspaceTabs>
       ) : (
         <p>Loading builder…</p>

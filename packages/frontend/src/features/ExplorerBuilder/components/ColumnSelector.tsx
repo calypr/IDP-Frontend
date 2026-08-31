@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import type {
   ExplorerBuilderCandidate,
   ExplorerBuilderCatalog,
@@ -38,6 +38,8 @@ const isTabularCandidate = (candidate: ExplorerBuilderCandidate): boolean =>
     candidate.logicalType.trim().toLowerCase(),
   );
 
+type InitialPresentation = 'TABLE' | 'FILTER' | 'CHART';
+
 const candidateColumnName = (
   candidate: ExplorerBuilderCandidate,
   occurrenceId: string,
@@ -65,17 +67,20 @@ const ConfiguredColumnRow = ({
   column,
   order,
   disabled,
+  filterable,
+  chartable,
   onChange,
   onRemove,
 }: {
   readonly column: ExplorerBuilderColumn;
   readonly order: number;
   readonly disabled: boolean;
+  readonly filterable: boolean;
+  readonly chartable: boolean;
   readonly onChange: (value: ExplorerBuilderColumn) => void;
   readonly onRemove: () => void;
 }) => {
   const [label, setLabel] = useState(column.label);
-  useEffect(() => setLabel(column.label), [column.label]);
 
   const commitLabel = () => {
     const next = label.trim();
@@ -128,13 +133,20 @@ const ConfiguredColumnRow = ({
           }
         />
       </label>
-      <label className="flex justify-center" title="Use as filter">
+      <label
+        className="flex justify-center"
+        title={
+          filterable
+            ? 'Use as filter'
+            : 'Filters are unavailable for this field type'
+        }
+      >
         <span className="sr-only">Filter</span>
         <input
           aria-label={`Use ${column.label} as filter`}
           type="checkbox"
           checked={Boolean(column.filter)}
-          disabled={disabled}
+          disabled={disabled || (!filterable && !column.filter)}
           onChange={(event) =>
             onChange({
               ...column,
@@ -145,13 +157,20 @@ const ConfiguredColumnRow = ({
           }
         />
       </label>
-      <label className="flex justify-center" title="Use as chart">
+      <label
+        className="flex justify-center"
+        title={
+          chartable
+            ? 'Use as chart'
+            : 'Charts are unavailable for this field type'
+        }
+      >
         <span className="sr-only">Chart</span>
         <input
           aria-label={`Use ${column.label} as chart`}
           type="checkbox"
           checked={Boolean(column.chart)}
-          disabled={disabled}
+          disabled={disabled || (!chartable && !column.chart)}
           onChange={(event) =>
             onChange({
               ...column,
@@ -183,10 +202,12 @@ const AvailableColumnRow = ({
 }: {
   readonly candidate: ExplorerBuilderCandidate;
   readonly disabled: boolean;
-  readonly onAdd: (displayName: string) => void;
+  readonly onAdd: (
+    displayName: string,
+    initialPresentation: InitialPresentation,
+  ) => void;
 }) => {
   const [displayName, setDisplayName] = useState(candidate.label);
-  useEffect(() => setDisplayName(candidate.label), [candidate.label]);
   const normalizedDisplayName = displayName.trim();
 
   return (
@@ -215,28 +236,47 @@ const AvailableColumnRow = ({
           checked={false}
           disabled={disabled || !normalizedDisplayName}
           onChange={(event) =>
-            event.currentTarget.checked && onAdd(normalizedDisplayName)
+            event.currentTarget.checked && onAdd(normalizedDisplayName, 'TABLE')
           }
         />
       </label>
-      <input
-        aria-label={`${candidate.label} filter unavailable until added`}
-        title="Add the column before enabling a filter"
-        className="justify-self-center"
-        type="checkbox"
-        checked={false}
-        disabled
-        readOnly
-      />
-      <input
-        aria-label={`${candidate.label} chart unavailable until added`}
-        title="Add the column before enabling a chart"
-        className="justify-self-center"
-        type="checkbox"
-        checked={false}
-        disabled
-        readOnly
-      />
+      <label
+        className="flex justify-center"
+        title={
+          candidate.filterable
+            ? 'Add as filter'
+            : 'Filters are unavailable for this field type'
+        }
+      >
+        <input
+          aria-label={`Add ${normalizedDisplayName || candidate.label} as filter`}
+          type="checkbox"
+          checked={false}
+          disabled={disabled || !normalizedDisplayName || !candidate.filterable}
+          onChange={(event) =>
+            event.currentTarget.checked &&
+            onAdd(normalizedDisplayName, 'FILTER')
+          }
+        />
+      </label>
+      <label
+        className="flex justify-center"
+        title={
+          candidate.chartable
+            ? 'Add as chart'
+            : 'Charts are unavailable for this field type'
+        }
+      >
+        <input
+          aria-label={`Add ${normalizedDisplayName || candidate.label} as chart`}
+          type="checkbox"
+          checked={false}
+          disabled={disabled || !normalizedDisplayName || !candidate.chartable}
+          onChange={(event) =>
+            event.currentTarget.checked && onAdd(normalizedDisplayName, 'CHART')
+          }
+        />
+      </label>
       <span />
     </div>
   );
@@ -261,6 +301,7 @@ export const ColumnSelector = ({
   readonly onAdd: (
     candidate: ExplorerBuilderCandidate,
     displayName: string,
+    initialPresentation: InitialPresentation,
   ) => void;
   readonly onAddAll: (
     candidates: ReadonlyArray<ExplorerBuilderCandidate>,
@@ -292,6 +333,23 @@ export const ColumnSelector = ({
         ),
       ),
     [configured],
+  );
+  const configuredCapabilities = useMemo(
+    () =>
+      new Map(
+        configured.map((column) => [
+          column.column,
+          column.source.kind === 'field'
+            ? (catalog.candidates ?? []).find(
+                (candidate) =>
+                  candidate.nodeId === occurrence?.nodeId &&
+                  candidate.fieldPath.replace(/^root\./, '') ===
+                    column.source.fieldPath?.replace(/^root\./, ''),
+              )
+            : undefined,
+        ]),
+      ),
+    [catalog.candidates, configured, occurrence?.nodeId],
   );
   const available = useMemo(
     () =>
@@ -340,9 +398,10 @@ export const ColumnSelector = ({
   const addCandidate = (
     candidate: ExplorerBuilderCandidate,
     displayName: string,
+    initialPresentation: InitialPresentation,
   ) => {
     if (disabled) return;
-    onAdd(candidate, displayName);
+    onAdd(candidate, displayName, initialPresentation);
   };
   const allTableColumnsSelected =
     available.length === 0 &&
@@ -380,7 +439,7 @@ export const ColumnSelector = ({
   };
 
   return (
-    <aside className="flex h-[min(70dvh,52rem)] min-h-[43rem] min-w-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white p-3 shadow-sm xl:sticky xl:top-3">
+    <aside className="flex h-[min(70dvh,52rem)] min-h-[43rem] min-w-0 flex-col overflow-hidden bg-slate-100/40 p-3">
       <div className="flex min-w-0 items-start gap-3">
         <div className="min-w-0 flex-1">
           <h2 className="text-base font-semibold text-slate-900">
@@ -419,32 +478,44 @@ export const ColumnSelector = ({
             onChange={(event) => setQuery(event.currentTarget.value)}
             placeholder="Search labels, column names, or field paths"
           />
-          <div className="mt-2 grid grid-cols-[minmax(0,1fr)_3.5rem_3.5rem_3.5rem_2rem] gap-2 border-x border-t border-slate-200 bg-slate-50 px-2 py-1 text-center text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+          <div className="mt-2 grid grid-cols-[minmax(0,1fr)_3.5rem_3.5rem_3.5rem_2rem] gap-2 border-b border-slate-200 bg-slate-50/70 px-2 py-1 text-center text-[10px] font-semibold uppercase tracking-wide text-slate-500">
             <span className="text-left">Display name / source</span>
             <span>Table</span>
             <span>Filter</span>
             <span>Chart</span>
             <span />
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto rounded-b border border-slate-200 bg-white">
+          <div className="min-h-0 flex-1 overflow-y-auto bg-white/80">
             {rows.length ? (
               rows.map((row, order) =>
                 row.kind === 'configured' ? (
                   <ConfiguredColumnRow
-                    key={`configured:${row.column.column}`}
+                    key={`configured:${row.column.column}:${row.column.label}`}
                     column={row.column}
                     order={row.column.table?.order ?? order}
                     disabled={disabled}
+                    filterable={
+                      configuredCapabilities.get(row.column.column)
+                        ?.filterable ?? true
+                    }
+                    chartable={
+                      configuredCapabilities.get(row.column.column)
+                        ?.chartable ?? true
+                    }
                     onChange={onChange}
                     onRemove={() => onRemove(row.column.column)}
                   />
                 ) : (
                   <AvailableColumnRow
-                    key={`available:${row.candidate.candidateId}`}
+                    key={`available:${row.candidate.candidateId}:${row.candidate.label}`}
                     candidate={row.candidate}
                     disabled={disabled}
-                    onAdd={(displayName) =>
-                      addCandidate(row.candidate, displayName)
+                    onAdd={(displayName, initialPresentation) =>
+                      addCandidate(
+                        row.candidate,
+                        displayName,
+                        initialPresentation,
+                      )
                     }
                   />
                 ),

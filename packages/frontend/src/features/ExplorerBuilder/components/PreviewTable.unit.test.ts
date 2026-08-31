@@ -98,13 +98,14 @@ describe('PreviewTable column controls', () => {
         limit: 25,
         onLimitChange,
         onColumnChange: jest.fn(),
+        onColumnsChange: jest.fn(),
       }),
     );
 
     fireEvent.change(screen.getByRole('combobox'), {
-      target: { value: '100' },
+      target: { value: '1000' },
     });
-    expect(onLimitChange).toHaveBeenCalledWith(100);
+    expect(onLimitChange).toHaveBeenCalledWith(1000);
   });
 
   it('uses scrollable table and selector surfaces', () => {
@@ -115,11 +116,13 @@ describe('PreviewTable column controls', () => {
         limit: 25,
         onLimitChange: jest.fn(),
         onColumnChange: jest.fn(),
+        onColumnsChange: jest.fn(),
       }),
     );
 
     expect(screen.getByTestId('preview-table-scroll')).toHaveClass(
-      'overflow-x-auto',
+      'overflow-auto',
+      'max-h-[min(65dvh,40rem)]',
     );
     fireEvent.click(screen.getByRole('button', { name: 'Columns' }));
     expect(screen.getByRole('list', { name: 'Table columns' })).toHaveClass(
@@ -136,6 +139,7 @@ describe('PreviewTable column controls', () => {
 
   it('toggles visibility and drag-reorders columns from the selector', () => {
     const onColumnChange = jest.fn();
+    const onColumnsChange = jest.fn();
     render(
       React.createElement(PreviewTable, {
         preview,
@@ -143,6 +147,7 @@ describe('PreviewTable column controls', () => {
         limit: 25,
         onLimitChange: jest.fn(),
         onColumnChange,
+        onColumnsChange,
       }),
     );
     fireEvent.click(screen.getByRole('button', { name: 'Columns' }));
@@ -169,17 +174,17 @@ describe('PreviewTable column controls', () => {
     fireEvent.dragOver(firstRow!, { clientY: 0, dataTransfer });
     fireEvent.drop(firstRow!, { clientY: 0, dataTransfer });
 
-    expect(onColumnChange).toHaveBeenCalledWith(
+    expect(onColumnChange).not.toHaveBeenCalled();
+    expect(onColumnsChange).toHaveBeenCalledTimes(1);
+    expect(onColumnsChange).toHaveBeenCalledWith([
       expect.objectContaining({
         column: 'second_column',
         table: expect.objectContaining({ order: 0 }),
       }),
-    );
-    expect(onColumnChange).toHaveBeenCalledWith(
       expect.objectContaining({
         column: 'first_column',
         table: expect.objectContaining({ order: 1 }),
       }),
-    );
+    ]);
   });
 });

@@ -1,10 +1,4 @@
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { partial } from 'lodash';
 import { skipToken } from '@reduxjs/toolkit/query';
 import {
@@ -123,18 +117,6 @@ export const CohortPanel = ({
     isError: false,
   });
   const facetCache = useRef(new LoomFacetCache());
-  const onTableRender = useCallback(
-    (response: LoomTableRenderResponse, requestSignature?: string) => {
-      const currentSignature = renderSignatureRef.current;
-      if (requestSignature && requestSignature !== currentSignature) return;
-      setTableRender((current) => ({
-        ...response,
-        facets: response.facets ?? current?.facets,
-      }));
-      setAcceptedRenderSignature(requestSignature ?? currentSignature);
-    },
-    [],
-  );
   const onTableRenderState = useCallback(
     (state: { isFetching: boolean; isError: boolean }) =>
       setTableRenderState(state),
@@ -318,44 +300,50 @@ export const CohortPanel = ({
     [effectiveLoomFilters.filters, facetPlan.specs, loomIdentity],
   );
   renderSignatureRef.current = renderSignature;
-  useEffect(() => {
-    setTableRender(null);
-    setTableRenderState({ isFetching: false, isError: false });
-  }, [renderSignature]);
-  useEffect(() => {
-    if (
-      !loomIdentity ||
-      !tableRender?.facets ||
-      acceptedRenderSignature !== renderSignature
-    )
-      return;
-    Object.values(tableRender.facets.aggregations).forEach((aggregation) => {
-      const spec = facetPlan.specs.find(
-        (candidate) => candidate.name === aggregation.name,
-      );
-      if (spec) {
-        facetCache.current.set(
-          loomFacetCacheKey({
-            identity: loomIdentity,
-            revision: activeDataset?.revision,
-            spec,
-            filters: effectiveLoomFilters.filters,
-          }),
-          aggregation,
-        );
+  const onTableRender = useCallback(
+    (response: LoomTableRenderResponse, requestSignature?: string) => {
+      const currentSignature = renderSignatureRef.current;
+      if (requestSignature && requestSignature !== currentSignature) return;
+      const responseSignature = requestSignature ?? currentSignature;
+      if (loomIdentity && response.facets) {
+        Object.values(response.facets.aggregations).forEach((aggregation) => {
+          const spec = facetPlan.specs.find(
+            (candidate) => candidate.name === aggregation.name,
+          );
+          if (spec) {
+            facetCache.current.set(
+              loomFacetCacheKey({
+                identity: loomIdentity,
+                revision:
+                  response.materialization?.revision ?? activeDataset?.revision,
+                spec,
+                filters: effectiveLoomFilters.filters,
+              }),
+              aggregation,
+            );
+          }
+        });
       }
-    });
-  }, [
-    activeDataset?.revision,
-    effectiveLoomFilters.filters,
-    facetPlan.specs,
-    loomIdentity,
-    acceptedRenderSignature,
-    renderSignature,
-    tableRender,
-  ]);
+      setTableRender((current) => ({
+        ...response,
+        facets:
+          response.facets ??
+          (acceptedRenderSignature === responseSignature
+            ? current?.facets
+            : undefined),
+      }));
+      setAcceptedRenderSignature(responseSignature);
+    },
+    [
+      acceptedRenderSignature,
+      activeDataset?.revision,
+      effectiveLoomFilters.filters,
+      facetPlan.specs,
+      loomIdentity,
+    ],
+  );
   const isAggsQueryError = usesTableRender
-    ? tableRenderState.isError
+    ? acceptedRenderSignature === renderSignature && tableRenderState.isError
     : isFallbackAggregationsError;
   const facetResponse = usesTableRender
     ? acceptedRenderSignature === renderSignature

@@ -18,6 +18,7 @@ const draftTable = (outputId: string, title: string): DraftTable => ({
 
 describe('BuilderToolbar', () => {
   it('dismisses table and explorer menus when clicking away', () => {
+    const onDeleteExplorer = jest.fn();
     render(
       <BuilderToolbar
         explorers={[
@@ -32,7 +33,8 @@ describe('BuilderToolbar', () => {
         selectedExplorerId="default"
         onExplorerChange={jest.fn()}
         onCreateExplorer={jest.fn()}
-        deleteSupported={false}
+        deleteSupported
+        onDeleteExplorer={onDeleteExplorer}
         tables={[draftTable('Patient', 'Patient')]}
         selectedOutputId="Patient"
         onSelectTable={jest.fn()}
@@ -64,6 +66,9 @@ describe('BuilderToolbar', () => {
     expect(explorerMenu).toHaveAttribute('open');
     fireEvent.pointerDown(document.body);
     expect(explorerMenu).not.toHaveAttribute('open');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete explorer' }));
+    expect(onDeleteExplorer).toHaveBeenCalledTimes(1);
   });
 
   it('uses one draggable table menu for selection, naming, and ordering', () => {
@@ -85,6 +90,7 @@ describe('BuilderToolbar', () => {
         onExplorerChange={jest.fn()}
         onCreateExplorer={jest.fn()}
         deleteSupported={false}
+        onDeleteExplorer={jest.fn()}
         tables={[
           draftTable('Patient', 'Patient'),
           draftTable('Specimen', 'Specimen'),

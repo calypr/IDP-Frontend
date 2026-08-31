@@ -1,18 +1,12 @@
 import React from 'react';
-import { useDeepCompareEffect } from 'use-deep-compare';
 import { CohortBuilderProps, CohortPanelConfiguration } from './types';
 import { Tabs } from '@mantine/core';
 import { CohortPanel } from './CohortPanel';
 import { ProtectedContent } from '../../components/Protected';
-import {
-  selectCurrentCohortId,
-  setSharedFilters,
-  createNewCohort,
-  useCoreDispatch,
-  useCoreSelector,
-} from '@gen3/core';
+import { selectCurrentCohortId, useCoreSelector } from '@gen3/core';
 import { cohortBuilderPanelsFromRuntime } from './explorerRuntime';
 import { TabsLayoutToComponentProp } from '../../utils/layout';
+import { useExplorerRuntimeStoreSync } from '../../hooks/explorerViewer/useExplorerRuntimeStoreSync';
 
 export const useGetCurrentCohort = () => {
   return useCoreSelector((state) => selectCurrentCohortId(state));
@@ -26,58 +20,32 @@ const CohortBuilder = ({
   onTabChange,
   sharedFiltersMap = null,
 }: CohortBuilderProps) => {
-  const runtimeProjection = cohortBuilderPanelsFromRuntime(runtime, project);
+  const runtimeProjection = React.useMemo(
+    () => cohortBuilderPanelsFromRuntime(runtime, project),
+    [project, runtime],
+  );
   const configuration = runtimeProjection.panels;
-  const resolvedSharedFiltersMap = sharedFiltersMap ?? runtimeProjection.sharedFiltersMap;
+  const resolvedSharedFiltersMap =
+    sharedFiltersMap ?? runtimeProjection.sharedFiltersMap;
   const tabsLayout = 'left' as const;
-  const fileActions = runtimeProjection.fileActions?.extensions && runtimeProjection.fileActions.actions
-    ? {
-        extensions: Object.fromEntries(Object.entries(runtimeProjection.fileActions.extensions).map(([key, values]) => [key, [...values]])),
-        actions: { ...runtimeProjection.fileActions.actions },
-      }
-    : undefined;
-  const dispatch = useCoreDispatch();
+  const fileActions =
+    runtimeProjection.fileActions?.extensions &&
+    runtimeProjection.fileActions.actions
+      ? {
+          extensions: Object.fromEntries(
+            Object.entries(runtimeProjection.fileActions.extensions).map(
+              ([key, values]) => [key, [...values]],
+            ),
+          ),
+          actions: { ...runtimeProjection.fileActions.actions },
+        }
+      : undefined;
+  const runtimeStoreReady = useExplorerRuntimeStoreSync(
+    configuration,
+    resolvedSharedFiltersMap,
+  );
 
-  const [isTransitioning, setIsTransitioning] = React.useState(false);
-
-  useDeepCompareEffect(() => {
-    dispatch(setSharedFilters(resolvedSharedFiltersMap ?? {}));
-  }, [dispatch, resolvedSharedFiltersMap]);
-
-  // Reset cohort when configuration changes (e.g. switching between different project explorers)
-  // this prevents blank pages caused by using a cohort ID that doesn't exist in the new data context
-  useDeepCompareEffect(() => {
-    setIsTransitioning(true);
-    
-    // Extensible Fix: Apply preFilters from each tab configuration
-    const initialFilters: Record<string, any> = {};
-    
-    configuration.forEach((panel) => {
-      const index = panel.guppyConfig.dataType;
-      const tabPreFilters = panel.preFilters;
-      
-      if (tabPreFilters) {
-        const indexFilters: Record<string, any> = { mode: 'and', root: {} };
-        Object.entries(tabPreFilters).forEach(([field, values]) => {
-          indexFilters.root[field] = {
-            operator: 'in',
-            field: field,
-            operands: Array.isArray(values) ? values : [values],
-          };
-        });
-        initialFilters[index] = indexFilters;
-      }
-    });
-
-    dispatch(createNewCohort({ filters: initialFilters }));
-    // Small delay to allow Redux state to propagate and hooks to reset
-    const timer = setTimeout(() => setIsTransitioning(false), 50);
-    return () => clearTimeout(timer);
-  }, [dispatch, configuration]);
-
-  if (isTransitioning) {
-    return null; // Return null during the 50ms transition to avoid "double spinner" overlap with child components
-  }
+  if (!runtimeStoreReady) return null;
 
   return (
     <ProtectedContent>

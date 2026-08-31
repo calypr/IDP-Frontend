@@ -7,12 +7,21 @@ import BuilderWorkspace from './BuilderWorkspace';
 export const ExplorerBuilderPage = ({
   organization,
   project,
+  explorerId,
+  onExplorerChange,
 }: {
   readonly organization: string;
   readonly project: string;
+  readonly explorerId?: string;
+  readonly onExplorerChange?: (explorerId: string) => void;
 }) => (
   <ProtectedContent>
-    <BuilderWorkspace organization={organization} project={project} />
+    <BuilderWorkspace
+      organization={organization}
+      project={project}
+      explorerId={explorerId}
+      onExplorerChange={onExplorerChange}
+    />
   </ProtectedContent>
 );
 

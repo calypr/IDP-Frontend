@@ -12,6 +12,8 @@ interface BuilderToolbarProps {
   onExplorerChange: (explorerId: string) => void;
   onCreateExplorer: (name: string, fromDefault: boolean) => void;
   deleteSupported: boolean;
+  deleteDisabled?: boolean;
+  onDeleteExplorer: () => void;
   tables: ReadonlyArray<DraftTable>;
   selectedOutputId?: string;
   onSelectTable: (outputId: string) => void;
@@ -182,6 +184,8 @@ export function BuilderToolbar({
   onExplorerChange,
   onCreateExplorer,
   deleteSupported,
+  deleteDisabled = false,
+  onDeleteExplorer,
   tables,
   selectedOutputId,
   onSelectTable,
@@ -242,6 +246,7 @@ export function BuilderToolbar({
           <select
             aria-label="Explorer"
             value={selectedExplorerId}
+            disabled={busy}
             onChange={(event) => onExplorerChange(event.target.value)}
             className="max-w-72 min-w-48 rounded border border-slate-300 bg-white px-2 py-1.5 text-sm font-normal text-slate-800"
           >
@@ -332,6 +337,22 @@ export function BuilderToolbar({
             </div>
           </div>
         </details>
+        <button
+          type="button"
+          onClick={onDeleteExplorer}
+          disabled={!deleteSupported || deleteDisabled || busy}
+          aria-label="Delete explorer"
+          title={
+            deleteSupported
+              ? deleteDisabled
+                ? 'Create or select another Explorer before deleting this one'
+                : 'Delete explorer'
+              : 'Explorer deletion is not supported for this configuration'
+          }
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded border border-slate-300 bg-white text-slate-600 hover:border-red-300 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          <IconTrash size={16} stroke={1.8} />
+        </button>
         <div className="ml-auto flex shrink-0 items-center gap-2">
           <button
             type="button"

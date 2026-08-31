@@ -11,6 +11,8 @@ const ready: ExplorerBuilderState = {
   apiVersion: 'loom.calypr.org/explorer-authoring/v2',
   kind: 'ExplorerBuilderState',
   lifecycleState: 'READY',
+  draftVersion: 1,
+  draftDigest: 'sha256:draft',
   workspace: {
     apiVersion: 'loom.calypr.org/explorer-authoring/v2',
     kind: 'ExplorerBuilderWorkspace',
@@ -126,7 +128,7 @@ describe('semantic Builder hydration', () => {
     });
 
     expect(edited.dirty).toBe(true);
-    expect(edited.reconciliation).toBe('pending');
+    expect(edited.reconciliation).toBe('idle');
     expect(edited.preview).toBe(preview);
     expect(workspaceFromState(edited).documents[0].columns[0]).toMatchObject({
       column: 'specimen_identifier',
@@ -265,7 +267,7 @@ describe('semantic Builder hydration', () => {
     ).toThrow(/READY/);
   });
 
-  it('automatically recompiles preserved edits after a catalog refresh', () => {
+  it('keeps a refreshed catalog idle until compilation is requested', () => {
     const state = stateFromBuilder(ready, {
       project: 'project',
       explorerId: 'default',
@@ -274,7 +276,7 @@ describe('semantic Builder hydration', () => {
       type: 'catalogRefreshed',
       catalog: { ...ready.catalog, snapshotToken: 'new-snapshot' },
     });
-    expect(refreshed.reconciliation).toBe('pending');
+    expect(refreshed.reconciliation).toBe('idle');
     expect(refreshed.receipt).toBeUndefined();
     expect(refreshed.tables).toEqual(state.tables);
   });
@@ -300,6 +302,41 @@ describe('semantic Builder hydration', () => {
       catalog: { ...ready.catalog, snapshotToken: 'new-snapshot' },
     });
     expect(refreshed.reconciliation).toBe('idle');
+  });
+
+  it('keeps a newly added blank table editable until a row root is selected', () => {
+    const state = stateFromBuilder(ready, {
+      project: 'project',
+      explorerId: 'default',
+    });
+    const blankTable = {
+      outputId: 'blank-output',
+      tabId: 'blank-tab',
+      title: 'Blank table',
+      document: {
+        kind: 'ExplorerBuilderDocument' as const,
+        output: { id: 'blank-output', title: 'Blank table' },
+        rootResourceType: '',
+        route: { occurrenceId: 'base', resourceType: '' },
+        columns: [],
+      },
+    };
+
+    const added = builderAuthoringReducer(state, {
+      type: 'addTable',
+      table: blankTable,
+    });
+
+    expect(added.reconciliation).toBe('idle');
+    expect(added.selectedOutputId).toBe('blank-output');
+
+    const rooted = builderAuthoringReducer(added, {
+      type: 'setRoot',
+      outputId: 'blank-output',
+      nodeId: 'specimen-node',
+    });
+    expect(rooted.tables.at(-1)?.document.rootResourceType).toBe('Specimen');
+    expect(rooted.reconciliation).toBe('idle');
   });
 
   it('hydrates, edits, and removes sibling branches without dropping unrelated routes', () => {
@@ -456,5 +493,122 @@ describe('semantic Builder hydration', () => {
       ),
     ).not.toContain('patient__identifier');
     expect(workspaceFromState(edited).sharedFilters).toBeUndefined();
+  });
+
+  it('replaces local identities with the authoritative command workspace', () => {
+    const state = stateFromBuilder(ready, {
+      project: 'project',
+      explorerId: 'default',
+    });
+    const workspace = {
+      ...ready.workspace!,
+      documents: ready.workspace!.documents.map((document) => ({
+        ...document,
+        output: { ...document.output, id: 'out_backend' },
+      })),
+      tabs: ready.workspace!.tabs.map((tab) => ({
+        ...tab,
+        id: 'tab_backend',
+        outputId: 'out_backend',
+      })),
+    };
+    const next = builderAuthoringReducer(state, {
+      type: 'commandsApplied',
+      value: {
+        commandId: 'command-1',
+        workspace,
+        draftVersion: 2,
+        draftDigest: 'sha256:next',
+        results: [
+          {
+            type: 'TABLE_CREATED',
+            outputId: 'out_backend',
+            tabId: 'tab_backend',
+            occurrenceId: 'base',
+          },
+        ],
+        diagnostics: [],
+      },
+    });
+    expect(next.selectedOutputId).toBe('out_backend');
+    expect(next.draftVersion).toBe(2);
+    expect(next.workspace).toEqual(workspace);
+    expect(next.reconciliation).toBe('idle');
+
+    const requested = builderAuthoringReducer(next, {
+      type: 'requestRecompile',
+    });
+    expect(requested.reconciliation).toBe('pending');
+    expect(requested.dirty).toBe(true);
+  });
+
+  it('preserves the selected traversal node after a table presentation update', () => {
+    const workspace = {
+      ...ready.workspace!,
+      documents: ready.workspace!.documents.map((document) => ({
+        ...document,
+        route: {
+          ...document.route,
+          children: [
+            {
+              occurrenceId: 'observation',
+              resourceType: 'Observation',
+              relationship: 'focus_Specimen',
+            },
+          ],
+        },
+      })),
+    };
+    const state = {
+      ...stateFromBuilder(
+        { ...ready, workspace },
+        { project: 'project', explorerId: 'default' },
+      ),
+      selectedOccurrenceId: 'observation',
+    };
+
+    const next = builderAuthoringReducer(state, {
+      type: 'commandsApplied',
+      value: {
+        commandId: 'command-2',
+        workspace,
+        draftVersion: 2,
+        draftDigest: 'sha256:next',
+        results: [
+          {
+            type: 'TABLE_CHANGED',
+            outputId: 'Specimen',
+            column: 'observation__status',
+          },
+        ],
+        diagnostics: [],
+      },
+    });
+
+    expect(next.selectedOccurrenceId).toBe('observation');
+  });
+
+  it('falls back to the root when the selected traversal node was removed', () => {
+    const state = {
+      ...stateFromBuilder(ready, {
+        project: 'project',
+        explorerId: 'default',
+      }),
+      selectedOccurrenceId: 'removed-occurrence',
+    };
+
+    const next = builderAuthoringReducer(state, {
+      type: 'commandsApplied',
+      value: {
+        commandId: 'command-3',
+        workspace: ready.workspace!,
+        draftVersion: 2,
+        draftDigest: 'sha256:next',
+        results: [{ type: 'TABLE_CHANGED', outputId: 'Specimen' }],
+        diagnostics: [],
+      },
+    });
+
+    expect(next.selectedOccurrenceId).toBe('base');
   });
 });

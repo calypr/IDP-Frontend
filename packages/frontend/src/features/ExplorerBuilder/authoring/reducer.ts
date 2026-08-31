@@ -4,6 +4,7 @@ import type {
   ExplorerBuilderCatalog,
   ExplorerBuilderColumn,
   ExplorerBuilderCompileResult,
+  ExplorerBuilderCommandsResult,
   ExplorerBuilderPreviewResult,
   ExplorerBuilderState,
 } from '@gen3/core';
@@ -13,6 +14,7 @@ import {
   routeNode,
   routeSubtreeOccurrenceIds,
   stateFromBuilder,
+  stateFromCommands,
   type BuilderAuthoringState,
   type DraftTable,
 } from './model';
@@ -81,6 +83,10 @@ export type BuilderAction =
       readonly column: string;
     }
   | { readonly type: 'compiling' }
+  | {
+      readonly type: 'commandsApplied';
+      readonly value: ExplorerBuilderCommandsResult;
+    }
   | { readonly type: 'compiled'; readonly value: ExplorerBuilderCompileResult }
   | {
       readonly type: 'catalogRefreshed';
@@ -132,7 +138,7 @@ const invalidate = (
   preview: preservePreview ? state.preview : undefined,
   diagnostics: [],
   dirty: true,
-  reconciliation: 'pending',
+  reconciliation: 'idle',
 });
 
 const updateTable = (
@@ -201,16 +207,18 @@ export const builderAuthoringReducer = (
         ? { ...state, selectedOccurrenceId: action.occurrenceId }
         : state;
     }
-    case 'addTable':
-      return invalidate({
+    case 'addTable': {
+      const next = invalidate({
         ...state,
         tables: [...state.tables, action.table],
         selectedOutputId: action.table.outputId,
         selectedOccurrenceId: 'base',
-        reconciliation: action.table.document.rootResourceType
-          ? 'pending'
-          : 'idle',
       });
+      return {
+        ...next,
+        reconciliation: 'idle',
+      };
+    }
     case 'removeTable': {
       const tables = state.tables.filter(
         (table) => table.outputId !== action.outputId,
@@ -224,7 +232,7 @@ export const builderAuthoringReducer = (
             : state.selectedOutputId,
         selectedOccurrenceId: 'base',
       });
-      return { ...next, reconciliation: tables.length ? 'pending' : 'idle' };
+      return { ...next, reconciliation: 'idle' };
     }
     case 'renameTable':
       return updateTable(state, action.outputId, (table) => ({
@@ -425,12 +433,16 @@ export const builderAuthoringReducer = (
       }));
     case 'compiling':
       return { ...state, reconciliation: 'pending', diagnostics: [] };
+    case 'commandsApplied':
+      return stateFromCommands(state, action.value);
     case 'compiled': {
       const normalized = stateFromBuilder(
         {
           apiVersion: 'loom.calypr.org/explorer-authoring/v2',
           kind: 'ExplorerBuilderState',
           lifecycleState: 'READY',
+          draftVersion: state.draftVersion,
+          draftDigest: state.draftDigest,
           workspace: action.value.builder,
           catalog: state.catalog,
         },
@@ -462,13 +474,7 @@ export const builderAuthoringReducer = (
         receipt: undefined,
         preview: undefined,
         diagnostics: [],
-        reconciliation:
-          state.tables.length > 0 &&
-          state.tables.every((table) =>
-            Boolean(table.document.rootResourceType),
-          )
-            ? 'pending'
-            : 'idle',
+        reconciliation: 'idle',
       };
     case 'candidatesLoaded': {
       const candidates = new Map(
@@ -492,7 +498,13 @@ export const builderAuthoringReducer = (
         diagnostics: action.diagnostics,
       };
     case 'requestRecompile':
-      return invalidate(state);
+      return {
+        ...state,
+        receipt: undefined,
+        preview: undefined,
+        diagnostics: [],
+        reconciliation: 'pending',
+      };
     case 'preview':
       return { ...state, preview: action.value };
     case 'published':

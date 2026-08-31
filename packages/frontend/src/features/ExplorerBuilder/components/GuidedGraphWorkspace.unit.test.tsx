@@ -31,12 +31,13 @@ jest.mock('@xyflow/react', () => {
       event: unknown,
       node: { readonly id: string },
     ) => void;
-    readonly onPaneClick?: () => void;
+    readonly onPaneClick?: (event: React.MouseEvent<HTMLDivElement>) => void;
   }) => (
     <div
       data-testid="mock-react-flow"
       data-node-count={nodes.length}
       data-edge-count={edges.length}
+      onClick={(event) => onPaneClick?.(event)}
     >
       {nodes.map((node) => (
         <button
@@ -59,9 +60,7 @@ jest.mock('@xyflow/react', () => {
           data-marker-type={edge.markerEnd?.type}
         />
       ))}
-      <button type="button" onClick={onPaneClick}>
-        Graph background
-      </button>
+      <button type="button">Graph background</button>
       {children}
     </div>
   );
@@ -244,6 +243,74 @@ describe('GuidedGraphWorkspace', () => {
     expect(screen.getByTestId('mock-react-flow')).toHaveAttribute(
       'data-edge-count',
       '2',
+    );
+  });
+
+  it('starts a blank table directly from any eligible graph resource without expanding', async () => {
+    const onSetBase = jest.fn();
+    render(
+      <GuidedGraphWorkspace
+        catalog={catalog}
+        table={table('')}
+        selectedOccurrenceId="base"
+        disabled={false}
+        onSelectOccurrence={jest.fn()}
+        onSetBase={onSetBase}
+        onChangeBase={jest.fn()}
+        onAppendEdge={jest.fn()}
+        onTruncate={jest.fn()}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId('graph-node-node-patient')).toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByTestId('graph-node-node-patient'));
+
+    expect(onSetBase).toHaveBeenCalledWith('node-patient');
+    expect(screen.getByTestId('graph-node-node-patient')).toHaveAttribute(
+      'data-border',
+      '3px solid #7c3aed',
+    );
+    expect(
+      screen.queryByRole('dialog', { name: 'Expanded dataset graph' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('does not revive an inspected node after switching tables', async () => {
+    const props = {
+      catalog,
+      selectedOccurrenceId: 'base',
+      disabled: false,
+      onSelectOccurrence: jest.fn(),
+      onSetBase: jest.fn(),
+      onChangeBase: jest.fn(),
+      onAppendEdge: jest.fn(),
+      onTruncate: jest.fn(),
+    };
+    const view = render(
+      <GuidedGraphWorkspace {...props} table={table('node-document')} />,
+    );
+    await waitFor(() => expect(mockFitView).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Show orphans' }));
+    fireEvent.click(screen.getByTestId('graph-node-node-orphan'));
+    expect(screen.getByTestId('graph-node-node-orphan')).toHaveAttribute(
+      'data-border',
+      '3px solid #f59e0b',
+    );
+
+    const otherTable = {
+      ...table('node-document'),
+      outputId: 'other-table',
+    };
+    view.rerender(<GuidedGraphWorkspace {...props} table={otherTable} />);
+    view.rerender(<GuidedGraphWorkspace {...props} table={otherTable} />);
+    await waitFor(() => expect(mockFitView).toHaveBeenCalled());
+
+    expect(screen.getByTestId('graph-node-node-orphan')).toHaveAttribute(
+      'data-border',
+      '1px solid #94a3b8',
     );
   });
 

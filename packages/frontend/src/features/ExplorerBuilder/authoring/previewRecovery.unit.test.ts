@@ -1,5 +1,8 @@
 import type { ExplorerAuthoringApiError } from '@gen3/core';
-import { lowerPreviewLimit, previewRecoveryAction } from './previewRecovery';
+import {
+  isPreviewResponseSizeError,
+  previewRecoveryAction,
+} from './previewRecovery';
 
 const failure = (
   code: string,
@@ -48,7 +51,7 @@ describe('Builder preview recovery', () => {
     ).toBe('fail');
   });
 
-  it('reduces oversized previews down to the minimum without looping', () => {
+  it('surfaces oversized previews instead of silently changing the row limit', () => {
     const error = failure('PREVIEW_RESPONSE_TOO_LARGE');
     expect(
       previewRecoveryAction(error, {
@@ -56,15 +59,9 @@ describe('Builder preview recovery', () => {
         transientRetries: 0,
         limit: 25,
       }),
-    ).toBe('reduce-limit');
-    expect(lowerPreviewLimit(25)).toBe(10);
-    expect(
-      previewRecoveryAction(error, {
-        receiptRefreshes: 0,
-        transientRetries: 0,
-        limit: 10,
-      }),
     ).toBe('fail');
+    expect(isPreviewResponseSizeError(error.code)).toBe(true);
+    expect(isPreviewResponseSizeError('PLAN_TOO_EXPENSIVE')).toBe(false);
   });
 
   it('retries transient failures once and leaves semantic failures alone', () => {

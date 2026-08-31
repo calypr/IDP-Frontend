@@ -74,12 +74,16 @@ export const PreviewTable = ({
   limit,
   onLimitChange,
   onColumnChange,
+  onColumnsChange,
 }: {
   readonly preview?: ExplorerBuilderPreviewResult;
   readonly table?: DraftTable;
   readonly limit: number;
-  readonly onLimitChange: (value: 10 | 25 | 50 | 100) => void;
+  readonly onLimitChange: (value: 25 | 50 | 100 | 500 | 1000) => void;
   readonly onColumnChange: (column: ExplorerBuilderColumn) => void;
+  readonly onColumnsChange: (
+    columns: ReadonlyArray<ExplorerBuilderColumn>,
+  ) => void;
 }) => {
   const [columnsOpen, setColumnsOpen] = useState(false);
   const columnsMenuRef = useDismissibleLayer<HTMLDivElement>(
@@ -136,14 +140,18 @@ export const PreviewTable = ({
       ),
     );
     reordered.splice(adjustedIndex, 0, moved);
-    reordered.forEach((column, order) => {
+    const updates = reordered.flatMap((column, order) => {
       const authored = authoredByColumn.get(column.column);
-      if (!authored || authored.table?.order === order) return;
-      onColumnChange({
-        ...authored,
-        table: { ...(authored.table ?? {}), order },
-      });
+      return !authored || authored.table?.order === order
+        ? []
+        : [
+            {
+              ...authored,
+              table: { ...(authored.table ?? {}), order },
+            },
+          ];
     });
+    if (updates.length > 0) onColumnsChange(updates);
   };
   return (
     <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -264,24 +272,26 @@ export const PreviewTable = ({
         <label className="text-xs font-medium text-slate-600">
           Rows{' '}
           <select
-            className="rounded-md border border-slate-300 bg-white px-1.5 py-1.5 font-normal text-slate-800"
+            aria-label="Preview row limit"
+            className="min-w-20 rounded-md border border-slate-300 bg-white py-1.5 pl-2 pr-8 text-right font-normal tabular-nums text-slate-800"
             value={limit}
             onChange={(event) =>
               onLimitChange(
-                Number(event.currentTarget.value) as 10 | 25 | 50 | 100,
+                Number(event.currentTarget.value) as 25 | 50 | 100 | 500 | 1000,
               )
             }
           >
-            <option>10</option>
-            <option>25</option>
-            <option>50</option>
-            <option>100</option>
+            <option value={25}>25</option>
+            <option value={50}>50</option>
+            <option value={100}>100</option>
+            <option value={500}>500</option>
+            <option value={1000}>1,000</option>
           </select>
         </label>
       </div>
       <div
         data-testid="preview-table-scroll"
-        className="max-w-full overflow-x-auto overscroll-x-contain"
+        className="max-h-[min(65dvh,40rem)] max-w-full overflow-auto overscroll-contain"
       >
         {!preview ? (
           <p className="px-4 py-8 text-sm text-slate-500">

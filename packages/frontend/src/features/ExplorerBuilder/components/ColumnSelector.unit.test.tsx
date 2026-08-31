@@ -143,12 +143,77 @@ describe('configured V2 columns', () => {
     fireEvent.click(
       screen.getByRole('checkbox', { name: 'Add Date of birth to table' }),
     );
-    expect(onAdd).toHaveBeenCalledWith(candidate, 'Date of birth');
+    expect(onAdd).toHaveBeenCalledWith(candidate, 'Date of birth', 'TABLE');
+
+    fireEvent.click(
+      screen.getByRole('checkbox', { name: 'Add Date of birth as filter' }),
+    );
+    expect(onAdd).toHaveBeenCalledWith(candidate, 'Date of birth', 'FILTER');
+
+    fireEvent.click(
+      screen.getByRole('checkbox', { name: 'Add Date of birth as chart' }),
+    );
+    expect(onAdd).toHaveBeenCalledWith(candidate, 'Date of birth', 'CHART');
 
     fireEvent.click(
       screen.getByRole('button', { name: 'Select all table columns' }),
     );
     expect(onAddAll).toHaveBeenCalledWith([candidate]);
+  });
+
+  it('disables only presentations the catalog reports as unsupported', () => {
+    const candidate: ExplorerBuilderCandidate = {
+      candidateId: 'c_status',
+      nodeId: 'research-subject',
+      fieldPath: 'status',
+      label: 'Status',
+      logicalType: 'string',
+      filterable: true,
+      chartable: false,
+      projectionModes: ['FIRST'],
+      defaultProjectionMode: 'FIRST',
+    };
+    render(
+      <ColumnSelector
+        catalog={{
+          ...catalog,
+          candidates: [
+            candidate,
+            {
+              ...candidate,
+              candidateId: 'c_identifier',
+              fieldPath: 'identifier[].value',
+              label: 'Research Subject ID',
+              filterable: false,
+            },
+          ],
+        }}
+        table={table}
+        occurrenceId="base"
+        disabled={false}
+        onAdd={jest.fn()}
+        onAddAll={jest.fn()}
+        onChange={jest.fn()}
+        onRemove={jest.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole('checkbox', { name: 'Add Status as filter' }),
+    ).toBeEnabled();
+    expect(
+      screen.getByRole('checkbox', { name: 'Add Status as chart' }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole('checkbox', {
+        name: 'Use Research Subject ID as filter',
+      }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole('checkbox', {
+        name: 'Use Research Subject ID as chart',
+      }),
+    ).toBeDisabled();
   });
 
   it('toggles all configured table columns off without removing their configuration', () => {

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { skipToken } from '@reduxjs/toolkit/query';
 import { useDeepCompareMemo } from 'use-deep-compare';
 import {
@@ -29,6 +29,12 @@ import { StudyProvider } from '../../Study';
 import QueryRowDetailsPanel from './ExploreTableDetails/QueryRowDetailsPanel';
 import { ErrorCard } from '../../../components/MessageCards';
 import { renderCell } from '../../../utils/renderCell';
+import { useExplorerTableNotifications } from '../../../hooks/explorerViewer/useExplorerTableNotifications';
+import {
+  currentQueryNavigation,
+  initialQueryNavigation,
+  moveQueryNavigation,
+} from './queryNavigation';
 
 const DEFAULT_PAGE_LIMIT_LABEL = 'Rows per Page (Limited to 10,0000):';
 const DEFAULT_PAGE_LIMIT = 10000;
@@ -56,10 +62,7 @@ const ExplorerTable = ({
   onTableRender,
   onTableRenderState,
 }: ExplorerTableProps) => {
-  const [pagination, setPagination] = useState<MRT_PaginationState>({
-    pageIndex: 0,
-    pageSize: 10,
-  });
+  const [pageSize, setPageSize] = useState(10);
 
   const DetailsComponent = useMemo(() => {
     if (
@@ -187,26 +190,25 @@ const ExplorerTable = ({
     () => includeAvailableSha256(fields, activeDataset?.columns),
     [activeDataset?.columns, fields],
   );
-  const [cursorLedger, setCursorLedger] = useState<
-    Record<number, string | null>
-  >({
-    0: null,
-  });
   const querySignature = useMemo(
     () =>
       JSON.stringify({
         loomIdentity,
         loomFilters: loomFilters.filters,
         sorting,
-        pageSize: pagination.pageSize,
+        pageSize,
         facetSpecs,
       }),
-    [facetSpecs, loomIdentity, loomFilters.filters, sorting, pagination.pageSize],
+    [facetSpecs, loomIdentity, loomFilters.filters, pageSize, sorting],
   );
-  useEffect(() => {
-    setCursorLedger({ 0: null });
-    setPagination((current) => ({ ...current, pageIndex: 0 }));
-  }, [querySignature]);
+  const [navigation, setNavigation] = useState(() =>
+    initialQueryNavigation(querySignature),
+  );
+  const activeNavigation = currentQueryNavigation(navigation, querySignature);
+  const pagination = {
+    pageIndex: activeNavigation.pageIndex,
+    pageSize,
+  } satisfies MRT_PaginationState;
 
   const {
     data: tableRender,
@@ -220,7 +222,7 @@ const ExplorerTable = ({
           columns: queryFields,
           filters: loomFilters.filters,
           first: pagination.pageSize,
-          after: cursorLedger[pagination.pageIndex] ?? null,
+          after: activeNavigation.cursors[pagination.pageIndex] ?? null,
           sort: sorting[0]
             ? { column: sorting[0].id, desc: sorting[0].desc }
             : undefined,
@@ -234,24 +236,14 @@ const ExplorerTable = ({
       skip: !loomIdentity || !!loomFilters.error,
     },
   );
-  useEffect(() => {
-    if (tableRender && !isFetching) {
-      onTableRender?.(tableRender, tableRenderSignature);
-    }
-  }, [isFetching, onTableRender, tableRender, tableRenderSignature]);
-  useEffect(() => {
-    onTableRenderState?.({ isFetching, isError: isRowsError });
-  }, [isFetching, isRowsError, onTableRenderState]);
-  useEffect(() => {
-    const nextCursor = tableRender?.pageInfo?.endCursor;
-    if (nextCursor) {
-      setCursorLedger((current) =>
-        current[pagination.pageIndex + 1] === nextCursor
-          ? current
-          : { ...current, [pagination.pageIndex + 1]: nextCursor },
-      );
-    }
-  }, [pagination.pageIndex, tableRender]);
+  useExplorerTableNotifications({
+    response: tableRender,
+    requestSignature: tableRenderSignature,
+    isFetching,
+    isError: isRowsError,
+    onResponse: onTableRender,
+    onStateChange: onTableRenderState,
+  });
 
   const setTablePagination = useCallback(
     (
@@ -259,14 +251,23 @@ const ExplorerTable = ({
         | MRT_PaginationState
         | ((current: MRT_PaginationState) => MRT_PaginationState),
     ) => {
-      setPagination((current) => {
-        const next = typeof updater === 'function' ? updater(current) : updater;
-        return next.pageIndex === 0 || next.pageIndex in cursorLedger
-          ? next
-          : current;
-      });
+      const next =
+        typeof updater === 'function' ? updater(pagination) : updater;
+      if (next.pageSize !== pageSize) {
+        setPageSize(next.pageSize);
+        setNavigation(initialQueryNavigation(querySignature));
+        return;
+      }
+      setNavigation((current) =>
+        moveQueryNavigation({
+          navigation: current,
+          querySignature,
+          pageIndex: next.pageIndex,
+          nextCursor: tableRender?.pageInfo?.endCursor ?? undefined,
+        }),
+      );
     },
-    [cursorLedger],
+    [pageSize, pagination, querySignature, tableRender?.pageInfo?.endCursor],
   );
 
   const data = useMemo<JSONObject[]>(
@@ -282,14 +283,24 @@ const ExplorerTable = ({
     const totalRowCount = tableConfig?.pageLimit
       ? Math.min(
           pageLimit,
-          tableRender?.totalCount ?? activeDataset?.rowCount ?? pagination.pageSize,
+          tableRender?.totalCount ??
+            activeDataset?.rowCount ??
+            pagination.pageSize,
         )
-      : (tableRender?.totalCount ?? activeDataset?.rowCount ?? pagination.pageSize);
+      : (tableRender?.totalCount ??
+        activeDataset?.rowCount ??
+        pagination.pageSize);
     const limitLabel = tableConfig?.pageLimit
       ? (tableConfig?.pageLimit?.label ?? DEFAULT_PAGE_LIMIT_LABEL)
       : 'Rows per Page:';
     return { totalRowCount, limitLabel };
-  }, [activeDataset?.rowCount, pagination.pageSize, tableConfig, tableRender?.totalCount, index]);
+  }, [
+    activeDataset?.rowCount,
+    pagination.pageSize,
+    tableConfig,
+    tableRender?.totalCount,
+    index,
+  ]);
   /**
    * mantine-react-table setup
    * @see https://www.mantine-react-table.com/docs/api/table-options

@@ -11,12 +11,15 @@ import {
   assertExplorerBuilderState,
   assertExplorerStateV1,
   explorerAuthoringCapabilitiesSchema,
+  explorerBuilderCommandsResultSchema,
   explorerBuilderSuggestionsResultSchema,
 } from './explorerAuthoring';
 import type {
   ExplorerAuthoringCapabilities,
   ExplorerAuthoringDiagnostic,
   ExplorerBuilderCompileResult,
+  ExplorerBuilderCommand,
+  ExplorerBuilderCommandsResult,
   ExplorerBuilderPreviewResult,
   ExplorerBuilderPublishResult,
   ExplorerBuilderState,
@@ -58,6 +61,22 @@ export interface CompileExplorerBuilderArgs extends ExplorerAuthoringStateArgs {
   readonly snapshotToken: string;
   readonly requestId?: string;
 }
+export interface ApplyExplorerBuilderCommandsArgs
+  extends ExplorerAuthoringStateArgs {
+  readonly commandId: string;
+  readonly snapshotToken: string;
+  readonly expectedDraftVersion: number;
+  readonly expectedDraftDigest?: string;
+  readonly commands: ReadonlyArray<ExplorerBuilderCommand>;
+  readonly requestId?: string;
+}
+export interface ReconcileExplorerBuilderArgs
+  extends ExplorerAuthoringStateArgs {
+  readonly snapshotToken: string;
+  readonly draftVersion: number;
+  readonly draftDigest: string;
+  readonly requestId?: string;
+}
 export interface PreviewExplorerBuilderArgs extends ExplorerAuthoringStateArgs {
   readonly receiptId: string;
   readonly outputId: string;
@@ -68,8 +87,7 @@ export interface PublishExplorerBuilderArgs extends ExplorerAuthoringStateArgs {
   readonly receiptId: string;
   readonly requestId?: string;
 }
-export interface ExplorerCandidateSuggestionsArgs
-  extends ExplorerAuthoringStateArgs {
+export interface ExplorerCandidateSuggestionsArgs extends ExplorerAuthoringStateArgs {
   readonly snapshotToken: string;
   readonly nodeId: string;
   readonly query?: string;
@@ -78,6 +96,10 @@ export interface ExplorerCandidateSuggestionsArgs
 export interface CreateExplorerArgs extends ExplorerAuthoringProjectArgs {
   readonly name: string;
   readonly title?: string;
+  readonly sourceExplorerId?: string;
+  readonly requestId?: string;
+}
+export interface DeleteExplorerArgs extends ExplorerAuthoringStateArgs {
   readonly requestId?: string;
 }
 
@@ -137,7 +159,9 @@ const errorFrom = async (
     requestId,
     details: isRecord(nested.details) ? nested.details : undefined,
     retryable:
-      response.status >= 500 || response.status === 408 || response.status === 429,
+      response.status >= 500 ||
+      response.status === 408 ||
+      response.status === 429,
   };
 };
 const request = async (
@@ -324,6 +348,64 @@ export const explorerAuthoringApi = loomApi.injectEndpoints({
         );
       },
     }),
+    applyExplorerBuilderCommandsV2: builder.mutation<
+      ExplorerBuilderCommandsResult,
+      ApplyExplorerBuilderCommandsArgs
+    >({
+      async queryFn(args, api) {
+        const result = await request(
+          authoringRoot(args, '/commands'),
+          {
+            method: 'POST',
+            signal: api.signal,
+            body: JSON.stringify({
+              commandId: args.commandId,
+              snapshotToken: args.snapshotToken,
+              expectedDraftVersion: args.expectedDraftVersion,
+              ...(args.expectedDraftDigest
+                ? { expectedDraftDigest: args.expectedDraftDigest }
+                : {}),
+              commands: args.commands,
+            }),
+          },
+          selectCSRFToken(api.getState() as CoreState),
+          args.requestId,
+        );
+        if (result.error) return { error: result.error };
+        return decode(
+          result.data,
+          (value) => explorerBuilderCommandsResultSchema.parse(value),
+          'INVALID_EXPLORER_COMMAND_RESULT',
+        );
+      },
+    }),
+    reconcileExplorerBuilderV2: builder.mutation<
+      ExplorerBuilderCompileResult,
+      ReconcileExplorerBuilderArgs
+    >({
+      async queryFn(args, api) {
+        const result = await request(
+          authoringRoot(args, '/reconcile'),
+          {
+            method: 'POST',
+            signal: api.signal,
+            body: JSON.stringify({
+              snapshotToken: args.snapshotToken,
+              draftVersion: args.draftVersion,
+              draftDigest: args.draftDigest,
+            }),
+          },
+          selectCSRFToken(api.getState() as CoreState),
+          args.requestId,
+        );
+        if (result.error) return { error: result.error };
+        return decode(
+          result.data,
+          assertExplorerBuilderCompileResult,
+          'INVALID_EXPLORER_BUILDER_RECEIPT',
+        );
+      },
+    }),
     compileExplorerBuilderAliasV2: builder.mutation<
       ExplorerBuilderCompileResult,
       CompileExplorerBuilderArgs
@@ -452,6 +534,9 @@ export const explorerAuthoringApi = loomApi.injectEndpoints({
             body: JSON.stringify({
               name: args.name,
               ...(args.title ? { title: args.title } : {}),
+              ...(args.sourceExplorerId
+                ? { sourceExplorerId: args.sourceExplorerId }
+                : {}),
             }),
           },
           selectCSRFToken(api.getState() as CoreState),
@@ -465,6 +550,28 @@ export const explorerAuthoringApi = loomApi.injectEndpoints({
         { type: 'LOOM_EXPLORER_AUTHORING', id: args.project },
       ],
     }),
+    deleteExplorerAuthoring: builder.mutation<null, DeleteExplorerArgs>({
+      async queryFn(args, api) {
+        const result = await request(
+          withAuthResourcePath(
+            `${root(args.project)}/${encodeURIComponent(args.explorerId)}`,
+            args.authResourcePath,
+          ),
+          { method: 'DELETE', signal: api.signal },
+          selectCSRFToken(api.getState() as CoreState),
+          args.requestId,
+        );
+        return result.error ? { error: result.error } : { data: null };
+      },
+      invalidatesTags: (_result, _error, args) => {
+        const project = canonicalLoomProjectId(args.project);
+        return [
+          { type: 'LOOM_EXPLORER_AUTHORING', id: args.project },
+          { type: 'LOOM_EXPLORER', id: `${project}:${args.explorerId}` },
+          { type: 'LOOM_EXPLORER', id: project },
+        ];
+      },
+    }),
   }),
   overrideExisting: false,
 });
@@ -475,9 +582,12 @@ export const {
   useGetExplorerStateV1Query,
   useGetExplorerAuthoringCapabilityV2Query,
   useCompileExplorerBuilderV2Mutation,
+  useApplyExplorerBuilderCommandsV2Mutation,
+  useReconcileExplorerBuilderV2Mutation,
   useCompileExplorerBuilderAliasV2Mutation,
   useGetExplorerCandidateSuggestionsV2Mutation,
   usePreviewExplorerAuthoringV2Mutation,
   usePublishExplorerAuthoringV2Mutation,
   useCreateExplorerAuthoringMutation,
+  useDeleteExplorerAuthoringMutation,
 } = explorerAuthoringApi;

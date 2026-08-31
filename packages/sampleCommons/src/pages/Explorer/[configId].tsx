@@ -1,7 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { canonicalLoomProjectId, useGetExplorerStateV1Query, useGetGeckoProjectsQuery } from '@gen3/core';
+import {
+  canonicalLoomProjectId,
+  useGetExplorerStateV1Query,
+  useGetGeckoProjectsQuery,
+} from '@gen3/core';
 import {
   ExplorerMainContent,
   ExplorerPageGetServerSideProps as getServerSideProps,
@@ -34,29 +38,72 @@ const CohortBuilderPage = ({
   );
   const runtime = explorerState.data?.runtime ?? initialRuntime ?? null;
   const clientProblems: readonly PageLoadProblem[] = explorerState.error
-    ? [{
-        severity: 'error',
-        source: 'loom',
-        status: typeof explorerState.error === 'object' && explorerState.error && 'status' in explorerState.error && typeof explorerState.error.status === 'number' ? explorerState.error.status : 502,
-        code: typeof explorerState.error === 'object' && explorerState.error && 'code' in explorerState.error && typeof explorerState.error.code === 'string' ? explorerState.error.code : 'EXPLORER_STATE_REQUEST_FAILED',
-        retryable: true,
-        message: typeof explorerState.error === 'object' && explorerState.error && 'message' in explorerState.error && typeof explorerState.error.message === 'string' ? explorerState.error.message : 'The Explorer state could not be loaded.',
-      }]
-    : explorerState.data && !explorerState.data.runtime
-      ? [{
+    ? [
+        {
           severity: 'error',
           source: 'loom',
-          status: 422,
-          code: 'EXPLORER_RUNTIME_REQUIRED',
-          retryable: false,
-          message: 'Loom returned Explorer state without its server-generated runtime.',
-        }]
+          status:
+            typeof explorerState.error === 'object' &&
+            explorerState.error &&
+            'status' in explorerState.error &&
+            typeof explorerState.error.status === 'number'
+              ? explorerState.error.status
+              : 502,
+          code:
+            typeof explorerState.error === 'object' &&
+            explorerState.error &&
+            'code' in explorerState.error &&
+            typeof explorerState.error.code === 'string'
+              ? explorerState.error.code
+              : 'EXPLORER_STATE_REQUEST_FAILED',
+          retryable: true,
+          message:
+            typeof explorerState.error === 'object' &&
+            explorerState.error &&
+            'message' in explorerState.error &&
+            typeof explorerState.error.message === 'string'
+              ? explorerState.error.message
+              : 'The Explorer state could not be loaded.',
+        },
+      ]
+    : explorerState.data && !explorerState.data.runtime
+      ? [
+          {
+            severity: 'error',
+            source: 'loom',
+            status: 422,
+            code: 'EXPLORER_RUNTIME_REQUIRED',
+            retryable: false,
+            message:
+              'Loom returned Explorer state without its server-generated runtime.',
+          },
+        ]
       : [];
   const problems = [...(pageProblems ?? []), ...clientProblems];
   const isEmbedded = useIsEmbedded();
-  const [activeExplorerTab, setActiveExplorerTab] = useState<string | null>(
-    runtime?.outputs[0]?.title ?? null,
+  const runtimeIdentity = useMemo(
+    () =>
+      JSON.stringify({
+        configId,
+        projectId,
+        explorerId,
+        outputs: runtime?.outputs ?? [],
+      }),
+    [configId, explorerId, projectId, runtime?.outputs],
   );
+  const [tabSelection, setTabSelection] = useState<{
+    readonly runtimeIdentity: string;
+    readonly value: string | null;
+  }>({
+    runtimeIdentity,
+    value: runtime?.outputs[0]?.title ?? null,
+  });
+  const activeExplorerTab =
+    tabSelection.runtimeIdentity === runtimeIdentity
+      ? tabSelection.value
+      : (runtime?.outputs[0]?.title ?? null);
+  const setActiveExplorerTab = (value: string | null) =>
+    setTabSelection({ runtimeIdentity, value });
 
   const matchingProject = geckoProjects.find((candidate) => {
     const parts = candidate.resourcePath.split('/').filter(Boolean);
@@ -70,41 +117,38 @@ const CohortBuilderPage = ({
   const builderHref = `/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}/explorers/builder${explorerId ? `?explorerId=${encodeURIComponent(explorerId)}` : ''}`;
   const showTabsInToolbar = Boolean(organization && project && !isEmbedded);
 
-  useEffect(() => {
-    setActiveExplorerTab(runtime?.outputs[0]?.title ?? null);
-  }, [configId, projectId, runtime]);
-
-  const explorerContent = runtime && explorerProject ? (
-    <ExplorerMainContent
-      runtime={runtime}
-      project={explorerProject}
-      activeTab={showTabsInToolbar ? activeExplorerTab : undefined}
-      hideTabList={showTabsInToolbar}
-      onTabChange={showTabsInToolbar ? setActiveExplorerTab : undefined}
-      sharedFiltersMap={sharedFiltersMap}
-      pageProblems={pageProblems}
-    />
-  ) : explorerState.isLoading || explorerState.isUninitialized ? (
-    <main className="mx-auto max-w-screen-2xl p-6">
-      <p role="status">Loading Explorer…</p>
-    </main>
-  ) : (
-    <main className="mx-auto max-w-screen-2xl p-6">
-      <p role="alert">
-        The published Explorer configuration could not be loaded. Open the
-        Builder to inspect or revise the draft.
-      </p>
-      {problems.length > 0 && (
-        <ul className="mt-3 list-disc pl-5 text-sm text-slate-700">
-          {problems.map((problem, index) => (
-            <li key={`${problem.code ?? 'problem'}-${index}`}>
-              {problem.message}
-            </li>
-          ))}
-        </ul>
-      )}
-    </main>
-  );
+  const explorerContent =
+    runtime && explorerProject ? (
+      <ExplorerMainContent
+        runtime={runtime}
+        project={explorerProject}
+        activeTab={showTabsInToolbar ? activeExplorerTab : undefined}
+        hideTabList={showTabsInToolbar}
+        onTabChange={showTabsInToolbar ? setActiveExplorerTab : undefined}
+        sharedFiltersMap={sharedFiltersMap}
+        pageProblems={pageProblems}
+      />
+    ) : explorerState.isLoading || explorerState.isUninitialized ? (
+      <main className="mx-auto max-w-screen-2xl p-6">
+        <p role="status">Loading Explorer…</p>
+      </main>
+    ) : (
+      <main className="mx-auto max-w-screen-2xl p-6">
+        <p role="alert">
+          The published Explorer configuration could not be loaded. Open the
+          Builder to inspect or revise the draft.
+        </p>
+        {problems.length > 0 && (
+          <ul className="mt-3 list-disc pl-5 text-sm text-slate-700">
+            {problems.map((problem, index) => (
+              <li key={`${problem.code ?? 'problem'}-${index}`}>
+                {problem.message}
+              </li>
+            ))}
+          </ul>
+        )}
+      </main>
+    );
 
   if (isEmbedded) {
     return explorerContent;

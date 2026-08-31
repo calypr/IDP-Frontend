@@ -1,19 +1,16 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { skipToken } from '@reduxjs/toolkit/query';
-import { LoadingOverlay, Stack, Table, Text } from '@mantine/core';
-import { useDisclosure } from '@mantine/hooks';
+import { LoadingOverlay, Stack } from '@mantine/core';
 import {
   convertFilterSetToLoomFilters,
   useGetLoomDatasetBySelectorQuery,
   useGetLoomRowsQuery,
 } from '@gen3/core';
-import { MdKeyboardDoubleArrowLeft as BackIcon } from 'react-icons/md';
 import ErrorCard from '../../../../components/MessageCards/ErrorCard';
 import { TableDetailsPanelProps } from './types';
 import { buildNested } from '../../../../components/facets';
 import { JSONPath } from 'jsonpath-plus';
 import { isArray } from 'lodash';
-import { useStudyContext } from '../../../Study/StudyProvider';
 import { SinglePageStudyDetailsPanel } from '../../../Study';
 import { includeAvailableSha256 } from '../utils';
 
@@ -41,16 +38,13 @@ export const QueryRowDetailsPanel = ({
   id,
   index,
   tableConfig,
-  accessibility,
+  accessibility: _accessibility,
   loomDataset,
   loomProjectIds,
 }: TableDetailsPanelProps) => {
   //const [queryGuppy, { data, isLoading, isError }] = useLazyGeneralGQLQuery();
   const idField = tableConfig.detailsConfig?.idField;
   const simpleDetailsView = tableConfig.detailsConfig?.simpleDetailsView;
-  const { setStudyDetails } = useStudyContext();
-  const [opened, { open, close }] = useDisclosure(false);
-
   const loomIdentity = loomDataset
     ? ({ selector: loomDataset, projectIds: loomProjectIds } as const)
     : null;
@@ -82,9 +76,7 @@ export const QueryRowDetailsPanel = ({
     data: selectedDataset,
     isError: isSelectedDatasetError,
     isLoading: isSelectedDatasetLoading,
-  } = useGetLoomDatasetBySelectorQuery(
-    loomIdentity ?? skipToken,
-  );
+  } = useGetLoomDatasetBySelectorQuery(loomIdentity ?? skipToken);
   const activeDataset = selectedDataset;
   const {
     data,
@@ -116,10 +108,6 @@ export const QueryRowDetailsPanel = ({
     () => ExtractData(data?.rows?.[0], tableConfig?.detailsConfig?.dataPath),
     [data, tableConfig?.detailsConfig?.dataPath],
   );
-
-  useEffect(() => {
-    setStudyDetails(queryData);
-  }, [queryData, setStudyDetails]);
 
   if (!idField) {
     return (

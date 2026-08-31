@@ -29,6 +29,10 @@ import { useWorkspaceResourceMonitor } from '../../components/Providers/Resource
 import { VerifyingAccessLoader } from '../../components/Protected/VerifyingAccessLoader';
 import SessionFailureView from '../../components/Protected/SessionFailureView';
 import { WORKSPACES_ENABLED } from '../../features/Workspace/config';
+import {
+  buildSessionExpiredLoginUrl,
+  getForcedLogoutAction,
+} from './unauthorizedRedirect';
 
 const ACTIVITY_CHANNEL = 'gen3-user-activity';
 const FORCE_LOGOUT_EVENT = 'gen3-force-logout';
@@ -262,6 +266,7 @@ export const SessionProvider = ({
   const [mostRecentActivityTimestamp, setMostRecentActivityTimestamp] =
     useState(Date.now());
   const forcedLogoutInFlightRef = useRef(false);
+  const forcedLogoutRedirectStartedRef = useRef(false);
   const userVerificationPromiseRef = useRef<Promise<void> | null>(null);
   const homeUnauthorizedRef = useRef(false);
   const [isUserVerificationPending, setIsUserVerificationPending] =
@@ -360,13 +365,54 @@ export const SessionProvider = ({
     [getUserDetails],
   );
 
+  const redirectExpiredSessionToLogin = useCallback(async () => {
+    setIsUserVerificationPending(true);
+    setIsLogoutTransitionPending(true);
+
+    const accessToken = getCookie('credentials_token');
+    if (accessToken) {
+      try {
+        await fetchWithDeadline('/api/auth/credentialsLogout');
+      } catch (e: unknown) {
+        showNotification({
+          title: 'Logout Error',
+          message: `error logging out ${e instanceof Error ? e.message : String(e)}`,
+        });
+      }
+    }
+
+    window.location.assign(
+      buildSessionExpiredLoginUrl({
+        fenceApi: GEN3_FENCE_API,
+        redirectUrl: GEN3_REDIRECT_URL,
+        currentPath: router.asPath,
+      }),
+    );
+  }, [router.asPath]);
+
   useEffect(() => {
     if (typeof window === 'undefined') {
       return undefined;
     }
 
-    const handleForcedLogout = () => {
-      if (forcedLogoutInFlightRef.current) {
+    const handleForcedLogout = (event: Event) => {
+      const showLoginModal =
+        !(event instanceof CustomEvent) ||
+        event.detail?.showLoginModal !== false;
+      const action = getForcedLogoutAction({
+        showLoginModal,
+        redirectStarted: forcedLogoutRedirectStartedRef.current,
+        logoutInFlight: forcedLogoutInFlightRef.current,
+      });
+
+      if (action === 'redirect') {
+        forcedLogoutRedirectStartedRef.current = true;
+        forcedLogoutInFlightRef.current = true;
+        void redirectExpiredSessionToLogin();
+        return;
+      }
+
+      if (action === 'ignore') {
         return;
       }
 
@@ -374,8 +420,10 @@ export const SessionProvider = ({
       setIsUserVerificationPending(true);
 
       void endSession(false).finally(() => {
-        forcedLogoutInFlightRef.current = false;
-        setIsUserVerificationPending(false);
+        if (!forcedLogoutRedirectStartedRef.current) {
+          forcedLogoutInFlightRef.current = false;
+          setIsUserVerificationPending(false);
+        }
       });
     };
 
@@ -384,7 +432,7 @@ export const SessionProvider = ({
     return () => {
       window.removeEventListener(FORCE_LOGOUT_EVENT, handleForcedLogout);
     };
-  }, [endSession]);
+  }, [endSession, redirectExpiredSessionToLogin]);
 
   const updateSession = useCallback((): Promise<void> => {
     if (isAppHomePath(router.pathname) && homeUnauthorizedRef.current) {
@@ -584,8 +632,15 @@ export const SessionProvider = ({
   const value: Session = useDeepCompareMemo(() => {
     return {
       ...sessionInfo,
+      ...(isLogoutTransitionPending
+        ? {
+            status: 'invalid' as const,
+            userStatus: 'unauthenticated' as const,
+          }
+        : {}),
       pending:
         sessionInfo.pending ||
+        isLogoutTransitionPending ||
         isUserVerificationPending ||
         isUserDetailsLoading ||
         isUserDetailsFetching,
@@ -594,6 +649,7 @@ export const SessionProvider = ({
     };
   }, [
     sessionInfo,
+    isLogoutTransitionPending,
     isUserVerificationPending,
     isUserDetailsLoading,
     isUserDetailsFetching,
