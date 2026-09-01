@@ -3,6 +3,7 @@ import type {
   HistogramDataArray,
   JSONObject,
 } from '../../types';
+import { canonicalLoomDataframeProjectId } from './projectId';
 
 export const LOOM_DATA_TYPES = [
   'Patient',
@@ -108,16 +109,35 @@ export const validateLoomDatasetSelector = (
 export type LoomDatasetIdentity = {
   readonly selector: DataframeSelector;
   /**
-   * Legacy compatibility field. Loom's dataframe GraphQL inputs do not accept
-   * projectIds, so request builders intentionally never serialize this value.
+   * Compatibility input used by existing Explorer configuration. Loom's
+   * dataframe GraphQL contract requires one singular projectId.
    */
   readonly projectIds?: ReadonlyArray<string>;
+};
+
+export const loomProjectIdForIdentity = (
+  identity: LoomDatasetIdentity,
+): string => {
+  const projectIds = [
+    ...new Set(
+      (identity.projectIds ?? [])
+        .map(canonicalLoomDataframeProjectId)
+        .filter((projectId) => projectId.length > 0),
+    ),
+  ];
+  if (projectIds.length !== 1) {
+    throw new Error(
+      'A Loom dataframe request requires exactly one projectId.',
+    );
+  }
+  return projectIds[0];
 };
 
 export const loomDatasetIdentityKey = (
   identity: LoomDatasetIdentity,
 ): string =>
   [
+    loomProjectIdForIdentity(identity),
     identity.selector.recipe,
     identity.selector.translationVersion,
     identity.selector.output,

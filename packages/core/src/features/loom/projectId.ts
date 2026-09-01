@@ -21,6 +21,32 @@ export const canonicalLoomProjectId = (project: string): string => {
   return `HTAN_INT/${normalized}`;
 };
 
+/** Canonicalize dataframe tenancy without assigning opaque IDs to HTAN. */
+export const canonicalLoomDataframeProjectId = (project: string): string => {
+  let normalized = project.trim();
+  if (!normalized) return normalized;
+  try {
+    normalized = decodeURIComponent(normalized).trim();
+  } catch {
+    // Preserve malformed opaque input so Loom owns the boundary error.
+  }
+  normalized = normalized.replace(/^\/+|\/+$/g, '');
+  if (normalized.includes('/')) {
+    const [program, ...projectParts] = normalized.split('/');
+    return program && projectParts.join('/')
+      ? `${program}/${projectParts.join('/')}`
+      : normalized;
+  }
+  const legacySeparator = normalized.indexOf('-');
+  if (legacySeparator > 0 && legacySeparator < normalized.length - 1) {
+    const program = normalized.slice(0, legacySeparator);
+    if (program !== program.toLowerCase() || program.includes('_')) {
+      return `${program}/${normalized.slice(legacySeparator + 1)}`;
+    }
+  }
+  return normalized;
+};
+
 /**
  * Encode the canonical project identity for Loom's `/projects/:project`
  * path segment.

@@ -33,14 +33,16 @@ describe('Loom GraphQL request contracts', () => {
     translationVersion: 'r000001_abcd',
     output: 'CustomOutput',
   } as const;
+  const projectId = 'HTAN_INT/BForePC';
+  const scopedIdentity = { selector, projectIds: [projectId] } as const;
 
   it('requires complete recipe selectors for every dataframe request', () => {
     expect(isLoomDataType('Patient')).toBe(true);
     expect(isLoomDataType('DocumentReference')).toBe(true);
     expect(isLoomDataType('document_reference')).toBe(false);
 
-    const request = buildLoomDatasetQuery(selector);
-    expect(request.variables).toEqual({ input: { selector } });
+    const request = buildLoomDatasetQuery(scopedIdentity);
+    expect(request.variables).toEqual({ input: { projectId, selector } });
     expect(request.query).toContain('dataframeDataset');
   });
 
@@ -85,33 +87,56 @@ describe('Loom GraphQL request contracts', () => {
   });
 
   it('builds and keys immutable recipe selectors', () => {
-    const identity = { selector } as const;
-    expect(buildLoomDatasetSelectorQuery(identity).variables).toEqual({
-      input: { selector },
+    expect(buildLoomDatasetSelectorQuery(scopedIdentity).variables).toEqual({
+      input: { projectId, selector },
     });
-    expect(loomDatasetIdentityKey(identity)).toContain('CustomOutput');
-    expect(loomDatasetIdentityKey(identity)).toContain('r000001_abcd');
+    expect(loomDatasetIdentityKey(scopedIdentity)).toContain('CustomOutput');
+    expect(loomDatasetIdentityKey(scopedIdentity)).toContain('r000001_abcd');
   });
 
-  it('does not serialize the unsupported legacy project scope field', () => {
-    const identity = { selector, projectIds: ['project-b', 'project-a', 'project-b'] } as const;
+  it('rejects missing or ambiguous project scope before GraphQL', () => {
+    expect(() => buildLoomRowsQuery({ selector, columns: ['id'] })).toThrow(
+      'exactly one projectId',
+    );
+    expect(() =>
+      buildLoomRowsQuery({
+        selector,
+        projectIds: ['HTAN_INT/BForePC', 'HTAN_INT/OtherProject'],
+        columns: ['id'],
+      }),
+    ).toThrow('exactly one projectId');
+  });
+
+  it.each(['P1', 'project-a'])(
+    'preserves opaque dataframe project identity %s',
+    (opaqueProjectId) => {
+      const request = buildLoomRowsQuery({
+        selector,
+        projectIds: [opaqueProjectId],
+        columns: ['id'],
+      });
+      expect(request.variables).toMatchObject({
+        input: { projectId: opaqueProjectId },
+      });
+    },
+  );
+
+  it('serializes the required singular project scope on every dataframe request', () => {
+    const identity = { selector, projectIds: ['HTAN_INT%2FBForePC'] } as const;
     expect(buildLoomDatasetSelectorQuery(identity).variables).toEqual({
-      input: { selector },
+      input: { projectId: 'HTAN_INT/BForePC', selector },
     });
     expect(buildLoomRowsQuery({ ...identity, columns: ['id'] }).variables).toMatchObject({
-      input: { selector },
+      input: { projectId: 'HTAN_INT/BForePC', selector },
     });
     expect(buildLoomAggregateQuery({ ...identity, operation: 'COUNT' }).variables).toMatchObject({
-      input: { selector },
+      input: { projectId: 'HTAN_INT/BForePC', selector },
     });
     expect(buildLoomCountQuery({ ...identity, operation: 'COUNT' }).variables).toMatchObject({
-      input: { selector },
+      input: { projectId: 'HTAN_INT/BForePC', selector },
     });
     expect(buildLoomAggregationsQuery({ ...identity, fields: ['status'] }).variables).toMatchObject({
-      input0: { selector },
-    });
-    expect(buildLoomDownloadRequest({ ...identity, fields: ['id'], format: 'csv' })).toMatchObject({
-      selector,
+      input0: { projectId: 'HTAN_INT/BForePC', selector },
     });
     expect(JSON.stringify(identity)).toContain('projectIds');
     expect(JSON.stringify([
@@ -120,17 +145,14 @@ describe('Loom GraphQL request contracts', () => {
       buildLoomAggregateQuery({ ...identity, operation: 'COUNT' }),
       buildLoomCountQuery({ ...identity, operation: 'COUNT' }),
       buildLoomAggregationsQuery({ ...identity, fields: ['status'] }),
-      buildLoomDownloadRequest({ ...identity, fields: ['id'], format: 'csv' }),
-    ])).not.toContain('projectIds');
-    expect(loomDatasetIdentityKey(identity)).toBe(
-      loomDatasetIdentityKey({ selector }),
-    );
+    ])).toContain('projectId');
+    expect(loomDatasetIdentityKey(identity)).toContain('HTAN_INT/BForePC');
   });
 
   it('keeps immutable recipe selectors nested in GraphQL input', () => {
     expect(
       buildLoomRowsQuery({
-        selector,
+        ...scopedIdentity,
         columns: ['id'],
       }).variables,
     ).toMatchObject({
@@ -147,7 +169,7 @@ describe('Loom GraphQL request contracts', () => {
   it('never asks Loom to expose internal authorization or pagination columns', () => {
     expect(
       buildLoomRowsQuery({
-        selector,
+        ...scopedIdentity,
         columns: ['id', 'auth_resource_path', '__loom_row_id'],
         sort: { column: 'auth_resource_path', desc: false },
       }).variables,
@@ -162,22 +184,22 @@ describe('Loom GraphQL request contracts', () => {
 
   it('uses the selector for rows, counts, and single aggregates', () => {
     expect(
-      buildLoomRowsQuery({ selector, columns: ['id'] }).variables,
-    ).toMatchObject({ input: { selector } });
+      buildLoomRowsQuery({ ...scopedIdentity, columns: ['id'] }).variables,
+    ).toMatchObject({ input: { projectId, selector } });
     expect(
       buildLoomAggregateQuery({
-        selector,
+        ...scopedIdentity,
         operation: 'COUNT',
       }).variables,
-    ).toMatchObject({ input: { selector } });
+    ).toMatchObject({ input: { projectId, selector } });
     expect(
-      buildLoomCountQuery({ selector, operation: 'COUNT' }).variables,
-    ).toMatchObject({ input: { selector } });
+      buildLoomCountQuery({ ...scopedIdentity, operation: 'COUNT' }).variables,
+    ).toMatchObject({ input: { projectId, selector } });
   });
 
   it('preserves opaque cursor pagination and sort variables', () => {
     const request = buildLoomRowsQuery({
-      selector,
+      ...scopedIdentity,
       columns: ['id', 'status'],
       filters: [{ column: 'status', op: 'EQ', value: 'active' }],
       sort: { column: 'id', desc: true },
@@ -186,6 +208,7 @@ describe('Loom GraphQL request contracts', () => {
     });
     expect(request.variables).toEqual({
       input: {
+        projectId,
         selector,
         columns: ['id', 'status'],
         filters: [{ column: 'status', op: 'EQ', value: 'active' }],
@@ -198,7 +221,7 @@ describe('Loom GraphQL request contracts', () => {
 
   it('builds grouped and filtered aggregate requests', () => {
     const aggregate = buildLoomAggregateQuery({
-      selector,
+      ...scopedIdentity,
       groupBy: ['status'],
       filters: [{ column: 'project_id', op: 'EQ', value: 'p1' }],
       operation: 'COUNT',
@@ -206,6 +229,7 @@ describe('Loom GraphQL request contracts', () => {
     });
     expect(aggregate.variables).toMatchObject({
       input: {
+        projectId,
         selector,
         groupBy: ['status'],
         operation: 'COUNT',
@@ -213,13 +237,14 @@ describe('Loom GraphQL request contracts', () => {
     });
 
     const aggregations = buildLoomAggregationsQuery({
-      selector,
+      ...scopedIdentity,
       fields: ['status'],
       filters: [{ column: 'status', op: 'IN', value: ['active', 'stopped'] }],
     });
     expect(aggregations.query).toContain('a0: dataframeAggregate');
     expect(aggregations.variables).toEqual({
       input0: {
+        projectId,
         selector,
         groupBy: ['status'],
         filters: [{ column: 'status', op: 'IN', value: ['active', 'stopped'] }],
@@ -232,14 +257,14 @@ describe('Loom GraphQL request contracts', () => {
   it('rejects empty aggregation selections before GraphQL serialization', () => {
     expect(() =>
       buildLoomAggregationsQuery({
-        selector,
+        ...scopedIdentity,
         fields: [],
       }),
     ).toThrow('Loom aggregations require at least one non-empty field');
 
     expect(() =>
       buildLoomAggregationsQuery({
-        selector,
+        ...scopedIdentity,
         fields: [''],
       }),
     ).toThrow('Loom aggregations require at least one non-empty field');
@@ -247,7 +272,7 @@ describe('Loom GraphQL request contracts', () => {
 
   it('builds one bounded rich aggregation request', () => {
     const request = buildLoomRichAggregationsQuery({
-      selector,
+      ...scopedIdentity,
       filters: [
         { column: 'status', op: 'eq', value: 'active' },
       ],
@@ -265,6 +290,7 @@ describe('Loom GraphQL request contracts', () => {
     expect(request.query).toContain('dataframeAggregations');
     expect(request.variables).toEqual({
       input: {
+        projectId,
         selector,
         filters: [{ column: 'status', op: 'eq', value: 'active' }],
         specs: [
@@ -279,13 +305,13 @@ describe('Loom GraphQL request contracts', () => {
       },
     });
     expect(() =>
-      buildLoomRichAggregationsQuery({ selector, specs: [] }),
+      buildLoomRichAggregationsQuery({ ...scopedIdentity, specs: [] }),
     ).toThrow('Loom rich aggregations require at least one specification');
   });
 
   it('combines rows and facets only when facets are explicitly requested', () => {
     const rowsOnly = buildLoomTableRenderQuery({
-      selector,
+      ...scopedIdentity,
       columns: ['id'],
       first: 10,
     });
@@ -293,6 +319,7 @@ describe('Loom GraphQL request contracts', () => {
     expect(rowsOnly.query).not.toContain('dataframeAggregations');
     expect(rowsOnly.variables).toEqual({
       rows: {
+        projectId,
         selector,
         columns: ['id'],
         filters: undefined,
@@ -303,15 +330,16 @@ describe('Loom GraphQL request contracts', () => {
     });
 
     const combined = buildLoomTableRenderQuery({
-      selector,
+      ...scopedIdentity,
       columns: ['id'],
       facets: [{ name: 'status_values', kind: 'TERMS', column: 'status' }],
     });
     expect(combined.query).toContain('table: dataframeRows');
     expect(combined.query).toContain('facets: dataframeAggregations');
     expect(combined.variables).toMatchObject({
-      rows: { selector, columns: ['id'] },
+      rows: { projectId, selector, columns: ['id'] },
       facets: {
+        projectId,
         selector,
         specs: [{ name: 'status_values', kind: 'TERMS', column: 'status' }],
       },
@@ -320,11 +348,11 @@ describe('Loom GraphQL request contracts', () => {
 
   it('never serializes the retired materializationId or dataType request fields', () => {
     const requests = [
-      buildLoomDatasetQuery(selector),
-      buildLoomRowsQuery({ selector, columns: ['id'] }),
-      buildLoomAggregateQuery({ selector, operation: 'COUNT' }),
-      buildLoomCountQuery({ selector, operation: 'COUNT' }),
-      buildLoomAggregationsQuery({ selector, fields: ['status'] }),
+      buildLoomDatasetQuery(scopedIdentity),
+      buildLoomRowsQuery({ ...scopedIdentity, columns: ['id'] }),
+      buildLoomAggregateQuery({ ...scopedIdentity, operation: 'COUNT' }),
+      buildLoomCountQuery({ ...scopedIdentity, operation: 'COUNT' }),
+      buildLoomAggregationsQuery({ ...scopedIdentity, fields: ['status'] }),
       buildLoomDownloadRequest({ selector, fields: ['id'], format: 'csv' }),
     ];
     expect(JSON.stringify(requests)).not.toMatch(/materializationId|dataType/);
@@ -429,14 +457,14 @@ describe('Loom GraphQL request contracts', () => {
     );
     expect(
       loomFacetCacheKey({
-        identity: { selector },
+        identity: scopedIdentity,
         revision: 'revision-1',
         spec: { name: 'status_values', kind: 'TERMS', column: 'status' },
         filters: first,
       }),
     ).toBe(
       loomFacetCacheKey({
-        identity: { selector },
+        identity: scopedIdentity,
         revision: 'revision-1',
         spec: { name: 'status_values', kind: 'TERMS', column: 'status' },
         filters: second,
@@ -444,13 +472,13 @@ describe('Loom GraphQL request contracts', () => {
     );
     expect(
       loomFacetCacheKey({
-        identity: { selector },
+        identity: scopedIdentity,
         revision: 'revision-1',
         spec: { name: 'status_values', kind: 'TERMS', column: 'status' },
       }),
     ).not.toBe(
       loomFacetCacheKey({
-        identity: { selector },
+        identity: scopedIdentity,
         revision: 'revision-2',
         spec: { name: 'status_values', kind: 'TERMS', column: 'status' },
       }),

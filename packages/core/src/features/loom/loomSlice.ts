@@ -15,9 +15,12 @@ import type {
   LoomTableRenderResponse,
   LoomQueryArgs,
   LoomDatasetIdentity,
-  DataframeSelector,
 } from './types';
-import { loomDatasetIdentityKey, validateLoomDatasetSelector } from './types';
+import {
+  loomDatasetIdentityKey,
+  loomProjectIdForIdentity,
+  validateLoomDatasetSelector,
+} from './types';
 
 const datasetFields = `
   id name revision state rowCount createdAt readyAt error
@@ -48,19 +51,17 @@ const rowsFields = `
 `;
 
 export const buildLoomDatasetQuery = (
-  input: DataframeSelector | LoomDatasetIdentity,
-): LoomQueryArgs => {
-  const identity = 'selector' in input ? input : { selector: input };
-  return {
-    query: `query LoomDataset($input: DataframeDatasetInput!) { dataframeDataset(input: $input) { ${datasetFields} } }`,
-    variables: { input: buildLoomIdentityInput(identity) },
-  };
-};
+  identity: LoomDatasetIdentity,
+): LoomQueryArgs => ({
+  query: `query LoomDataset($input: DataframeDatasetInput!) { dataframeDataset(input: $input) { ${datasetFields} } }`,
+  variables: { input: buildLoomIdentityInput(identity) },
+});
 
 const buildLoomIdentityInput = (identity: LoomDatasetIdentity) => {
   const diagnostic = validateLoomDatasetSelector(identity.selector);
   if (diagnostic) throw new Error(diagnostic.message);
   return {
+    projectId: loomProjectIdForIdentity(identity),
     selector: {
       recipe: identity.selector.recipe,
       translationVersion: identity.selector.translationVersion,
@@ -317,12 +318,12 @@ export const loomTags = loomApi.enhanceEndpoints({
 
 export const loomSlice = loomTags.injectEndpoints({
   endpoints: (builder) => ({
-    getLoomDataset: builder.query<LoomDataset | null, DataframeSelector>({
+    getLoomDataset: builder.query<LoomDataset | null, LoomDatasetIdentity>({
       query: buildLoomDatasetQuery,
       transformResponse: (response: { dataframeDataset: LoomDataset | null }) =>
         response.dataframeDataset,
-      providesTags: (_result, _error, selector) => [
-        { type: 'LOOM_DATASET', id: loomDatasetIdentityKey({ selector }) },
+      providesTags: (_result, _error, identity) => [
+        { type: 'LOOM_DATASET', id: loomDatasetIdentityKey(identity) },
       ],
     }),
     getLoomDatasetBySelector: builder.query<

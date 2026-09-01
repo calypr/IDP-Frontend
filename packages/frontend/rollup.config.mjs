@@ -76,6 +76,7 @@ const globals = {
   'cm6-graphql': 'cm6Graphql',
   '@codemirror/autocomplete': 'codemirrorAutocomplete',
   zod: 'zod',
+  '@calypr/loom-ui': 'calyprLoomUi',
 };
 
 const config = [
@@ -119,6 +120,8 @@ const config = [
       '@uiw/react-codemirror',
       'cm6-graphql',
       '@codemirror/autocomplete',
+      '@calypr/loom-ui',
+      '@calypr/loom-ui/styles.css',
     ],
     plugins: [
       peerDepsExternal(),
