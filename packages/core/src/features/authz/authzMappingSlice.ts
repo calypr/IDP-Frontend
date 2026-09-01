@@ -97,6 +97,11 @@ export const authzApi = authzTags.injectEndpoints({
           return { data: {} };
         }
 
+        // If the SessionProvider has not populated the user snapshot yet,
+        // join the existing RTK Query request (or start one). RTK Query
+        // deduplicates this against the SessionProvider's /user/user call,
+        // allowing the access gate to resolve the actual mapping instead of
+        // caching an empty mapping permanently.
         const userResult = await api.dispatch(
           userAuthApi.endpoints.fetchUserDetails.initiate(undefined, {
             forceRefetch: false,

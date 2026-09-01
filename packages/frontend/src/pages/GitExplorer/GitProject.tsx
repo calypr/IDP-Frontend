@@ -22,8 +22,7 @@ import {
 } from '@mantine/core';
 import {
   SYFON_API,
-  mintSyfonObjectIdFromChecksum,
-  useGetConfigContentQuery,
+  useGetExplorerStateV1Query,
   useLazyGetGeckoGitProjectFileQuery,
   useGetGeckoGitProjectsQuery,
   useGetGeckoGitProjectRefsQuery,
@@ -180,6 +179,7 @@ const GitProjectPage = ({
   headerProps,
   footerProps,
   fileActions,
+  pageProblems,
 }: GitExplorerPageProps) => {
   const router = useRouter();
   const organization =
@@ -216,12 +216,10 @@ const GitProjectPage = ({
     isLoading: isStatusLoading,
     refetch: refetchGitProjects,
   } = useGetGeckoGitProjectsQuery();
-  const explorerConfigId =
-    organization && project ? `${organization}-${project}` : '';
-  const { data: explorerConfigResponse } = useGetConfigContentQuery(
-    explorerConfigId,
+  const { data: explorer } = useGetExplorerStateV1Query(
+    { project: `${organization}/${project}`, explorerId: 'default' },
     {
-      skip: !explorerConfigId,
+      skip: !organization || !project,
     },
   );
   const projectStatus = useMemo(
@@ -424,16 +422,8 @@ const GitProjectPage = ({
     organization,
     project,
   );
-  const hasExplorerConfig = useMemo(
-    () => Boolean(explorerConfigResponse?.data),
-    [explorerConfigResponse?.data],
-  );
-  const effectiveFileActions = useMemo(() => {
-    const explorerConfigData = explorerConfigResponse?.data as
-      | { fileActions?: FileActionsConfig }
-      | undefined;
-    return explorerConfigData?.fileActions ?? fileActions;
-  }, [explorerConfigResponse?.data, fileActions]);
+  const hasExplorerConfig = Boolean(explorer);
+  const effectiveFileActions: FileActionsConfig | undefined = fileActions;
   const gitProjectHref = useMemo(() => {
     const query = new URLSearchParams();
     if (effectiveRef) {
@@ -509,22 +499,18 @@ const GitProjectPage = ({
     }
   };
 
-  const handleLFSImageViewerOpen = async (checksum: string) => {
+  const handleLFSImageViewerOpen = (checksum: string) => {
     setActionError(null);
     setDownloadingChecksum(checksum);
     try {
-      const objectId = await mintSyfonObjectIdFromChecksum(
-        checksum,
-        [`/programs/${organization}/projects/${project}`],
-      );
       window.open(
-        `/image-viewer/view/${encodeURIComponent(objectId)}`,
+        `/image-viewer/view/${encodeURIComponent(checksum)}`,
         '_blank',
         'noopener,noreferrer',
       );
     } catch {
       setActionError(
-        `Failed to resolve an image viewer object for LFS checksum ${checksum}.`,
+        `Failed to open the image viewer for LFS checksum ${checksum}.`,
       );
     } finally {
       setDownloadingChecksum(null);
@@ -1383,7 +1369,7 @@ const GitProjectPage = ({
 
   return (
     <NavPageLayout
-      {...{ headerProps, footerProps }}
+      {...{ headerProps, footerProps, pageProblems }}
       headerMetadata={{
         content: `${organization}/${project}`,
         key: 'gecko-git-project',

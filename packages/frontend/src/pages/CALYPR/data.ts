@@ -1,17 +1,29 @@
-import { GetServerSideProps } from 'next';
 import { GEN3_COMMONS_NAME, GEN3_FENCE_API } from '@gen3/core';
-import { getNavPageLayoutPropsFromConfig } from '../../lib/common/staticProps';
-import ContentSource from '../../lib/content';
+import { definePageLoader, type ServerPageContext } from '../../lib/pageLoader';
+import { loadNavigationFromContext } from '../../lib/common/staticProps';
 import { type CalyprProps } from './types';
-import type { NavPageLayoutProps } from '../../features/Navigation';
+import type { CalyprLandingPageProps } from './types';
+import { LandingConfigurationSchema } from '../Landing/configurationSchema';
 
 const SESSION_CHECK_TIMEOUT_MS = 12_000;
 
+const cookieValue = (
+  cookieHeader: string | undefined,
+  name: string,
+): string | undefined => {
+  if (!cookieHeader) return undefined;
+
+  for (const item of cookieHeader.split(';')) {
+    const [key, ...valueParts] = item.trim().split('=');
+    if (key === name) return valueParts.join('=') || undefined;
+  }
+  return undefined;
+};
 const firstHeaderValue = (
   value: string | string[] | undefined,
 ): string | undefined => (Array.isArray(value) ? value[0] : value);
 
-const requestOrigin = (context: Parameters<GetServerSideProps>[0]): string => {
+const requestOrigin = (context: ServerPageContext['next']): string => {
   const forwardedProtocol = firstHeaderValue(
     context.req.headers['x-forwarded-proto'],
   );
@@ -24,11 +36,19 @@ const requestOrigin = (context: Parameters<GetServerSideProps>[0]): string => {
 };
 
 const sessionEndpoint = (
-  context: Parameters<GetServerSideProps>[0],
+  context: ServerPageContext['next'],
 ): string | undefined => {
   const fenceBase = GEN3_FENCE_API.replace(/\/$/, '');
   if (/^https?:\/\//i.test(fenceBase)) {
     return `${fenceBase}/user`;
+  }
+
+  const internalOrigin = process.env.GEN3_INTERNAL_API?.trim().replace(
+    /\/+$/,
+    '',
+  );
+  if (internalOrigin) {
+    return new URL(`${fenceBase}/user`, `${internalOrigin}/`).toString();
   }
 
   const origin = requestOrigin(context);
@@ -38,9 +58,13 @@ const sessionEndpoint = (
 };
 
 export const verifyAuthenticatedSession = async (
-  context: Parameters<GetServerSideProps>[0],
+  context: ServerPageContext['next'],
   headers: Record<string, string>,
 ): Promise<boolean | null> => {
+  const hasFenceCredential =
+    Boolean(headers.Authorization) ||
+    /(?:^|;\s*)access_token=/i.test(headers.Cookie ?? '');
+  if (!hasFenceCredential) return false;
   const endpoint = sessionEndpoint(context);
   if (!endpoint) return null;
 
@@ -70,59 +94,92 @@ export const verifyAuthenticatedSession = async (
   }
 };
 
-export const CalyprPageGetServerSideProps: GetServerSideProps<
-  NavPageLayoutProps
-> = async (context) => {
-  const requestHeaders: Record<string, string> = {};
+export const sessionRequestHeaders = (
+  context: ServerPageContext['next'],
+): Record<string, string> => {
+  const headers: Record<string, string> = {};
   const cookieHeader = context.req.headers.cookie;
   const authorizationHeader = context.req.headers.authorization;
+  const hasAccessToken = /(?:^|;\s*)access_token=/i.test(cookieHeader ?? '');
   if (typeof cookieHeader === 'string' && cookieHeader) {
-    requestHeaders.Cookie = cookieHeader;
+    headers.Cookie = cookieHeader;
   }
-  if (typeof authorizationHeader === 'string' && authorizationHeader) {
-    requestHeaders.Authorization = authorizationHeader;
-  }
-
-  const navigationRequestHeaders = {
-    ...requestHeaders,
-    ...(context.req.headers.host ? { Host: context.req.headers.host } : {}),
-  };
-
-  const [hasAuthenticatedSession, calyprConfig, initialNavPageLayoutProps] =
-    await Promise.all([
-      verifyAuthenticatedSession(context, requestHeaders),
-      ContentSource.getContentDatabase().get<CalyprProps>(
-        `${GEN3_COMMONS_NAME}/calyprLandingPage.json`,
-      ),
-      getNavPageLayoutPropsFromConfig(navigationRequestHeaders),
-    ]);
-
-  let navPageLayoutProps = initialNavPageLayoutProps;
-  if (hasAuthenticatedSession !== true) {
-    const filteredItems = navPageLayoutProps.headerProps.topBar.items.filter(
-      (item: { href: string }) => item.href !== '/git',
-    );
-    navPageLayoutProps = {
-      ...navPageLayoutProps,
-      headerProps: {
-        ...navPageLayoutProps.headerProps,
-        topBar: {
-          ...navPageLayoutProps.headerProps.topBar,
-          items: filteredItems,
-        },
-      },
-    };
+  if (
+    !hasAccessToken &&
+    typeof authorizationHeader === 'string' &&
+    authorizationHeader
+  ) {
+    headers.Authorization = authorizationHeader;
+  } else {
+    // Credentials login stores its token in a frontend-only cookie. Fence does
+    // not recognize that cookie name, so SSR must send it as a Bearer token.
+    // A Fence access_token takes precedence when both login modes coexist.
+    if (!hasAccessToken) {
+      const credentialsToken = cookieValue(cookieHeader, 'credentials_token');
+      if (credentialsToken) {
+        headers.Authorization = `Bearer ${credentialsToken}`;
+      }
+    }
   }
 
-  if (!navPageLayoutProps) {
-    return { notFound: true };
-  }
+  return headers;
+};
+
+const calyprConfiguration = {
+  id: 'calypr-landing-page',
+  source: 'content' as const,
+  resolvePath: () => `${GEN3_COMMONS_NAME}/calyprLandingPage.json`,
+  schema: LandingConfigurationSchema,
+};
+
+const sessionState = new WeakMap<ServerPageContext, Promise<boolean | null>>();
+
+const loadSessionState = (
+  context: ServerPageContext,
+): Promise<boolean | null> => {
+  const existing = sessionState.get(context);
+  if (existing) return existing;
+
+  const request = verifyAuthenticatedSession(
+    context.next,
+    sessionRequestHeaders(context.next),
+  );
+  sessionState.set(context, request);
+  return request;
+};
+
+const loadCalyprNavigation = async (context: ServerPageContext) => {
+  const navigation = await loadNavigationFromContext(context);
+  const hasAuthenticatedSession = await loadSessionState(context);
+
+  if (hasAuthenticatedSession === true) return navigation;
 
   return {
-    props: {
-      ...navPageLayoutProps,
-      calyprConfig: calyprConfig ? calyprConfig : null,
-      hasAuthenticatedSession,
+    ...navigation,
+    headerProps: {
+      ...navigation.headerProps,
+      topBar: {
+        ...navigation.headerProps.topBar,
+        items: navigation.headerProps.topBar.items.filter(
+          (item: { href: string }) => item.href !== '/git',
+        ),
+      },
     },
   };
 };
+
+export const CalyprPageGetServerSideProps =
+  definePageLoader<CalyprLandingPageProps>({
+    name: 'CALYPR',
+    loadNavigation: loadCalyprNavigation,
+    load: async (context) => ({
+      configuration: (await context.config.load(
+        calyprConfiguration,
+      )) as CalyprProps,
+      hasAuthenticatedSession: await loadSessionState(context),
+    }),
+    fallback: () => ({
+      configuration: null,
+      hasAuthenticatedSession: null,
+    }),
+  });

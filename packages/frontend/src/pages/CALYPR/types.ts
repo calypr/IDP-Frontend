@@ -1,4 +1,4 @@
-import { NavPageLayoutProps } from '../../features/Navigation';
+import type { ConfigPageProps } from '../../lib/pageLoader';
 
 interface CalyprConfig {
   readonly textBoxes: ReadonlyArray<{
@@ -11,4 +11,7 @@ export interface CalyprProps {
   hasAuthenticatedSession?: boolean | null;
 }
 
-export type CalyprLandingPageProps = NavPageLayoutProps & CalyprProps;
+export type CalyprLandingPageProps = ConfigPageProps<
+  CalyprProps,
+  { hasAuthenticatedSession: boolean | null }
+>;

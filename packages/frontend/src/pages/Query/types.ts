@@ -1,10 +1,8 @@
 import { NavPageLayoutProps } from '../../features/Navigation';
-import { Gen3AppConfigData } from '../../lib/content/types';
-
-export interface QueryProps extends Gen3AppConfigData {
-  graphQLEndpoint?: string;
-}
+import type { QueryConfiguration } from '../../features/Query/types';
 
 export interface QueryPageLayoutProps extends NavPageLayoutProps {
-  queryProps: QueryProps;
+  configuration: QueryConfiguration | null;
 }
+
+export type { QueryConfiguration } from '../../features/Query/types';

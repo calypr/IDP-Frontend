@@ -13,6 +13,7 @@ import { TruncatedStringWithTooltip } from '../../../components/DataItems/Trunca
 import { JSONObject } from '@gen3/core';
 
 import { getParamsValueAsString } from '../../../utils/values';
+import { renderCell } from '../../../utils/renderCell';
 
 const TruncatedStringWithTooltipCellRenderer: CellRendererFunction = (
   { value }: CellRenderFunctionProps,
@@ -35,7 +36,7 @@ export const RenderArrayCell: CellRendererFunction = ({
             color="accent-light"
             key={`${x}-value-${index}`}
           >
-            {x}
+            {renderCell(x)}
           </Badge>
         ))}
       </div>
@@ -79,20 +80,20 @@ export const RenderArrayCellNegativePositive: CellRendererFunction = ({
             classNames={{ root: 'basis-1/3' }}
             key={`${cell?.id ?? 'cell'}-value-${index}`}
           >
-            {x}
+            {renderCell(x)}
           </Badge>
         ))}
       </div>
     );
   }
   // TODO: This is a hack to get around the fact that the data is not typed
-  return <span>{value as any}</span>;
+  return <span>{renderCell(value)}</span>;
 };
 
 export const RenderLinkCell: CellRendererFunction = ({
   value,
 }: CellRenderFunctionProps) => {
-  const content = value as string;
+  const content = renderCell(value);
   return (
     <Link
       href={content}
@@ -139,11 +140,11 @@ const RenderYearOfBirthRestricted: CellRendererFunction = (
         ) {
           return '1935';
         }
-        return item;
+        return renderCell(item);
       })
       .join(', ');
   } else {
-    displayContent = content;
+    displayContent = renderCell(content);
   }
 
   return <Text tt={ttValue}>{displayContent}</Text>;
@@ -156,7 +157,7 @@ export const RenderLinkWithURL: CellRendererFunction = (
 
   params?: JSONObject,
 ) => {
-  const content = toString(value);
+  const content = renderCell(value);
   if (!content) {
     return (
       <Text>{`${
@@ -207,7 +208,7 @@ const RenderStringCell: CellRendererFunction = (
     ? params?.transform
     : undefined;
   const valueIfNotAvailable = params?.valueIfNotAvailable || '';
-  const content = value as string | string[];
+  const content = renderCell(value);
   if (content === undefined || content === null) {
     return <Text>{`${valueIfNotAvailable}`} </Text>;
   }
@@ -215,7 +216,7 @@ const RenderStringCell: CellRendererFunction = (
     return <Text>{`${valueIfNotAvailable}`} </Text>;
   }
   return (
-    <Text tt={ttValue}>{isArray(content) ? content.join(', ') : content}</Text>
+    <Text tt={ttValue}>{content}</Text>
   );
 };
 
@@ -235,8 +236,10 @@ const RenderNumberCell: CellRendererFunction = (
   // check if content is an array of all numbers
   if (isArray(content) && content.every((item) => typeof item === 'number')) {
     stringValue = content.map((v) => (v ? v.toLocaleString() : '')).join('; ');
-  } else {
+  } else if (typeof content === 'number') {
     stringValue = content.toLocaleString();
+  } else {
+    stringValue = renderCell(content);
   }
 
   return <Text>{stringValue}</Text>;
@@ -245,15 +248,12 @@ const RenderNumberCell: CellRendererFunction = (
 const RenderParagraphsCell: CellRendererFunction = ({
   value,
 }: CellRenderFunctionProps) => {
-  const content = value as string | string[];
+  const content = renderCell(value);
   return (
     <React.Fragment>
-      {isArray(content)
-        ? content
-            .join('\n')
-            .split('\n')
-            .map((paragraph, i) => <p key={i}>{paragraph}</p>)
-        : content.split('\n').map((paragraph, i) => <p key={i}>{paragraph}</p>)}
+      {content.split('\n').map((paragraph, i) => (
+        <p key={i}>{paragraph}</p>
+      ))}
     </React.Fragment>
   );
 };

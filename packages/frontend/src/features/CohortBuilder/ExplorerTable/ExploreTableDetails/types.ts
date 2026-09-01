@@ -1,16 +1,17 @@
 import { DetailsPanelComponentProps } from '../../../../components/Details/types';
 import { SummaryTable } from '../types';
-import { Accessibility } from '@gen3/core';
+import { Accessibility, LoomDatasetSelector } from '@gen3/core';
 import { StudyPageConfig } from '../../../Study/types';
 
 export interface TableDetailsPanelProps extends DetailsPanelComponentProps {
   index: string;
   tableConfig: SummaryTable;
   accessibility: Accessibility;
+  loomDataset?: LoomDatasetSelector;
+  loomProjectIds?: ReadonlyArray<string>;
 }
 
-export interface TableDetailsReportPanelProps
-  extends DetailsPanelComponentProps {
+export interface TableDetailsReportPanelProps extends DetailsPanelComponentProps {
   index?: string;
   tableConfig: SummaryTable;
   accessibility?: Accessibility;

@@ -1,3 +1,3 @@
-export { default } from './Analysis';
-export { type AnalysisPageLayoutProps } from './types';
+export { default, default as AnalysisPage } from './Analysis';
+export type * from './types';
 export { AnalysisPageGetServerSideProps } from './data';

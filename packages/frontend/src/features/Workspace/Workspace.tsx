@@ -6,15 +6,17 @@ import WorkspaceStatusProvider from './WorkspaceStatusProvider';
 import WorkspaceNotebookPanelWithControls from './WorkspaceNotebookPanelWithControls';
 
 interface WorkspaceProps {
-  config: WorkspaceConfig;
+  configuration: WorkspaceConfig | null;
 }
 
-const Workspace = ({ config }: WorkspaceProps) => {
+const Workspace = ({ configuration }: WorkspaceProps) => {
+  if (!configuration) return null;
+
   return (
     <ProtectedContent>
-      <WorkspaceProvider config={config}>
+      <WorkspaceProvider config={configuration}>
         <WorkspaceStatusProvider>
-          <div className="flex flex-col grow w-full relative">
+          <div className="flex min-h-0 h-full w-full flex-1 flex-col relative">
             <WorkspaceNotebookPanelWithControls />
           </div>
         </WorkspaceStatusProvider>

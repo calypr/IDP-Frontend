@@ -1,6 +1,6 @@
-import type { NavPageLayoutProps } from '../../features/Navigation';
 import { TabbedCohortBuilderConfiguration } from '../../features/CohortBuilder/TabbedCohortBuilder';
+import type { ConfigPageProps } from '../../lib/pageLoader';
 
-export interface TabbedCohortBuilderPageProps extends NavPageLayoutProps {
-  configuration: TabbedCohortBuilderConfiguration;
-}
+export type TabbedCohortBuilderPageProps = ConfigPageProps<
+  TabbedCohortBuilderConfiguration
+>;

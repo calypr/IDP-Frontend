@@ -211,4 +211,7 @@ The existence of the ```detailsConfig``` object will setup the table to show the
 * idField: this is **required**, and is the name of the id field of objects in the guppy index.
 * title: title of the dialog
 
-A complete example can be found in ```packages/sampleCommons/config/gen3/explorer.json```
+A complete Explorer configuration is provided by the active Loom-backed
+Explorer setup. See `packages/frontend/src/pages/Explorer` and the Loom
+authoring contracts under `docs/contracts/explorer-builder` for the current
+configuration shape.

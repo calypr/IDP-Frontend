@@ -1,5 +1,6 @@
 import React from 'react';
 import { LoadingOverlay, Text } from '@mantine/core';
+import pluralize from 'pluralize';
 
 interface CountsValueProps {
   readonly label: string;
@@ -14,7 +15,8 @@ const CountsValue = ({
   isError,
   counts,
 }: CountsValueProps) => {
-  const pluralizedLabel = Number(counts) == 1 ? label.slice(0, -1) : label;
+  const countLabel = label.trim() || 'records';
+  const pluralizedLabel = pluralize(countLabel, counts === 1 ? 1 : 2);
 
   return (
     <div className="mr-4 relative">

@@ -1,8 +1,9 @@
 import {
-  downloadJSONDataFromGuppy,
+  downloadJSONDataFromLoom,
   Equals,
   FilterSet,
-  GuppyDownloadDataParams,
+  LoomDownloadParams,
+  LoomDatasetSelector,
   Includes,
   JSONObject,
 } from '@gen3/core';
@@ -37,6 +38,9 @@ export interface DownloadToManifestParams extends Record<string, any> {
   referenceIdFieldInDataIndex?: string;
   referenceIdFieldInResourceIndex?: string;
   fileFields?: string[];
+  selector?: LoomDatasetSelector;
+  resourceSelector?: LoomDatasetSelector;
+  projectIds?: ReadonlyArray<string>;
 }
 
 export const downloadToManifestAction = async (
@@ -55,14 +59,21 @@ export const downloadToManifestAction = async (
     fileFields,
   } = params;
 
+  if (!params.selector) {
+    onError?.(
+      new Error('This manifest has no published Loom dataset selector.'),
+    );
+    return;
+  }
+
   const manifestFields = fileFields ?? DEFAULT_FILE_FIELDS;
   const manifestFilename = params?.filename ?? `${params.type}_manifest.json`;
 
-  const cohortFilterParams: GuppyDownloadDataParams = {
+  const cohortFilterParams: LoomDownloadParams = {
     filter: params.filter,
-    type: params.type,
+    selector: params.selector,
+    projectIds: params.projectIds,
     fields: params.fields,
-    accessibility: params.accessibility,
     sort: params.sort,
     format: 'json',
   };
@@ -70,7 +81,7 @@ export const downloadToManifestAction = async (
   // getting data from the same index.
   if (params.type === resourceIndexType) {
     try {
-      let resultManifest = await downloadJSONDataFromGuppy({
+      let resultManifest = await downloadJSONDataFromLoom({
         parameters: {
           ...cohortFilterParams,
           fields: [referenceIdFieldInDataIndex, ...manifestFields],
@@ -103,10 +114,18 @@ export const downloadToManifestAction = async (
     }
     return;
   }
+  if (!params.resourceSelector) {
+    onError?.(
+      new Error(
+        'This manifest requires a published selector for its resource dataset.',
+      ),
+    );
+    return;
+  }
   // join data from two different indices
   try {
     // get a list of reference IDs from the data index using the current cohort filters
-    let refIDList = await downloadJSONDataFromGuppy({
+    const referenceRows = await downloadJSONDataFromLoom({
       parameters: {
         ...cohortFilterParams,
         fields: [referenceIdFieldInDataIndex],
@@ -115,16 +134,19 @@ export const downloadToManifestAction = async (
       signal: signal,
     });
     // get the reference IDs from the list
-    refIDList = refIDList.map(
-      (item: JSONObject) => item[referenceIdFieldInDataIndex],
-    );
+    const refIDList = referenceRows
+      .map((item) => item[referenceIdFieldInDataIndex])
+      .filter(
+        (value): value is string | number =>
+          typeof value === 'string' || typeof value === 'number',
+      );
     // create a filter of the ids to use in the resource index
     const refIdsFilter: FilterSet = {
       mode: 'and',
       root: {
         manifest_ids: {
           operator: 'in',
-          operands: refIDList as string[],
+          operands: refIDList,
           field: referenceIdFieldInResourceIndex,
         } as Includes,
         ...(dataFormat
@@ -139,10 +161,11 @@ export const downloadToManifestAction = async (
       },
     };
 
-    let resultManifest = await downloadJSONDataFromGuppy({
+    let resultManifest = await downloadJSONDataFromLoom({
       parameters: {
         ...cohortFilterParams,
-        type: resourceIndexType,
+        selector: params.resourceSelector,
+        projectIds: params.projectIds,
         filter: refIdsFilter,
         fields: [
           referenceIdFieldInResourceIndex,
@@ -157,7 +180,7 @@ export const downloadToManifestAction = async (
     resultManifest = resultManifest.filter(
       (x: JSONObject) => !!x[resourceIdField],
     );
-     
+
     resultManifest.forEach((x: JSONObject) => {
       if (typeof x[resourceIdField] === 'string') {
         x[resourceIdField] = [x[resourceIdField]];

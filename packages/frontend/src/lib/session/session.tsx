@@ -29,6 +29,10 @@ import { useWorkspaceResourceMonitor } from '../../components/Providers/Resource
 import { VerifyingAccessLoader } from '../../components/Protected/VerifyingAccessLoader';
 import SessionFailureView from '../../components/Protected/SessionFailureView';
 import { WORKSPACES_ENABLED } from '../../features/Workspace/config';
+import {
+  buildSessionExpiredLoginUrl,
+  getForcedLogoutAction,
+} from './unauthorizedRedirect';
 
 const ACTIVITY_CHANNEL = 'gen3-user-activity';
 const FORCE_LOGOUT_EVENT = 'gen3-force-logout';
@@ -65,6 +69,27 @@ export const requestSessionLogout = ({
       },
     }),
   );
+};
+
+/**
+ * Synchronize the browser's authentication cookies before asking Fence for
+ * the current user. The server-side session endpoint removes a stale
+ * credentials_token when a valid Fence access_token is already present, so a
+ * development build does not send the stale bearer token to /user/user.
+ */
+export const getSession = async () => {
+  try {
+    const response = await fetch('/api/auth/sessionToken', {
+      cache: 'no-store',
+      credentials: 'same-origin',
+    });
+    if (response.status === 200) {
+      return await response.json();
+    }
+  } catch {
+    return { status: 'error' };
+  }
+  return { status: 'error' };
 };
 
 const fetchWithDeadline = async (
@@ -121,22 +146,6 @@ function useOnline() {
 export const SessionContext = React.createContext<Session | undefined>(
   undefined,
 );
-
-/**
- *  Wwe eventually want to use the session token to determine if the user is logged in
- *  as opposed to the user status since that check will happen on the server using httpOnly cookies
- *  and verification of the session token
- */
-export const getSession = async () => {
-  try {
-    const res = await fetch('/api/auth/sessionToken', { cache: 'no-store' });
-    if (res.status === 200) {
-      return await res.json();
-    }
-  } catch (error) {
-    return { status: 'error' };
-  }
-};
 
 export const useSession = (
   required = false,
@@ -217,7 +226,7 @@ const UPDATE_SESSION_LIMIT = MinutesToMilliseconds(5);
  * and if their session is stale and logs them out if they do not preform an action in an alotted amount of time
  * @param children - Pass in a child session if one exists
  * @param session - Pass in a cached session if one exists
- * @param updateSessionTime - Interval of time between fetching session token
+ * @param updateSessionTime - Interval of time between refreshing the user session
  * @param inactiveTimeLimit - Amount of time user is allowed to be inactive before getting logged out if user is tabbed away from page
  * @param workspaceInactivityTimeLimit - Amount of time user is allowed to be inactive if user is tabbed into the site
  * @param logoutInactiveUsers - Whether to log out users that are determined to be inactive or not
@@ -257,6 +266,7 @@ export const SessionProvider = ({
   const [mostRecentActivityTimestamp, setMostRecentActivityTimestamp] =
     useState(Date.now());
   const forcedLogoutInFlightRef = useRef(false);
+  const forcedLogoutRedirectStartedRef = useRef(false);
   const userVerificationPromiseRef = useRef<Promise<void> | null>(null);
   const homeUnauthorizedRef = useRef(false);
   const [isUserVerificationPending, setIsUserVerificationPending] =
@@ -355,13 +365,54 @@ export const SessionProvider = ({
     [getUserDetails],
   );
 
+  const redirectExpiredSessionToLogin = useCallback(async () => {
+    setIsUserVerificationPending(true);
+    setIsLogoutTransitionPending(true);
+
+    const accessToken = getCookie('credentials_token');
+    if (accessToken) {
+      try {
+        await fetchWithDeadline('/api/auth/credentialsLogout');
+      } catch (e: unknown) {
+        showNotification({
+          title: 'Logout Error',
+          message: `error logging out ${e instanceof Error ? e.message : String(e)}`,
+        });
+      }
+    }
+
+    window.location.assign(
+      buildSessionExpiredLoginUrl({
+        fenceApi: GEN3_FENCE_API,
+        redirectUrl: GEN3_REDIRECT_URL,
+        currentPath: router.asPath,
+      }),
+    );
+  }, [router.asPath]);
+
   useEffect(() => {
     if (typeof window === 'undefined') {
       return undefined;
     }
 
-    const handleForcedLogout = () => {
-      if (forcedLogoutInFlightRef.current) {
+    const handleForcedLogout = (event: Event) => {
+      const showLoginModal =
+        !(event instanceof CustomEvent) ||
+        event.detail?.showLoginModal !== false;
+      const action = getForcedLogoutAction({
+        showLoginModal,
+        redirectStarted: forcedLogoutRedirectStartedRef.current,
+        logoutInFlight: forcedLogoutInFlightRef.current,
+      });
+
+      if (action === 'redirect') {
+        forcedLogoutRedirectStartedRef.current = true;
+        forcedLogoutInFlightRef.current = true;
+        void redirectExpiredSessionToLogin();
+        return;
+      }
+
+      if (action === 'ignore') {
         return;
       }
 
@@ -369,8 +420,10 @@ export const SessionProvider = ({
       setIsUserVerificationPending(true);
 
       void endSession(false).finally(() => {
-        forcedLogoutInFlightRef.current = false;
-        setIsUserVerificationPending(false);
+        if (!forcedLogoutRedirectStartedRef.current) {
+          forcedLogoutInFlightRef.current = false;
+          setIsUserVerificationPending(false);
+        }
       });
     };
 
@@ -379,7 +432,7 @@ export const SessionProvider = ({
     return () => {
       window.removeEventListener(FORCE_LOGOUT_EVENT, handleForcedLogout);
     };
-  }, [endSession]);
+  }, [endSession, redirectExpiredSessionToLogin]);
 
   const updateSession = useCallback((): Promise<void> => {
     if (isAppHomePath(router.pathname) && homeUnauthorizedRef.current) {
@@ -394,9 +447,14 @@ export const SessionProvider = ({
     setIsUserVerificationPending(true);
 
     const verification = (async () => {
-      const hasBearerCredential = Boolean(getCookie('credentials_token'));
+      let hasBearerCredential = false;
 
       try {
+        // A valid Fence access_token and an older credentials_token can
+        // coexist. Let the server-side session check clear the stale
+        // credentials cookie before the client calls Fence.
+        await getSession();
+        hasBearerCredential = Boolean(getCookie('credentials_token'));
         await getUserDetails().unwrap();
         homeUnauthorizedRef.current = false;
       } catch (error: unknown) {
@@ -574,8 +632,15 @@ export const SessionProvider = ({
   const value: Session = useDeepCompareMemo(() => {
     return {
       ...sessionInfo,
+      ...(isLogoutTransitionPending
+        ? {
+            status: 'invalid' as const,
+            userStatus: 'unauthenticated' as const,
+          }
+        : {}),
       pending:
         sessionInfo.pending ||
+        isLogoutTransitionPending ||
         isUserVerificationPending ||
         isUserDetailsLoading ||
         isUserDetailsFetching,
@@ -584,6 +649,7 @@ export const SessionProvider = ({
     };
   }, [
     sessionInfo,
+    isLogoutTransitionPending,
     isUserVerificationPending,
     isUserDetailsLoading,
     isUserDetailsFetching,

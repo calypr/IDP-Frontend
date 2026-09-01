@@ -1,1 +1,13 @@
-{}
+{
+  "version": 2,
+  "endpoints": {
+    "loomGraph": { "url": "/loom/graphql/graph", "service": "loom", "surface": "graph" },
+    "loomFlat": { "url": "/loom/graphql/flat", "service": "loom", "surface": "flat" }
+  },
+  "modes": [
+    { "id": "loom-fhir-graph", "label": "Loom Graph", "endpoint": "loomGraph", "preset": "loom-fhir-graph" },
+    { "id": "loom-fhir-dataframe", "label": "Loom Dataframe", "endpoint": "loomGraph", "preset": "loom-fhir-dataframe" },
+    { "id": "loom-flat", "label": "Loom Flat", "endpoint": "loomFlat", "preset": "loom-flat" }
+  ],
+  "defaultMode": "loom-flat"
+}

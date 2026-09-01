@@ -8,7 +8,12 @@ import {
   DownloadButtonProps,
   type DropdownButtonProps,
 } from '../../components/Buttons/DropdownButtons';
-import { Accessibility, FilterSet, useIsUserLoggedIn } from '@gen3/core';
+import {
+  Accessibility,
+  FilterSet,
+  LoomDatasetSelector,
+  useIsUserLoggedIn,
+} from '@gen3/core';
 import CohortActionButton from './downloads/CohortActionButton';
 import {
   findButtonAction,
@@ -95,6 +100,8 @@ interface DownloadsPanelProps {
   readonly fields: ReadonlyArray<string>;
   readonly filter: FilterSet;
   readonly sort?: string[];
+  readonly loomDataset?: LoomDatasetSelector;
+  readonly loomProjectIds?: ReadonlyArray<string>;
 }
 
 const DownloadsPanel = ({
@@ -107,6 +114,8 @@ const DownloadsPanel = ({
   filter,
   accessibility,
   sort,
+  loomDataset,
+  loomProjectIds,
 }: DownloadsPanelProps): JSX.Element => {
   const isUserLoggedIn = useIsUserLoggedIn();
   const loginRequired = loginForDownload ? loginForDownload : false;
@@ -146,6 +155,8 @@ const DownloadsPanel = ({
             fields,
             filter,
             accessibility: accessibility ?? Accessibility.ALL,
+            selector: loomDataset,
+            projectIds: loomProjectIds,
             // sort: sort, // TODO add sort
           });
         },
@@ -184,6 +195,8 @@ const DownloadsPanel = ({
               fields,
               filter,
               accessibility: accessibility ?? Accessibility.ALL,
+              selector: loomDataset,
+              projectIds: loomProjectIds,
               // sort: sort, // TODO add sort
             }}
             key={button.title}

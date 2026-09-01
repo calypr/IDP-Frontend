@@ -5,6 +5,7 @@ export * from './components/Modals';
 export * from './components/charts';
 export * from './components/facets';
 export * from './components/Protected';
+export * from './components/MessageCards';
 import { VerifyingAccessLoader } from './components/Protected';
 
 // features
@@ -24,8 +25,11 @@ import {
 } from './features/CohortBuilder';
 export * from './utils/';
 export * from './features/MatchingTable';
+export * from './lib/pageLoader';
+export * from './lib/conformance/browserRuntime';
+export * from './pageExports';
 
-import { getNavPageLayoutPropsFromConfig } from './lib/common/staticProps';
+import { loadNavigationFromContext } from './lib/common/staticProps';
 import ContentSource from './lib/content';
 import { type SessionConfiguration } from './lib/session/types';
 import { type Fonts, type RegisteredIcons } from './lib/content/types';
@@ -76,8 +80,6 @@ import { CalyprPageGetServerSideProps } from './pages/CALYPR';
 import FileSummaryPage from './pages/FileSummary/FileSummary';
 import { FileSummaryPageGetServerSideProps } from './pages/FileSummary';
 
-import Configurator from './pages/Configurator';
-import { ConfiguratorPageGetServerSideProps } from './pages/Configurator';
 
 import AppsPage from './pages/Apps/Apps';
 import { AppsPageGetServerSideProps } from './pages/Apps';
@@ -110,9 +112,9 @@ import {
 } from './pages/reports';
 
 import ExplorerPage, { ExplorerMainContent } from './pages/Explorer/Explorer';
+export * from './features/ExplorerBuilder';
 import {
   ExplorerPageGetServerSideProps,
-  ExplorerPageGetServerSidePropsForConfigId,
   type ExplorerPageProps,
 } from './pages/Explorer';
 
@@ -180,8 +182,6 @@ import analysisApiCohortDiscovery from './features/CohortDiscovery/api/analysisA
 import staticNotebookAPI from './features/StaticNotebook/api/staticNotebookAPI';
 
 export {
-  Configurator,
-  ConfiguratorPageGetServerSideProps,
   ContentSource,
   type Fonts,
   type RegisteredIcons,
@@ -237,7 +237,6 @@ export {
   ExplorerPage,
   ExplorerMainContent,
   ExplorerPageGetServerSideProps,
-  ExplorerPageGetServerSidePropsForConfigId,
   RSReportsPageGetServerSideProps,
   ResearchSubjectDetailsPanel,
   MedicationAdministrationDetailPanel,
@@ -250,7 +249,7 @@ export {
   LoginPageGetServerSideProps,
   TailwindConfig,
   Gen3Provider,
-  getNavPageLayoutPropsFromConfig,
+  loadNavigationFromContext,
   AuthzPage,
   AdminAuthZPageGetServerSideProps,
   WorkspacePage,

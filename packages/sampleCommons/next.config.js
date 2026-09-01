@@ -7,13 +7,12 @@ const path = require('path');
 
 const basePath = process.env.NEXT_PUBLIC_BASEPATH;
 const workspaceRoot = path.resolve(__dirname, '../..');
-const webpackAliases = {
-  '@gen3/core': path.join(workspaceRoot, 'packages/core/src/index.ts'),
-  '@gen3/frontend': path.join(workspaceRoot, 'packages/frontend/src/index.ts'),
-};
 const turbopackAliases = {
-  '@gen3/core': 'packages/core/src/index.ts',
-  '@gen3/frontend': 'packages/frontend/src/index.ts',
+  // Resolve aliases from the Next application directory. `turbopack.root`
+  // controls the filesystem boundary, but relative alias targets are still
+  // interpreted from `packages/sampleCommons`.
+  '@gen3/core': '../core/src/index.ts',
+  '@gen3/frontend': '../frontend/src/index.ts',
 };
 
 dns.setDefaultResultOrder('ipv4first');
@@ -33,7 +32,11 @@ const withMDX = require('@next/mdx')({
 // Next configuration with support for rewriting API to existing common services
 const nextConfig = {
   reactStrictMode: true,
-  output: 'standalone',
+  // `standalone` is a production deployment artifact. Enabling it during
+  // `next dev` makes Next's monorepo file tracer observe `.next/dev` and copy
+  // its own Turbopack cache into `.next/standalone`, causing unbounded output.
+  // Keep the optimized standalone server for production builds only.
+  ...(process.env.NODE_ENV === 'production' ? { output: 'standalone' } : {}),
   allowedDevOrigins: [
     'caliper-training.ohsu.edu',
     'caliper-training.ohsu.edu:3010',
@@ -44,19 +47,16 @@ const nextConfig = {
   pageExtensions: ['mdx', 'md', 'jsx', 'js', 'tsx', 'ts'],
   basePath: basePath,
   transpilePackages: ['@gen3/core', '@gen3/frontend'],
+  experimental: {
+    // Next 16.1 enables Turbopack's persistent dev cache by default. In this
+    // monorepo the app aliases sibling workspace source directly, and restored
+    // module graphs can miss edits under packages/core and packages/frontend.
+    // Keep Turbopack/HMR, but rebuild its in-memory graph on each dev start.
+    turbopackFileSystemCacheForDev: false,
+  },
   turbopack: {
     root: workspaceRoot,
     resolveAlias: turbopackAliases,
-  },
-  webpack: (config) => {
-    config.infrastructureLogging = {
-      level: 'error',
-    };
-    config.resolve.alias = {
-      ...config.resolve.alias,
-      ...webpackAliases,
-    };
-    return config;
   },
   async headers() {
     return [

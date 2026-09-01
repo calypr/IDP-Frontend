@@ -14,7 +14,7 @@ const projectPresentationHref = (organization: string, project: string) =>
 
 const fallbackProjectThumbnailURL = '/icons/calypr-mark-mono.svg';
 
-const AppsPage = ({ headerProps, footerProps }: AppsPageProps) => {
+const AppsPage = ({ headerProps, footerProps, pageProblems }: AppsPageProps) => {
   const router = useRouter();
   const { isLoading: isGeckoProjectsLoading } = useGetGeckoProjectsQuery();
   const {
@@ -164,6 +164,7 @@ const AppsPage = ({ headerProps, footerProps }: AppsPageProps) => {
     <ProtectedContent>
       <NavPageLayout
         {...{ footerProps }}
+        pageProblems={pageProblems}
         headerMetadata={{
           title: 'CALYPR Projects',
           content: 'Project catalog',

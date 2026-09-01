@@ -1,24 +1,27 @@
 import React from 'react';
-import { NavPageLayout, NavPageLayoutProps } from '../../features/Navigation';
+import { NavPageLayout } from '../../features/Navigation';
 import { Profile } from '../../features/Profile';
 import { ProfileConfig } from '../../components/Profile';
+import type { ProfilePageProps } from './data';
 
-interface Props extends NavPageLayoutProps {
-  profileConfig: ProfileConfig;
-}
-
-const ProfilePage = ({ headerProps, footerProps, profileConfig }: Props) => {
+const ProfilePage = ({
+  headerProps,
+  footerProps,
+  configuration,
+  pageProblems,
+}: ProfilePageProps) => {
   return (
     <NavPageLayout
       {...{ headerProps, footerProps }}
+      pageProblems={pageProblems}
       headerMetadata={{
         title: 'Gen3 Profile Page',
         content: 'Profile page',
         key: 'gen3-profile-page',
-        ...(profileConfig?.headerMetadata ? profileConfig.headerMetadata : {}),
+        ...(configuration?.headerMetadata ? configuration.headerMetadata : {}),
       }}
     >
-      <Profile profileConfig={profileConfig} />
+      <Profile profileConfig={configuration as ProfileConfig} />
     </NavPageLayout>
   );
 };

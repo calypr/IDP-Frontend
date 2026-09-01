@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "validation": {
+    "recipeDigest": "sha256:recipe",
+    "resolvedSchemaDigest": "sha256:schema",
+    "sourceGeneration": "generation-42",
+    "outputs": [{
+      "name": "Patients",
+      "rootResourceType": "Patient",
+      "rowGrain": "patient",
+      "columns": [{"name": "id", "type": "string", "nullable": false, "repeated": false, "filterable": true, "sortable": true, "aggregatable": false}]
+    }],
+    "diagnostics": []
+  },
+  "preview": {
+    "output": "Patients",
+    "columns": [{"name": "id", "type": "string", "nullable": false, "repeated": false, "filterable": true, "sortable": true, "aggregatable": false}],
+    "rows": [{"id": "patient-1"}],
+    "rowCount": 1,
+    "limit": 25
+  }
+}

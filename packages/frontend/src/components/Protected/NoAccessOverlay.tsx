@@ -1,6 +1,5 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { Button } from '@mantine/core';
-import { useSession } from '../../lib/session/session';
 
 type AccessPermission = { method?: string; service?: string };
 type FenceAuthzMapping = Record<string, AccessPermission[]>;
@@ -85,15 +84,6 @@ export function hasFenceAccess(authz: unknown) {
 
 
 export const NoAccessOverlay = () => {
-  const { endSession } = useSession();
-
-  // Silently log the user out using the proper hook
-  useEffect(() => {
-    if (endSession) {
-      endSession(false);
-    }
-  }, [endSession]);
-
   return (
     <div className="fixed inset-0 z-[1000] flex flex-col items-center justify-center bg-gray-100 py-12 px-4">
       <div className="max-w-xl w-full bg-white shadow-2xl rounded-2xl overflow-hidden text-center p-8 border border-gray-100">

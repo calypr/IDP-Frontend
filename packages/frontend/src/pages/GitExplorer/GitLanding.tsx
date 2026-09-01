@@ -2077,6 +2077,7 @@ const GitLandingPage = ({
   headerProps,
   footerProps,
   selectedOrganization,
+  pageProblems,
 }: GitExplorerPageProps & { selectedOrganization?: string }) => {
   const router = useRouter();
   const session = useSession(false);
@@ -2553,7 +2554,7 @@ const GitLandingPage = ({
 
   return (
     <NavPageLayout
-      {...{ headerProps, footerProps }}
+      {...{ headerProps, footerProps, pageProblems }}
       headerMetadata={{
         content: 'Gecko git project explorer',
         key: 'gecko-git-project-explorer',

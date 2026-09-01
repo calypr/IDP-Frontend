@@ -31,11 +31,13 @@ import OverflowTooltippedLabel from '../../../components/OverflowTooltippedLabel
 import QueryRepresentationLabel from './QueryRepresentationLabel';
 import { QueryExpressionsExpandedContext } from './QueryExpressionsExpandedContext';
 import { buildNested } from '../../../components/facets';
-import { useDeepCompareEffect } from 'use-deep-compare';
 import { QueryExpressionContext } from './QueryExpressionContext';
 import { useClearFilters } from '../../CohortDiscovery/hooks';
 
-const getFieldTitle = (field: string, columnTitles?: Record<string, string>): string => {
+const getFieldTitle = (
+  field: string,
+  columnTitles?: Record<string, string>,
+): string => {
   if (columnTitles?.[field]) {
     return columnTitles[field];
   }
@@ -115,11 +117,10 @@ export const isNestedFilter = (x: Operation): x is NestedFilter => {
   return 'path' in x;
 };
 
-interface IncludeExcludeQueryElementProps
-  extends Pick<
-    Includes | Excludes | ExcludeIfAny,
-    'field' | 'operator' | 'operands'
-  > {
+interface IncludeExcludeQueryElementProps extends Pick<
+  Includes | Excludes | ExcludeIfAny,
+  'field' | 'operator' | 'operands'
+> {
   index: string;
   path?: string;
   displayOnly?: boolean;
@@ -144,21 +145,6 @@ const IncludeExcludeQueryElement = ({
 
   const removeCohortFilter = useRemoveFilter();
   const updateCohortFilter = useUpdateFilters();
-  useDeepCompareEffect(() => {
-    if (currentCohortId && get(queryExpressionsExpanded, field) === undefined) {
-      setQueryExpressionsExpanded({
-        type: 'expand',
-        cohortId: currentCohortId,
-        field,
-      });
-    }
-  }, [
-    field,
-    currentCohortId,
-    queryExpressionsExpanded,
-    setQueryExpressionsExpanded,
-  ]);
-
   const expanded = get(queryExpressionsExpanded, field, true);
   const { columnTitles } = useContext(QueryExpressionContext);
   const fieldName = getFieldTitle(field, columnTitles);
@@ -280,7 +266,9 @@ const ComparisonElement = ({
   return (
     <React.Fragment>
       {showLabel ? (
-        <QueryFieldLabel>{getFieldTitle(filter.field, columnTitles)}</QueryFieldLabel>
+        <QueryFieldLabel>
+          {getFieldTitle(filter.field, columnTitles)}
+        </QueryFieldLabel>
       ) : null}
       <div className="flex flex-row items-center">
         <button
@@ -603,7 +591,7 @@ class CohortFilterToComponent implements OperationHandler<ReactElement> {
     // TODO: handle deeper nesting
     return null as unknown as ReactElement;
   };
-   
+
   handleUnion = (_f: Union) => {
     return <div>Union</div>;
   };

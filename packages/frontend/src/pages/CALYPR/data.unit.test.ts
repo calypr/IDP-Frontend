@@ -5,14 +5,14 @@ jest.mock('@gen3/core', () => ({
   GEN3_FENCE_API: '/user',
 }));
 jest.mock('../../lib/common/staticProps', () => ({
-  getNavPageLayoutPropsFromConfig: jest.fn(),
+  loadNavigationFromContext: jest.fn(),
 }));
 jest.mock('../../lib/content', () => ({
   __esModule: true,
   default: {},
 }));
 
-import { verifyAuthenticatedSession } from './data';
+import { sessionRequestHeaders, verifyAuthenticatedSession } from './data';
 
 const context = {
   req: {
@@ -25,9 +25,19 @@ const context = {
 
 describe('verifyAuthenticatedSession', () => {
   const originalFetch = global.fetch;
+  const originalInternalApi = process.env.GEN3_INTERNAL_API;
+
+  beforeEach(() => {
+    delete process.env.GEN3_INTERNAL_API;
+  });
 
   afterEach(() => {
     global.fetch = originalFetch;
+    if (originalInternalApi === undefined) {
+      delete process.env.GEN3_INTERNAL_API;
+    } else {
+      process.env.GEN3_INTERNAL_API = originalInternalApi;
+    }
     jest.restoreAllMocks();
   });
 
@@ -49,19 +59,117 @@ describe('verifyAuthenticatedSession', () => {
       json: async () => ({ username: 'researcher@example.org' }),
     });
 
-    await expect(verifyAuthenticatedSession(context, {})).resolves.toBe(true);
+    await expect(
+      verifyAuthenticatedSession(context, {
+        Authorization: 'Bearer credentials-token',
+      }),
+    ).resolves.toBe(true);
     expect(global.fetch).toHaveBeenCalledWith(
       'https://commons.example/user/user',
-      expect.objectContaining({ cache: 'no-store' }),
+      expect.objectContaining({
+        cache: 'no-store',
+        headers: { Authorization: 'Bearer credentials-token' },
+      }),
     );
   });
 
+  it('uses the internal API origin for the server-side Fence check', async () => {
+    process.env.GEN3_INTERNAL_API = 'http://revproxy-service/';
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ username: 'researcher@example.org' }),
+    });
+
+    await expect(
+      verifyAuthenticatedSession(context, {
+        Cookie: 'access_token=current',
+      }),
+    ).resolves.toBe(true);
+    expect(global.fetch).toHaveBeenCalledWith(
+      'http://revproxy-service/user/user',
+      expect.objectContaining({
+        headers: { Cookie: 'access_token=current' },
+      }),
+    );
+  });
+
+  it('does not call Fence when the request has no Fence credential', async () => {
+    global.fetch = jest.fn();
+
+    await expect(verifyAuthenticatedSession(context, {})).resolves.toBe(false);
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
   it('leaves the result unresolved when Fence is unavailable', async () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: false,
       status: 502,
     });
 
-    await expect(verifyAuthenticatedSession(context, {})).resolves.toBeNull();
+    await expect(
+      verifyAuthenticatedSession(context, { Cookie: 'access_token=current' }),
+    ).resolves.toBeNull();
+  });
+});
+
+describe('sessionRequestHeaders', () => {
+  it('converts a credentials login cookie to the Bearer header Fence expects', () => {
+    const credentialsContext = {
+      req: {
+        headers: {
+          cookie: 'theme=dark; credentials_token=header.payload.signature',
+        },
+      },
+    } as unknown as GetServerSidePropsContext;
+
+    expect(sessionRequestHeaders(credentialsContext)).toEqual({
+      Cookie: 'theme=dark; credentials_token=header.payload.signature',
+      Authorization: 'Bearer header.payload.signature',
+    });
+  });
+
+  it('does not replace an explicit Authorization header', () => {
+    const authorizedContext = {
+      req: {
+        headers: {
+          authorization: 'Bearer explicit',
+          cookie: 'credentials_token=cookie-token',
+        },
+      },
+    } as unknown as GetServerSidePropsContext;
+
+    expect(sessionRequestHeaders(authorizedContext).Authorization).toBe(
+      'Bearer explicit',
+    );
+  });
+
+  it('prefers a Fence access token over a credentials login cookie', () => {
+    const fenceContext = {
+      req: {
+        headers: {
+          cookie:
+            'access_token=fence-session; credentials_token=stale-credential',
+        },
+      },
+    } as unknown as GetServerSidePropsContext;
+
+    expect(sessionRequestHeaders(fenceContext)).toEqual({
+      Cookie: 'access_token=fence-session; credentials_token=stale-credential',
+    });
+  });
+
+  it('prefers a Fence access token over an explicit stale Authorization header', () => {
+    const fenceContext = {
+      req: {
+        headers: {
+          authorization: 'Bearer stale-credential',
+          cookie: 'access_token=fence-session',
+        },
+      },
+    } as unknown as GetServerSidePropsContext;
+
+    expect(sessionRequestHeaders(fenceContext)).toEqual({
+      Cookie: 'access_token=fence-session',
+    });
   });
 });

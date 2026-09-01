@@ -6,19 +6,20 @@ import { LoginPageLayoutProps } from './types';
 const LoginPage = ({
   headerProps,
   footerProps,
-  loginConfig,
+  pageProblems,
+  configuration,
 }: LoginPageLayoutProps) => {
   return (
     <NavPageLayout
-      {...{ headerProps, footerProps }}
+      {...{ headerProps, footerProps, pageProblems }}
       headerMetadata={{
         title: 'Gen3 Login Page',
         content: 'Login page',
         key: 'gen3-login-page',
-        ...(loginConfig?.headerMetadata ? loginConfig.headerMetadata : {}),
+        ...(configuration?.headerMetadata ? configuration.headerMetadata : {}),
       }}
     >
-      <LoginPanel {...loginConfig} />
+      {configuration && <LoginPanel {...configuration} />}
     </NavPageLayout>
   );
 };

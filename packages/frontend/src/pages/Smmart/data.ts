@@ -1,21 +1,19 @@
-import { GetServerSideProps } from 'next';
 import { GEN3_COMMONS_NAME } from '@gen3/core';
-import { getNavPageLayoutPropsFromConfig } from '../../lib/common/staticProps';
-import ContentSource from '../../lib/content';
-import { type SmmartProps } from './types';
-import type { NavPageLayoutProps } from '../../features/Navigation';
+import { definePageLoader } from '../../lib/pageLoader';
+import { loadNavigationFromContext } from '../../lib/common/staticProps';
+import { SmmartConfigurationSchema } from './configurationSchema';
+import type { SmmartLandingPageProps, SmmartConfig } from './types';
 
-export const SmmartPageGetServerSideProps: GetServerSideProps<
-  NavPageLayoutProps
-> = async () => {
-  const smmartConfig: SmmartProps =
-    await ContentSource.getContentDatabase().get(
-      `${GEN3_COMMONS_NAME}/smmartLandingPage.json`,
-    );
-  return {
-    props: {
-      ...(await getNavPageLayoutPropsFromConfig()),
-      smmartConfig: smmartConfig ? smmartConfig : null,
-    },
-  };
-};
+export const SmmartPageGetServerSideProps = definePageLoader<SmmartLandingPageProps>({
+  name: 'Smmart',
+  loadNavigation: loadNavigationFromContext,
+  load: async (context) => ({
+    configuration: await context.config.load({
+      id: 'smmartLandingPage',
+      source: 'content',
+      resolvePath: () => `${GEN3_COMMONS_NAME}/smmartLandingPage.json`,
+      schema: SmmartConfigurationSchema,
+    }) as SmmartConfig,
+  }),
+  fallback: () => ({ configuration: null }),
+});

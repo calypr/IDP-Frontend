@@ -4,6 +4,7 @@ import React, {
   useState,
   useCallback,
   useEffect,
+  useRef,
   ReactNode,
 } from 'react';
 import { useRouter } from 'next/router';
@@ -23,6 +24,20 @@ interface SidebarContextType {
 }
 
 const SidebarContext = createContext<SidebarContextType | undefined>(undefined);
+export const SIDEBAR_DESKTOP_QUERY = '(min-width: 1024px)';
+
+export const getSidebarResizeState = (): SidebarState => {
+  if (typeof window === 'undefined') return 'closed';
+
+  if (typeof window.matchMedia === 'function') {
+    return window.matchMedia(SIDEBAR_DESKTOP_QUERY).matches
+      ? 'open'
+      : 'closed';
+  }
+
+  return window.innerWidth >= 1024 ? 'open' : 'closed';
+};
+
 const isAppHomePath = (path?: string): boolean =>
   path === '/' || Boolean(path?.startsWith('/Apps'));
 
@@ -49,14 +64,8 @@ export const SidebarProvider = ({
     {},
   );
 
-  const CLOSE_BREAKPOINT = 1024;
-
-  const getResizeState = useCallback((): SidebarState => {
-    if (typeof window === 'undefined') return 'closed';
-    return window.innerWidth < CLOSE_BREAKPOINT ? 'closed' : 'closed';
-  }, []);
-
-  const [resizeState, setResizeState] = useState<SidebarState>(getResizeState);
+  const [resizeState, setResizeState] = useState<SidebarState>('closed');
+  const lastResizeState = useRef<SidebarState>('closed');
 
   useEffect(() => {
     setButtonState('closed');
@@ -64,12 +73,41 @@ export const SidebarProvider = ({
   }, [isAppsPath]);
 
   useEffect(() => {
-    const handleResize = () => {
-      setResizeState(getResizeState());
+    const handleViewportChange = (nextState: SidebarState) => {
+      if (lastResizeState.current === nextState) return;
+
+      lastResizeState.current = nextState;
+      setResizeState(nextState);
+
+      if (nextState === 'closed') {
+        setButtonState('closed');
+        setUserOpened(false);
+      }
     };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [getResizeState]);
+
+    const updateViewportState = () =>
+      handleViewportChange(getSidebarResizeState());
+
+    updateViewportState();
+
+    if (typeof window.matchMedia === 'function') {
+      const mediaQuery = window.matchMedia(SIDEBAR_DESKTOP_QUERY);
+      const handleMediaQueryChange = (event: MediaQueryListEvent) => {
+        handleViewportChange(event.matches ? 'open' : 'closed');
+      };
+
+      mediaQuery.addEventListener?.('change', handleMediaQueryChange);
+      mediaQuery.addListener?.(handleMediaQueryChange);
+
+      return () => {
+        mediaQuery.removeEventListener?.('change', handleMediaQueryChange);
+        mediaQuery.removeListener?.(handleMediaQueryChange);
+      };
+    }
+
+    window.addEventListener('resize', updateViewportState);
+    return () => window.removeEventListener('resize', updateViewportState);
+  }, []);
 
   // Keep menu expanded if navigating to a sub-item (automatic behavior)
   useEffect(() => {

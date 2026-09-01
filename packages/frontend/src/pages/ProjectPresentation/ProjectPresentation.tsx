@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import {
   useGetAuthzMappingsQuery,
-  useGetConfigContentQuery,
+  useGetExplorerStateV1Query,
   useGetGeckoProjectSummaryQuery,
   useGetGeckoProjectsQuery,
   useGetGeckoGitProjectPresentationConfigQuery,
@@ -12,7 +12,7 @@ import { NavPageLayout } from '../../features/Navigation';
 import { ProjectWorkspaceTabs } from '../../features/Navigation';
 import { ProtectedContent } from '../../components/Protected';
 import { useIsEmbedded } from '../../utils';
-import { getNavPageLayoutPropsFromConfig } from '../../lib/common/staticProps';
+import type { NavPageLayoutProps } from '../../features/Navigation';
 import {
   hasOrganizationMembership,
   hasProjectMembershipOrAccess,
@@ -24,7 +24,8 @@ import { useSession } from '../../lib/session/session';
 export const ProjectPresentationPage = ({
   headerProps,
   footerProps,
-}: Awaited<ReturnType<typeof getNavPageLayoutPropsFromConfig>>) => {
+  pageProblems,
+}: NavPageLayoutProps) => {
   const router = useRouter();
   const session = useSession(false);
   const sessionReady = !session.pending;
@@ -35,8 +36,6 @@ export const ProjectPresentationPage = ({
   const project =
     typeof router.query.project === 'string' ? router.query.project : '';
   const isEmbedded = useIsEmbedded();
-  const explorerConfigId =
-    organization && project ? `${organization}-${project}` : '';
   const { data: authzMapping = {}, isLoading: isAuthzLoading } =
     useGetAuthzMappingsQuery(undefined, { skip: !isAuthenticated });
   const canLikelyReadProjectScopedData =
@@ -46,11 +45,11 @@ export const ProjectPresentationPage = ({
 
   const { data: geckoProjects = [], isLoading: isProjectsLoading } =
     useGetGeckoProjectsQuery();
-  const { data: explorerConfigResponse } = useGetConfigContentQuery(
-    explorerConfigId,
+  const { data: explorer } = useGetExplorerStateV1Query(
+    { project: `${organization}/${project}`, explorerId: 'default' },
     {
       skip:
-        !explorerConfigId ||
+        !organization || !project ||
         !sessionReady ||
         !isAuthenticated ||
         isAuthzLoading ||
@@ -114,7 +113,7 @@ export const ProjectPresentationPage = ({
   return (
     <ProtectedContent>
       <NavPageLayout
-        {...{ headerProps, footerProps }}
+        {...{ headerProps, footerProps, pageProblems }}
         headerMetadata={{
           title: 'Project Presentation',
           content: 'Project presentation page',
@@ -123,7 +122,7 @@ export const ProjectPresentationPage = ({
       >
         <ProjectWorkspaceTabs
           activeTab="presentation"
-          hasExplorerConfig={Boolean(explorerConfigResponse?.data)}
+          hasExplorerConfig={Boolean(explorer)}
           organization={organization}
           project={project}
         >

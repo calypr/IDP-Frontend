@@ -1,44 +1,30 @@
-import { GetServerSideProps } from 'next';
-import { getNavPageLayoutPropsFromConfig } from '../../lib/common/staticProps';
-import ContentSource from '../../lib/content';
+import { definePageLoader, type ConfigDescriptor } from '../../lib/pageLoader';
+import { loadNavigationFromContext } from '../../lib/common/staticProps';
 import { GEN3_COMMONS_NAME } from '@gen3/core';
-import { WorkspaceConfig } from '../../features/Workspace';
-import { WorkspacePageLayoutProps } from './types';
-import { type NavPageLayoutProps } from '../../features/Navigation';
-import { LaunchStepIndicatorConfiguration } from '../../features/Workspace/types';
+import type { WorkspaceConfig } from '../../features/Workspace';
+import { WorkspaceConfigurationSchema } from './configurationSchema';
+import type { WorkspacePageProps } from './types';
 
-export const WorkspacePageGetServerSideProps: GetServerSideProps<
-  WorkspacePageLayoutProps
-> = async (_context) => {
-  const workspaceProps: WorkspaceConfig =
-    await ContentSource.getContentDatabase().get(
-      `${GEN3_COMMONS_NAME}/workspace.json`,
-    );
-  try {
-    return {
-      props: {
-        ...(await getNavPageLayoutPropsFromConfig()),
-        workspaceProps,
-      },
-    };
-  } catch (err: unknown) {
-    return {
-      props: {
-        ...(await getNavPageLayoutPropsFromConfig()),
-        workspaceProps: {
-          launchStepIndicatorConfig: {} as LaunchStepIndicatorConfiguration,
-        },
-      },
-    };
-  }
+const workspaceConfiguration: ConfigDescriptor<WorkspaceConfig> = {
+  id: 'workspace',
+  source: 'content',
+  resolvePath: () => `${GEN3_COMMONS_NAME}/workspace.json`,
+  schema:
+    WorkspaceConfigurationSchema as unknown as ConfigDescriptor<WorkspaceConfig>['schema'],
 };
 
-export const WorkspaceNoAccessPageServerSideProps: GetServerSideProps<
-  NavPageLayoutProps
-> = async () => {
-  return {
-    props: {
-      ...(await getNavPageLayoutPropsFromConfig()),
-    },
-  };
-};
+export const WorkspacePageGetServerSideProps =
+  definePageLoader<WorkspacePageProps>({
+    name: 'Workspace',
+    loadNavigation: loadNavigationFromContext,
+    load: async (context) => ({
+      configuration: await context.config.load(workspaceConfiguration),
+    }),
+    fallback: () => ({ configuration: null }),
+  });
+
+export const WorkspaceNoAccessPageServerSideProps = definePageLoader({
+  name: 'WorkspaceNoAccess',
+  loadNavigation: loadNavigationFromContext,
+  load: async () => ({}),
+});

@@ -1,6 +1,7 @@
 import React from 'react';
 import { fieldNameToTitle } from '@gen3/core';
 import { Paper, Table, Text } from '@mantine/core';
+import { renderCell } from '../../utils/renderCell';
 
 type SimpleTableProps = {
   data: Record<string, string>;
@@ -27,7 +28,7 @@ const SimpleTable = ({ data }: SimpleTableProps) => {
           <Table.Tr key="0">
             {headers.map((key) => (
               <Table.Td key={key}>
-                <Text>{data[key]}</Text>
+                <Text>{renderCell(data[key])}</Text>
               </Table.Td>
             ))}
           </Table.Tr>

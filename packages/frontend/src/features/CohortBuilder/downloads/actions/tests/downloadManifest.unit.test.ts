@@ -1,6 +1,6 @@
-import { downloadToManifestAction, } from '../downloadManifest';
+import { downloadToManifestAction } from '../downloadManifest';
 import {
-  downloadJSONDataFromGuppy,
+  downloadJSONDataFromLoom,
 } from '@gen3/core';
 import { handleDownload } from '../utils';
 
@@ -24,6 +24,11 @@ describe('downloadToManifestAction function', () => {
       referenceIdFieldInDataIndex: 'object_id',
       fileFields: [],
       resourceIdField: 'object_id',
+      selector: {
+        recipe: 'project_recipe',
+        translationVersion: 'r000001_abcd',
+        output: 'DocumentReference',
+      },
     };
 
     const done = jest.fn();
@@ -31,7 +36,7 @@ describe('downloadToManifestAction function', () => {
     const onAbort = jest.fn();
     const signal = {} as AbortSignal;
 
-    (downloadJSONDataFromGuppy as jest.Mock).mockReturnValue([
+    (downloadJSONDataFromLoom as jest.Mock).mockReturnValue([
       {
         'object_id': 'mocked-object-id-1',
         'md5sum': 'mocked-md5sum-1',
@@ -63,14 +68,13 @@ describe('downloadToManifestAction function', () => {
     expect(handleDownload).toHaveBeenCalled();
     expect(done).toHaveBeenCalled();
     expect(onError).not.toHaveBeenCalled();
-    expect(downloadJSONDataFromGuppy).toHaveBeenCalledWith({
+    expect(downloadJSONDataFromLoom).toHaveBeenCalledWith({
       onAbort: onAbort,
       signal: signal,
       parameters: {
         filter: params.filter,
-        type: params.type,
+        selector: params.selector,
         fields: [params.referenceIdFieldInDataIndex, ...params.fileFields],
-        accessibility: params.accessibility,
         sort: params.sort,
         format: 'json',
       },
@@ -98,7 +102,7 @@ describe('downloadToManifestAction function', () => {
     const onAbort = jest.fn();
     const signal = {} as AbortSignal;
 
-    (downloadJSONDataFromGuppy as jest.Mock).mockResolvedValue([]);
+    (downloadJSONDataFromLoom as jest.Mock).mockResolvedValue([]);
 
     await downloadToManifestAction(params, done, onError, onAbort, signal);
 

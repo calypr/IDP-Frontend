@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "project": "acme/cancer-study",
+  "default": {
+    "project": "acme/cancer-study",
+    "source": "platform-default",
+    "draftVersion": 0,
+    "document": {
+      "recipeSchemaVersion": 1,
+      "name": "project_8bfa2cdce7f7d443",
+      "translationVersion": "draft",
+      "outputs": [{
+        "name": "Patients",
+        "rootResourceType": "Patient",
+        "rowGrain": "patient",
+        "fields": [{"name": "id", "expr": {"select": "root.id"}}]
+      }]
+    },
+    "authoringDigest": "sha256:0e4711fc3d7dd3b24d9f928ddde56fb238ef3e94066757139b2123e4f0b290c0",
+    "baseRevisionId": null
+  },
+  "saved": {
+    "project": "acme/cancer-study",
+    "source": "project-draft",
+    "draftVersion": 1,
+    "document": {
+      "recipeSchemaVersion": 1,
+      "name": "project_8bfa2cdce7f7d443",
+      "translationVersion": "draft",
+      "outputs": [{
+        "name": "Patients",
+        "rootResourceType": "Patient",
+        "rowGrain": "patient",
+        "fields": [{"name": "id", "expr": {"select": "root.id"}}]
+      }]
+    },
+    "authoringDigest": "sha256:0e4711fc3d7dd3b24d9f928ddde56fb238ef3e94066757139b2123e4f0b290c0",
+    "baseRevisionId": null,
+    "updatedBy": "builder@example.org",
+    "updatedAt": "2026-08-11T18:00:00Z"
+  }
+}

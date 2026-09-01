@@ -5,7 +5,8 @@ import { ProjectPresentationPage } from '../../pages/ProjectPresentation/Project
 
 const useGetGeckoProjectsQueryMock = jest.fn();
 const useGetGeckoProjectSummaryQueryMock = jest.fn();
-const useGetConfigContentQueryMock = jest.fn();
+const useGetRepositoryExplorerConfigQueryMock = jest.fn();
+const useGetExplorerStateV1QueryMock = jest.fn();
 const useGetAuthzMappingsQueryMock = jest.fn();
 const useGetGeckoGitProjectPresentationConfigQueryMock = jest.fn();
 
@@ -16,8 +17,10 @@ jest.mock('@gen3/core', () => ({
     useGetGeckoProjectsQueryMock(...args),
   useGetGeckoProjectSummaryQuery: (...args: unknown[]) =>
     useGetGeckoProjectSummaryQueryMock(...args),
-  useGetConfigContentQuery: (...args: unknown[]) =>
-    useGetConfigContentQueryMock(...args),
+  useGetRepositoryExplorerConfigQuery: (...args: unknown[]) =>
+    useGetRepositoryExplorerConfigQueryMock(...args),
+  useGetExplorerStateV1Query: (...args: unknown[]) =>
+    useGetExplorerStateV1QueryMock(...args),
   useGetGeckoGitProjectPresentationConfigQuery: (...args: unknown[]) =>
     useGetGeckoGitProjectPresentationConfigQueryMock(...args),
 }));
@@ -101,7 +104,8 @@ describe('ProjectPresentationPage', () => {
     useGetAuthzMappingsQueryMock.mockReset();
     useGetGeckoProjectsQueryMock.mockReset();
     useGetGeckoProjectSummaryQueryMock.mockReset();
-    useGetConfigContentQueryMock.mockReset();
+    useGetRepositoryExplorerConfigQueryMock.mockReset();
+    useGetExplorerStateV1QueryMock.mockReset();
     useGetGeckoGitProjectPresentationConfigQueryMock.mockReset();
     useSessionMock.mockReset();
 
@@ -119,7 +123,12 @@ describe('ProjectPresentationPage', () => {
       isLoading: false,
     });
 
-    useGetConfigContentQueryMock.mockReturnValue({
+    useGetRepositoryExplorerConfigQueryMock.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+    });
+    useGetExplorerStateV1QueryMock.mockReturnValue({
       data: undefined,
       isLoading: false,
       isError: true,
@@ -220,8 +229,8 @@ describe('ProjectPresentationPage', () => {
       </MantineProvider>,
     );
 
-    expect(useGetConfigContentQueryMock).toHaveBeenCalledWith(
-      'HTAN_INT-BForePC',
+    expect(useGetExplorerStateV1QueryMock).toHaveBeenCalledWith(
+      { project: 'HTAN_INT/BForePC', explorerId: 'default' },
       expect.objectContaining({ skip: true }),
     );
     expect(
