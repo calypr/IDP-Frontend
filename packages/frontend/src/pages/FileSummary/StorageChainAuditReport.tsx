@@ -1,20 +1,24 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
+  ActionIcon,
   Alert,
   Badge,
   Button,
   Center,
+  Checkbox,
   Group,
   Loader,
   Stack,
   Table,
   Text,
+  TextInput,
 } from '@mantine/core';
-import { IconAlertCircle } from '@tabler/icons-react';
+import { IconAlertCircle, IconSearch, IconX } from '@tabler/icons-react';
 import { formatBytes } from '../../utils/labels';
 import { ChainPathTree } from './ChainPathTree';
 import type { AuditActionOption } from './hooks';
 import type { ChainIssueSummary } from './storageIssueSummaries';
+import { buildStorageChainIssueSearchViews } from './storageChainSearch';
 import {
   buildCleanupApplySummary,
   orderedRepairActions,
@@ -58,8 +62,11 @@ type StorageChainAuditReportProps = {
   readonly isChainAuditing: boolean;
   readonly gitOnlyRegistrationError: string | null;
   readonly isRegisteringGitOnly: boolean;
-  readonly onApplySelectedChainObjects: (issueId: string) => void;
-  readonly onRegisterSelectedGitOnly: () => void;
+  readonly onApplySelectedChainObjects: (
+    issueId: string,
+    paths: Array<string>,
+  ) => void;
+  readonly onRegisterSelectedGitOnly: (paths: Array<string>) => void;
   readonly onRunIssueAction: (args: RunChainIssueActionArgs) => void;
   readonly onSelectedChainPathsChange: (
     issueId: string,
@@ -135,6 +142,7 @@ export const StorageChainAuditReport = ({
 }: StorageChainAuditReportProps): JSX.Element | null => {
   const [visibleIssueDetailRowLimits, setVisibleIssueDetailRowLimits] =
     useState<Record<string, number>>({});
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     setVisibleIssueDetailRowLimits((current) => {
@@ -146,15 +154,21 @@ export const StorageChainAuditReport = ({
     });
   }, [expandedIssueIds]);
 
-  const issueFindingsFor = (issueId: string): Array<StorageChainFinding> => {
-    const fullIssueFindings = chainIssueFindingsByKind[issueId];
-    if (fullIssueFindings) {
-      return fullIssueFindings;
-    }
-    return (auditResult?.findings ?? []).filter(
-      (finding) => finding.kind === issueId,
-    );
-  };
+  const issueSearchViews = useMemo(
+    () =>
+      buildStorageChainIssueSearchViews({
+        auditFindings: auditResult?.findings ?? [],
+        chainIssueFindingsByKind,
+        chainIssueSummaries,
+        query: searchQuery,
+      }),
+    [
+      auditResult?.findings,
+      chainIssueFindingsByKind,
+      chainIssueSummaries,
+      searchQuery,
+    ],
+  );
   const loadMoreIssueDetailRows = (issueId: string, total: number) => {
     setVisibleIssueDetailRowLimits((current) => ({
       ...current,
@@ -208,6 +222,7 @@ export const StorageChainAuditReport = ({
     auditResult?.summary.gitTrackedFileCount ?? totalChainRows;
   const isBusy =
     isApplying || isAuditing || isChainAuditing || isRegisteringGitOnly;
+  const isSearching = searchQuery.trim().length > 0;
 
   const renderRepairActions = (
     issue: ChainIssueSummary,
@@ -348,6 +363,26 @@ export const StorageChainAuditReport = ({
 
           {auditResult ? (
             <>
+              <TextInput
+                aria-label="Search audit findings"
+                description="Search findings returned by this audit. Backend response limits may omit rows."
+                leftSection={<IconSearch size={16} />}
+                onChange={(event) => setSearchQuery(event.currentTarget.value)}
+                placeholder="Search paths, checksums, URLs, errors, or actions"
+                rightSection={
+                  searchQuery ? (
+                    <ActionIcon
+                      aria-label="Clear audit finding search"
+                      onClick={() => setSearchQuery('')}
+                      size="sm"
+                      variant="subtle"
+                    >
+                      <IconX size={16} />
+                    </ActionIcon>
+                  ) : null
+                }
+                value={searchQuery}
+              />
               <Alert
                 color={actualIssueSummaries.length > 0 ? 'yellow' : 'green'}
               >
@@ -371,7 +406,12 @@ export const StorageChainAuditReport = ({
                 </Stack>
               </Alert>
 
-              {chainIssueSummaries.length > 0 ? (
+              {isSearching && issueSearchViews.length === 0 ? (
+                <Alert color="blue" title="No matching audit findings">
+                  No findings returned by this audit match &quot;
+                  {searchQuery.trim()}&quot;.
+                </Alert>
+              ) : issueSearchViews.length > 0 ? (
                 <Table highlightOnHover>
                   <Table.Thead>
                     <Table.Tr>
@@ -381,9 +421,12 @@ export const StorageChainAuditReport = ({
                     </Table.Tr>
                   </Table.Thead>
                   <Table.Tbody>
-                    {chainIssueSummaries.map((issue) => {
-                      const isExpanded = expandedIssueIds.has(issue.id);
-                      const issueFindings = issueFindingsFor(issue.id);
+                    {issueSearchViews.map((view) => {
+                      const { findings: issueFindings, issue, matchedFindings } =
+                        view;
+                      const isExpanded =
+                        expandedIssueIds.has(issue.id) ||
+                        (isSearching && matchedFindings.length > 0);
                       const isIssueLoading =
                         loadingChainIssueId === issue.id;
                       const issueLoadError =
@@ -396,15 +439,25 @@ export const StorageChainAuditReport = ({
                         issue.id === 'git_only_no_syfon';
                       const issueSelectedPaths =
                         selectedChainPathsByIssue[issue.id] ?? [];
+                      const matchedIssuePaths = new Set(
+                        matchedFindings.map(
+                          (finding) => finding.normalizedPath,
+                        ),
+                      );
+                      const visibleSelectedPaths = isSearching
+                        ? issueSelectedPaths.filter((path) =>
+                            matchedIssuePaths.has(path),
+                          )
+                        : issueSelectedPaths;
                       const visibleLimit =
                         visibleIssueDetailRowLimits[issue.id] ??
                         issueDetailInitialRowLimit;
-                      const visibleIssueFindings = issueFindings.slice(
+                      const visibleIssueFindings = matchedFindings.slice(
                         0,
                         visibleLimit,
                       );
                       const hasMoreIssueFindings =
-                        visibleIssueFindings.length < issueFindings.length;
+                        visibleIssueFindings.length < matchedFindings.length;
                       return (
                         <React.Fragment key={issue.id}>
                           <Table.Tr>
@@ -433,15 +486,21 @@ export const StorageChainAuditReport = ({
                               </Text>
                             </Table.Td>
                             <Table.Td>
-                              <Button
-                                onClick={() =>
-                                  onToggleChainIssueDetails(issue.id)
-                                }
-                                size="xs"
-                                variant={isExpanded ? 'outline' : 'light'}
-                              >
-                                {isExpanded ? 'Hide details' : 'View details'}
-                              </Button>
+                              {isSearching ? (
+                                <Text c="dimmed" size="xs">
+                                  Showing matches
+                                </Text>
+                              ) : (
+                                <Button
+                                  onClick={() =>
+                                    onToggleChainIssueDetails(issue.id)
+                                  }
+                                  size="xs"
+                                  variant={isExpanded ? 'outline' : 'light'}
+                                >
+                                  {isExpanded ? 'Hide details' : 'View details'}
+                                </Button>
+                              )}
                             </Table.Td>
                           </Table.Tr>
 
@@ -460,21 +519,26 @@ export const StorageChainAuditReport = ({
                                       <Text c="dimmed" size="sm">
                                         {isIssueLoading
                                           ? 'Loading all issue findings...'
-                                          : `${issueFindings.length.toLocaleString()} loaded path${issueFindings.length === 1 ? '' : 's'} in this issue set.`}
+                                          : isSearching
+                                            ? `${matchedFindings.length.toLocaleString()} matching of ${issueFindings.length.toLocaleString()} loaded path${issueFindings.length === 1 ? '' : 's'} in this issue set.`
+                                            : `${issueFindings.length.toLocaleString()} loaded path${issueFindings.length === 1 ? '' : 's'} in this issue set.`}
                                       </Text>
                                     </div>
                                     {isIssueSelectable ? (
                                       <Button
                                         color={issue.color}
                                         disabled={
-                                          issueSelectedPaths.length === 0
+                                          visibleSelectedPaths.length === 0
                                         }
                                         loading={isApplying || isAuditing}
                                         onClick={() =>
                                           issue.id === 'git_only_no_syfon'
-                                            ? onRegisterSelectedGitOnly()
+                                            ? onRegisterSelectedGitOnly(
+                                                visibleSelectedPaths,
+                                              )
                                             : onApplySelectedChainObjects(
                                                 issue.id,
+                                                visibleSelectedPaths,
                                               )
                                         }
                                         size="xs"
@@ -485,16 +549,24 @@ export const StorageChainAuditReport = ({
                                           : issue.id === 'git_only_no_syfon'
                                             ? 'Create Syfon records'
                                             : 'Delete selected objects'}
-                                        {issueSelectedPaths.length > 0
-                                          ? ` (${issueSelectedPaths.length.toLocaleString()})`
+                                        {visibleSelectedPaths.length > 0
+                                          ? ` (${visibleSelectedPaths.length.toLocaleString()})`
                                           : ''}
                                       </Button>
                                     ) : (
-                                      renderRepairActions(
-                                        issue,
-                                        issueFindings,
-                                        isIssueLoading,
-                                      )
+                                      <Stack align="flex-end" gap={4}>
+                                        {renderRepairActions(
+                                          issue,
+                                          issueFindings,
+                                          isIssueLoading,
+                                        )}
+                                        {isSearching ? (
+                                          <Text c="dimmed" size="xs">
+                                            Actions apply to every loaded path in
+                                            this issue set.
+                                          </Text>
+                                        ) : null}
+                                      </Stack>
                                     )}
                                   </Group>
 
@@ -519,7 +591,7 @@ export const StorageChainAuditReport = ({
                                   ) : null}
 
                                   {isIssueLoading &&
-                                  issueFindings.length === 0 ? (
+                                  matchedFindings.length === 0 ? (
                                     <Center py="md">
                                       <Group gap="xs">
                                         <Loader size="xs" />
@@ -528,6 +600,56 @@ export const StorageChainAuditReport = ({
                                         </Text>
                                       </Group>
                                     </Center>
+                                  ) : isIssueSelectable && isSearching ? (
+                                    <div
+                                      className="max-h-[420px] overflow-auto rounded-md border border-slate-200 bg-white px-3 py-2"
+                                      onScroll={(event) =>
+                                        handleIssueDetailScroll(
+                                          issue.id,
+                                          matchedFindings.length,
+                                          event,
+                                        )
+                                      }
+                                    >
+                                      <Stack gap={4}>
+                                        {visibleIssueFindings.map((finding) => (
+                                          <Checkbox
+                                            checked={visibleSelectedPaths.includes(
+                                              finding.normalizedPath,
+                                            )}
+                                            key={`${finding.kind}:${finding.normalizedPath}`}
+                                            label={finding.normalizedPath}
+                                            onChange={(event) => {
+                                              const path =
+                                                finding.normalizedPath;
+                                              onSelectedChainPathsChange(
+                                                issue.id,
+                                                event.currentTarget.checked
+                                                  ? Array.from(
+                                                      new Set([
+                                                        ...issueSelectedPaths,
+                                                        path,
+                                                      ]),
+                                                    ).sort()
+                                                  : issueSelectedPaths.filter(
+                                                      (selectedPath) =>
+                                                        selectedPath !== path,
+                                                    ),
+                                              );
+                                            }}
+                                          />
+                                        ))}
+                                        {hasMoreIssueFindings ? (
+                                          <Text c="dimmed" py="xs" size="xs">
+                                            Showing{' '}
+                                            {visibleIssueFindings.length.toLocaleString()}{' '}
+                                            of{' '}
+                                            {matchedFindings.length.toLocaleString()}{' '}
+                                            matching paths. Scroll for more.
+                                          </Text>
+                                        ) : null}
+                                      </Stack>
+                                    </div>
                                   ) : isIssueSelectable ? (
                                     <ChainPathTree
                                       expandedTreeNodes={expandedChainTreeNodes}
@@ -552,7 +674,7 @@ export const StorageChainAuditReport = ({
                                       onScroll={(event) =>
                                         handleIssueDetailScroll(
                                           issue.id,
-                                          issueFindings.length,
+                                          matchedFindings.length,
                                           event,
                                         )
                                       }
@@ -569,7 +691,7 @@ export const StorageChainAuditReport = ({
                                           </Table.Tr>
                                         </Table.Thead>
                                         <Table.Tbody>
-                                          {issueFindings.length > 0 ? (
+                                          {matchedFindings.length > 0 ? (
                                             visibleIssueFindings.map(
                                               (finding) => (
                                                 <Table.Tr
@@ -640,7 +762,7 @@ export const StorageChainAuditReport = ({
                                                     Showing{' '}
                                                     {visibleIssueFindings.length.toLocaleString()}{' '}
                                                     of{' '}
-                                                    {issueFindings.length.toLocaleString()}{' '}
+                                                    {matchedFindings.length.toLocaleString()}{' '}
                                                     paths. Scroll for more.
                                                   </Text>
                                                 </Center>
