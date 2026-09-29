@@ -32,13 +32,33 @@ import { WORKSPACES_ENABLED } from '../../features/Workspace/config';
 
 const ACTIVITY_CHANNEL = 'gen3-user-activity';
 const FORCE_LOGOUT_EVENT = 'gen3-force-logout';
+const RETRY_BASE_DELAY_MS = 2_000;
+const RETRY_MAX_DELAY_MS = 30_000;
 const isAppHomePath = (path?: string): boolean =>
   path === '/' || Boolean(path?.startsWith('/Apps'));
 
+const getRetryDelay = (attempt: number): number =>
+  Math.min(RETRY_MAX_DELAY_MS, RETRY_BASE_DELAY_MS * 2 ** Math.min(attempt, 4));
+
 const getRequestErrorStatus = (error: unknown): number | undefined => {
-  if (!error || typeof error !== 'object' || !('status' in error)) return;
-  const status = (error as { status?: unknown }).status;
-  return typeof status === 'number' ? status : undefined;
+  if (typeof error !== 'object' || error === null) return undefined;
+
+  if ('status' in error && typeof error.status === 'number') {
+    return error.status;
+  }
+
+  return undefined;
+};
+
+const isRetryableRequestError = (error: unknown): boolean => {
+  const status = getRequestErrorStatus(error);
+  return (
+    status === undefined ||
+    status === 0 ||
+    status === 408 ||
+    status === 429 ||
+    (status >= 500 && status < 600)
+  );
 };
 
 const getRequestErrorDetail = (error: unknown): string => {
@@ -236,6 +256,8 @@ export const SessionProvider = ({
   const {
     isSuccess: isGetCSRFSuccess,
     isError: isGetCSRFError,
+    isLoading: isGetCSRFLoading,
+    isFetching: isGetCSRFFetching,
     error: getCSRFError,
     refetch: refetchCSRF,
   } = useGetCSRFQuery();
@@ -253,6 +275,8 @@ export const SessionProvider = ({
   const userStatus = useCoreSelector((state: CoreState) =>
     selectUserAuthStatus(state),
   );
+  const csrfRetryAttemptRef = useRef(0);
+  const userRetryAttemptRef = useRef(0);
 
   const [mostRecentActivityTimestamp, setMostRecentActivityTimestamp] =
     useState(Date.now());
@@ -312,6 +336,62 @@ export const SessionProvider = ({
   // update session status using the user status
 
   const sessionInfo = useManageSession(userStatus);
+
+  useEffect(() => {
+    if (isGetCSRFLoading || isGetCSRFFetching) return;
+    if (isGetCSRFSuccess) {
+      csrfRetryAttemptRef.current = 0;
+      return;
+    }
+    if (!isGetCSRFError) return;
+    if (!isRetryableRequestError(getCSRFError)) {
+      csrfRetryAttemptRef.current = 0;
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      csrfRetryAttemptRef.current += 1;
+      void refetchCSRF();
+    }, getRetryDelay(csrfRetryAttemptRef.current));
+
+    return () => clearTimeout(timeout);
+  }, [
+    isGetCSRFError,
+    isGetCSRFLoading,
+    isGetCSRFSuccess,
+    isGetCSRFFetching,
+    getCSRFError,
+    refetchCSRF,
+  ]);
+
+  useEffect(() => {
+    if (isUserDetailsLoading || isUserDetailsFetching) return;
+    if (!isUserDetailsError) {
+      userRetryAttemptRef.current = 0;
+      return;
+    }
+    if (getRequestErrorStatus(userDetailsError) === 401) {
+      userRetryAttemptRef.current = 0;
+      return;
+    }
+    if (!isRetryableRequestError(userDetailsError)) {
+      userRetryAttemptRef.current = 0;
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      userRetryAttemptRef.current += 1;
+      void getUserDetails();
+    }, getRetryDelay(userRetryAttemptRef.current));
+
+    return () => clearTimeout(timeout);
+  }, [
+    getUserDetails,
+    isUserDetailsError,
+    isUserDetailsFetching,
+    isUserDetailsLoading,
+    userDetailsError,
+  ]);
 
   // for now, we are using the user status to determine if the user is logged in
   const endSession = useCallback(
@@ -571,19 +651,22 @@ export const SessionProvider = ({
       : null,
   );
 
+  const hasVerifiedAuthenticatedUser = userStatus === 'authenticated';
   const value: Session = useDeepCompareMemo(() => {
     return {
       ...sessionInfo,
       pending:
         sessionInfo.pending ||
-        isUserVerificationPending ||
-        isUserDetailsLoading ||
-        isUserDetailsFetching,
+        (!hasVerifiedAuthenticatedUser &&
+          (isUserVerificationPending ||
+            isUserDetailsLoading ||
+            isUserDetailsFetching)),
       updateSession,
       endSession,
     };
   }, [
     sessionInfo,
+    hasVerifiedAuthenticatedUser,
     isUserVerificationPending,
     isUserDetailsLoading,
     isUserDetailsFetching,
@@ -591,29 +674,28 @@ export const SessionProvider = ({
     endSession,
   ]);
 
-  const restartLogin = useCallback(() => {
-    const next = `${GEN3_REDIRECT_URL}/Login`;
-    window.location.assign(
-      `${GEN3_FENCE_API}/logout?next=${encodeURIComponent(next)}`,
-    );
-  }, []);
+  const isUserUnauthorized = getRequestErrorStatus(userDetailsError) === 401;
+  const hasResolvedUserStatus =
+    hasVerifiedAuthenticatedUser || userStatus === 'unauthenticated';
 
-  if (isGetCSRFError) {
+  if (isGetCSRFError && !hasResolvedUserStatus) {
     return (
       <SessionFailureView
         detail={`The commons status check failed. ${getRequestErrorDetail(getCSRFError)}`}
         onRetry={() => void refetchCSRF()}
-        onRestartLogin={restartLogin}
       />
     );
   }
 
-  if (isUserDetailsError && getRequestErrorStatus(userDetailsError) !== 401) {
+  if (
+    isUserDetailsError &&
+    !isUserUnauthorized &&
+    !hasVerifiedAuthenticatedUser
+  ) {
     return (
       <SessionFailureView
         detail={`Fence could not return your user session. ${getRequestErrorDetail(userDetailsError)}`}
         onRetry={() => void getUserDetails()}
-        onRestartLogin={restartLogin}
       />
     );
   }
@@ -622,7 +704,11 @@ export const SessionProvider = ({
     return <VerifyingAccessLoader />;
   }
 
-  if (isGetCSRFSuccess)
+  if (
+    isGetCSRFSuccess ||
+    hasVerifiedAuthenticatedUser ||
+    userStatus === 'unauthenticated'
+  )
     return (
       <SessionContext.Provider value={value}>
         {isHomeRouteTransitionPending || isLogoutTransitionPending ? (

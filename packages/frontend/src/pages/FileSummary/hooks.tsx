@@ -326,6 +326,8 @@ const normalizeCleanupAccessProbe = (
         : undefined,
     metaSha256:
       typeof record.meta_sha256 === 'string' ? record.meta_sha256 : undefined,
+    operation:
+      typeof record.operation === 'string' ? record.operation : undefined,
     path: typeof record.path === 'string' ? record.path : undefined,
     provider: typeof record.provider === 'string' ? record.provider : undefined,
     sha256Match:
@@ -1206,6 +1208,7 @@ const buildStorageApplyFindingRequest = (
             key: probe.key,
             last_modified: probe.lastModified,
             meta_sha256: probe.metaSha256,
+            operation: probe.operation,
             path: probe.path,
             provider: probe.provider,
             sha256_match: probe.sha256Match,
