@@ -1,4 +1,5 @@
 import React from 'react';
+import DOMPurify from 'isomorphic-dompurify';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -60,7 +61,7 @@ const TextContent = ({
       return (
         <p
           className={className}
-          dangerouslySetInnerHTML={{ __html: textString }}
+          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(textString) }}
         />
       );
     }
@@ -145,11 +146,7 @@ const TextContent = ({
         : DEFAULT_STYLE;
       const textString = Array.isArray(text) ? text.join('') : text;
       if (!link) {
-        return (
-          <div className={mergedClassname}>
-            Link is not defined.
-          </div>
-        );
+        return <div className={mergedClassname}>Link is not defined.</div>;
       }
 
       return (
@@ -161,10 +158,7 @@ const TextContent = ({
           <span>
             {textString}
             {link && (
-              <Anchor
-                classNames={{ root: mergedClassname }}
-                href={link}
-              >
+              <Anchor classNames={{ root: mergedClassname }} href={link}>
                 {` ${linkText ?? link}.`}
               </Anchor>
             )}
