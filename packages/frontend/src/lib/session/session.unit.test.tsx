@@ -376,10 +376,19 @@ describe('SessionProvider service failure recovery', () => {
     });
 
     renderSession(store);
+    act(() => {
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        window.dispatchEvent(new CustomEvent('gen3-verify-session'));
+      }
+    });
     await advanceTime(1);
     expect(screen.getByText('Session invalid')).toBeVisible();
 
-    act(() => window.dispatchEvent(new CustomEvent('gen3-verify-session')));
+    act(() => {
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        window.dispatchEvent(new CustomEvent('gen3-verify-session'));
+      }
+    });
     await advanceTime(50);
 
     expect(userRequests).toBe(1);

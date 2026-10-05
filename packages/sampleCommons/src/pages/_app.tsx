@@ -13,6 +13,7 @@ import '@xyflow/react/dist/style.css';
 import 'react-complex-tree/lib/style-modern.css';
 import {
   Gen3Provider,
+  AuthenticatedPage,
   type ModalsConfig,
   RegisteredIcons,
   SessionConfiguration,
@@ -111,7 +112,9 @@ const Gen3App = ({
               sessionConfig={sessionConfig}
               modalsConfig={modalsConfig}
             >
-              <Component {...pageProps} />
+              <AuthenticatedPage>
+                <Component {...pageProps} />
+              </AuthenticatedPage>
             </Gen3Provider>
           </Suspense>
         ) : (
