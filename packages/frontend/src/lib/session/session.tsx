@@ -9,8 +9,9 @@ import { useRouter } from 'next/router';
 import { getCookie } from 'cookies-next';
 import { useDeepCompareMemo } from 'use-deep-compare';
 import { useManageSession } from './hooks';
+import { nextRefreshDelay } from './refreshTiming';
 import { showNotification } from '@mantine/notifications';
-import { Session, SessionProviderProps } from './types';
+import { AuthTokenData, Session, SessionProviderProps } from './types';
 import { isUserOnPage } from './utils';
 import {
   type CoreState,
@@ -32,6 +33,7 @@ import { WORKSPACES_ENABLED } from '../../features/Workspace/config';
 
 const ACTIVITY_CHANNEL = 'gen3-user-activity';
 const FORCE_LOGOUT_EVENT = 'gen3-force-logout';
+const VERIFY_SESSION_EVENT = 'gen3-verify-session';
 const RETRY_BASE_DELAY_MS = 2_000;
 const RETRY_MAX_DELAY_MS = 30_000;
 const isAppHomePath = (path?: string): boolean =>
@@ -67,6 +69,12 @@ const getRequestErrorDetail = (error: unknown): string => {
   if ('error' in error && typeof error.error === 'string') return error.error;
   const status = getRequestErrorStatus(error);
   return status ? `Fence returned HTTP ${status}.` : 'The request failed.';
+};
+
+export const requestSessionVerification = () => {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(VERIFY_SESSION_EVENT));
+  }
 };
 
 export const requestSessionLogout = ({
@@ -151,11 +159,12 @@ export const getSession = async () => {
   try {
     const res = await fetch('/api/auth/sessionToken', { cache: 'no-store' });
     if (res.status === 200) {
-      return await res.json();
+      return (await res.json()) as AuthTokenData;
     }
-  } catch (error) {
-    return { status: 'error' };
+  } catch {
+    return { status: 'error' } as AuthTokenData;
   }
+  return { status: 'error' } as AuthTokenData;
 };
 
 export const useSession = (
@@ -191,23 +200,6 @@ export const useIsAuthenticated = () => {
   };
 };
 
-const refreshSession = (
-  getUserDetails: () => void,
-  mostRecentSessionRefreshTimestamp: number,
-  updateSessionRefreshTimestamp: (arg0: number) => void,
-): void => {
-  const timeSinceLastSessionUpdate =
-    Date.now() - mostRecentSessionRefreshTimestamp;
-  // don't hit Fence to refresh tokens too frequently
-  if (timeSinceLastSessionUpdate < UPDATE_SESSION_LIMIT) {
-    return;
-  }
-
-  // hitting Fence endpoint refreshes the token
-  updateSessionRefreshTimestamp(Date.now());
-  getUserDetails();
-};
-
 type IntervalFunction = () => unknown | void;
 
 const useInterval = (callback: IntervalFunction, delay: number | null) => {
@@ -230,8 +222,6 @@ const useInterval = (callback: IntervalFunction, delay: number | null) => {
   }, [delay]);
 };
 
-const UPDATE_SESSION_LIMIT = MinutesToMilliseconds(5);
-
 /**
  * SessionProvider creates a React context which keeps track of wether the user is authenticated
  * and if their session is stale and logs them out if they do not preform an action in an alotted amount of time
@@ -246,6 +236,7 @@ const UPDATE_SESSION_LIMIT = MinutesToMilliseconds(5);
 export const SessionProvider = ({
   children,
   updateSessionTime = 1440,
+  renewAccessTokenEarlyMilliseconds = 120_000,
   inactiveTimeLimit = 1440,
   workspaceInactivityTimeLimit = 0,
   logoutInactiveUsers = true,
@@ -296,33 +287,37 @@ export const SessionProvider = ({
   // Initialize BroadcastChannel for cross-tab communication
   // any user event on one tab or window will update mostRecentActivityTimestamp
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const channel = new BroadcastChannel(ACTIVITY_CHANNEL);
-      broadcastChannelRef.current = channel;
+    if (typeof window === 'undefined' || typeof BroadcastChannel === 'undefined')
+      return;
 
-      // Listen for activity updates from other tabs
-      const handleActivityMessage = (event: MessageEvent) => {
-        if (event.data.type === 'activity-update') {
-          setMostRecentActivityTimestamp(event.data.timestamp);
-        }
-      };
-
-      channel.addEventListener('message', handleActivityMessage);
-
-      return () => {
-        channel.removeEventListener('message', handleActivityMessage);
-        channel.close();
-        if (broadcastChannelRef.current === channel) {
-          broadcastChannelRef.current = null;
-        }
-      };
+    let channel: BroadcastChannel;
+    try {
+      channel = new BroadcastChannel(ACTIVITY_CHANNEL);
+    } catch {
+      return;
     }
-  }, []);
+    broadcastChannelRef.current = channel;
 
-  const [
-    mostRecentSessionRefreshTimestamp,
-    setMostRecentSessionRefreshTimestamp,
-  ] = useState(Date.now());
+    const handleActivityMessage = (event: MessageEvent) => {
+      const data = event.data as
+        | { type?: unknown; timestamp?: unknown }
+        | null
+        | undefined;
+      if (data?.type !== 'activity-update') return;
+      if (typeof data.timestamp !== 'number' || !Number.isFinite(data.timestamp))
+        return;
+      setMostRecentActivityTimestamp(Math.min(data.timestamp, Date.now()));
+    };
+
+    channel.addEventListener('message', handleActivityMessage);
+    return () => {
+      channel.removeEventListener('message', handleActivityMessage);
+      channel.close();
+      if (broadcastChannelRef.current === channel) {
+        broadcastChannelRef.current = null;
+      }
+    };
+  }, []);
 
   const inactiveTimeLimitMilliseconds =
     MinutesToMilliseconds(inactiveTimeLimit);
@@ -521,6 +516,135 @@ export const SessionProvider = ({
     return verification;
   }, [getUserDetails, router.pathname]);
 
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const refreshActiveRef = useRef(false);
+  const refreshInFlightRef = useRef(false);
+  const previousTokenRef = useRef<AuthTokenData | undefined>(undefined);
+  const retryDelayRef = useRef(5_000);
+  const runRefreshRef = useRef<() => Promise<void>>(async () => undefined);
+
+  const clearRefreshTimer = useCallback(() => {
+    if (refreshTimerRef.current !== null) clearTimeout(refreshTimerRef.current);
+    refreshTimerRef.current = null;
+  }, []);
+
+  const armRefresh = useCallback((delay: number) => {
+    if (!refreshActiveRef.current) return;
+    clearRefreshTimer();
+    refreshTimerRef.current = setTimeout(() => {
+      void runRefreshRef.current();
+    }, delay);
+  }, [clearRefreshTimer]);
+
+  const runRefresh = useCallback(async (): Promise<void> => {
+    if (refreshInFlightRef.current) return;
+    refreshInFlightRef.current = true;
+    try {
+      // A real Fence request renews the HttpOnly cookies when allowed.
+      await getUserDetails().unwrap();
+      const token = await getSession();
+      if (token.status === 'error') throw new Error('Session status unavailable');
+
+      const delay = nextRefreshDelay(
+        token,
+        renewAccessTokenEarlyMilliseconds,
+        previousTokenRef.current,
+      );
+      previousTokenRef.current = token;
+      retryDelayRef.current = 5_000;
+      if (delay !== null) armRefresh(delay);
+    } catch (error: unknown) {
+      if (getRequestErrorStatus(error) === 401) {
+        clearRefreshTimer();
+        return;
+      }
+      armRefresh(retryDelayRef.current);
+      retryDelayRef.current = Math.min(retryDelayRef.current * 2, 300_000);
+    } finally {
+      refreshInFlightRef.current = false;
+    }
+  }, [
+    armRefresh,
+    clearRefreshTimer,
+    getUserDetails,
+    renewAccessTokenEarlyMilliseconds,
+  ]);
+
+  useEffect(() => {
+    runRefreshRef.current = runRefresh;
+  }, [runRefresh]);
+
+  useEffect(() => {
+    if (sessionInfo.status !== 'issued') {
+      refreshActiveRef.current = false;
+      clearRefreshTimer();
+      previousTokenRef.current = undefined;
+      retryDelayRef.current = 5_000;
+      return;
+    }
+
+    refreshActiveRef.current = true;
+    // The provider already requested /user on mount. Read the resulting
+    // cookies without issuing a second Fence request.
+    void getSession().then((token) => {
+      if (!refreshActiveRef.current) return;
+      const delay =
+        token.status === 'error'
+          ? 5_000
+          : nextRefreshDelay(token, renewAccessTokenEarlyMilliseconds);
+      previousTokenRef.current = token;
+      if (delay !== null) armRefresh(delay);
+    });
+    let lastCatchUp = 0;
+    const catchUp = () => {
+      if (Date.now() - lastCatchUp < 10_000) return;
+      lastCatchUp = Date.now();
+      void runRefresh();
+    };
+    const catchUpIfVisible = () => {
+      if (document.visibilityState === 'visible') catchUp();
+    };
+    document.addEventListener('visibilitychange', catchUpIfVisible);
+    window.addEventListener('focus', catchUp);
+    window.addEventListener('online', catchUp);
+    return () => {
+      refreshActiveRef.current = false;
+      clearRefreshTimer();
+      document.removeEventListener('visibilitychange', catchUpIfVisible);
+      window.removeEventListener('focus', catchUp);
+      window.removeEventListener('online', catchUp);
+    };
+  }, [
+    sessionInfo.status,
+    runRefresh,
+    clearRefreshTimer,
+    armRefresh,
+    renewAccessTokenEarlyMilliseconds,
+  ]);
+
+  useEffect(() => {
+    const verifyAfterUnauthorized = () => {
+      if (userVerificationPromiseRef.current) return;
+      const verification = (async () => {
+        try {
+          await getUserDetails().unwrap();
+        } catch (error: unknown) {
+          if (getRequestErrorStatus(error) === 401) await endSession(false);
+        }
+      })();
+      userVerificationPromiseRef.current = verification;
+      void verification.finally(() => {
+        if (userVerificationPromiseRef.current === verification) {
+          userVerificationPromiseRef.current = null;
+        }
+      });
+    };
+    window.addEventListener(VERIFY_SESSION_EVENT, verifyAfterUnauthorized);
+    return () => {
+      window.removeEventListener(VERIFY_SESSION_EVENT, verifyAfterUnauthorized);
+    };
+  }, [getUserDetails, endSession]);
+
   useEffect(() => {
     const routePath = (url: string) => url.split(/[?#]/, 1)[0];
 
@@ -617,7 +741,6 @@ export const SessionProvider = ({
   useInterval(
     () => {
       if (sessionInfo.status != 'issued') return; // no need to update session if user is not logged in
-      if (isUserOnPage('/') /* || this.popupShown */) return;
 
       const timeSinceLastActivity = Date.now() - mostRecentActivityTimestamp;
 
@@ -638,13 +761,6 @@ export const SessionProvider = ({
           return;
         }
       }
-      // fetching a userState will renew the session
-      refreshSession(
-        getUserDetails,
-        mostRecentSessionRefreshTimestamp,
-        (ts: number) => setMostRecentSessionRefreshTimestamp(ts),
-      );
-      void updateSession();
     },
     updateSessionIntervalMilliseconds > 0
       ? updateSessionIntervalMilliseconds

@@ -40,7 +40,7 @@ import type {
   StorageCleanupScope,
   GitOnlySyfonRegistrationResponse,
 } from './storageTypes';
-import { requestSessionLogout } from '../../lib/session/session';
+import { requestSessionVerification } from '../../lib/session/session';
 
 export { useSyfonPathStorageSummary } from './useStorageFolder';
 export type {
@@ -194,7 +194,7 @@ const handleUnauthorizedResponse = (response: Response): boolean => {
     return false;
   }
 
-  requestSessionLogout();
+  requestSessionVerification();
   return true;
 };
 
@@ -1815,7 +1815,7 @@ export const useSyfonStorageCleanup = ({
         return normalized;
       } catch (applyFailure) {
         if (isUnauthorizedMutationError(applyFailure)) {
-          requestSessionLogout();
+          requestSessionVerification();
         }
         const message =
           applyFailure instanceof Error
