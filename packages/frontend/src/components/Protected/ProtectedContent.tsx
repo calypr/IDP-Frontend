@@ -13,6 +13,7 @@ export interface ProtectedContentProps {
 
 import { useGetAuthzMappingsQuery } from '@gen3/core';
 import { hasFenceAccess, NoAccessOverlay } from './NoAccessOverlay';
+import { hasProjectMembershipOrAccess } from '../../features/projectPresentation/access';
 
 import { VerifyingAccessLoader } from './VerifyingAccessLoader';
 import SessionFailureView from './SessionFailureView';
@@ -21,8 +22,13 @@ export { VerifyingAccessLoader };
 const isAppHomePath = (path?: string): boolean =>
   path === '/' || Boolean(path?.startsWith('/Apps'));
 
-const AccessGate = ({ children, errorStatus }: ProtectedContentProps) => {
-  const router = useRouter();
+export const AccessGate = ({
+  children,
+  errorStatus,
+  projectScope,
+}: ProtectedContentProps & {
+  projectScope?: { organization: string; project: string };
+}) => {
   const {
     data: authzMapping = {},
     isLoading: isAuthZLoading,
@@ -32,10 +38,7 @@ const AccessGate = ({ children, errorStatus }: ProtectedContentProps) => {
   const hasAccess = hasFenceAccess(authzMapping);
 
   if (isAuthZLoading) {
-    if (isAppHomePath(router.pathname)) {
-      return <VerifyingAccessLoader />;
-    }
-    return null;
+    return <VerifyingAccessLoader />;
   }
 
   if (isAuthZError) {
@@ -48,6 +51,17 @@ const AccessGate = ({ children, errorStatus }: ProtectedContentProps) => {
   }
 
   if (!hasAccess) {
+    return <NoAccessOverlay />;
+  }
+
+  if (
+    projectScope &&
+    !hasProjectMembershipOrAccess(
+      authzMapping,
+      projectScope.organization,
+      projectScope.project,
+    )
+  ) {
     return <NoAccessOverlay />;
   }
 
