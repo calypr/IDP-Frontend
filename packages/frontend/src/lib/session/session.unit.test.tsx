@@ -366,6 +366,51 @@ describe('SessionProvider service failure recovery', () => {
     expect(screen.getByText('Session invalid')).toBeVisible();
   });
 
+  it('clears a rejected credentials token after a service 401 before the next login', async () => {
+    document.cookie = 'credentials_token=stale; path=/';
+    let userRequests = 0;
+    fetchMock.mockImplementation(async (input, init) => {
+      if (String(input).endsWith('/_status')) return response({ csrf: 'token' });
+      if (String(input).endsWith('/api/auth/sessionToken'))
+        return response({ status: 'not present' });
+      if (String(input).endsWith('/api/auth/credentialsLogout')) {
+        document.cookie = 'credentials_token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+        return response({}, 204);
+      }
+      userRequests += 1;
+      if (userRequests === 2) return response({ error: 'Please login' }, 401);
+      if (userRequests === 3) {
+        expect(init?.headers).not.toHaveProperty('Authorization');
+      }
+      return response({ username: 'active-user' });
+    });
+
+    try {
+      renderSession(store);
+      await advanceTime(1);
+      expect(screen.getByText('Session issued')).toBeVisible();
+
+      act(() => window.dispatchEvent(new CustomEvent('gen3-verify-session')));
+      await advanceTime(50);
+      expect(screen.getByText('Session invalid')).toBeVisible();
+      expect(document.cookie).not.toContain('credentials_token=stale');
+      expect(fetchMock.mock.calls.some(([input]) =>
+        String(input).endsWith('/api/auth/credentialsLogout'),
+      )).toBe(true);
+
+      await act(async () => {
+        await store.dispatch(
+          userAuthApi.endpoints.fetchUserDetails.initiate(undefined, {
+            forceRefetch: true,
+          }),
+        );
+      });
+      expect(userRequests).toBe(3);
+    } finally {
+      document.cookie = 'credentials_token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+    }
+  });
+
   it('does not recheck or log out an anonymous visitor after a service 401', async () => {
     let userRequests = 0;
     fetchMock.mockImplementation(async (input) => {

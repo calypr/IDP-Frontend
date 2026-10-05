@@ -6,7 +6,7 @@ export const safeRedirect = (value: string | string[] | undefined): string => {
     !candidate.startsWith('/') ||
     candidate.startsWith('//') ||
     candidate.includes('\\') ||
-    [...candidate].some(
+    candidate.split('').some(
       (char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127,
     )
   ) {
