@@ -486,9 +486,9 @@ export const SessionProvider = ({
           !forcedLogoutInFlightRef.current
         ) {
           // The 401 has already resolved authentication as logged out. Clear
-          // the rejected bearer session without issuing another /user request.
+          // the rejected bearer cookie without redirecting through Fence logout.
           forcedLogoutInFlightRef.current = true;
-          void logoutSession()
+          void fetchWithDeadline('/api/auth/credentialsLogout')
             .catch((logoutError: unknown) => {
               showNotification({
                 title: 'Logout Error',
@@ -624,14 +624,14 @@ export const SessionProvider = ({
 
   useEffect(() => {
     const verifyAfterUnauthorized = () => {
-      if (userVerificationPromiseRef.current) return;
-      const verification = (async () => {
-        try {
-          await getUserDetails().unwrap();
-        } catch (error: unknown) {
-          if (getRequestErrorStatus(error) === 401) await endSession(false);
-        }
-      })();
+      // The initial /user request already determines whether a visitor is a guest.
+      // Only an authenticated session needs a second Fence check after a service 401.
+      if (userStatus !== 'authenticated' || userVerificationPromiseRef.current)
+        return;
+      const verification = getUserDetails().unwrap().then(
+        () => undefined,
+        () => undefined,
+      );
       userVerificationPromiseRef.current = verification;
       void verification.finally(() => {
         if (userVerificationPromiseRef.current === verification) {
@@ -643,7 +643,7 @@ export const SessionProvider = ({
     return () => {
       window.removeEventListener(VERIFY_SESSION_EVENT, verifyAfterUnauthorized);
     };
-  }, [getUserDetails, endSession]);
+  }, [getUserDetails, userStatus]);
 
   useEffect(() => {
     const routePath = (url: string) => url.split(/[?#]/, 1)[0];

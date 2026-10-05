@@ -1,8 +1,7 @@
-import React, { ReactNode, useEffect, useState } from 'react';
+import React, { ReactNode } from 'react';
 import { useRouter } from 'next/router';
 import { useSession } from '../../lib/session/session';
 import { Text } from '@mantine/core';
-import { type JWTSessionStatus } from '@gen3/core';
 import { LoginView } from '../Modals/LoginModal';
 
 import Custom403Page from '../../pages/403/Custom403Page';
@@ -22,11 +21,7 @@ export { VerifyingAccessLoader };
 const isAppHomePath = (path?: string): boolean =>
   path === '/' || Boolean(path?.startsWith('/Apps'));
 
-const AccessGate = ({
-  children,
-  errorStatus,
-  onBlocked,
-}: ProtectedContentProps & { onBlocked: () => void }) => {
+const AccessGate = ({ children, errorStatus }: ProtectedContentProps) => {
   const router = useRouter();
   const {
     data: authzMapping = {},
@@ -35,16 +30,6 @@ const AccessGate = ({
     refetch: refetchAuthz,
   } = useGetAuthzMappingsQuery();
   const hasAccess = hasFenceAccess(authzMapping);
-
-  useEffect(() => {
-    if (!isAuthZLoading && !isAuthZError) {
-      if (!hasAccess) {
-        onBlocked();
-      } else {
-        sessionStorage.setItem('hasVerifiedAccess', 'true');
-      }
-    }
-  }, [hasAccess, isAuthZError, isAuthZLoading, onBlocked]);
 
   if (isAuthZLoading) {
     if (isAppHomePath(router.pathname)) {
@@ -63,7 +48,7 @@ const AccessGate = ({
   }
 
   if (!hasAccess) {
-    return null; // Will unmount shortly because parent will pick up the blocked state
+    return <NoAccessOverlay />;
   }
 
   if (errorStatus === 403) {
@@ -75,33 +60,12 @@ const AccessGate = ({
 
 const ProtectedContent = ({ children, errorStatus }: ProtectedContentProps) => {
   const router = useRouter();
-  const [stableStatus, setStableStatus] = useState<
-    JWTSessionStatus | undefined
-  >();
-  const [isBlocked, setIsBlocked] = useState(false);
-
   const { status, pending } = useSession(true, () => {
     /* prevent redirect */
   });
 
-  useEffect(() => {
-    if (!pending && stableStatus !== status) {
-      setStableStatus(status);
-    }
-  }, [status, pending, stableStatus]);
-
-  const handleBlocked = React.useCallback(() => setIsBlocked(true), []);
-
-  if (isBlocked) {
-    return <NoAccessOverlay />;
-  }
-
-  if (stableStatus === 'issued') {
-    return (
-      <AccessGate errorStatus={errorStatus} onBlocked={handleBlocked}>
-        {children}
-      </AccessGate>
-    );
+  if (status === 'issued') {
+    return <AccessGate errorStatus={errorStatus}>{children}</AccessGate>;
   }
 
   if (pending) {

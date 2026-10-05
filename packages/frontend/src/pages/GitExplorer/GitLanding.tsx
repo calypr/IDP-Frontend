@@ -2073,7 +2073,7 @@ const OrganizationRow = ({
   );
 };
 
-const GitLandingPage = ({
+const GitLandingContent = ({
   headerProps,
   footerProps,
   selectedOrganization,
@@ -2561,7 +2561,6 @@ const GitLandingPage = ({
       }}
       mainProps={{ className: 'bg-[#f4f6f8]' }}
     >
-      <ProtectedContent>
         <div className="min-h-screen bg-[#f4f6f8]">
           <Container maw={1600} px="2.5rem" py="xl">
             <Stack gap="lg">
@@ -2758,9 +2757,16 @@ const GitLandingPage = ({
             </Stack>
           </Container>
         </div>
-      </ProtectedContent>
     </NavPageLayout>
   );
 };
+
+const GitLandingPage = (
+  props: GitExplorerPageProps & { selectedOrganization?: string },
+) => (
+  <ProtectedContent>
+    <GitLandingContent {...props} />
+  </ProtectedContent>
+);
 
 export default GitLandingPage;

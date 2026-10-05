@@ -50,12 +50,16 @@ jest.mock('../../features/Navigation', () => ({
 
 jest.mock('../../components/Protected/ProtectedContent', () => ({
   __esModule: true,
-  default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  default: jest.fn(({ children }: { children: React.ReactNode }) => <>{children}</>),
 }));
 
 jest.mock('../../lib/session/session', () => ({
   useSession: () => ({ user: { is_admin: false } }),
 }));
+
+const ProtectedContentMock = jest.requireMock(
+  '../../components/Protected/ProtectedContent',
+).default as jest.Mock;
 
 const {
   useCreateGeckoProjectMutation,
@@ -117,6 +121,10 @@ const layoutProps = {
 
 describe('GitLandingPage', () => {
   beforeEach(() => {
+    ProtectedContentMock.mockImplementation(({ children }: { children: React.ReactNode }) => <>{children}</>);
+    useGetGeckoProjectsQuery.mockClear();
+    useGetAuthzMappingsQuery.mockClear();
+    useGetGeckoGitOrganizationsStatusQuery.mockClear();
     useInitConnectGeckoGitOrganizationMutation.mockReturnValue([
       jest.fn(() => ({
         unwrap: jest.fn().mockResolvedValue({ redirect_url: '/git' }),
@@ -181,6 +189,21 @@ describe('GitLandingPage', () => {
       jest.fn(),
       { isLoading: false },
     ]);
+  });
+
+  it('does not request protected Git data while showing sign-in', () => {
+    ProtectedContentMock.mockImplementation(() => <div>Sign in</div>);
+
+    render(
+      <MantineProvider>
+        <GitLandingPage {...layoutProps} />
+      </MantineProvider>,
+    );
+
+    expect(screen.getByText('Sign in')).toBeVisible();
+    expect(useGetGeckoProjectsQuery).not.toHaveBeenCalled();
+    expect(useGetAuthzMappingsQuery).not.toHaveBeenCalled();
+    expect(useGetGeckoGitOrganizationsStatusQuery).not.toHaveBeenCalled();
   });
 
   it('renders Gecko projects grouped by organization', () => {
