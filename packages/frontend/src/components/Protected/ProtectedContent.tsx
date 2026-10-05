@@ -62,7 +62,7 @@ export const AccessGate = ({
       projectScope.project,
     )
   ) {
-    return <NoAccessOverlay />;
+    return <Custom403Page />;
   }
 
   if (errorStatus === 403) {

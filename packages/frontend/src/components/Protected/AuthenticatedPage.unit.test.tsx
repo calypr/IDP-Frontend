@@ -100,7 +100,7 @@ describe('AuthenticatedPage', () => {
     });
     render(page('Secret project data'));
     expect(screen.queryByText('Secret project data')).toBeNull();
-    expect(screen.getByText('No project access')).toBeVisible();
+    expect(screen.getByText('Not Authorized')).toBeVisible();
   });
 
   it('does not treat organization create permission as project read access', () => {
@@ -117,7 +117,7 @@ describe('AuthenticatedPage', () => {
     });
     render(page('Secret project data'));
     expect(screen.queryByText('Secret project data')).toBeNull();
-    expect(screen.getByText('No project access')).toBeVisible();
+    expect(screen.getByText('Not Authorized')).toBeVisible();
   });
 
   it('allows a project when Fence grants read access to that project', () => {
