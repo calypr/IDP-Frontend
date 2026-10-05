@@ -10,6 +10,7 @@ import { configureStore } from '@reduxjs/toolkit';
 import { Provider } from 'react-redux';
 import { MantineProvider } from '@mantine/core';
 import { SessionProvider, useSession } from './session';
+import { isExpired } from '../../api/auth/sessionToken';
 
 jest.mock('@gen3/core', () => ({
   ...jest.requireActual('../../../../core/src/features/user/userSliceRTK'),
@@ -294,11 +295,84 @@ describe('SessionProvider service failure recovery', () => {
     expect(fetchMock).toHaveBeenCalledTimes(requestsBeforeUnmount);
   });
 
+  it('renews from token expiry even while the user is on the home page', async () => {
+    let userRequests = 0;
+    fetchMock.mockImplementation(async (input) => {
+      if (String(input).endsWith('/_status')) return response({ csrf: 'token' });
+      if (String(input).endsWith('/api/auth/sessionToken')) {
+        return response({
+          status: 'issued',
+          expires: 2_000,
+          expiresInMs: 180_000,
+          fenceStatus: 'issued',
+          fenceExpires: 3_000,
+          fenceExpiresInMs: 900_000,
+        });
+      }
+      userRequests += 1;
+      return response({ username: 'active-user' });
+    });
+
+    renderSession(store);
+    await advanceTime(1);
+    expect(userRequests).toBe(1);
+    await advanceTime(59_000);
+    expect(userRequests).toBe(1);
+    await advanceTime(2_000);
+    expect(userRequests).toBe(2);
+  });
+
+  it('verifies a service 401 with Fence before logging out', async () => {
+    let userRequests = 0;
+    fetchMock.mockImplementation(async (input) => {
+      if (String(input).endsWith('/_status')) return response({ csrf: 'token' });
+      if (String(input).endsWith('/api/auth/sessionToken'))
+        return response({ status: 'not present' });
+      if (String(input).includes('/logout')) return response({});
+      userRequests += 1;
+      return response({ username: 'active-user' });
+    });
+
+    renderSession(store);
+    await advanceTime(1);
+    act(() => window.dispatchEvent(new CustomEvent('gen3-verify-session')));
+    await advanceTime(50);
+
+    expect(userRequests).toBe(2);
+    expect(screen.getByText('Session issued')).toBeVisible();
+    expect(fetchMock.mock.calls.some(([input]) => String(input).includes('/logout'))).toBe(false);
+  });
+
+  it('ends the session only after Fence confirms a service 401', async () => {
+    let userRequests = 0;
+    fetchMock.mockImplementation(async (input) => {
+      if (String(input).endsWith('/_status')) return response({ csrf: 'token' });
+      if (String(input).endsWith('/api/auth/sessionToken'))
+        return response({ status: 'not present' });
+      if (String(input).includes('/logout')) return response({});
+      userRequests += 1;
+      return userRequests === 1
+        ? response({ username: 'active-user' })
+        : response({ error: 'Please login' }, 401);
+    });
+
+    renderSession(store);
+    await advanceTime(1);
+    act(() => window.dispatchEvent(new CustomEvent('gen3-verify-session')));
+    await advanceTime(50);
+
+    expect(userRequests).toBeGreaterThanOrEqual(2);
+    expect(fetchMock.mock.calls.some(([input]) => String(input).includes('/logout'))).toBe(true);
+    expect(screen.queryByText('Session issued')).toBeNull();
+  });
+
   it('never restores cached authentication after a 401 followed by a network failure', async () => {
     let userRequests = 0;
     fetchMock.mockImplementation(async (input, init) => {
       if (String(input).endsWith('/_status'))
         return response({ csrf: 'token' });
+      if (String(input).endsWith('/api/auth/sessionToken'))
+        return response({ status: 'not present' });
       userRequests += 1;
       if (userRequests === 1) return response({ username: 'active-user' });
       if (userRequests === 2) return response({ error: 'Please login' }, 401);
@@ -347,5 +421,13 @@ describe('SessionProvider service failure recovery', () => {
 
     expect(statusRequests).toBeGreaterThan(2);
     expect(statusRequests).toBeLessThanOrEqual(8);
+  });
+});
+
+describe('JWT expiration units', () => {
+  it('compares JWT seconds with the current time in milliseconds', () => {
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    expect(isExpired(nowSeconds - 1)).toBe(true);
+    expect(isExpired(nowSeconds + 60)).toBe(false);
   });
 });

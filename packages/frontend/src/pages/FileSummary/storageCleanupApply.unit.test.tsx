@@ -7,7 +7,7 @@ jest.mock('@gen3/core', () => ({
   useGetCSRFQuery: jest.fn(),
 }));
 jest.mock('../../lib/session/session', () => ({
-  requestSessionLogout: jest.fn(),
+  requestSessionVerification: jest.fn(),
 }));
 
 import { useSyfonStorageChain, useSyfonStorageCleanup } from './hooks';
