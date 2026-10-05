@@ -1,4 +1,5 @@
 import type { GetServerSidePropsContext } from 'next';
+import { getNavPageLayoutPropsFromConfig } from '../../lib/common/staticProps';
 
 jest.mock('@gen3/core', () => ({
   GEN3_COMMONS_NAME: 'cbds',
@@ -9,10 +10,12 @@ jest.mock('../../lib/common/staticProps', () => ({
 }));
 jest.mock('../../lib/content', () => ({
   __esModule: true,
-  default: {},
+  default: {
+    getContentDatabase: () => ({ get: async () => null }),
+  },
 }));
 
-import { verifyAuthenticatedSession } from './data';
+import { CalyprPageGetServerSideProps, verifyAuthenticatedSession } from './data';
 
 const context = {
   req: {
@@ -63,5 +66,31 @@ describe('verifyAuthenticatedSession', () => {
     });
 
     await expect(verifyAuthenticatedSession(context, {})).resolves.toBeNull();
+  });
+});
+
+
+describe('CALYPR login result', () => {
+  const originalFetch = global.fetch;
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+    jest.restoreAllMocks();
+  });
+
+  it('passes a rejected login to the public root page', async () => {
+    global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 401 });
+    jest.mocked(getNavPageLayoutPropsFromConfig).mockResolvedValue({
+      headerProps: { topBar: { items: [] } },
+      footerProps: {},
+    } as Awaited<ReturnType<typeof getNavPageLayoutPropsFromConfig>>);
+
+    const result = await CalyprPageGetServerSideProps({
+      ...context,
+      query: { login_error: 'no_project_access' },
+    });
+
+    expect(result).toHaveProperty('props.loginError', 'no_project_access');
+    expect(result).toHaveProperty('props.hasAuthenticatedSession', false);
   });
 });

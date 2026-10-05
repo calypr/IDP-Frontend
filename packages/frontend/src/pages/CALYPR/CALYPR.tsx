@@ -48,7 +48,7 @@ const BannerPanel = ({
     </div>
   );
 };
-const CalyprPage = ({ headerProps, footerProps }: Props) => {
+const CalyprPage = ({ headerProps, footerProps, loginError }: Props) => {
   const { status } = useSession(false);
 
   if (status === 'issued') {
@@ -61,6 +61,38 @@ const CalyprPage = ({ headerProps, footerProps }: Props) => {
           key: 'calypr-project-catalog-home',
         }}
       />
+    );
+  }
+
+  if (loginError) {
+    const accessDenied = loginError === 'no_project_access';
+    return (
+      <NavPageLayout
+        {...{ headerProps, footerProps }}
+        headerMetadata={{
+          title: accessDenied ? 'CALYPR project access' : 'CALYPR sign-in',
+          content: 'Sign-in result',
+          key: 'calypr-login-result',
+        }}
+      >
+        <main className="flex min-h-[60vh] items-center justify-center bg-gray-50 px-4 py-12">
+          <div className="w-full max-w-xl rounded-2xl bg-white p-8 shadow-xl">
+            <h1 className="mb-4 text-3xl font-bold text-gray-800">
+              {accessDenied
+                ? 'This account does not have access to CALYPR projects'
+                : 'We could not verify your access'}
+            </h1>
+            <p className="text-lg leading-relaxed text-gray-700">
+              {accessDenied
+                ? 'The account you are trying to sign in with does not have access to any project in CALYPR. If you think this is a mistake, please contact your administrator.'
+                : 'The access check is temporarily unavailable. Please try signing in again shortly.'}
+            </p>
+            <Button component="a" href="/" className="mt-8">
+              Return to CALYPR
+            </Button>
+          </div>
+        </main>
+      </NavPageLayout>
     );
   }
 

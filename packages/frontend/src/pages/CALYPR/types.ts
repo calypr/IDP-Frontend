@@ -9,6 +9,7 @@ interface CalyprConfig {
 export interface CalyprProps {
   calyprConfig?: CalyprConfig;
   hasAuthenticatedSession?: boolean | null;
+  loginError?: 'no_project_access' | 'access_check_unavailable';
 }
 
 export type CalyprLandingPageProps = NavPageLayoutProps & CalyprProps;

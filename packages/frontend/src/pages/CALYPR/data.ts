@@ -2,8 +2,7 @@ import { GetServerSideProps } from 'next';
 import { GEN3_COMMONS_NAME, GEN3_FENCE_API } from '@gen3/core';
 import { getNavPageLayoutPropsFromConfig } from '../../lib/common/staticProps';
 import ContentSource from '../../lib/content';
-import { type CalyprProps } from './types';
-import type { NavPageLayoutProps } from '../../features/Navigation';
+import { type CalyprLandingPageProps, type CalyprProps } from './types';
 
 const SESSION_CHECK_TIMEOUT_MS = 12_000;
 
@@ -71,7 +70,7 @@ export const verifyAuthenticatedSession = async (
 };
 
 export const CalyprPageGetServerSideProps: GetServerSideProps<
-  NavPageLayoutProps
+  CalyprLandingPageProps
 > = async (context) => {
   const requestHeaders: Record<string, string> = {};
   const cookieHeader = context.req.headers.cookie;
@@ -123,6 +122,11 @@ export const CalyprPageGetServerSideProps: GetServerSideProps<
       ...navPageLayoutProps,
       calyprConfig: calyprConfig ? calyprConfig : null,
       hasAuthenticatedSession,
+      loginError:
+        context.query.login_error === 'no_project_access' ||
+        context.query.login_error === 'access_check_unavailable'
+          ? context.query.login_error
+          : undefined,
     },
   };
 };
