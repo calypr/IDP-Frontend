@@ -117,16 +117,17 @@ export const CalyprPageGetServerSideProps: GetServerSideProps<
     return { notFound: true };
   }
 
+  const loginError = context.query.login_error;
+
   return {
     props: {
       ...navPageLayoutProps,
       calyprConfig: calyprConfig ? calyprConfig : null,
       hasAuthenticatedSession,
-      loginError:
-        context.query.login_error === 'no_project_access' ||
-        context.query.login_error === 'access_check_unavailable'
-          ? context.query.login_error
-          : undefined,
+      ...(loginError === 'no_project_access' ||
+      loginError === 'access_check_unavailable'
+        ? { loginError }
+        : {}),
     },
   };
 };

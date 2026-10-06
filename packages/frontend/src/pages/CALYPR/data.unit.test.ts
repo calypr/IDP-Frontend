@@ -93,4 +93,20 @@ describe('CALYPR login result', () => {
     expect(result).toHaveProperty('props.loginError', 'no_project_access');
     expect(result).toHaveProperty('props.hasAuthenticatedSession', false);
   });
+
+  it('omits the login error on a normal home request', async () => {
+    global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 401 });
+    jest.mocked(getNavPageLayoutPropsFromConfig).mockResolvedValue({
+      headerProps: { topBar: { items: [] } },
+      footerProps: {},
+    } as Awaited<ReturnType<typeof getNavPageLayoutPropsFromConfig>>);
+
+    const result = await CalyprPageGetServerSideProps({
+      ...context,
+      query: {},
+    });
+
+    expect(result).not.toHaveProperty('props.loginError');
+    expect(result).toHaveProperty('props.hasAuthenticatedSession', false);
+  });
 });
