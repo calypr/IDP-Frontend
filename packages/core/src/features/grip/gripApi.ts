@@ -3,7 +3,7 @@ import { createApi } from '@reduxjs/toolkit/query/react';
 import { JSONObject } from '../../types';
 import { GEN3_GRIP_API } from '../../constants';
 import { getCookie } from 'cookies-next';
-import { selectCSRFToken } from '../user';
+import { selectCSRFToken } from '../user/userSliceRTK';
 import { CoreState } from '../../reducers';
 import { handleUnauthorizedStatus } from '../user/unauthorized';
 
