@@ -6,7 +6,6 @@ import {
   Alert,
   Button,
   Card,
-  Code,
   Container,
   Group,
   Menu,
@@ -58,7 +57,6 @@ import type { FileActionsConfig } from '../../features/CohortBuilder/types';
 import { getFileExtensionCandidates } from '../OrganizationExplorer/utils';
 import { useIsEmbedded } from '../../utils';
 import type { GitExplorerPageProps } from './types';
-import GitUploadPRModal from './GitUploadPRModal';
 import { hardNavigate } from './navigation';
 
 const formatBytes = (size: number): string => {
@@ -171,11 +169,6 @@ const MIRROR_STATUS_POLL_INTERVAL_MS = 1000;
 const isPersistentGitProjectError = (message: string | null | undefined) =>
   (message ?? '').toLowerCase().includes('remote repository is empty');
 
-interface GitProjectSuccessBanner {
-  readonly branchName: string;
-  readonly pullRequestURL: string;
-}
-
 const GitProjectPage = ({
   headerProps,
   footerProps,
@@ -198,12 +191,9 @@ const GitProjectPage = ({
   const [visibleProjectError, setVisibleProjectError] = useState<string | null>(
     null,
   );
-  const [successBanner, setSuccessBanner] =
-    useState<GitProjectSuccessBanner | null>(null);
   const [downloadingChecksum, setDownloadingChecksum] = useState<string | null>(
     null,
   );
-  const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [hasCopiedRepoPath, setHasCopiedRepoPath] = useState(false);
   const [hasCopiedCloneCommand, setHasCopiedCloneCommand] = useState(false);
@@ -397,13 +387,6 @@ const GitProjectPage = ({
   const isSearchOpen = normalizedSearchQuery.length > 0;
   const currentPathSegments = currentPath.split('/').filter(Boolean);
   const isRootView = currentPathSegments.length === 0;
-  const hasNoRepositoryBranches =
-    projectStatus?.installation_state === 'connected' &&
-    projectStatus?.mirror_ready &&
-    !areRefsLoading &&
-    refOptions.length === 0;
-  const isRepositoryUninitialized =
-    hasNoRepositoryBranches && !projectStatus?.default_branch;
   const currentRepoPath = [organization, project, ...currentPathSegments].join('/');
   const breadcrumbSegments = currentPathSegments.map((segment, index) => ({
     label: segment,
@@ -885,16 +868,6 @@ const GitProjectPage = ({
                   >
                     {isRefreshing ? 'Refreshing...' : 'Refresh repository'}
                   </Button>
-                  {!hasNoRepositoryBranches ? (
-                    <Button
-                      className="px-2"
-                      onClick={() => setIsUploadOpen(true)}
-                      size="xs"
-                      variant="default"
-                    >
-                      Upload files
-                    </Button>
-                  ) : null}
                 </Group>
               </Group>
 
@@ -1058,26 +1031,6 @@ const GitProjectPage = ({
                   {visibleProjectError}
                 </Alert>
               ) : null}
-              {successBanner ? (
-                <Alert color="green" variant="light">
-                  Pull request created on branch{' '}
-                  <Code>{successBanner.branchName}</Code>.{' '}
-                  <a
-                    className="text-primary hover:underline"
-                    href={successBanner.pullRequestURL}
-                    rel="noreferrer"
-                    target="_blank"
-                  >
-                    Open pull request
-                  </a>
-                </Alert>
-              ) : null}
-              {isRepositoryUninitialized ? (
-                <Alert color="yellow" variant="light">
-                  This repository has no default branch yet. Initialize your
-                  repo first before uploading files.
-                </Alert>
-              ) : null}
               {projectStatus?.installation_state !== 'connected' ? (
                 <Alert color="blue" variant="light">
                   {projectStatus?.organization_app_installed
@@ -1092,23 +1045,6 @@ const GitProjectPage = ({
                     ? 'to include this repository.'
                     : 'before refreshing this repository mirror.'}
                 </Alert>
-              ) : null}
-
-              {isUploadOpen ? (
-                <GitUploadPRModal
-                  initialBaseBranch={effectiveRef ?? projectStatus?.default_branch}
-                  isRepositoryUninitialized={isRepositoryUninitialized}
-                  onClose={() => setIsUploadOpen(false)}
-                  onSuccess={(result) => {
-                    setSuccessBanner(result);
-                    setIsUploadOpen(false);
-                  }}
-                  opened={isUploadOpen}
-                  organization={organization}
-                  project={project}
-                  refs={refsData?.refs ?? []}
-                  targetSubdirectory={currentPath}
-                />
               ) : null}
 
               {isRootView ? (
