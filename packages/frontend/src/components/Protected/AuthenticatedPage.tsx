@@ -1,7 +1,6 @@
 import React, { ReactNode, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useSession } from '../../lib/session/session';
-import { VerifyingAccessLoader } from './VerifyingAccessLoader';
 import { AccessGate } from './ProtectedContent';
 
 /** Gate page mounting until Fence has resolved the browser session. */
@@ -9,8 +8,6 @@ export const AuthenticatedPage = ({ children }: { children: ReactNode }) => {
   const router = useRouter();
   const { status, pending } = useSession();
   const isPublicPage = router.pathname === '/';
-  const isReturningFromProtectedPage =
-    isPublicPage && typeof router.query?.referer === 'string';
   const isProjectPage = router.pathname.startsWith(
     '/org/[org]/project/[project]',
   );
@@ -47,7 +44,5 @@ export const AuthenticatedPage = ({ children }: { children: ReactNode }) => {
     return <>{children}</>;
   }
 
-  return isPublicPage && !isReturningFromProtectedPage ? (
-    <VerifyingAccessLoader />
-  ) : null;
+  return null;
 };

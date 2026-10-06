@@ -145,6 +145,7 @@ describe('AuthenticatedPage', () => {
     useSession.mockReturnValue({ status: 'not present', pending: true });
     render(page('Public home'));
     expect(screen.queryByText('Public home')).toBeNull();
+    expect(screen.queryByText('Verifying account access')).toBeNull();
   });
 
   it('keeps the home redirect from a protected page visually quiet while checking the session', () => {

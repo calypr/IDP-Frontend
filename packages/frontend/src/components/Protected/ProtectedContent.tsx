@@ -15,12 +15,7 @@ import { useGetAuthzMappingsQuery } from '@gen3/core';
 import { hasFenceAccess, NoAccessOverlay } from './NoAccessOverlay';
 import { hasProjectMembershipOrAccess } from '../../features/projectPresentation/access';
 
-import { VerifyingAccessLoader } from './VerifyingAccessLoader';
 import SessionFailureView from './SessionFailureView';
-export { VerifyingAccessLoader };
-
-const isAppHomePath = (path?: string): boolean =>
-  path === '/' || Boolean(path?.startsWith('/Apps'));
 
 export const AccessGate = ({
   children,
@@ -38,7 +33,7 @@ export const AccessGate = ({
   const hasAccess = hasFenceAccess(authzMapping);
 
   if (isAuthZLoading) {
-    return <VerifyingAccessLoader />;
+    return null;
   }
 
   if (isAuthZError) {
@@ -83,9 +78,6 @@ const ProtectedContent = ({ children, errorStatus }: ProtectedContentProps) => {
   }
 
   if (pending) {
-    if (isAppHomePath(router.pathname)) {
-      return <VerifyingAccessLoader />;
-    }
     return null;
   }
 

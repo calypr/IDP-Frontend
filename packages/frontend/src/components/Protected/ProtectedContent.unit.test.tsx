@@ -75,6 +75,23 @@ describe('ProtectedContent session transitions', () => {
     expect(screen.getByText('Private Git data')).toBeVisible();
   });
 
+  it('keeps protected content hidden while the access mapping loads', () => {
+    useSession.mockReturnValue({ status: 'issued', pending: false });
+    useGetAuthzMappingsQuery.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      isError: false,
+    });
+
+    render(
+      <MantineProvider>
+        <ProtectedContent>Private Git data</ProtectedContent>
+      </MantineProvider>,
+    );
+    expect(screen.queryByText('Private Git data')).toBeNull();
+    expect(screen.queryByText('Verifying account access...')).toBeNull();
+  });
+
   it('removes protected content immediately when an issued session becomes invalid', () => {
     useSession.mockReturnValue({ status: 'issued', pending: false });
     const view = render(

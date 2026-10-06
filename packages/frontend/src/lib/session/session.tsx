@@ -23,7 +23,6 @@ import {
   useLazyFetchUserDetailsQuery,
 } from '@gen3/core';
 
-import { Center } from '@mantine/core';
 
 import { MinutesToMilliseconds } from '../../utils';
 import { useWorkspaceResourceMonitor } from '../../components/Providers/ResourceMonitor';
@@ -276,8 +275,6 @@ export const SessionProvider = ({
   const homeUnauthorizedRef = useRef(false);
   const [isUserVerificationPending, setIsUserVerificationPending] =
     useState(true);
-  const [isHomeRouteTransitionPending, setIsHomeRouteTransitionPending] =
-    useState(false);
   const [isLogoutTransitionPending, setIsLogoutTransitionPending] =
     useState(false);
   const homeNavigationVerificationRef = useRef<Promise<void> | null>(null);
@@ -642,17 +639,12 @@ export const SessionProvider = ({
     const handleRouteChangeStart = (url: string) => {
       if (!isAppHomePath(routePath(url))) return;
 
-      const isReturningFromProtectedPage =
-        routePath(url) === '/' &&
-        new URLSearchParams(url.split('?', 2)[1]).has('referer');
-      setIsHomeRouteTransitionPending(!isReturningFromProtectedPage);
       homeNavigationVerificationRef.current = updateSession();
     };
 
     const handleRouteChangeComplete = (url: string) => {
       if (!isAppHomePath(routePath(url))) {
         homeNavigationVerificationRef.current = null;
-        setIsHomeRouteTransitionPending(false);
         return;
       }
 
@@ -661,14 +653,12 @@ export const SessionProvider = ({
       void verification.finally(() => {
         if (homeNavigationVerificationRef.current === verification) {
           homeNavigationVerificationRef.current = null;
-          setIsHomeRouteTransitionPending(false);
         }
       });
     };
 
     const handleRouteChangeError = () => {
       homeNavigationVerificationRef.current = null;
-      setIsHomeRouteTransitionPending(false);
     };
 
     router.events.on('routeChangeStart', handleRouteChangeStart);
@@ -787,8 +777,6 @@ export const SessionProvider = ({
   const isUserUnauthorized = getRequestErrorStatus(userDetailsError) === 401;
   const hasResolvedUserStatus =
     hasVerifiedAuthenticatedUser || userStatus === 'unauthenticated';
-  const isReturningFromProtectedPage =
-    router.pathname === '/' && typeof router.query?.referer === 'string';
 
   if (isGetCSRFError && !hasResolvedUserStatus) {
     return (
@@ -813,7 +801,7 @@ export const SessionProvider = ({
   }
 
   if (isGetCSRFSuccess && isAppHomePath(router.pathname) && value.pending) {
-    return isReturningFromProtectedPage ? null : <VerifyingAccessLoader />;
+    return null;
   }
 
   if (
@@ -823,14 +811,8 @@ export const SessionProvider = ({
   )
     return (
       <SessionContext.Provider value={value}>
-        {isHomeRouteTransitionPending || isLogoutTransitionPending ? (
-          <VerifyingAccessLoader
-            message={
-              isLogoutTransitionPending
-                ? 'Signing out...'
-                : 'Loading home page...'
-            }
-          />
+        {isLogoutTransitionPending ? (
+          <VerifyingAccessLoader message="Signing out..." />
         ) : (
           children
         )}
@@ -838,10 +820,8 @@ export const SessionProvider = ({
     );
 
   if (isAppHomePath(router.pathname)) {
-    return isReturningFromProtectedPage ? null : (
-      <VerifyingAccessLoader message="Contacting commons services..." />
-    );
+    return null;
   }
 
-  return <Center h="100vh" />;
+  return null;
 };

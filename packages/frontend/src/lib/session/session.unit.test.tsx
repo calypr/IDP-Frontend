@@ -134,8 +134,7 @@ describe('SessionProvider service failure recovery', () => {
     expect(screen.queryByText('Session issued')).toBeNull();
   });
 
-  it('does not start a home-page overlay when redirecting a guest from a protected page', async () => {
-    mockRouter.pathname = '/git';
+  it('does not show a full-screen account loader on the public home page', async () => {
     fetchMock.mockImplementation(async (input, init) =>
       String(input).endsWith('/_status')
         ? response({ csrf: 'token' })
@@ -144,13 +143,32 @@ describe('SessionProvider service failure recovery', () => {
 
     renderSession(store);
     await advanceTime(1);
+    expect(screen.queryByText('Verifying account access...')).toBeNull();
+    expect(screen.queryByText('Session issued')).toBeNull();
+  });
+
+  it('keeps the app mounted during a home route transition', async () => {
+    mockRouter.pathname = '/git';
+    fetchMock.mockImplementation(async (input) =>
+      String(input).endsWith('/_status')
+        ? response({ csrf: 'token' })
+        : response({ username: 'active-user' }),
+    );
+
+    renderSession(store);
+    await advanceTime(1);
+    expect(screen.getByLabelText('Unsaved work')).toBeVisible();
     const routeChangeStart = mockRouter.events.on.mock.calls.find(
       ([event]) => event === 'routeChangeStart',
     )?.[1] as ((url: string) => void) | undefined;
     expect(routeChangeStart).toBeDefined();
 
-    act(() => routeChangeStart?.('/?referer=%2Fgit'));
+    await act(async () => {
+      routeChangeStart?.('/?referer=%2Fgit');
+      await Promise.resolve();
+    });
     expect(screen.queryByText('Loading home page...')).toBeNull();
+    expect(screen.getByLabelText('Unsaved work')).toBeVisible();
   });
 
   it('keeps a verified user in the app when the commons status check times out', async () => {

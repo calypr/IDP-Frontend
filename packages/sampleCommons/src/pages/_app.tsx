@@ -36,7 +36,6 @@ import '@fontsource/lato';
 import { setDRSHostnames } from '@gen3/core';
 import drsHostnames from '../../config/drsHostnames.json';
 import { loadContent } from '@/lib/content/loadContent';
-import Loading from '../components/Loading';
 
 if (
   typeof window !== 'undefined' &&
@@ -105,8 +104,8 @@ const Gen3App = ({
         <title>Calypr</title>
       </Head>
       <MantineProvider theme={mantinetheme}>
-        {isClient ? (
-          <Suspense fallback={<Loading />}>
+        {isClient && (
+          <Suspense fallback={null}>
             <Gen3Provider
               icons={icons}
               sessionConfig={sessionConfig}
@@ -117,9 +116,6 @@ const Gen3App = ({
               </AuthenticatedPage>
             </Gen3Provider>
           </Suspense>
-        ) : (
-          // Show some fallback UI while waiting for the client to load
-          <Loading />
         )}
       </MantineProvider>
     </React.Fragment>
