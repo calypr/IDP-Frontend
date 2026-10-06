@@ -38,6 +38,7 @@ export const AuthenticatedPage = ({
   const router = useRouter();
   const { status, pending } = useSession();
   const isPublicPage = router.pathname === '/';
+  const isProfilePage = router.pathname === '/Profile';
   const isProjectPage = router.pathname.startsWith(
     '/org/[org]/project/[project]',
   );
@@ -46,7 +47,8 @@ export const AuthenticatedPage = ({
   const project =
     typeof router.query?.project === 'string' ? router.query.project : '';
   const projectRouteReady = !isProjectPage || Boolean(organization && project);
-  const checkHomeAccess = isPublicPage && router.isReady && !pending && status === 'issued';
+  const checkHomeAccess =
+    isPublicPage && router.isReady && !pending && status === 'issued';
   const {
     data: authzMapping,
     isLoading: isAuthzLoading,
@@ -59,8 +61,7 @@ export const AuthenticatedPage = ({
     !pending &&
     (status !== 'issued' ||
       (!isAuthzLoading &&
-        (isAuthzError ||
-          (authzMapping !== undefined && !hasAccess))));
+        (isAuthzError || (authzMapping !== undefined && !hasAccess))));
 
   useEffect(() => {
     if (homeReady) onHomeReady?.();
@@ -80,6 +81,7 @@ export const AuthenticatedPage = ({
   }, [router, router.isReady, router.asPath, isPublicPage, pending, status]);
 
   if (router.isReady && projectRouteReady && !pending && status === 'issued') {
+    if (isProfilePage) return <>{children}</>;
     return (
       <AccessGate
         projectScope={isProjectPage ? { organization, project } : undefined}
@@ -98,7 +100,7 @@ export const AuthenticatedPage = ({
     return <>{children}</>;
   }
 
-  return status === 'issued' && !isPublicPage ? (
+  return status === 'issued' && !isPublicPage && !isProfilePage ? (
     <VerifyingAccessLoader />
   ) : null;
 };

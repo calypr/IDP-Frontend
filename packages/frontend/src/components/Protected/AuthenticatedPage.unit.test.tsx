@@ -107,6 +107,15 @@ describe('AuthenticatedPage', () => {
     expect(screen.getByText('No project access')).toBeVisible();
   });
 
+  it('opens Profile for a signed-in user without requiring project access', () => {
+    router.pathname = '/Profile';
+    router.asPath = '/Profile';
+    useSession.mockReturnValue({ status: 'issued', pending: false });
+    hasFenceAccess.mockReturnValue(false);
+    render(page('Profile content'));
+    expect(screen.getByText('Profile content')).toBeVisible();
+  });
+
   it('denies a different project before mounting its page', () => {
     router.pathname = '/org/[org]/project/[project]/storage';
     router.asPath = '/org/alpha/project/secret/storage';
@@ -210,7 +219,11 @@ describe('AuthenticatedPage', () => {
     expect(onHomeReady).not.toHaveBeenCalled();
 
     useGetAuthzMappingsQuery.mockReturnValue({
-      data: { '/programs/alpha/projects/secret': [{ method: 'read', service: 'arborist' }] },
+      data: {
+        '/programs/alpha/projects/secret': [
+          { method: 'read', service: 'arborist' },
+        ],
+      },
       isLoading: false,
       isError: false,
     });
