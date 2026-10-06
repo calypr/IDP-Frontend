@@ -45,5 +45,5 @@ export const AuthenticatedPage = ({ children }: { children: ReactNode }) => {
     return <>{children}</>;
   }
 
-  return <VerifyingAccessLoader />;
+  return isPublicPage ? <VerifyingAccessLoader /> : null;
 };

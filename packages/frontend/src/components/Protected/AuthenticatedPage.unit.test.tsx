@@ -59,11 +59,13 @@ describe('AuthenticatedPage', () => {
     useSession.mockReturnValue({ status: 'not present', pending: true });
     const view = render(page('Private page'));
     expect(screen.queryByText('Private page')).toBeNull();
+    expect(screen.queryByText('Verifying account access')).toBeNull();
     expect(replace).not.toHaveBeenCalled();
 
     useSession.mockReturnValue({ status: 'invalid', pending: false });
     view.rerender(page('Private page'));
     expect(screen.queryByText('Private page')).toBeNull();
+    expect(screen.queryByText('Verifying account access')).toBeNull();
     expect(replace).toHaveBeenCalledWith({
       pathname: '/',
       query: { referer: '/git?tab=mine' },
