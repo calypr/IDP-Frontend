@@ -2,6 +2,7 @@ import React, { ReactNode, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useSession } from '../../lib/session/session';
 import { AccessGate } from './ProtectedContent';
+import { VerifyingAccessLoader } from './VerifyingAccessLoader';
 
 /** Gate page mounting until Fence has resolved the browser session. */
 export const AuthenticatedPage = ({ children }: { children: ReactNode }) => {
@@ -44,5 +45,5 @@ export const AuthenticatedPage = ({ children }: { children: ReactNode }) => {
     return <>{children}</>;
   }
 
-  return null;
+  return status === 'issued' ? <VerifyingAccessLoader /> : null;
 };

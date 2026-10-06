@@ -89,7 +89,7 @@ describe('ProtectedContent session transitions', () => {
       </MantineProvider>,
     );
     expect(screen.queryByText('Private Git data')).toBeNull();
-    expect(screen.queryByText('Verifying account access...')).toBeNull();
+    expect(screen.getByText('Verifying account access...')).toBeVisible();
   });
 
   it('removes protected content immediately when an issued session becomes invalid', () => {

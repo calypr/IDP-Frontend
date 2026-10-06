@@ -79,6 +79,18 @@ describe('AuthenticatedPage', () => {
     expect(replace).not.toHaveBeenCalled();
   });
 
+  it('shows one access loader while the signed-in access mapping loads', () => {
+    useSession.mockReturnValue({ status: 'issued', pending: false });
+    useGetAuthzMappingsQuery.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      isError: false,
+    });
+    render(page('Private page'));
+    expect(screen.queryByText('Private page')).toBeNull();
+    expect(screen.getByText('Verifying account access')).toBeVisible();
+  });
+
   it('does not mount any page for an issued session without project access', () => {
     useSession.mockReturnValue({ status: 'issued', pending: false });
     hasFenceAccess.mockReturnValue(false);

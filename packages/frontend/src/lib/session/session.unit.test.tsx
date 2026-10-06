@@ -53,11 +53,18 @@ const SessionConsumer = () => {
   );
 };
 
-const renderSession = (store: ReturnType<typeof createStore>) =>
+const renderSession = (
+  store: ReturnType<typeof createStore>,
+  initialAuthenticated = false,
+) =>
   render(
     <Provider store={store}>
       <MantineProvider>
-        <SessionProvider updateSessionTime={0} logoutInactiveUsers={false}>
+        <SessionProvider
+          updateSessionTime={0}
+          logoutInactiveUsers={false}
+          initialAuthenticated={initialAuthenticated}
+        >
           <SessionConsumer />
         </SessionProvider>
       </MantineProvider>
@@ -144,6 +151,19 @@ describe('SessionProvider service failure recovery', () => {
     renderSession(store);
     await advanceTime(1);
     expect(screen.queryByText('Verifying account access...')).toBeNull();
+    expect(screen.queryByText('Session issued')).toBeNull();
+  });
+
+  it('shows the access loader during a server-verified sign-in startup', async () => {
+    fetchMock.mockImplementation(async (input, init) =>
+      String(input).endsWith('/_status')
+        ? response({ csrf: 'token' })
+        : timeOut(init),
+    );
+
+    renderSession(store, true);
+    await advanceTime(1);
+    expect(screen.getByText('Verifying account access...')).toBeVisible();
     expect(screen.queryByText('Session issued')).toBeNull();
   });
 

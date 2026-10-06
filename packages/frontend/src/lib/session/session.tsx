@@ -240,6 +240,7 @@ export const SessionProvider = ({
   workspaceInactivityTimeLimit = 0,
   logoutInactiveUsers = true,
   monitorWorkspace = false,
+  initialAuthenticated = false,
 }: SessionProviderProps) => {
   const router = useRouter();
 
@@ -801,7 +802,7 @@ export const SessionProvider = ({
   }
 
   if (isGetCSRFSuccess && isAppHomePath(router.pathname) && value.pending) {
-    return null;
+    return initialAuthenticated ? <VerifyingAccessLoader /> : null;
   }
 
   if (
@@ -820,7 +821,7 @@ export const SessionProvider = ({
     );
 
   if (isAppHomePath(router.pathname)) {
-    return null;
+    return initialAuthenticated ? <VerifyingAccessLoader /> : null;
   }
 
   return null;

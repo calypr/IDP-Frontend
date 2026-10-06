@@ -16,6 +16,7 @@ import { hasFenceAccess, NoAccessOverlay } from './NoAccessOverlay';
 import { hasProjectMembershipOrAccess } from '../../features/projectPresentation/access';
 
 import SessionFailureView from './SessionFailureView';
+import { VerifyingAccessLoader } from './VerifyingAccessLoader';
 
 export const AccessGate = ({
   children,
@@ -33,7 +34,7 @@ export const AccessGate = ({
   const hasAccess = hasFenceAccess(authzMapping);
 
   if (isAuthZLoading) {
-    return null;
+    return <VerifyingAccessLoader />;
   }
 
   if (isAuthZError) {

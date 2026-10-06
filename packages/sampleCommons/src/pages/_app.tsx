@@ -14,6 +14,7 @@ import 'react-complex-tree/lib/style-modern.css';
 import {
   Gen3Provider,
   AuthenticatedPage,
+  VerifyingAccessLoader,
   type ModalsConfig,
   RegisteredIcons,
   SessionConfiguration,
@@ -81,6 +82,7 @@ const Gen3App = ({
   }, []);
 
   const [isClient, setIsClient] = useState(false);
+  const initialAuthenticated = pageProps.hasAuthenticatedSession === true;
 
   useEffect(() => {
     setIsClient(true); // Only on client-side
@@ -104,18 +106,23 @@ const Gen3App = ({
         <title>Calypr</title>
       </Head>
       <MantineProvider theme={mantinetheme}>
-        {isClient && (
-          <Suspense fallback={null}>
+        {isClient ? (
+          <Suspense
+            fallback={initialAuthenticated ? <VerifyingAccessLoader /> : null}
+          >
             <Gen3Provider
               icons={icons}
               sessionConfig={sessionConfig}
               modalsConfig={modalsConfig}
+              initialAuthenticated={initialAuthenticated}
             >
               <AuthenticatedPage>
                 <Component {...pageProps} />
               </AuthenticatedPage>
             </Gen3Provider>
           </Suspense>
+        ) : (
+          initialAuthenticated && <VerifyingAccessLoader />
         )}
       </MantineProvider>
     </React.Fragment>

@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Loader, MantineProvider, Text } from '@mantine/core';
+import { MantineProvider, Text } from '@mantine/core';
 import { useRouter } from 'next/router';
 import type { AppsPageProps } from './types';
 import { NavPageLayout } from '../../features/Navigation';
@@ -8,6 +8,7 @@ import {
   useGetGeckoProjectsQuery,
 } from '@gen3/core';
 import { ProtectedContent } from '../../components/Protected';
+import { VerifyingAccessLoader } from '../../components/Protected/VerifyingAccessLoader';
 
 const projectPresentationHref = (organization: string, project: string) =>
   `/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}/presentation`;
@@ -59,11 +60,7 @@ const AppsPage = ({ headerProps, footerProps }: AppsPageProps) => {
   const content = (
     <div className="px-6 py-4">
       <div className="mx-2">
-        {isGeckoProjectsLoading || isGeckoProjectSummaryLoading ? (
-          <div className="flex min-h-[18rem] items-center justify-center border border-slate-200 bg-white">
-            <Loader />
-          </div>
-        ) : projectCatalog.length === 0 ? (
+        {projectCatalog.length === 0 ? (
           <div className="border border-slate-200 bg-white px-6 py-8">
             <Text fw={600}>No Gecko projects are currently available.</Text>
             <Text c="dimmed" mt="xs" size="sm">
@@ -162,17 +159,21 @@ const AppsPage = ({ headerProps, footerProps }: AppsPageProps) => {
 
   return (
     <ProtectedContent>
-      <NavPageLayout
-        {...{ footerProps }}
-        headerMetadata={{
-          title: 'CALYPR Projects',
-          content: 'Project catalog',
-          key: 'calypr-project-catalog',
-        }}
-        headerProps={headerProps}
-      >
-        <MantineProvider withGlobalClasses>{content}</MantineProvider>
-      </NavPageLayout>
+      {isGeckoProjectsLoading || isGeckoProjectSummaryLoading ? (
+        <VerifyingAccessLoader />
+      ) : (
+        <NavPageLayout
+          {...{ footerProps }}
+          headerMetadata={{
+            title: 'CALYPR Projects',
+            content: 'Project catalog',
+            key: 'calypr-project-catalog',
+          }}
+          headerProps={headerProps}
+        >
+          <MantineProvider withGlobalClasses>{content}</MantineProvider>
+        </NavPageLayout>
+      )}
     </ProtectedContent>
   );
 };

@@ -6,9 +6,13 @@ export const VerifyingAccessLoader = ({
 }: {
   message?: string;
 }) => (
-  <div className="fixed inset-0 z-[2000] flex flex-col items-center justify-center bg-gray-100">
+  <div
+    role="status"
+    aria-live="polite"
+    className="fixed inset-0 z-[2000] flex flex-col items-center justify-center bg-gray-100"
+  >
     <Loader size={50} color="blue" />
-    <Text mt="xl" className="text-gray-600 font-medium animate-pulse">
+    <Text mt="xl" className="text-gray-600 font-medium">
       {message}
     </Text>
   </div>
