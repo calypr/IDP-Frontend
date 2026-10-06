@@ -856,17 +856,14 @@ const GitProjectPage = ({
                   <Group className="min-w-0 flex-1" gap={6} wrap="nowrap">
                     <Link
                       href={`/git/${encodeURIComponent(organization)}`}
-                      legacyBehavior
-                    >
-                      <a className="min-w-0 no-underline text-primary hover:underline">
+                     className="min-w-0 no-underline text-primary hover:underline">
                         <Title
                           className="truncate text-[1.1rem] leading-tight"
                           order={3}
                         >
                           {organization}
                         </Title>
-                      </a>
-                    </Link>
+                      </Link>
                     <Text c="dimmed" fw={700} size="sm">
                       /
                     </Text>
@@ -1088,12 +1085,9 @@ const GitProjectPage = ({
                     : 'This organization does not have the GitHub App installed yet. Connect it from '}
                   <Link
                     href="/git"
-                    legacyBehavior
-                  >
-                    <a className="font-medium underline">
+                   className="font-medium underline">
                       /git
-                    </a>
-                  </Link>{' '}
+                    </Link>{' '}
                   {projectStatus?.organization_app_installed
                     ? 'to include this repository.'
                     : 'before refreshing this repository mirror.'}
