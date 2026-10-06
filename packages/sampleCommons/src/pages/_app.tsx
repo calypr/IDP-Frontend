@@ -4,7 +4,7 @@ if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
   whyDidYouRender(React);
 }
 import App, { AppProps, AppContext, AppInitialProps } from 'next/app';
-import React, { useState, useEffect, useRef, Suspense } from 'react';
+import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import Head from 'next/head';
 import { MantineProvider } from '@mantine/core';
 import mantinetheme from '../mantineTheme';
@@ -13,6 +13,8 @@ import '@xyflow/react/dist/style.css';
 import 'react-complex-tree/lib/style-modern.css';
 import {
   Gen3Provider,
+  AuthenticatedPage,
+  VerifyingAccessLoader,
   type ModalsConfig,
   RegisteredIcons,
   SessionConfiguration,
@@ -35,7 +37,6 @@ import '@fontsource/lato';
 import { setDRSHostnames } from '@gen3/core';
 import drsHostnames from '../../config/drsHostnames.json';
 import { loadContent } from '@/lib/content/loadContent';
-import Loading from '../components/Loading';
 
 if (
   typeof window !== 'undefined' &&
@@ -60,6 +61,7 @@ interface Gen3AppProps {
 const Gen3App = ({
   Component,
   pageProps,
+  router,
   icons,
   sessionConfig,
   modalsConfig,
@@ -81,6 +83,22 @@ const Gen3App = ({
   }, []);
 
   const [isClient, setIsClient] = useState(false);
+  const initialAuthenticated = pageProps.hasAuthenticatedSession === true;
+  const [readyHomePath, setReadyHomePath] = useState<string | null>(null);
+  const showHomeLoader =
+    initialAuthenticated &&
+    router.pathname === '/' &&
+    readyHomePath !== router.asPath;
+  const onHomeReady = useCallback(
+    () => setReadyHomePath(router.asPath),
+    [router.asPath],
+  );
+
+  useEffect(() => {
+    const resetHomeReadiness = () => setReadyHomePath(null);
+    router.events.on('routeChangeStart', resetHomeReadiness);
+    return () => router.events.off('routeChangeStart', resetHomeReadiness);
+  }, [router.events]);
 
   useEffect(() => {
     setIsClient(true); // Only on client-side
@@ -104,19 +122,19 @@ const Gen3App = ({
         <title>Calypr</title>
       </Head>
       <MantineProvider theme={mantinetheme}>
-        {isClient ? (
-          <Suspense fallback={<Loading />}>
+        {showHomeLoader && <VerifyingAccessLoader />}
+        {isClient && (
+          <Suspense fallback={null}>
             <Gen3Provider
               icons={icons}
               sessionConfig={sessionConfig}
               modalsConfig={modalsConfig}
             >
-              <Component {...pageProps} />
+              <AuthenticatedPage onHomeReady={onHomeReady}>
+                <Component {...pageProps} />
+              </AuthenticatedPage>
             </Gen3Provider>
           </Suspense>
-        ) : (
-          // Show some fallback UI while waiting for the client to load
-          <Loading />
         )}
       </MantineProvider>
     </React.Fragment>

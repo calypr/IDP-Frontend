@@ -3,7 +3,6 @@ import {
   Box,
   Button,
   Center,
-  LoadingOverlay,
   Select,
   Stack,
 } from '@mantine/core';
@@ -80,7 +79,7 @@ const LoginProviderSingleItem = ({
 };
 
 const LoginProvidersPanel = ({ handleLoginSelected }: LoginSelectedProps) => {
-  const { data, isSuccess, isError, isLoading, isFetching } =
+  const { data, isSuccess, isError, isLoading } =
     useGetLoginProvidersQuery();
 
   if (isError) {
@@ -91,8 +90,8 @@ const LoginProvidersPanel = ({ handleLoginSelected }: LoginSelectedProps) => {
     );
   }
 
-  if (isLoading || isFetching) {
-    return <LoadingOverlay visible={!isSuccess} />;
+  if (isLoading && !data) {
+    return null;
   }
 
   if (isSuccess && !data) {

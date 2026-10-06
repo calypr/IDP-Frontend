@@ -5,7 +5,6 @@ import UserNavigationMenu from '../../components/Profile/UserNavigationMenu';
 import LoginProvidersMenuPanel from './LoginProvidersMenuPanel';
 import { StylingOverrideWithMergeControl } from '../../types';
 
-import { GEN3_REDIRECT_URL } from '@gen3/core';
 import {
   type CoreState,
   selectUserAuthStatus,
@@ -13,23 +12,8 @@ import {
   isAuthenticated,
 } from '@gen3/core';
 import { UnstyledButton } from '@mantine/core';
-
-const filterRedirect = (redirect: string | string[] | undefined) => {
-  let redirectPath = '';
-  if (Array.isArray(redirect)) {
-    redirectPath = redirect[0];
-  } else {
-    redirectPath = redirect ?? '/';
-  }
-
-  if (/^https?:\/\//i.test(redirectPath) || redirectPath.startsWith('/')) {
-    return redirectPath;
-  }
-
-  return GEN3_REDIRECT_URL
-    ? `${GEN3_REDIRECT_URL}/${redirectPath}`
-    : redirectPath;
-};
+import { appendParameterToUrl } from './utils';
+import { safeRedirect } from './safeRedirect';
 
 const LoginMenu = ({
   frontBanner,
@@ -51,9 +35,15 @@ const LoginMenu = ({
 
   const handleFenceLoginSelected = useCallback(
     async (loginURL: string) => {
-      const targetRedirect = explicitRedirectPath || (referer as string);
+      const targetRedirect = explicitRedirectPath || referer;
       router
-        .push(`${loginURL}?redirect=${filterRedirect(targetRedirect)}`)
+        .push(
+          appendParameterToUrl(
+            loginURL,
+            'redirect',
+            safeRedirect(targetRedirect),
+          ),
+        )
         .catch((e) => {
           showNotification({
             title: 'Login Error',
@@ -61,7 +51,7 @@ const LoginMenu = ({
           });
         });
     },
-    [referer, router],
+    [explicitRedirectPath, referer, router],
   );
   const userStatus = useCoreSelector((state: CoreState) =>
     selectUserAuthStatus(state),

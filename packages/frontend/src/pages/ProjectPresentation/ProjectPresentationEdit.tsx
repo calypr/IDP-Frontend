@@ -7,10 +7,10 @@ import {
   useGetGeckoGitProjectPresentationConfigQuery,
   useUpdateGeckoGitProjectPresentationConfigMutation,
 } from '@gen3/core';
-import { Alert, Center, Loader } from '@mantine/core';
+import { Alert } from '@mantine/core';
 import { useRouter } from 'next/router';
 import { NavPageLayout } from '../../features/Navigation';
-import { ProtectedContent } from '../../components/Protected';
+import { useInitialPageReady } from '../../components/Protected/InitialPageReady';
 import { getNavPageLayoutPropsFromConfig } from '../../lib/common/staticProps';
 import {
   hasOrganizationMembership,
@@ -78,7 +78,9 @@ export const ProjectPresentationEditPage = ({
       candidate.organization === organization && candidate.project === project,
   );
 
-  const [draft, setDraft] = React.useState<ProjectPresentationDraft | null>(null);
+  const [draft, setDraft] = React.useState<ProjectPresentationDraft | null>(
+    null,
+  );
   const [hasUserEdited, setHasUserEdited] = React.useState(false);
   const [saveError, setSaveError] = React.useState<string | null>(null);
 
@@ -137,51 +139,51 @@ export const ProjectPresentationEditPage = ({
     }
   }, [draft, organization, project, updatePresentationConfig]);
 
+  const isPageLoading =
+    !sessionReady ||
+    (isAuthenticated && (isAuthzLoading || isGitStatusLoading)) ||
+    (!unauthorized &&
+      (isProjectsLoading ||
+        isSummaryLoading ||
+        isPresentationLoading ||
+        !draft));
+  useInitialPageReady(!isPageLoading);
+
   return (
-    <ProtectedContent>
-      <NavPageLayout
-        {...{ headerProps, footerProps }}
-        headerMetadata={{
-          title: 'Project Page Editor',
-          content: 'Project page editor',
-          key: 'project-page-editor',
-        }}
-      >
-        {!sessionReady || (isAuthenticated && (isAuthzLoading || isGitStatusLoading)) ? (
-          <Center className="min-h-[55vh]">
-            <Loader />
-          </Center>
-        ) : unauthorized ? (
-          <div className="space-y-4 px-6 py-8 lg:px-8">
-            <Alert color="yellow" variant="light">
-              You must be a member of this organization or project, or have
-              write access to this project, to edit its presentation page.
-            </Alert>
-          </div>
-        ) : isProjectsLoading || isSummaryLoading || isPresentationLoading || !draft ? (
-          <Center className="min-h-[55vh]">
-            <Loader />
-          </Center>
-        ) : (
-          <div className="space-y-4 px-6 py-8 lg:px-8">
-            {saveError ? (
-              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                {saveError}
-              </div>
-            ) : null}
-            <ProjectPresentationEditor
-              draft={draft}
-              isSaving={isSaving}
-              onChange={(nextDraft) => {
-                setHasUserEdited(true);
-                setDraft(nextDraft);
-              }}
-              onSave={handleSave}
-              presentationHref={`/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}/presentation`}
-            />
-          </div>
-        )}
-      </NavPageLayout>
-    </ProtectedContent>
+    <NavPageLayout
+      {...{ headerProps, footerProps }}
+      headerMetadata={{
+        title: 'Project Page Editor',
+        content: 'Project page editor',
+        key: 'project-page-editor',
+      }}
+    >
+      {isPageLoading ? null : unauthorized ? (
+        <div className="space-y-4 px-6 py-8 lg:px-8">
+          <Alert color="yellow" variant="light">
+            You must be a member of this organization or project, or have write
+            access to this project, to edit its presentation page.
+          </Alert>
+        </div>
+      ) : draft ? (
+        <div className="space-y-4 px-6 py-8 lg:px-8">
+          {saveError ? (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {saveError}
+            </div>
+          ) : null}
+          <ProjectPresentationEditor
+            draft={draft}
+            isSaving={isSaving}
+            onChange={(nextDraft) => {
+              setHasUserEdited(true);
+              setDraft(nextDraft);
+            }}
+            onSave={handleSave}
+            presentationHref={`/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}/presentation`}
+          />
+        </div>
+      ) : null}
+    </NavPageLayout>
   );
 };

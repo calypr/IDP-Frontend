@@ -17,13 +17,13 @@ jest.mock('@gen3/core', () => ({
   ...jest.requireActual('../../../../core/src/constants'),
   useCoreSelector: jest.requireActual('react-redux').useSelector,
 }));
-jest.mock('next/router', () => ({
-  useRouter: () => ({
-    pathname: '/',
-    events: { on: jest.fn(), off: jest.fn() },
-    push: jest.fn(),
-  }),
-}));
+const mockRouter = {
+  pathname: '/',
+  query: {} as Record<string, string>,
+  events: { on: jest.fn(), off: jest.fn() },
+  push: jest.fn(),
+};
+jest.mock('next/router', () => ({ useRouter: () => mockRouter }));
 jest.mock('jose', () => ({}));
 jest.mock('../../utils', () => jest.requireActual('../../utils/time'));
 jest.mock('../../components/Providers/ResourceMonitor', () => ({
@@ -57,7 +57,10 @@ const renderSession = (store: ReturnType<typeof createStore>) =>
   render(
     <Provider store={store}>
       <MantineProvider>
-        <SessionProvider updateSessionTime={0} logoutInactiveUsers={false}>
+        <SessionProvider
+          updateSessionTime={0}
+          logoutInactiveUsers={false}
+        >
           <SessionConsumer />
         </SessionProvider>
       </MantineProvider>
@@ -98,6 +101,9 @@ describe('SessionProvider service failure recovery', () => {
 
   beforeEach(() => {
     jest.useFakeTimers();
+    mockRouter.pathname = '/';
+    mockRouter.query = {};
+    mockRouter.events.on.mockClear();
     store = createStore();
     fetchMock = jest.fn();
     global.fetch = fetchMock;
@@ -114,6 +120,58 @@ describe('SessionProvider service failure recovery', () => {
     jest.useRealTimers();
     global.fetch = originalFetch;
     global.BroadcastChannel = originalBroadcastChannel;
+  });
+
+  it('does not show account verification during a protected-page redirect to home', async () => {
+    mockRouter.query = { referer: '/git' };
+    fetchMock.mockImplementation(async (input, init) =>
+      String(input).endsWith('/_status')
+        ? response({ csrf: 'token' })
+        : timeOut(init),
+    );
+
+    renderSession(store);
+    await advanceTime(1);
+
+    expect(screen.queryByText('Verifying account access...')).toBeNull();
+    expect(screen.queryByText('Session issued')).toBeNull();
+  });
+
+  it('does not show a full-screen account loader on the public home page', async () => {
+    fetchMock.mockImplementation(async (input, init) =>
+      String(input).endsWith('/_status')
+        ? response({ csrf: 'token' })
+        : timeOut(init),
+    );
+
+    renderSession(store);
+    await advanceTime(1);
+    expect(screen.queryByText('Verifying account access...')).toBeNull();
+    expect(screen.queryByText('Session issued')).toBeNull();
+  });
+
+  it('keeps the app mounted during a home route transition', async () => {
+    mockRouter.pathname = '/git';
+    fetchMock.mockImplementation(async (input) =>
+      String(input).endsWith('/_status')
+        ? response({ csrf: 'token' })
+        : response({ username: 'active-user' }),
+    );
+
+    renderSession(store);
+    await advanceTime(1);
+    expect(screen.getByLabelText('Unsaved work')).toBeVisible();
+    const routeChangeStart = mockRouter.events.on.mock.calls.find(
+      ([event]) => event === 'routeChangeStart',
+    )?.[1] as ((url: string) => void) | undefined;
+    expect(routeChangeStart).toBeDefined();
+
+    await act(async () => {
+      routeChangeStart?.('/?referer=%2Fgit');
+      await Promise.resolve();
+    });
+    expect(screen.queryByText('Loading home page...')).toBeNull();
+    expect(screen.getByLabelText('Unsaved work')).toBeVisible();
   });
 
   it('keeps a verified user in the app when the commons status check times out', async () => {
@@ -343,7 +401,7 @@ describe('SessionProvider service failure recovery', () => {
     expect(fetchMock.mock.calls.some(([input]) => String(input).includes('/logout'))).toBe(false);
   });
 
-  it('ends the session only after Fence confirms a service 401', async () => {
+  it('shows sign-in after Fence confirms a service 401 without calling logout', async () => {
     let userRequests = 0;
     fetchMock.mockImplementation(async (input) => {
       if (String(input).endsWith('/_status')) return response({ csrf: 'token' });
@@ -361,9 +419,108 @@ describe('SessionProvider service failure recovery', () => {
     act(() => window.dispatchEvent(new CustomEvent('gen3-verify-session')));
     await advanceTime(50);
 
-    expect(userRequests).toBeGreaterThanOrEqual(2);
-    expect(fetchMock.mock.calls.some(([input]) => String(input).includes('/logout'))).toBe(true);
-    expect(screen.queryByText('Session issued')).toBeNull();
+    expect(userRequests).toBe(2);
+    expect(fetchMock.mock.calls.some(([input]) => String(input).includes('/logout'))).toBe(false);
+    expect(screen.getByText('Session invalid')).toBeVisible();
+  });
+
+  it('clears a rejected credentials token after a service 401 before the next login', async () => {
+    document.cookie = 'credentials_token=stale; path=/';
+    let userRequests = 0;
+    fetchMock.mockImplementation(async (input, init) => {
+      if (String(input).endsWith('/_status')) return response({ csrf: 'token' });
+      if (String(input).endsWith('/api/auth/sessionToken'))
+        return response({ status: 'not present' });
+      if (String(input).endsWith('/api/auth/credentialsLogout')) {
+        document.cookie = 'credentials_token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+        return response({}, 204);
+      }
+      userRequests += 1;
+      if (userRequests === 2) return response({ error: 'Please login' }, 401);
+      if (userRequests === 3) {
+        expect(init?.headers).not.toHaveProperty('Authorization');
+      }
+      return response({ username: 'active-user' });
+    });
+
+    try {
+      renderSession(store);
+      await advanceTime(1);
+      expect(screen.getByText('Session issued')).toBeVisible();
+
+      act(() => window.dispatchEvent(new CustomEvent('gen3-verify-session')));
+      await advanceTime(50);
+      expect(screen.getByText('Session invalid')).toBeVisible();
+      expect(document.cookie).not.toContain('credentials_token=stale');
+      expect(fetchMock.mock.calls.some(([input]) =>
+        String(input).endsWith('/api/auth/credentialsLogout'),
+      )).toBe(true);
+
+      await act(async () => {
+        await store.dispatch(
+          userAuthApi.endpoints.fetchUserDetails.initiate(undefined, {
+            forceRefetch: true,
+          }),
+        );
+      });
+      expect(userRequests).toBe(3);
+    } finally {
+      document.cookie = 'credentials_token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+    }
+  });
+
+  it('does not recheck or log out an anonymous visitor after a service 401', async () => {
+    let userRequests = 0;
+    fetchMock.mockImplementation(async (input) => {
+      if (String(input).endsWith('/_status')) return response({ csrf: 'token' });
+      if (String(input).includes('/logout')) return response({});
+      userRequests += 1;
+      return response({ error: 'Please login' }, 401);
+    });
+
+    renderSession(store);
+    act(() => {
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        window.dispatchEvent(new CustomEvent('gen3-verify-session'));
+      }
+    });
+    await advanceTime(1);
+    expect(screen.getByText('Session invalid')).toBeVisible();
+
+    act(() => {
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        window.dispatchEvent(new CustomEvent('gen3-verify-session'));
+      }
+    });
+    await advanceTime(50);
+
+    expect(userRequests).toBe(1);
+    expect(fetchMock.mock.calls.some(([input]) => String(input).includes('/logout'))).toBe(false);
+    expect(screen.getByText('Session invalid')).toBeVisible();
+  });
+
+  it('clears a rejected bearer cookie without calling Fence logout', async () => {
+    document.cookie = 'credentials_token=stale; path=/';
+    fetchMock.mockImplementation(async (input) => {
+      if (String(input).endsWith('/_status')) return response({ csrf: 'token' });
+      if (String(input).endsWith('/api/auth/credentialsLogout')) return response({}, 204);
+      return response({ error: 'Please login' }, 401);
+    });
+
+    try {
+      renderSession(store);
+      await advanceTime(50);
+
+      expect(screen.getByText('Session invalid')).toBeVisible();
+      expect(fetchMock.mock.calls.some(([input]) =>
+        String(input).endsWith('/api/auth/credentialsLogout'),
+      )).toBe(true);
+      expect(fetchMock.mock.calls.some(([input]) =>
+        String(input).includes('/logout'),
+      )).toBe(false);
+    } finally {
+      document.cookie = 'credentials_token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+    }
   });
 
   it('never restores cached authentication after a 401 followed by a network failure', async () => {

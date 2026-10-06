@@ -1,5 +1,5 @@
 import React from 'react';
-import { Loader, Menu, UnstyledButton } from '@mantine/core';
+import { Menu, UnstyledButton } from '@mantine/core';
 import {
   type Gen3LoginProvider,
   type NameUrl,
@@ -48,13 +48,19 @@ const LoginProviderMultipleItemsMenu = ({
 
 const LoginProvidersMenuPanel = ({
   handleLoginSelected,
-  classNames,
+  classNames = {},
   zIndex,
 }: LoginSelectedProps) => {
-  const { data, isSuccess } = useGetLoginProvidersQuery();
+  const { data } = useGetLoginProvidersQuery();
 
-  if (!isSuccess) {
-    return <Loader />;
+  if (!data) {
+    return (
+      <div className="flex justify-center">
+        <UnstyledButton className={classNames.button} disabled>
+          <div className={classNames.label}>Login</div>
+        </UnstyledButton>
+      </div>
+    );
   }
 
   return (

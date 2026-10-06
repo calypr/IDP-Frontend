@@ -1,6 +1,6 @@
 import { describe } from '@jest/globals';
 
-import { groupSharedFields } from '../utils';
+import { groupSharedFields } from '../grouping';
 
 const data = {
   measurement: [

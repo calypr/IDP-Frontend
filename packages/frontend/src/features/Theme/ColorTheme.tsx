@@ -281,7 +281,7 @@ const ColorTheme = () => {
           );
         })}
         {/* todo: make sure color is this custom one */}
-        <div className="mr-6 text-[text-base-contrast.3]">
+        <div className="mr-6 text-base-contrast">
         <Text>
           <p>
             <b>Gen3 Color Theme is based on USWDS theme color tokens</b> which

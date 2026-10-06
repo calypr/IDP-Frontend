@@ -23,7 +23,6 @@ import {
   useLazyFetchUserDetailsQuery,
 } from '@gen3/core';
 
-import { Center } from '@mantine/core';
 
 import { MinutesToMilliseconds } from '../../utils';
 import { useWorkspaceResourceMonitor } from '../../components/Providers/ResourceMonitor';
@@ -276,8 +275,6 @@ export const SessionProvider = ({
   const homeUnauthorizedRef = useRef(false);
   const [isUserVerificationPending, setIsUserVerificationPending] =
     useState(true);
-  const [isHomeRouteTransitionPending, setIsHomeRouteTransitionPending] =
-    useState(false);
   const [isLogoutTransitionPending, setIsLogoutTransitionPending] =
     useState(false);
   const homeNavigationVerificationRef = useRef<Promise<void> | null>(null);
@@ -486,9 +483,9 @@ export const SessionProvider = ({
           !forcedLogoutInFlightRef.current
         ) {
           // The 401 has already resolved authentication as logged out. Clear
-          // the rejected bearer session without issuing another /user request.
+          // the rejected bearer cookie without redirecting through Fence logout.
           forcedLogoutInFlightRef.current = true;
-          void logoutSession()
+          await fetchWithDeadline('/api/auth/credentialsLogout')
             .catch((logoutError: unknown) => {
               showNotification({
                 title: 'Logout Error',
@@ -624,26 +621,17 @@ export const SessionProvider = ({
 
   useEffect(() => {
     const verifyAfterUnauthorized = () => {
-      if (userVerificationPromiseRef.current) return;
-      const verification = (async () => {
-        try {
-          await getUserDetails().unwrap();
-        } catch (error: unknown) {
-          if (getRequestErrorStatus(error) === 401) await endSession(false);
-        }
-      })();
-      userVerificationPromiseRef.current = verification;
-      void verification.finally(() => {
-        if (userVerificationPromiseRef.current === verification) {
-          userVerificationPromiseRef.current = null;
-        }
-      });
+      // The initial /user request already determines whether a visitor is a guest.
+      // Only an authenticated session needs a second Fence check after a service 401.
+      if (userStatus !== 'authenticated' || userVerificationPromiseRef.current)
+        return;
+      void updateSession();
     };
     window.addEventListener(VERIFY_SESSION_EVENT, verifyAfterUnauthorized);
     return () => {
       window.removeEventListener(VERIFY_SESSION_EVENT, verifyAfterUnauthorized);
     };
-  }, [getUserDetails, endSession]);
+  }, [updateSession, userStatus]);
 
   useEffect(() => {
     const routePath = (url: string) => url.split(/[?#]/, 1)[0];
@@ -651,14 +639,12 @@ export const SessionProvider = ({
     const handleRouteChangeStart = (url: string) => {
       if (!isAppHomePath(routePath(url))) return;
 
-      setIsHomeRouteTransitionPending(true);
       homeNavigationVerificationRef.current = updateSession();
     };
 
     const handleRouteChangeComplete = (url: string) => {
       if (!isAppHomePath(routePath(url))) {
         homeNavigationVerificationRef.current = null;
-        setIsHomeRouteTransitionPending(false);
         return;
       }
 
@@ -667,14 +653,12 @@ export const SessionProvider = ({
       void verification.finally(() => {
         if (homeNavigationVerificationRef.current === verification) {
           homeNavigationVerificationRef.current = null;
-          setIsHomeRouteTransitionPending(false);
         }
       });
     };
 
     const handleRouteChangeError = () => {
       homeNavigationVerificationRef.current = null;
-      setIsHomeRouteTransitionPending(false);
     };
 
     router.events.on('routeChangeStart', handleRouteChangeStart);
@@ -817,7 +801,7 @@ export const SessionProvider = ({
   }
 
   if (isGetCSRFSuccess && isAppHomePath(router.pathname) && value.pending) {
-    return <VerifyingAccessLoader />;
+    return null;
   }
 
   if (
@@ -827,14 +811,8 @@ export const SessionProvider = ({
   )
     return (
       <SessionContext.Provider value={value}>
-        {isHomeRouteTransitionPending || isLogoutTransitionPending ? (
-          <VerifyingAccessLoader
-            message={
-              isLogoutTransitionPending
-                ? 'Signing out...'
-                : 'Loading home page...'
-            }
-          />
+        {isLogoutTransitionPending ? (
+          <VerifyingAccessLoader message="Signing out..." />
         ) : (
           children
         )}
@@ -842,8 +820,8 @@ export const SessionProvider = ({
     );
 
   if (isAppHomePath(router.pathname)) {
-    return <VerifyingAccessLoader message="Contacting commons services..." />;
+    return null;
   }
 
-  return <Center h="100vh" />;
+  return null;
 };
