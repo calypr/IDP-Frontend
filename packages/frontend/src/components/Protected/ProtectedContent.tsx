@@ -1,4 +1,4 @@
-import React, { ReactNode } from 'react';
+import React, { ReactNode, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useSession } from '../../lib/session/session';
 import { Text } from '@mantine/core';
@@ -23,9 +23,11 @@ export const AccessGate = ({
   errorStatus,
   projectScope,
   showLoadingIndicator = true,
+  onBlocked,
 }: ProtectedContentProps & {
   projectScope?: { organization: string; project: string };
   showLoadingIndicator?: boolean;
+  onBlocked?: () => void;
 }) => {
   const {
     data: authzMapping = {},
@@ -34,6 +36,29 @@ export const AccessGate = ({
     refetch: refetchAuthz,
   } = useGetAuthzMappingsQuery();
   const hasAccess = hasFenceAccess(authzMapping);
+  const projectDenied = Boolean(
+    projectScope &&
+    !hasProjectMembershipOrAccess(
+      authzMapping,
+      projectScope.organization,
+      projectScope.project,
+    ),
+  );
+  useEffect(() => {
+    if (
+      !isAuthZLoading &&
+      (isAuthZError || !hasAccess || projectDenied || errorStatus === 403)
+    ) {
+      onBlocked?.();
+    }
+  }, [
+    isAuthZLoading,
+    isAuthZError,
+    hasAccess,
+    projectDenied,
+    errorStatus,
+    onBlocked,
+  ]);
 
   if (isAuthZLoading) {
     return showLoadingIndicator ? <VerifyingAccessLoader /> : null;
@@ -52,14 +77,7 @@ export const AccessGate = ({
     return <NoAccessOverlay />;
   }
 
-  if (
-    projectScope &&
-    !hasProjectMembershipOrAccess(
-      authzMapping,
-      projectScope.organization,
-      projectScope.project,
-    )
-  ) {
+  if (projectDenied) {
     return <Custom403Page />;
   }
 

@@ -27,6 +27,7 @@ import {
 } from '@gen3/core';
 import Cookies from 'js-cookie';
 import { GqlQueryEditorProps } from './types';
+import { useInitialPageReady } from '../../components/Protected/InitialPageReady';
 
 const guppyDefaultQuery = `query($filter: JSON) {
   document_reference(filter: $filter, first: 10) {
@@ -389,13 +390,9 @@ const GqlQueryEditor = ({
   const responseExtensions = useMemo(() => [paneOuterScrollTheme], []);
 
 
-  if (isAuthLoading && !headers['X-CSRF-Token']) {
-    return (
-      <Center className="h-64 w-full">
-        <Loader size="md" />
-      </Center>
-    );
-  }
+  const isInitialLoading = isAuthLoading && !headers['X-CSRF-Token'];
+  useInitialPageReady(!isInitialLoading);
+  if (isInitialLoading) return null;
 
   const centerPanelWidth = showDocs
     ? `calc((100% - ${docsWidth}%) * ${queryWidth / 100})`

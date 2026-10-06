@@ -2,6 +2,7 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { MantineProvider } from '@mantine/core';
 import { AuthenticatedPage } from './AuthenticatedPage';
+import { useInitialPageReady } from './InitialPageReady';
 
 const replace = jest.fn().mockResolvedValue(true);
 const router = {
@@ -40,7 +41,11 @@ jest.mock('../../lib/session/session', () => ({
   useSession: () => useSession(),
 }));
 jest.mock('./VerifyingAccessLoader', () => ({
-  VerifyingAccessLoader: () => <div>Verifying account access</div>,
+  VerifyingAccessLoader: ({
+    message = 'Verifying account access',
+  }: {
+    message?: string;
+  }) => <div>{message}</div>,
 }));
 
 describe('AuthenticatedPage', () => {
@@ -115,6 +120,120 @@ describe('AuthenticatedPage', () => {
     render(page('Profile content'));
     expect(screen.getByText('Profile content')).toBeVisible();
   });
+
+  it('keeps one loader through a Query page initial load', () => {
+    router.pathname = '/Query';
+    router.asPath = '/Query';
+    useSession.mockReturnValue({ status: 'issued', pending: false });
+    const QueryContent = ({ ready }: { ready: boolean }) => {
+      useInitialPageReady(ready);
+      return <div>Query editor</div>;
+    };
+    const renderQuery = (ready: boolean) => (
+      <MantineProvider>
+        <AuthenticatedPage>
+          <QueryContent ready={ready} />
+        </AuthenticatedPage>
+      </MantineProvider>
+    );
+
+    const view = render(renderQuery(false));
+    expect(screen.getByText('Loading query editor...')).toBeVisible();
+    expect(screen.getByText('Query editor')).not.toBeVisible();
+    view.rerender(renderQuery(true));
+    expect(screen.queryByText('Loading query editor...')).toBeNull();
+    expect(screen.getByText('Query editor')).toBeVisible();
+  });
+
+  it('keeps the same loader mounted from session verification through page loading', () => {
+    router.pathname = '/Query';
+    router.asPath = '/Query';
+    useSession.mockReturnValue({ status: 'issued', pending: true });
+    const view = render(page('Query editor'));
+    const loader = screen.getByText('Loading query editor...');
+
+    useSession.mockReturnValue({ status: 'issued', pending: false });
+    view.rerender(page('Query editor'));
+    expect(screen.getByText('Loading query editor...')).toBe(loader);
+  });
+
+  it('releases the page loader when access is denied', () => {
+    router.pathname = '/Query';
+    router.asPath = '/Query';
+    useSession.mockReturnValue({ status: 'issued', pending: false });
+    hasFenceAccess.mockReturnValue(false);
+    render(page('Query editor'));
+    expect(screen.queryByText('Loading query editor...')).toBeNull();
+    expect(screen.getByText('No project access')).toBeVisible();
+    expect(screen.queryByText('Query editor')).toBeNull();
+  });
+
+  it('does not show the page loader to a logged-out Query visitor', () => {
+    router.pathname = '/Query';
+    router.asPath = '/Query';
+    useSession.mockReturnValue({ status: 'invalid', pending: false });
+    render(page('Query editor'));
+    expect(screen.queryByText('Loading query editor...')).toBeNull();
+    expect(screen.queryByText('Query editor')).toBeNull();
+    expect(replace).toHaveBeenCalledWith({
+      pathname: '/',
+      query: { referer: '/Query' },
+    });
+  });
+
+  it.each<{
+    pathname: string;
+    asPath: string;
+    query: Record<string, string>;
+    message: string;
+  }>([
+    {
+      pathname: '/org/[org]/project/[project]/presentation',
+      asPath: '/org/alpha/project/secret/presentation',
+      query: { org: 'alpha', project: 'secret' },
+      message: 'Loading project page...',
+    },
+    {
+      pathname: '/app/[appName]',
+      asPath: '/app/CohortDiscovery',
+      query: { appName: 'CohortDiscovery' },
+      message: 'Loading cohort discovery...',
+    },
+  ])(
+    'holds one loader for $asPath until the page is ready',
+    ({ pathname, asPath, query, message }) => {
+      router.pathname = pathname;
+      router.asPath = asPath;
+      router.query = query;
+      useSession.mockReturnValue({ status: 'issued', pending: false });
+      useGetAuthzMappingsQuery.mockReturnValue({
+        data: {
+          '/programs/alpha/projects/secret': [
+            { method: 'read', service: 'arborist' },
+          ],
+        },
+        isLoading: false,
+        isError: false,
+      });
+      const Content = ({ ready }: { ready: boolean }) => {
+        useInitialPageReady(ready);
+        return <div>Page content</div>;
+      };
+      const renderPage = (ready: boolean) => (
+        <MantineProvider>
+          <AuthenticatedPage>
+            <Content ready={ready} />
+          </AuthenticatedPage>
+        </MantineProvider>
+      );
+      const view = render(renderPage(false));
+      expect(screen.getByText(message)).toBeVisible();
+      expect(screen.getByText('Page content')).not.toBeVisible();
+      view.rerender(renderPage(true));
+      expect(screen.queryByText(message)).toBeNull();
+      expect(screen.getByText('Page content')).toBeVisible();
+    },
+  );
 
   it('denies a different project before mounting its page', () => {
     router.pathname = '/org/[org]/project/[project]/storage';
