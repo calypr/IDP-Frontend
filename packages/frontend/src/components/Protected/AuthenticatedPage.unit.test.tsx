@@ -14,6 +14,8 @@ const router = {
 const useSession = jest.fn();
 const hasFenceAccess = jest.fn();
 const useGetAuthzMappingsQuery = jest.fn();
+const useGetGeckoProjectsQuery = jest.fn();
+const useGetGeckoProjectSummaryQuery = jest.fn();
 
 const page = (content: string) => (
   <MantineProvider>
@@ -23,6 +25,8 @@ const page = (content: string) => (
 
 jest.mock('@gen3/core', () => ({
   useGetAuthzMappingsQuery: () => useGetAuthzMappingsQuery(),
+  useGetGeckoProjectsQuery: () => useGetGeckoProjectsQuery(),
+  useGetGeckoProjectSummaryQuery: () => useGetGeckoProjectSummaryQuery(),
 }));
 jest.mock('../Modals/LoginModal', () => ({
   LoginView: () => <div>Login prompt</div>,
@@ -43,11 +47,15 @@ describe('AuthenticatedPage', () => {
   beforeEach(() => {
     replace.mockClear();
     useGetAuthzMappingsQuery.mockClear();
+    useGetGeckoProjectsQuery.mockClear();
+    useGetGeckoProjectSummaryQuery.mockClear();
     useGetAuthzMappingsQuery.mockReturnValue({
       data: {},
       isLoading: false,
       isError: false,
     });
+    useGetGeckoProjectsQuery.mockReturnValue({ isLoading: false });
+    useGetGeckoProjectSummaryQuery.mockReturnValue({ isLoading: false });
     hasFenceAccess.mockReturnValue(true);
     router.pathname = '/git';
     router.asPath = '/git?tab=mine';
@@ -177,5 +185,68 @@ describe('AuthenticatedPage', () => {
     render(page('Public home'));
     expect(screen.getByText('Public home')).toBeVisible();
     expect(replace).not.toHaveBeenCalled();
+  });
+
+  it('reports signed-in home readiness only after access and catalog checks finish', () => {
+    router.pathname = '/';
+    router.asPath = '/';
+    router.query = {};
+    useSession.mockReturnValue({ status: 'issued', pending: false });
+    useGetAuthzMappingsQuery.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      isError: false,
+    });
+    const onHomeReady = jest.fn();
+    const renderHome = () => (
+      <MantineProvider>
+        <AuthenticatedPage onHomeReady={onHomeReady}>
+          Public home
+        </AuthenticatedPage>
+      </MantineProvider>
+    );
+
+    const view = render(renderHome());
+    expect(onHomeReady).not.toHaveBeenCalled();
+
+    useGetAuthzMappingsQuery.mockReturnValue({
+      data: { '/programs/alpha/projects/secret': [{ method: 'read', service: 'arborist' }] },
+      isLoading: false,
+      isError: false,
+    });
+    useGetGeckoProjectsQuery.mockReturnValue({ isLoading: true });
+    view.rerender(renderHome());
+    expect(onHomeReady).not.toHaveBeenCalled();
+
+    useGetGeckoProjectsQuery.mockReturnValue({ isLoading: false });
+    useGetGeckoProjectSummaryQuery.mockReturnValue({ isLoading: true });
+    view.rerender(renderHome());
+    expect(onHomeReady).not.toHaveBeenCalled();
+
+    useGetGeckoProjectSummaryQuery.mockReturnValue({ isLoading: false });
+    view.rerender(renderHome());
+    expect(onHomeReady).toHaveBeenCalled();
+  });
+
+  it('finishes home verification on an access denial without loading the catalog', () => {
+    router.pathname = '/';
+    router.asPath = '/';
+    router.query = {};
+    useSession.mockReturnValue({ status: 'issued', pending: false });
+    hasFenceAccess.mockReturnValue(false);
+    const onHomeReady = jest.fn();
+
+    render(
+      <MantineProvider>
+        <AuthenticatedPage onHomeReady={onHomeReady}>
+          Public home
+        </AuthenticatedPage>
+      </MantineProvider>,
+    );
+
+    expect(screen.getByText('No project access')).toBeVisible();
+    expect(screen.queryByText('Public home')).toBeNull();
+    expect(onHomeReady).toHaveBeenCalled();
+    expect(useGetGeckoProjectsQuery).not.toHaveBeenCalled();
   });
 });

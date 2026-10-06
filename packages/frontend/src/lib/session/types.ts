@@ -63,5 +63,4 @@ export interface SessionConfiguration {
 
 export interface SessionProviderProps extends SessionConfiguration {
   children: React.ReactNode;
-  initialAuthenticated?: boolean;
 }

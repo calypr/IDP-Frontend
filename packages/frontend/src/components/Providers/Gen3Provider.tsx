@@ -15,7 +15,6 @@ interface Gen3ProviderProps {
   icons: Array<RegisteredIcons>;
   sessionConfig: SessionConfiguration;
   modalsConfig: ModalsConfig;
-  initialAuthenticated?: boolean;
   children?: ReactNode | undefined;
 }
 
@@ -83,7 +82,6 @@ const Gen3Provider = ({
   icons,
   sessionConfig,
   modalsConfig,
-  initialAuthenticated,
   children,
 }: Gen3ProviderProps) => {
   useEffect(() => {
@@ -94,7 +92,7 @@ const Gen3Provider = ({
     <CoreProvider>
       <ModalsProvider>
         <Notifications />
-        <SessionProvider {...sessionConfig} initialAuthenticated={initialAuthenticated}>
+        <SessionProvider {...sessionConfig}>
           <SidebarProvider>
             <Gen3ModalsProvider config={modalsConfig}>
               {children}

@@ -3,9 +3,38 @@ import { useRouter } from 'next/router';
 import { useSession } from '../../lib/session/session';
 import { AccessGate } from './ProtectedContent';
 import { VerifyingAccessLoader } from './VerifyingAccessLoader';
+import {
+  useGetAuthzMappingsQuery,
+  useGetGeckoProjectsQuery,
+  useGetGeckoProjectSummaryQuery,
+} from '@gen3/core';
+import { hasFenceAccess } from './NoAccessOverlay';
+
+const HomeCatalogGate = ({
+  children,
+  onReady,
+}: {
+  children: ReactNode;
+  onReady?: () => void;
+}) => {
+  const { isLoading: isProjectsLoading } = useGetGeckoProjectsQuery();
+  const { isLoading: isSummaryLoading } = useGetGeckoProjectSummaryQuery();
+
+  useEffect(() => {
+    if (!isProjectsLoading && !isSummaryLoading) onReady?.();
+  }, [isProjectsLoading, isSummaryLoading, onReady]);
+
+  return isProjectsLoading || isSummaryLoading ? null : <>{children}</>;
+};
 
 /** Gate page mounting until Fence has resolved the browser session. */
-export const AuthenticatedPage = ({ children }: { children: ReactNode }) => {
+export const AuthenticatedPage = ({
+  children,
+  onHomeReady,
+}: {
+  children: ReactNode;
+  onHomeReady?: () => void;
+}) => {
   const router = useRouter();
   const { status, pending } = useSession();
   const isPublicPage = router.pathname === '/';
@@ -17,6 +46,25 @@ export const AuthenticatedPage = ({ children }: { children: ReactNode }) => {
   const project =
     typeof router.query?.project === 'string' ? router.query.project : '';
   const projectRouteReady = !isProjectPage || Boolean(organization && project);
+  const checkHomeAccess = isPublicPage && router.isReady && !pending && status === 'issued';
+  const {
+    data: authzMapping,
+    isLoading: isAuthzLoading,
+    isError: isAuthzError,
+  } = useGetAuthzMappingsQuery(undefined, { skip: !checkHomeAccess });
+  const hasAccess = hasFenceAccess(authzMapping);
+  const homeReady =
+    isPublicPage &&
+    router.isReady &&
+    !pending &&
+    (status !== 'issued' ||
+      (!isAuthzLoading &&
+        (isAuthzError ||
+          (authzMapping !== undefined && !hasAccess))));
+
+  useEffect(() => {
+    if (homeReady) onHomeReady?.();
+  }, [homeReady, onHomeReady]);
 
   useEffect(() => {
     if (!router.isReady || isPublicPage || pending || status === 'issued') {
@@ -35,8 +83,13 @@ export const AuthenticatedPage = ({ children }: { children: ReactNode }) => {
     return (
       <AccessGate
         projectScope={isProjectPage ? { organization, project } : undefined}
+        showLoadingIndicator={!isPublicPage}
       >
-        {children}
+        {isPublicPage ? (
+          <HomeCatalogGate onReady={onHomeReady}>{children}</HomeCatalogGate>
+        ) : (
+          children
+        )}
       </AccessGate>
     );
   }
@@ -45,5 +98,7 @@ export const AuthenticatedPage = ({ children }: { children: ReactNode }) => {
     return <>{children}</>;
   }
 
-  return status === 'issued' ? <VerifyingAccessLoader /> : null;
+  return status === 'issued' && !isPublicPage ? (
+    <VerifyingAccessLoader />
+  ) : null;
 };

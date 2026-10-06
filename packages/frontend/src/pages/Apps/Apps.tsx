@@ -7,8 +7,6 @@ import {
   useGetGeckoProjectSummaryQuery,
   useGetGeckoProjectsQuery,
 } from '@gen3/core';
-import { ProtectedContent } from '../../components/Protected';
-import { VerifyingAccessLoader } from '../../components/Protected/VerifyingAccessLoader';
 
 const projectPresentationHref = (organization: string, project: string) =>
   `/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}/presentation`;
@@ -55,7 +53,7 @@ const AppsPage = ({ headerProps, footerProps }: AppsPageProps) => {
     [geckoProjectSummary],
   );
 
-
+  if (isGeckoProjectsLoading || isGeckoProjectSummaryLoading) return null;
 
   const content = (
     <div className="px-6 py-4">
@@ -158,23 +156,17 @@ const AppsPage = ({ headerProps, footerProps }: AppsPageProps) => {
   );
 
   return (
-    <ProtectedContent>
-      {isGeckoProjectsLoading || isGeckoProjectSummaryLoading ? (
-        <VerifyingAccessLoader />
-      ) : (
-        <NavPageLayout
-          {...{ footerProps }}
-          headerMetadata={{
-            title: 'CALYPR Projects',
-            content: 'Project catalog',
-            key: 'calypr-project-catalog',
-          }}
-          headerProps={headerProps}
-        >
-          <MantineProvider withGlobalClasses>{content}</MantineProvider>
-        </NavPageLayout>
-      )}
-    </ProtectedContent>
+    <NavPageLayout
+      {...{ footerProps }}
+      headerMetadata={{
+        title: 'CALYPR Projects',
+        content: 'Project catalog',
+        key: 'calypr-project-catalog',
+      }}
+      headerProps={headerProps}
+    >
+      <MantineProvider withGlobalClasses>{content}</MantineProvider>
+    </NavPageLayout>
   );
 };
 

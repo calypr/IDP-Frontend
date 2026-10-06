@@ -11,14 +11,6 @@ jest.mock('@gen3/core', () => ({
   useGetGeckoProjectSummaryQuery: () => useGetGeckoProjectSummaryQuery(),
 }));
 jest.mock('next/router', () => ({ useRouter: () => ({ push: jest.fn() }) }));
-jest.mock('../../components/Protected', () => ({
-  ProtectedContent: ({ children }: { children: React.ReactNode }) => (
-    <>{children}</>
-  ),
-}));
-jest.mock('../../components/Protected/VerifyingAccessLoader', () => ({
-  VerifyingAccessLoader: () => <div>Verifying account access</div>,
-}));
 jest.mock('../../features/Navigation', () => ({
   NavPageLayout: ({ children }: { children: React.ReactNode }) => (
     <>{children}</>
@@ -31,14 +23,14 @@ const pageProps = {
   headerMetadata: {},
 } as AppsPageProps;
 
-it('keeps one access loader until both project catalog requests complete', () => {
+it('waits for both project catalog requests before mounting content', () => {
   useGetGeckoProjectsQuery.mockReturnValue({ isLoading: true });
   useGetGeckoProjectSummaryQuery.mockReturnValue({
     data: [],
     isLoading: true,
   });
   const view = render(<AppsPage {...pageProps} />);
-  expect(screen.getByText('Verifying account access')).toBeVisible();
+  expect(screen.queryByText('No Gecko projects are currently available.')).toBeNull();
 
   useGetGeckoProjectsQuery.mockReturnValue({ isLoading: false });
   useGetGeckoProjectSummaryQuery.mockReturnValue({
@@ -46,14 +38,13 @@ it('keeps one access loader until both project catalog requests complete', () =>
     isLoading: true,
   });
   view.rerender(<AppsPage {...pageProps} />);
-  expect(screen.getByText('Verifying account access')).toBeVisible();
+  expect(screen.queryByText('No Gecko projects are currently available.')).toBeNull();
 
   useGetGeckoProjectSummaryQuery.mockReturnValue({
     data: [],
     isLoading: false,
   });
   view.rerender(<AppsPage {...pageProps} />);
-  expect(screen.queryByText('Verifying account access')).toBeNull();
   expect(
     screen.getByText('No Gecko projects are currently available.'),
   ).toBeVisible();

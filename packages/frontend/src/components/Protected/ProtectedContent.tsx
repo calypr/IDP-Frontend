@@ -22,8 +22,10 @@ export const AccessGate = ({
   children,
   errorStatus,
   projectScope,
+  showLoadingIndicator = true,
 }: ProtectedContentProps & {
   projectScope?: { organization: string; project: string };
+  showLoadingIndicator?: boolean;
 }) => {
   const {
     data: authzMapping = {},
@@ -34,7 +36,7 @@ export const AccessGate = ({
   const hasAccess = hasFenceAccess(authzMapping);
 
   if (isAuthZLoading) {
-    return <VerifyingAccessLoader />;
+    return showLoadingIndicator ? <VerifyingAccessLoader /> : null;
   }
 
   if (isAuthZError) {
