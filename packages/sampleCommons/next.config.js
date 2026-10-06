@@ -33,6 +33,7 @@ const withMDX = require('@next/mdx')({
 // Next configuration with support for rewriting API to existing common services
 const nextConfig = {
   reactStrictMode: true,
+  devIndicators: false,
   output: 'standalone',
   allowedDevOrigins: [
     'caliper-training.ohsu.edu',
