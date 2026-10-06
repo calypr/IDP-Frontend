@@ -642,7 +642,10 @@ export const SessionProvider = ({
     const handleRouteChangeStart = (url: string) => {
       if (!isAppHomePath(routePath(url))) return;
 
-      setIsHomeRouteTransitionPending(true);
+      const isReturningFromProtectedPage =
+        routePath(url) === '/' &&
+        new URLSearchParams(url.split('?', 2)[1]).has('referer');
+      setIsHomeRouteTransitionPending(!isReturningFromProtectedPage);
       homeNavigationVerificationRef.current = updateSession();
     };
 
@@ -784,6 +787,8 @@ export const SessionProvider = ({
   const isUserUnauthorized = getRequestErrorStatus(userDetailsError) === 401;
   const hasResolvedUserStatus =
     hasVerifiedAuthenticatedUser || userStatus === 'unauthenticated';
+  const isReturningFromProtectedPage =
+    router.pathname === '/' && typeof router.query?.referer === 'string';
 
   if (isGetCSRFError && !hasResolvedUserStatus) {
     return (
@@ -808,7 +813,7 @@ export const SessionProvider = ({
   }
 
   if (isGetCSRFSuccess && isAppHomePath(router.pathname) && value.pending) {
-    return <VerifyingAccessLoader />;
+    return isReturningFromProtectedPage ? null : <VerifyingAccessLoader />;
   }
 
   if (
@@ -833,7 +838,9 @@ export const SessionProvider = ({
     );
 
   if (isAppHomePath(router.pathname)) {
-    return <VerifyingAccessLoader message="Contacting commons services..." />;
+    return isReturningFromProtectedPage ? null : (
+      <VerifyingAccessLoader message="Contacting commons services..." />
+    );
   }
 
   return <Center h="100vh" />;

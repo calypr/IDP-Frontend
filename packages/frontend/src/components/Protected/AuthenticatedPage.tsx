@@ -9,6 +9,8 @@ export const AuthenticatedPage = ({ children }: { children: ReactNode }) => {
   const router = useRouter();
   const { status, pending } = useSession();
   const isPublicPage = router.pathname === '/';
+  const isReturningFromProtectedPage =
+    isPublicPage && typeof router.query?.referer === 'string';
   const isProjectPage = router.pathname.startsWith(
     '/org/[org]/project/[project]',
   );
@@ -45,5 +47,7 @@ export const AuthenticatedPage = ({ children }: { children: ReactNode }) => {
     return <>{children}</>;
   }
 
-  return isPublicPage ? <VerifyingAccessLoader /> : null;
+  return isPublicPage && !isReturningFromProtectedPage ? (
+    <VerifyingAccessLoader />
+  ) : null;
 };

@@ -14,6 +14,11 @@ const Loading = () => {
   // For the Apps portal, immediately show the Verifying Access spinner to perfectly match ProtectedContent.
   // We use this blue spinner for all loading states on this path to avoid "double spinners" or jumping
   // back to the grey one if access is already verified but other parts of the page are still loading.
+  const isReturningFromProtectedPage =
+    path === '/' &&
+    new URLSearchParams((router?.asPath || '').split('?', 2)[1]).has('referer');
+  if (isReturningFromProtectedPage) return null;
+
   if (isAppHomePath(path)) {
     return <VerifyingAccessLoader />;
   }

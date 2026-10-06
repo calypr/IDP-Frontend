@@ -8,7 +8,7 @@ const router = {
   pathname: '/git',
   asPath: '/git?tab=mine',
   isReady: true,
-  query: { org: 'alpha', project: 'secret' },
+  query: { org: 'alpha', project: 'secret' } as Record<string, string>,
   replace,
 };
 const useSession = jest.fn();
@@ -145,6 +145,16 @@ describe('AuthenticatedPage', () => {
     useSession.mockReturnValue({ status: 'not present', pending: true });
     render(page('Public home'));
     expect(screen.queryByText('Public home')).toBeNull();
+  });
+
+  it('keeps the home redirect from a protected page visually quiet while checking the session', () => {
+    router.pathname = '/';
+    router.asPath = '/?referer=%2Fgit';
+    router.query = { referer: '/git' };
+    useSession.mockReturnValue({ status: 'not present', pending: true });
+    render(page('Public home'));
+    expect(screen.queryByText('Public home')).toBeNull();
+    expect(screen.queryByText('Verifying account access')).toBeNull();
   });
 
   it('allows the public home page for a logged-out visitor', () => {

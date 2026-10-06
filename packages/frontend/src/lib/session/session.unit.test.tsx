@@ -17,13 +17,13 @@ jest.mock('@gen3/core', () => ({
   ...jest.requireActual('../../../../core/src/constants'),
   useCoreSelector: jest.requireActual('react-redux').useSelector,
 }));
-jest.mock('next/router', () => ({
-  useRouter: () => ({
-    pathname: '/',
-    events: { on: jest.fn(), off: jest.fn() },
-    push: jest.fn(),
-  }),
-}));
+const mockRouter = {
+  pathname: '/',
+  query: {} as Record<string, string>,
+  events: { on: jest.fn(), off: jest.fn() },
+  push: jest.fn(),
+};
+jest.mock('next/router', () => ({ useRouter: () => mockRouter }));
 jest.mock('jose', () => ({}));
 jest.mock('../../utils', () => jest.requireActual('../../utils/time'));
 jest.mock('../../components/Providers/ResourceMonitor', () => ({
@@ -98,6 +98,9 @@ describe('SessionProvider service failure recovery', () => {
 
   beforeEach(() => {
     jest.useFakeTimers();
+    mockRouter.pathname = '/';
+    mockRouter.query = {};
+    mockRouter.events.on.mockClear();
     store = createStore();
     fetchMock = jest.fn();
     global.fetch = fetchMock;
@@ -114,6 +117,40 @@ describe('SessionProvider service failure recovery', () => {
     jest.useRealTimers();
     global.fetch = originalFetch;
     global.BroadcastChannel = originalBroadcastChannel;
+  });
+
+  it('does not show account verification during a protected-page redirect to home', async () => {
+    mockRouter.query = { referer: '/git' };
+    fetchMock.mockImplementation(async (input, init) =>
+      String(input).endsWith('/_status')
+        ? response({ csrf: 'token' })
+        : timeOut(init),
+    );
+
+    renderSession(store);
+    await advanceTime(1);
+
+    expect(screen.queryByText('Verifying account access...')).toBeNull();
+    expect(screen.queryByText('Session issued')).toBeNull();
+  });
+
+  it('does not start a home-page overlay when redirecting a guest from a protected page', async () => {
+    mockRouter.pathname = '/git';
+    fetchMock.mockImplementation(async (input, init) =>
+      String(input).endsWith('/_status')
+        ? response({ csrf: 'token' })
+        : timeOut(init),
+    );
+
+    renderSession(store);
+    await advanceTime(1);
+    const routeChangeStart = mockRouter.events.on.mock.calls.find(
+      ([event]) => event === 'routeChangeStart',
+    )?.[1] as ((url: string) => void) | undefined;
+    expect(routeChangeStart).toBeDefined();
+
+    act(() => routeChangeStart?.('/?referer=%2Fgit'));
+    expect(screen.queryByText('Loading home page...')).toBeNull();
   });
 
   it('keeps a verified user in the app when the commons status check times out', async () => {
