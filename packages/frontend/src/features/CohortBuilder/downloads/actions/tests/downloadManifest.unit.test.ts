@@ -95,6 +95,11 @@ describe('downloadToManifestAction function', () => {
       referenceIdFieldInDataIndex: '',
       fileFields: [],
       resourceIdField: '',
+      selector: {
+        recipe: 'project_recipe',
+        translationVersion: 'r000001_abcd',
+        output: 'DocumentReference',
+      },
     };
 
     const done = jest.fn();

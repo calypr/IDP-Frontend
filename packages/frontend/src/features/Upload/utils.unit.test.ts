@@ -28,16 +28,9 @@ jest.mock('@gen3/core', () => ({
       programs: metadata.programs ?? [],
       provider: metadata.provider,
       region: metadata.region,
-      resources: (metadata.programs ?? []).map((resource) =>
-        resource
-          .replace('/programs/', '/organization/')
-          .replace('/projects/', '/project/'),
-      ),
+      resources: metadata.programs ?? [],
     })),
-  normalizeSyfonResourcePath: (resource: string) =>
-    resource
-      .replace('/programs/', '/organization/')
-      .replace('/projects/', '/project/'),
+  normalizeSyfonResourcePath: (resource: string) => resource,
 }));
 
 import {
@@ -57,12 +50,12 @@ describe('Upload utils', () => {
       S3_BUCKETS: {
         alpha: {
           programs: [
-            '/organization/org-a/project/proj-a',
-            '/organization/org-a/project/proj-b',
+            '/programs/org-a/projects/proj-a',
+            '/programs/org-a/projects/proj-b',
           ],
         },
         bravo: {
-          programs: ['/organization/org-b/project/proj-c'],
+          programs: ['/programs/org-b/projects/proj-c'],
         },
       },
     };
@@ -95,11 +88,11 @@ describe('Upload utils', () => {
 
   it('builds controlled access from the selected organization and project', () => {
     expect(buildControlledAccessForUpload('org-a', 'proj-a')).toEqual([
-      '/organization/org-a/project/proj-a',
+      '/programs/org-a/projects/proj-a',
     ]);
 
     expect(buildControlledAccessForUpload('org-b', undefined)).toEqual([
-      '/organization/org-b',
+      '/programs/org-b',
     ]);
 
     expect(buildControlledAccessForUpload(undefined, undefined)).toEqual([
@@ -111,10 +104,10 @@ describe('Upload utils', () => {
     const rawBuckets = {
       S3_BUCKETS: {
         alpha: {
-          programs: ['/organization/org-a/project/proj-a'],
+          programs: ['/programs/org-a/projects/proj-a'],
         },
         bravo: {
-          programs: ['/organization/org-b'],
+          programs: ['/programs/org-b'],
         },
       },
     };

@@ -1967,12 +1967,10 @@ const OrganizationRow = ({
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       {hideCollapse ? (
         <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3 bg-slate-50 px-6 py-4">
-          <Link href="/git" legacyBehavior>
-            <a className="inline-flex w-fit items-center gap-1 text-sm font-medium text-slate-500 transition hover:text-slate-900">
+          <Link href="/git" className="inline-flex w-fit items-center gap-1 text-sm font-medium text-slate-500 transition hover:text-slate-900">
               <IconChevronLeft size={16} />
               Organizations
-            </a>
-          </Link>
+            </Link>
           <div className="min-w-0 text-center">
             <Text fw={700} size="lg" truncate>
               {group.organization}
@@ -1981,15 +1979,12 @@ const OrganizationRow = ({
           {canManageSettings ? (
             <Link
               href={`/git/${encodeURIComponent(group.organization)}/settings`}
-              legacyBehavior
-            >
-              <a
+
                 className={`inline-flex items-center gap-1 px-2.5 py-1 text-sm font-medium ${actionButtonClassName}`}
               >
                 <IconSettings size={15} />
                 Settings
-              </a>
-            </Link>
+              </Link>
           ) : (
             <div />
           )}
@@ -2012,28 +2007,22 @@ const OrganizationRow = ({
             <Tooltip label={`Visit ${group.organization} page`}>
               <Link
                 href={`/git/${encodeURIComponent(group.organization)}`}
-                legacyBehavior
-              >
-                <a className="inline-flex max-w-full text-left decoration-slate-400 underline-offset-4 transition hover:text-slate-700 hover:underline focus-visible:underline">
+               className="inline-flex max-w-full text-left decoration-slate-400 underline-offset-4 transition hover:text-slate-700 hover:underline focus-visible:underline">
                   <Text fw={700} size="lg" truncate>
                     {group.organization}
                   </Text>
-                </a>
-              </Link>
+                </Link>
             </Tooltip>
           </div>
           {canManageSettings ? (
             <Link
               href={`/git/${encodeURIComponent(group.organization)}/settings`}
-              legacyBehavior
-            >
-              <a
+
                 className={`inline-flex items-center gap-1 px-2.5 py-1 text-sm font-medium ${actionButtonClassName}`}
               >
                 <IconSettings size={15} />
                 Settings
-              </a>
-            </Link>
+              </Link>
           ) : (
             <div />
           )}
@@ -2073,7 +2062,7 @@ const OrganizationRow = ({
   );
 };
 
-const GitLandingPage = ({
+const GitLandingContent = ({
   headerProps,
   footerProps,
   selectedOrganization,
@@ -2562,7 +2551,6 @@ const GitLandingPage = ({
       }}
       mainProps={{ className: 'bg-[#f4f6f8]' }}
     >
-      <ProtectedContent>
         <div className="min-h-screen bg-[#f4f6f8]">
           <Container maw={1600} px="2.5rem" py="xl">
             <Stack gap="lg">
@@ -2586,12 +2574,10 @@ const GitLandingPage = ({
                   <section className="border-b border-slate-200 pb-5">
                     <div className="flex items-center justify-between gap-6">
                       <div className="min-w-0">
-                        <Link href="/git" legacyBehavior>
-                          <a className="inline-flex items-center gap-2 text-xl font-bold text-slate-900 transition hover:text-slate-600">
+                        <Link href="/git" className="inline-flex items-center gap-2 text-xl font-bold text-slate-900 transition hover:text-slate-600">
                             <IconBrandGit size={22} />
                             Git
-                          </a>
-                        </Link>
+                          </Link>
                         <Text c="dimmed" size="sm">
                           Manage project repositories, GitHub connections, and
                           project setup across your Calypr organizations.
@@ -2759,9 +2745,16 @@ const GitLandingPage = ({
             </Stack>
           </Container>
         </div>
-      </ProtectedContent>
     </NavPageLayout>
   );
 };
+
+const GitLandingPage = (
+  props: GitExplorerPageProps & { selectedOrganization?: string },
+) => (
+  <ProtectedContent>
+    <GitLandingContent {...props} />
+  </ProtectedContent>
+);
 
 export default GitLandingPage;

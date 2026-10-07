@@ -395,6 +395,12 @@ const toProjectScopedResourcePath = (value: string): string => {
         pathSegments[3].replace(/\.git$/i, ''),
       );
     }
+    if (parsedUrl.hostname === 'github.com' && pathSegments.length === 2) {
+      return buildOrganizationProjectResourcePath(
+        pathSegments[0],
+        pathSegments[1].replace(/\.git$/i, ''),
+      );
+    }
   } catch {
     // Fall through to the non-URL shapes below.
   }

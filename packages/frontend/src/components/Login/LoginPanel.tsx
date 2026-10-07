@@ -7,25 +7,8 @@ import CredentialsLogin from './CredentialsLogin';
 import TextContent from '../Content/TextContent';
 import { LoginConfig } from './types';
 import ContactWithEmailContent from '../Content/ContactWithEmailContent';
-import { GEN3_REDIRECT_URL } from '@gen3/core';
 import { appendParameterToUrl } from './utils';
-
-const filterRedirect = (redirect: string | string[] | undefined) => {
-  let redirectPath = '';
-  if (Array.isArray(redirect)) {
-    redirectPath = redirect[0];
-  } else {
-    redirectPath = redirect ?? '/';
-  }
-
-  if (/^https?:\/\//i.test(redirectPath) || redirectPath.startsWith('/')) {
-    return redirectPath;
-  }
-
-  return GEN3_REDIRECT_URL
-    ? `${GEN3_REDIRECT_URL}/${redirectPath}`
-    : redirectPath;
-};
+import { safeRedirect } from './safeRedirect';
 
 const LoginPanel = (loginConfig: LoginConfig) => {
   const { image, topContent, bottomContent } = loginConfig;
@@ -38,14 +21,14 @@ const LoginPanel = (loginConfig: LoginConfig) => {
   const handleFenceLoginSelected = useCallback(
     (loginURL: string) => {
       window.location.assign(
-        appendParameterToUrl(loginURL, 'redirect', filterRedirect(referer)),
+        appendParameterToUrl(loginURL, 'redirect', safeRedirect(referer)),
       );
     },
     [referer],
   );
 
   const handleCredentialsLogin = useCallback(async () => {
-    const redirect = filterRedirect(referer);
+    const redirect = safeRedirect(referer);
     window.location.assign(redirect);
   }, [referer]);
 

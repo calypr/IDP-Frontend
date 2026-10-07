@@ -32,6 +32,7 @@ const withMDX = require('@next/mdx')({
 // Next configuration with support for rewriting API to existing common services
 const nextConfig = {
   reactStrictMode: true,
+  devIndicators: false,
   // `standalone` is a production deployment artifact. Enabling it during
   // `next dev` makes Next's monorepo file tracer observe `.next/dev` and copy
   // its own Turbopack cache into `.next/standalone`, causing unbounded output.

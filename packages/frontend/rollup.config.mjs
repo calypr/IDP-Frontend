@@ -122,6 +122,15 @@ const config = [
       '@codemirror/autocomplete',
       '@calypr/loom-ui',
       '@calypr/loom-ui/styles.css',
+      '@codemirror/view',
+      '@xyflow/react',
+      'd3',
+      'd3-hierarchy',
+      'graphql-language-service',
+      'lucide-react',
+      'pluralize',
+      'react-complex-tree',
+      'react-plotly.js',
     ],
     plugins: [
       peerDepsExternal(),
@@ -170,6 +179,7 @@ const config = [
         ],
       }),
     ],
+    external: ['@gen3/core'],
   },
 ];
 

@@ -20,6 +20,7 @@ import { buildProjectPresentationDraft } from '../../features/projectPresentatio
 import { ProjectPresentationEditor } from '../../features/projectPresentation/ProjectPresentationEditor';
 import { ProjectPresentationDraft } from '../../features/projectPresentation/types';
 import { useSession } from '../../lib/session/session';
+import { useInitialPageReady } from '../../components/Protected/InitialPageReady';
 
 export const ProjectPresentationEditPage = ({
   headerProps,
@@ -79,7 +80,9 @@ export const ProjectPresentationEditPage = ({
       candidate.organization === organization && candidate.project === project,
   );
 
-  const [draft, setDraft] = React.useState<ProjectPresentationDraft | null>(null);
+  const [draft, setDraft] = React.useState<ProjectPresentationDraft | null>(
+    null,
+  );
   const [hasUserEdited, setHasUserEdited] = React.useState(false);
   const [saveError, setSaveError] = React.useState<string | null>(null);
 
@@ -137,6 +140,16 @@ export const ProjectPresentationEditPage = ({
       );
     }
   }, [draft, organization, project, updatePresentationConfig]);
+
+  const isPageLoading =
+    !sessionReady ||
+    (isAuthenticated && (isAuthzLoading || isGitStatusLoading)) ||
+    (!unauthorized &&
+      (isProjectsLoading ||
+        isSummaryLoading ||
+        isPresentationLoading ||
+        !draft));
+  useInitialPageReady(!isPageLoading);
 
   return (
     <ProtectedContent>

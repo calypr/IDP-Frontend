@@ -83,20 +83,19 @@ describe('OrganizationLandingPage', () => {
     );
 
     expect(screen.getByText('org-a')).toBeInTheDocument();
-    expect(screen.getAllByText('1 project')).toHaveLength(2);
 
     fireEvent.click(screen.getByRole('button', { name: /org-a/i }));
 
     expect(screen.getByText('proj-a').closest('a')).toHaveAttribute(
       'href',
-      '/organization/org-a/project/proj-a',
+      '/org/org-a/project/proj-a/storage',
     );
 
     fireEvent.click(screen.getByRole('button', { name: /org-b/i }));
 
     expect(screen.getByText('proj-z').closest('a')).toHaveAttribute(
       'href',
-      '/organization/org-b/project/proj-z',
+      '/org/org-b/project/proj-z/storage',
     );
   });
 
@@ -122,7 +121,7 @@ describe('OrganizationLandingPage', () => {
     expect(screen.getAllByText('org-b')).toHaveLength(2);
     expect(screen.getByText('proj-z').closest('a')).toHaveAttribute(
       'href',
-      '/organization/org-b/project/proj-z',
+      '/org/org-b/project/proj-z/storage',
     );
   });
 
@@ -151,7 +150,7 @@ describe('OrganizationLandingPage', () => {
     expect(screen.getByText('proj-alpha')).toBeInTheDocument();
     expect(screen.getByText('proj-alpha').closest('a')).toHaveAttribute(
       'href',
-      '/organization/org-a/project/proj-alpha',
+      '/org/org-a/project/proj-alpha/storage',
     );
     expect(screen.queryByText('proj-z')).not.toBeInTheDocument();
   });

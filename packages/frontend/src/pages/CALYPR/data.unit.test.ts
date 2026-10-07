@@ -1,5 +1,16 @@
 import type { GetServerSidePropsContext } from 'next';
 
+jest.mock('../../lib/pageLoader', () => ({
+  definePageLoader:
+    ({ load }: { load: (context: unknown) => Promise<unknown> }) =>
+    async (next: GetServerSidePropsContext) => ({
+      props: await load({
+        next,
+        config: { load: async () => ({}) },
+      }),
+    }),
+}));
+
 jest.mock('@gen3/core', () => ({
   GEN3_COMMONS_NAME: 'cbds',
   GEN3_FENCE_API: '/user',
@@ -9,10 +20,16 @@ jest.mock('../../lib/common/staticProps', () => ({
 }));
 jest.mock('../../lib/content', () => ({
   __esModule: true,
-  default: {},
+  default: {
+    getContentDatabase: () => ({ get: async () => null }),
+  },
 }));
 
-import { sessionRequestHeaders, verifyAuthenticatedSession } from './data';
+import {
+  CalyprPageGetServerSideProps,
+  sessionRequestHeaders,
+  verifyAuthenticatedSession,
+} from './data';
 
 const context = {
   req: {
@@ -171,5 +188,39 @@ describe('sessionRequestHeaders', () => {
     expect(sessionRequestHeaders(fenceContext)).toEqual({
       Cookie: 'access_token=fence-session',
     });
+  });
+});
+
+
+describe('CALYPR login result', () => {
+  const originalFetch = global.fetch;
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+    jest.restoreAllMocks();
+  });
+
+  it('passes a rejected login to the public root page', async () => {
+    global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 401 });
+
+    const result = await CalyprPageGetServerSideProps({
+      ...context,
+      query: { login_error: 'no_project_access' },
+    });
+
+    expect(result).toHaveProperty('props.loginError', 'no_project_access');
+    expect(result).toHaveProperty('props.hasAuthenticatedSession', false);
+  });
+
+  it('omits the login error on a normal home request', async () => {
+    global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 401 });
+
+    const result = await CalyprPageGetServerSideProps({
+      ...context,
+      query: {},
+    });
+
+    expect(result).not.toHaveProperty('props.loginError');
+    expect(result).toHaveProperty('props.hasAuthenticatedSession', false);
   });
 });

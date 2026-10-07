@@ -1006,14 +1006,13 @@ export const FileSummaryPage = ({
   );
 
   const handleApplySelectedChainObjects = useCallback(
-    async (issueId: string) => {
+    async (issueId: string, targetPaths: Array<string>) => {
       const targetIssue = chainIssueSummaries.find(
         (issue) => issue.id === issueId,
       );
       if (!targetIssue) {
         return;
       }
-      const targetPaths = selectedChainPathsByIssue[targetIssue.id] ?? [];
       if (targetPaths.length === 0) {
         return;
       }
@@ -1078,12 +1077,10 @@ export const FileSummaryPage = ({
       removeHealedChainFindings,
       refresh,
       runChainAudit,
-      selectedChainPathsByIssue,
     ],
   );
 
-  const handleRegisterSelectedGitOnly = useCallback(async () => {
-    const targetPaths = selectedChainPathsByIssue.git_only_no_syfon ?? [];
+  const handleRegisterSelectedGitOnly = useCallback(async (targetPaths: Array<string>) => {
     const gitRevision = chainAuditResult?.summary.gitRevision;
     if (targetPaths.length === 0 || !gitRevision) {
       return;
@@ -1121,7 +1118,6 @@ export const FileSummaryPage = ({
     refresh,
     registerGitOnlySyfonRecords,
     runChainAudit,
-    selectedChainPathsByIssue.git_only_no_syfon,
     setSelectedChainPathsForIssue,
   ]);
 
@@ -1262,11 +1258,11 @@ export const FileSummaryPage = ({
                     }}
                     onSelectedChainPathsChange={setSelectedChainPathsForIssue}
                     onToggleChainIssueDetails={handleToggleChainIssueDetails}
-                    onApplySelectedChainObjects={(issueId) => {
-                      void handleApplySelectedChainObjects(issueId);
+                    onApplySelectedChainObjects={(issueId, paths) => {
+                      void handleApplySelectedChainObjects(issueId, paths);
                     }}
-                    onRegisterSelectedGitOnly={() => {
-                      void handleRegisterSelectedGitOnly();
+                    onRegisterSelectedGitOnly={(paths) => {
+                      void handleRegisterSelectedGitOnly(paths);
                     }}
                     selectedChainPathsByIssue={selectedChainPathsByIssue}
                     setExpandedChainTreeNodes={setExpandedChainTreeNodes}

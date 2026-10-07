@@ -22,7 +22,9 @@ jest.mock('@gen3/core', () => ({
 }));
 
 jest.mock('../../features/Navigation', () => ({
-  NavPageLayout: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  NavPageLayout: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
   ProjectWorkspaceTabs: ({
     children,
     hasExplorerConfig,
@@ -35,7 +37,10 @@ jest.mock('../../features/Navigation', () => ({
     project: string;
   }) => (
     <>
-      <a href={`/org/${organization}/project/${project}/presentation`} role="tab">
+      <a
+        href={`/org/${organization}/project/${project}/presentation`}
+        role="tab"
+      >
         Home
       </a>
       {hasExplorerConfig ? (
@@ -58,34 +63,6 @@ jest.mock('../../components/Protected/ProtectedContent', () => ({
 
 jest.mock('../../utils', () => ({
   useIsEmbedded: jest.fn(),
-}));
-
-jest.mock('./GitUploadPRModal', () => ({
-  __esModule: true,
-  default: ({
-    onClose,
-    onSuccess,
-    opened,
-  }: {
-    onClose: () => void;
-    onSuccess: (result: { branchName: string; pullRequestURL: string }) => void;
-    opened: boolean;
-  }) =>
-    opened ? (
-      <div>
-        <button
-          onClick={() =>
-            onSuccess({
-              branchName: 'calypr/upload-test-branch',
-              pullRequestURL: 'https://github.com/example/repo/pull/123',
-            })
-          }
-        >
-          Complete upload flow
-        </button>
-        <button onClick={onClose}>Close upload flow</button>
-      </div>
-    ) : null,
 }));
 
 const { useRouter } = jest.requireMock('next/router') as {
@@ -249,9 +226,13 @@ describe('GitProjectPage', () => {
     ).not.toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Source' })).toBeInTheDocument();
     expect(screen.getByText('About')).toBeInTheDocument();
+    expect(coreMocks.useGetExplorerStateV1Query).toHaveBeenCalledWith(
+      { project: 'Ellrott_Lab/embedding_rotation', explorerId: 'default' },
+      expect.objectContaining({ skip: false }),
+    );
   });
 
-  it('renders the Explorer tab when Gecko config exists for the project', () => {
+  it('renders the Explorer tab when Loom state exists for the project', () => {
     const projectStatus = {
       project_id: 'Ellrott_Lab/embedding_rotation',
       organization: 'Ellrott_Lab',
@@ -311,6 +292,10 @@ describe('GitProjectPage', () => {
     );
 
     expect(screen.getByRole('tab', { name: 'Explorer' })).toBeInTheDocument();
+    expect(coreMocks.useGetExplorerStateV1Query).toHaveBeenCalledWith(
+      { project: 'Ellrott_Lab/embedding_rotation', explorerId: 'default' },
+      expect.objectContaining({ skip: false }),
+    );
   });
 
   it('renders repository tree controls for a connected project', () => {
@@ -386,8 +371,8 @@ describe('GitProjectPage', () => {
       screen.getByRole('button', { name: /refresh repository/i }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: /upload files/i }),
-    ).toBeInTheDocument();
+      screen.queryByRole('button', { name: /upload files/i }),
+    ).not.toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: /remote add/i }),
     ).toBeInTheDocument();
@@ -422,6 +407,7 @@ describe('GitProjectPage', () => {
       installation_target_type: 'Organization',
       organization_app_installed: true,
       sync_state: 'updating',
+      last_error: 'Fence github broker request failed with status 504',
       default_branch: 'main',
       mirror_ready: false,
     };
@@ -446,7 +432,7 @@ describe('GitProjectPage', () => {
       refetch: jest.fn(),
     });
 
-    render(
+    const { rerender } = render(
       <MantineProvider>
         <GitProjectPage {...layoutProps} />
       </MantineProvider>,
@@ -455,91 +441,43 @@ describe('GitProjectPage', () => {
     expect(
       screen.getByText(/initializing repository mirror/i),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByText('Fence github broker request failed with status 504'),
+    ).not.toBeInTheDocument();
 
     act(() => {
       jest.advanceTimersByTime(1000);
     });
 
     expect(refetchStatus).toHaveBeenCalled();
-  });
 
-  it('closes the upload modal and shows a persistent success banner after PR creation', () => {
-    const projectStatus = {
-      project_id: 'Ellrott_Lab/embedding_rotation',
-      organization: 'Ellrott_Lab',
-      project: 'embedding_rotation',
-      resource_path: '/programs/Ellrott_Lab/projects/embedding_rotation',
-      config: {
-        title: 'Embedding Rotation',
-        contact_email: 'owner@example.org',
-        src_repo: 'github.com/EllrottLab/embedding-rotation',
-        org_title: 'Ellrott Lab',
-        description: 'Test project',
-        project_title: 'Embedding Rotation',
-        icon_name: 'git.png',
-      },
-      repository: {
-        host: 'github.com',
-        owner: 'EllrottLab',
-        repo: 'embedding-rotation',
-        url: 'https://github.com/EllrottLab/embedding-rotation',
-      },
-      installation_state: 'connected',
-      installation_target: 'EllrottLab',
-      installation_target_type: 'Organization',
-      organization_app_installed: true,
-      sync_state: 'ready',
-      default_branch: 'main',
-      mirror_ready: true,
-    };
-    coreMocks.useGetGeckoGitProjectStatusQuery.mockReturnValue({
-      data: projectStatus,
-      isLoading: false,
-      refetch: jest.fn(),
-    });
     coreMocks.useGetGeckoGitProjectsQuery.mockReturnValue({
-      data: [projectStatus],
+      data: [{ ...projectStatus, sync_state: 'failed' }],
       isLoading: false,
-      refetch: jest.fn(),
+      refetch: refetchStatus,
     });
-    coreMocks.useGetGeckoGitProjectRefsQuery.mockReturnValue({
-      data: {
-        default_branch: 'main',
-        refs: [{ name: 'main', type: 'branch', hash: 'abc123', default: true }],
-      },
-      isLoading: false,
-      refetch: jest.fn(),
-    });
-    coreMocks.useGetGeckoGitProjectTreeQuery.mockReturnValue({
-      data: {
-        entries: [],
-      },
-      isLoading: false,
-      refetch: jest.fn(),
-    });
-
-    render(
+    rerender(
       <MantineProvider>
         <GitProjectPage {...layoutProps} />
       </MantineProvider>,
     );
-
-    fireEvent.click(screen.getByRole('button', { name: /upload files/i }));
-    expect(screen.getByRole('button', { name: /complete upload flow/i })).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: /complete upload flow/i }));
-
     expect(
-      screen.queryByRole('button', { name: /complete upload flow/i }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.getByText(/pull request created on branch/i),
+      screen.getByText('Fence github broker request failed with status 504'),
     ).toBeInTheDocument();
-    expect(screen.getByText('calypr/upload-test-branch')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /open pull request/i })).toHaveAttribute(
-      'href',
-      'https://github.com/example/repo/pull/123',
+
+    coreMocks.useGetGeckoGitProjectsQuery.mockReturnValue({
+      data: [{ ...projectStatus, sync_state: 'ready', mirror_ready: true }],
+      isLoading: false,
+      refetch: refetchStatus,
+    });
+    rerender(
+      <MantineProvider>
+        <GitProjectPage {...layoutProps} />
+      </MantineProvider>,
     );
+    expect(
+      screen.queryByText('Fence github broker request failed with status 504'),
+    ).not.toBeInTheDocument();
   });
 
   it('shows lfs download actions when the selected file is a git lfs pointer', () => {
@@ -617,7 +555,9 @@ describe('GitProjectPage', () => {
 
     expect(screen.getAllByText('LFS').length).toBeGreaterThan(0);
     expect(
-      screen.getByLabelText(/download lfs object for data\/tcga\.tumor\.ensembl\.tsv/i),
+      screen.getByLabelText(
+        /download lfs object for data\/tcga\.tumor\.ensembl\.tsv/i,
+      ),
     ).toBeInTheDocument();
   });
 
@@ -716,5 +656,4 @@ describe('GitProjectPage', () => {
     );
     openSpy.mockRestore();
   });
-
 });

@@ -167,7 +167,7 @@ const CohortBuilderPage = ({
     >
       <ProjectWorkspaceTabs
         activeTab="explorer"
-        hasExplorerConfig={Boolean(organization && project)}
+        hasExplorerConfig={Boolean(runtime && organization && project)}
         organization={organization}
         project={project}
         explorerHref={explorerHref}

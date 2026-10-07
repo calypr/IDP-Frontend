@@ -57,8 +57,14 @@ describe('project Explorer Builder route', () => {
 
     render(
       <ProjectExplorerBuilder
-        headerProps={{}}
-        footerProps={{}}
+        headerProps={{
+          topBar: { items: [] },
+          navigation: { items: [] },
+          leftnav: [],
+          basePage: false,
+        }}
+        footerProps={{ basePage: false }}
+        headerMetadata={{ title: 'Explorer Builder', content: '', key: 'builder' }}
         pageProblems={[]}
       />,
     );

@@ -1,10 +1,9 @@
 import {
   DownloadFromGuppyParams,
   GuppyDownloadDataParams,
-  IndexAndField,
 } from './types';
 import { GEN3_GUPPY_API } from '../../constants';
-import { selectCSRFToken } from '../user';
+import { selectCSRFToken } from '../user/userSliceRTK';
 import { coreStore } from '../../store';
 import { convertFilterSetToGqlFilter } from '../filters';
 import { jsonToFormat } from './conversion';
@@ -86,7 +85,7 @@ export const downloadFromGuppyToBlob = async ({
   const url = prepareUrl(GEN3_GUPPY_API);
   const fetchConfig = prepareFetchConfig(parameters, csrfToken);
 
-  fetch(url.toString(), {
+  return fetch(url.toString(), {
     ...fetchConfig,
     ...(signal ? { signal: signal } : {}),
   } as RequestInit)
@@ -165,31 +164,4 @@ export const downloadJSONDataFromGuppy = async ({
     }
     throw new Error(error);
   }
-};
-
-export const groupSharedFields = (data: Record<string, string[]>) => {
-  const reverseIndex: Record<string, Set<string>> = {};
-
-  // Build reverse index: track which root keys contain each element
-  for (const rootKey in data) {
-    data[rootKey].forEach((value) => {
-      if (!reverseIndex[value]) {
-        reverseIndex[value] = new Set();
-      }
-      reverseIndex[value].add(rootKey);
-    });
-  }
-
-  return Object.entries(reverseIndex).reduce(
-    (acc, [field, indexSet]) => {
-      if (indexSet.size > 1) {
-        acc[field] = Array.from(indexSet).map((x) => ({
-          index: x,
-          field: field,
-        }));
-      }
-      return acc;
-    },
-    {} as Record<string, Array<IndexAndField>>,
-  );
 };

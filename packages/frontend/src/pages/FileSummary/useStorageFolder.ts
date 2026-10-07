@@ -8,7 +8,7 @@ import {
   type StoragePathRow,
   type StoragePathSummary,
 } from './storageUtils';
-import { requestSessionLogout } from '../../lib/session/session';
+import { requestSessionVerification } from '../../lib/session/session';
 
 const DEFAULT_CHILD_LIMIT = 100;
 const STORAGE_FOLDER_CACHE_TTL_MS = 60_000;
@@ -110,7 +110,7 @@ const handleUnauthorizedResponse = (response: Response): boolean => {
     return false;
   }
 
-  requestSessionLogout();
+  requestSessionVerification();
   return true;
 };
 

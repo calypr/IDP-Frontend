@@ -6,7 +6,7 @@ import type { QueryConfiguration } from './types';
 
 // Wrapper function for displaying loading element before GqlQueryEditor renders
 const GqlQueryEditor = dynamic(() => import('./GqlQueryEditor'), {
-  loading: () => <LoadingOverlay visible={true} />,
+  loading: () => null,
   ssr: false,
 });
 

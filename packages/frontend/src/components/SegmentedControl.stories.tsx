@@ -1,6 +1,9 @@
 import React from 'react';
 import { Meta, StoryObj } from '@storybook/nextjs-vite';
-import { BarChartIcon, SurvivalChartIcon } from '../types/icons';
+import {
+  MdBarChart as BarChartIcon,
+  MdTrendingDown as SurvivalChartIcon,
+} from 'react-icons/md';
 import { SegmentedControlItem, Tooltip } from '@mantine/core';
 import SegmentedControl from './SegmentedControl';
 

@@ -5,6 +5,10 @@ const jestConfig: JestConfigWithTsJest = {
   setupFilesAfterEnv: ['<rootDir>/setupTests.ts'],
   testEnvironment: 'jsdom',
   moduleNameMapper: {
+    '^jose$': '<rootDir>/__mocks__/joseMock.ts',
+    '^nanoid$': '<rootDir>/../../node_modules/nanoid/index.browser.cjs',
+    '^uuid$': '<rootDir>/__mocks__/uuidMock.ts',
+    '^queue$': '<rootDir>/__mocks__/queueMock.js',
     '^@/app(.*)$': '<rootDir>/src/app/$1',
     '^@/components(.*)$': '<rootDir>/src/components/$1',
     '^@/features/(.*)$': '<rootDir>/src/features/$1',

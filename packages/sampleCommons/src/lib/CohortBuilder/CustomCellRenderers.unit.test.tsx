@@ -30,7 +30,7 @@ it('uses the row sha256 for image-viewer actions instead of the cell UUID', () =
         {
           cell: { getValue: () => 'old-file-uuid' },
           row: { original: { sha256: 'sha256-value' } },
-        } as CellRendererFunctionProps,
+        } as unknown as CellRendererFunctionProps,
         { actionUrl: '/image-viewer/view' },
       )}
     </MantineProvider>,
@@ -49,7 +49,7 @@ it('does not render an invalid image-viewer link when sha256 is absent', () => {
         {
           cell: { getValue: () => 'old-file-uuid' },
           row: { original: {} },
-        } as CellRendererFunctionProps,
+        } as unknown as CellRendererFunctionProps,
         { actionUrl: '/image-viewer/view' },
       )}
     </MantineProvider>,

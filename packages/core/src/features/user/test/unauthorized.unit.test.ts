@@ -10,7 +10,7 @@ describe('unauthorized response handling', () => {
     jest.restoreAllMocks();
   });
 
-  it('dispatches a login-requesting logout event for 401', () => {
+  it('requests session verification for 401', () => {
     const dispatchEvent = jest.spyOn(window, 'dispatchEvent');
 
     expect(handleUnauthorizedStatus(401)).toBe(true);
@@ -19,8 +19,8 @@ describe('unauthorized response handling', () => {
     const event = dispatchEvent.mock.calls[0][0] as CustomEvent<{
       showLoginModal: boolean;
     }>;
-    expect(event.type).toBe('gen3-force-logout');
-    expect(event.detail).toEqual({ showLoginModal: true });
+    expect(event.type).toBe('gen3-verify-session');
+    expect(event.detail).toBeNull();
   });
 
   it.each([undefined, 200, 403, 409, 500])(

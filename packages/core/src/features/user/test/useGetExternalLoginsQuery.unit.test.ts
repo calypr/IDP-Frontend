@@ -1,5 +1,4 @@
 import { useGetExternalLoginsQuery } from '../externalLoginsSlice';
-import { renderHook } from '@testing-library/react';
 
 const RESPONSE = {
   'providers': [
@@ -50,9 +49,7 @@ describe('useGetExternalLoginsQuery', () => {
     const mockReturnValue = { data: 'mock data' };  // Modify this value as needed
     (useGetExternalLoginsQuery as jest.Mock).mockReturnValue(mockReturnValue);
 
-    const { result } = renderHook(() => useGetExternalLoginsQuery());
-
-    expect(result.current).toEqual(mockReturnValue);
+    expect(useGetExternalLoginsQuery()).toEqual(mockReturnValue);
     expect(useGetExternalLoginsQuery).toHaveBeenCalled(); // Optionally check if it was called without specific params
   });
 });

@@ -172,12 +172,19 @@ export const CalyprPageGetServerSideProps =
   definePageLoader<CalyprLandingPageProps>({
     name: 'CALYPR',
     loadNavigation: loadCalyprNavigation,
-    load: async (context) => ({
-      configuration: (await context.config.load(
-        calyprConfiguration,
-      )) as CalyprProps,
-      hasAuthenticatedSession: await loadSessionState(context),
-    }),
+    load: async (context) => {
+      const loginError = context.next.query.login_error;
+      return {
+        configuration: (await context.config.load(
+          calyprConfiguration,
+        )) as CalyprProps,
+        hasAuthenticatedSession: await loadSessionState(context),
+        ...(loginError === 'no_project_access' ||
+        loginError === 'access_check_unavailable'
+          ? { loginError }
+          : {}),
+      };
+    },
     fallback: () => ({
       configuration: null,
       hasAuthenticatedSession: null,

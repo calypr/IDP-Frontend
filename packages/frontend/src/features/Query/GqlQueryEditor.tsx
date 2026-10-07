@@ -55,6 +55,7 @@ import { applyProjectBinding, getModePreset } from './presets';
 import { normalizeQueryConfiguration, parseVariables } from './config';
 import { useQueryProjectSelector } from './project';
 import type { GqlQueryEditorProps } from './types';
+import { useInitialPageReady } from '../../components/Protected/InitialPageReady';
 
 const STACK_DRAGGER_PX = 8;
 
@@ -97,6 +98,7 @@ const GqlQueryEditor = ({ configuration }: GqlQueryEditorProps) => {
   const { isLoading: isAuthLoading } = useGetCSRFQuery();
   const headers = useCoreSelector(selectHeadersWithCSRFToken);
   const projectSelector = useQueryProjectSelector();
+  useInitialPageReady(!isAuthLoading && !projectSelector.isLoading);
 
   const defaultMode = normalizedConfiguration.defaultMode;
   const [selectedModeID, setSelectedModeID] = useState(defaultMode);

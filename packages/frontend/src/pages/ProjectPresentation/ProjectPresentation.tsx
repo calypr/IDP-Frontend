@@ -6,10 +6,10 @@ import {
   useGetGeckoProjectsQuery,
   useGetGeckoGitProjectPresentationConfigQuery,
 } from '@gen3/core';
-import { Center, Loader } from '@mantine/core';
 import { useRouter } from 'next/router';
 import { NavPageLayout } from '../../features/Navigation';
 import { ProjectWorkspaceTabs } from '../../features/Navigation';
+import { useInitialPageReady } from '../../components/Protected/InitialPageReady';
 import { ProtectedContent } from '../../components/Protected';
 import { useIsEmbedded } from '../../utils';
 import type { NavPageLayoutProps } from '../../features/Navigation';
@@ -42,7 +42,6 @@ export const ProjectPresentationPage = ({
     isAdmin ||
     hasOrganizationMembership(authzMapping, organization) ||
     hasProjectMembershipOrAccess(authzMapping, organization, project);
-
   const { data: geckoProjects = [], isLoading: isProjectsLoading } =
     useGetGeckoProjectsQuery();
   const { data: explorer } = useGetExplorerStateV1Query(
@@ -91,23 +90,22 @@ export const ProjectPresentationPage = ({
     bodyHTML: presentationHTML,
   });
 
-  const presentationContent =
-    !sessionReady || (isAuthenticated && isAuthzLoading) ? (
-      <Center className="min-h-[55vh]">
-        <Loader />
-      </Center>
-    ) : isProjectsLoading || isSummaryLoading || isPresentationLoading ? (
-      <Center className="min-h-[55vh]">
-        <Loader />
-      </Center>
-    ) : (
-      <div className="px-6 py-8 lg:px-8">
-        <ProjectPresentationView draft={draft} />
-      </div>
-    );
+  const isPageLoading =
+    !sessionReady ||
+    (isAuthenticated && isAuthzLoading) ||
+    isProjectsLoading ||
+    isSummaryLoading ||
+    isPresentationLoading;
+  useInitialPageReady(!isPageLoading);
+
+  const presentationContent = isPageLoading ? null : (
+    <div className="px-6 py-8 lg:px-8">
+      <ProjectPresentationView draft={draft} />
+    </div>
+  );
 
   if (isEmbedded) {
-    return <ProtectedContent>{presentationContent}</ProtectedContent>;
+    return presentationContent;
   }
 
   return (
