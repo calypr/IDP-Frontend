@@ -277,7 +277,6 @@ export const SessionProvider = ({
     useState(true);
   const [isLogoutTransitionPending, setIsLogoutTransitionPending] =
     useState(false);
-  const homeNavigationVerificationRef = useRef<Promise<void> | null>(null);
 
   const broadcastChannelRef = useRef<BroadcastChannel | null>(null);
 
@@ -633,44 +632,6 @@ export const SessionProvider = ({
     };
   }, [updateSession, userStatus]);
 
-  useEffect(() => {
-    const routePath = (url: string) => url.split(/[?#]/, 1)[0];
-
-    const handleRouteChangeStart = (url: string) => {
-      if (!isAppHomePath(routePath(url))) return;
-
-      homeNavigationVerificationRef.current = updateSession();
-    };
-
-    const handleRouteChangeComplete = (url: string) => {
-      if (!isAppHomePath(routePath(url))) {
-        homeNavigationVerificationRef.current = null;
-        return;
-      }
-
-      const verification =
-        homeNavigationVerificationRef.current ?? updateSession();
-      void verification.finally(() => {
-        if (homeNavigationVerificationRef.current === verification) {
-          homeNavigationVerificationRef.current = null;
-        }
-      });
-    };
-
-    const handleRouteChangeError = () => {
-      homeNavigationVerificationRef.current = null;
-    };
-
-    router.events.on('routeChangeStart', handleRouteChangeStart);
-    router.events.on('routeChangeComplete', handleRouteChangeComplete);
-    router.events.on('routeChangeError', handleRouteChangeError);
-
-    return () => {
-      router.events.off('routeChangeStart', handleRouteChangeStart);
-      router.events.off('routeChangeComplete', handleRouteChangeComplete);
-      router.events.off('routeChangeError', handleRouteChangeError);
-    };
-  }, [router.events, updateSession]);
   /**
    * Update session value every updateSessionInterval seconds
    */

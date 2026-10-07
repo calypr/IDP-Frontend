@@ -150,27 +150,33 @@ describe('SessionProvider service failure recovery', () => {
     expect(screen.queryByText('Session issued')).toBeNull();
   });
 
-  it('keeps the app mounted during a home route transition', async () => {
+  it('does not recheck Fence just because navigation targets home', async () => {
     mockRouter.pathname = '/git';
-    fetchMock.mockImplementation(async (input) =>
-      String(input).endsWith('/_status')
-        ? response({ csrf: 'token' })
-        : response({ username: 'active-user' }),
-    );
+    let userRequests = 0;
+    fetchMock.mockImplementation(async (input) => {
+      if (String(input).endsWith('/_status')) return response({ csrf: 'token' });
+      if (String(input).endsWith('/api/auth/sessionToken'))
+        return response({ status: 'not present' });
+      userRequests += 1;
+      return response({ username: 'active-user' });
+    });
 
-    renderSession(store);
+    const view = renderSession(store);
     await advanceTime(1);
     expect(screen.getByLabelText('Unsaved work')).toBeVisible();
-    const routeChangeStart = mockRouter.events.on.mock.calls.find(
-      ([event]) => event === 'routeChangeStart',
-    )?.[1] as ((url: string) => void) | undefined;
-    expect(routeChangeStart).toBeDefined();
-
-    await act(async () => {
-      routeChangeStart?.('/?referer=%2Fgit');
-      await Promise.resolve();
-    });
-    expect(screen.queryByText('Loading home page...')).toBeNull();
+    expect(userRequests).toBe(1);
+    mockRouter.pathname = '/';
+    view.rerender(
+      <Provider store={store}>
+        <MantineProvider>
+          <SessionProvider updateSessionTime={0} logoutInactiveUsers={false}>
+            <SessionConsumer />
+          </SessionProvider>
+        </MantineProvider>
+      </Provider>,
+    );
+    await advanceTime(1);
+    expect(userRequests).toBe(1);
     expect(screen.getByLabelText('Unsaved work')).toBeVisible();
   });
 
