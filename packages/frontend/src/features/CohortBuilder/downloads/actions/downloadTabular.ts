@@ -1,4 +1,8 @@
-import { downloadJSONDataFromGuppy, GuppyDownloadDataParams } from '@gen3/core';
+import {
+  downloadJSONDataFromLoom,
+  LoomDownloadParams,
+  LoomDatasetSelector,
+} from '@gen3/core';
 import { handleDownload } from './utils';
 import { jsonToCsv } from '../utils/jsonToCsv';
 import { ActionButtonWithArgsFunction } from '../../types';
@@ -11,6 +15,8 @@ export interface DownloadTabularParams {
   filename?: string;
   accessibility?: any;
   sort?: any;
+  selector?: LoomDatasetSelector;
+  projectIds?: ReadonlyArray<string>;
 }
 
 export const downloadTabularAction: ActionButtonWithArgsFunction = async (
@@ -22,27 +28,33 @@ export const downloadTabularAction: ActionButtonWithArgsFunction = async (
 ): Promise<void> => {
   // Cast the generic record to your specific interface for internal use
   const {
-    resourceIndexType,
     fileFields,
     type,
     filter,
-    accessibility,
     sort,
     filename,
+    selector,
+    projectIds,
   } = params as DownloadTabularParams;
   const downloadFilename = filename ?? `${type}_export.csv`;
+  if (!selector) {
+    onError?.(
+      new Error('This download has no published Loom dataset selector.'),
+    );
+    return;
+  }
 
-  const cohortFilterParams: GuppyDownloadDataParams = {
+  const cohortFilterParams: LoomDownloadParams = {
     filter,
-    type: resourceIndexType || type,
+    selector,
+    projectIds,
     fields: fileFields,
-    accessibility,
     sort,
     format: 'json',
   };
 
   try {
-    const data = await downloadJSONDataFromGuppy({
+    const data = await downloadJSONDataFromLoom({
       parameters: cohortFilterParams,
       onAbort,
       signal,

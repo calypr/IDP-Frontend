@@ -34,7 +34,7 @@ export const DropdownPanel = ({
   tabTitle,
   facetDefinitions,
   facetDataHooks,
-  onAccessChange = (value: Accessibility) => null,
+  onAccessChange = (_value: Accessibility) => null,
   accessLevel = Accessibility.ALL,
   showAccessLevel = false,
 }: TabbablePanelProps) => {
@@ -64,9 +64,10 @@ export const DropdownPanel = ({
     [filters.tabs],
   );
 
-  const fields = filters.tabs[Number(value)].fields.reduce((acc, field) => {
-    return [...acc, facetDefinitions[field]];
-  }, [] as FacetDefinition[]);
+  const activeFilterTab = filters.tabs[Number(value)] ?? filters.tabs[0];
+  const fields = (activeFilterTab?.fields ?? [])
+    .map((field) => facetDefinitions[field])
+    .filter((definition): definition is FacetDefinition => Boolean(definition));
 
   const handleSharedFiltersChange = (value: boolean) => {
     modals.openConfirmModal({
@@ -143,7 +144,7 @@ export const DropdownPanel = ({
             onChange={setValue}
           />
         )}
-        {Object.keys(facetDefinitions).length > 0 ? (
+        {fields.length > 0 ? (
           <FiltersPanel
             fields={fields}
             dataFunctions={facetDataHooks}

@@ -2,13 +2,14 @@ import React, { ReactElement } from 'react';
 import { Text } from '@mantine/core';
 import { JSONObject } from '@gen3/core';
 import { CellRendererFunction } from './types';
-import { toString } from 'lodash';
+import { renderCell } from '../../../utils/renderCell';
 
 const defaultCellRenderer: CellRendererFunction = (
   value,
   params?: JSONObject,
 ): ReactElement => {
-  if (value === undefined || value === null || toString(value) === '') {
+  const content = renderCell(value);
+  if (content === '') {
     return (
       <Text>
         {`${
@@ -19,7 +20,7 @@ const defaultCellRenderer: CellRendererFunction = (
       </Text>
     );
   }
-  return <Text>{toString(value)}</Text>;
+  return <Text>{content}</Text>;
 };
 
 export interface CellRendererFunctionCatalogEntry {

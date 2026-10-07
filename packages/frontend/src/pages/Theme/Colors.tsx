@@ -3,10 +3,11 @@ import { NavPageLayout, NavPageLayoutProps } from '../../features/Navigation';
 
 import ColorTheme from '../../features/Theme/ColorTheme';
 
-const ColorThemePage = ({ headerProps, footerProps }: NavPageLayoutProps) => {
+const ColorThemePage = ({ headerProps, footerProps, pageProblems }: NavPageLayoutProps) => {
   return (
     <NavPageLayout
       {...{ headerProps, footerProps }}
+      pageProblems={pageProblems}
       headerMetadata={{
         title: 'Gen3 Theme Page',
         content: 'Theme page',

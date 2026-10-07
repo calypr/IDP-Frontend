@@ -100,6 +100,7 @@ const FacetControlsHeader = ({
           >
             <ActionIcon
               onClick={() => {
+                if (!isFilterExpanded) hooks.demandFacet?.(field);
                 toggleExpandFilter(field, !isFilterExpanded);
               }}
               aria-expanded={isFilterExpanded}

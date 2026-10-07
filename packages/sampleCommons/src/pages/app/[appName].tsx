@@ -4,21 +4,25 @@ import {
   selectGen3AppByName,
   GEN3_COMMONS_NAME,
 } from '@gen3/core';
-import { GetServerSideProps } from 'next';
 import { NextRouter, useRouter } from 'next/dist/client/router';
+import { z } from 'zod';
+import { defineSamplePageLoader } from '@/lib/content/pageLoader';
 
 import {
   NavPageLayout,
   NavPageLayoutProps,
-  getNavPageLayoutPropsFromConfig,
-  ContentSource,
 } from '@gen3/frontend';
 
 interface AppConfig extends NavPageLayoutProps {
-  config?: Record<string, any>;
+  configuration?: Record<string, any> | null;
 }
 
-const AppsPage = ({ headerProps, footerProps, config }: AppConfig) => {
+const AppsPage = ({
+  headerProps,
+  footerProps,
+  configuration,
+  pageProblems,
+}: AppConfig) => {
   const router = useRouter();
   const appName = getAppName(router);
 
@@ -36,14 +40,15 @@ const AppsPage = ({ headerProps, footerProps, config }: AppConfig) => {
   return (
     <NavPageLayout
       {...{ headerProps, footerProps }}
+      pageProblems={pageProblems}
       headerMetadata={{
         title: 'Gen3 App Page',
         content: 'App Data',
         key: 'gen3-app-page',
-        ...(config?.headerMetadata ? config.headerMetadata : {}),
+        ...(configuration?.headerMetadata ? configuration.headerMetadata : {}),
       }}
     >
-      {GdcApp && <GdcApp {...config} />}
+      {GdcApp && <GdcApp {...configuration} />}
     </NavPageLayout>
   );
 };
@@ -56,31 +61,19 @@ const getAppName = (router: NextRouter): string => {
   return 'UNKNOWN_APP_ID';
 };
 
-export const getServerSideProps: GetServerSideProps<
-  NavPageLayoutProps
-> = async (context) => {
-  const appName = context.query.appName as string;
-
-  console.log('loading', appName);
-
-  try {
-    const config: any = await ContentSource.getContentDatabase().get(
-      `${GEN3_COMMONS_NAME}/apps/${appName}.json`,
-    );
+export const getServerSideProps = defineSamplePageLoader(
+  'DynamicApp',
+  async (context) => {
+    const appName = context.next.query.appName as string;
     return {
-      props: {
-        ...(await getNavPageLayoutPropsFromConfig()),
-        config: config,
-      },
+      configuration: await context.config.load({
+        id: `app.${appName}`,
+        source: 'content',
+        resolvePath: () => `${GEN3_COMMONS_NAME}/apps/${appName}.json`,
+        schema: z.object({}).passthrough(),
+      }),
     };
-  } catch (err) {
-    return {
-      props: {
-        ...(await getNavPageLayoutPropsFromConfig()),
-        config: null,
-      },
-    };
-  }
-};
+  },
+);
 
 export default AppsPage;

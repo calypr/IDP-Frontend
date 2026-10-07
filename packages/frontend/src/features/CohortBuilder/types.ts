@@ -8,9 +8,8 @@ import { SummaryTable } from './ExplorerTable/types';
 import { FacetSortType, FieldToName } from '../../components/facets/types';
 import { DownloadButtonProps } from '../../components/Buttons/DropdownButtons';
 import { Dispatch, SetStateAction } from 'react';
-import { Modals, SharedFieldMapping } from '@gen3/core';
+import { ExplorerRuntimeV1, LoomDatasetSelector, Modals, SharedFieldMapping } from '@gen3/core';
 import { StylingOverride } from '../../types/styling';
-import { Gen3AppConfigData } from '../../lib/content/types';
 import { FacetDefinition } from '@gen3/core';
 
 export type FacetType =
@@ -45,6 +44,9 @@ export interface ManifestFieldsConfig {
 
 export interface DataTypeConfig {
   dataType: string;
+  loomDataset?: LoomDatasetSelector;
+  /** Authoritative project scope for Loom dataframe reads. */
+  loomProjectIds?: ReadonlyArray<string>;
   nodeCountTitle?: string;
   accessibleFieldCheckList?: string[];
   accessibleValidationField?: string;
@@ -81,7 +83,9 @@ export interface CohortPanelConfiguration {
   buttons?: ReadonlyArray<DownloadButtonConfig>; // row of action buttons
   loginForDownload?: boolean; // login required for download
   sharedFiltersMap?: SharedFieldMapping;
-  preFilters?: Record<string, any>; // Tab-specific filters (e.g. { project_id: ["HTAN_INT-BForePC"] })
+  preFilters?: Record<string, any>; // Tab-specific filters (e.g. { project_id: ["PROGRAM-PROJECT"] })
+  /** The panel was projected from ExplorerRuntimeV1 and already has server capabilities. */
+  runtimeOwned?: boolean;
 }
 
 export interface SharedFieldConfiguration {
@@ -106,16 +110,13 @@ export interface FileActionsConfig {
   actions: Record<string, string>;
 }
 
-export interface CohortBuilderConfiguration extends Gen3AppConfigData {
-  tabsLayout?: 'left' | 'right' | 'center'; // top level tabs layout
-  sharedFilters?: SharedFieldConfiguration; // enabled for sharing filters across indexes for denormalized data.
-  explorerConfig: Array<CohortPanelConfiguration>;
-  accessControl?: AccessControlConfiguration;
-  fileActions?: FileActionsConfig;
-}
-
-export interface CohortBuilderProps
-  extends Omit<CohortBuilderConfiguration, 'sharedFilters'> {
+export interface CohortBuilderProps {
+  /** Runtime is the canonical Explorer input. */
+  runtime: ExplorerRuntimeV1;
+  project: string;
+  activeTab?: string | null;
+  hideTabList?: boolean;
+  onTabChange?: (value: string | null) => void;
   sharedFiltersMap: SharedFieldMapping | null;
 }
 
@@ -142,8 +143,10 @@ export type ActionButtonWithArgsFunction = (
   signal?: AbortSignal,
 ) => Promise<void>;
 
-export interface DownloadButtonPropsWithAction
-  extends Omit<DownloadButtonProps, 'action' | 'actionArgs'> {
+export interface DownloadButtonPropsWithAction extends Omit<
+  DownloadButtonProps,
+  'action' | 'actionArgs'
+> {
   actionFunction: ActionButtonWithArgsFunction;
   actionArgs: Record<string, any>;
 }

@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "validations": [
+    {"status": "VALID", "diagnostics": [], "acknowledgedOmissions": []},
+    {"status": "VALID_WITH_OMISSIONS", "diagnostics": [{"severity": "warning", "code": "FIELD_OMITTED", "configPath": "tabs[0].table.columns[1]", "message": "A missing optional field will be omitted."}], "acknowledgedOmissions": ["tabs[0].table.columns[1]"]},
+    {"status": "INVALID", "diagnostics": [{"severity": "error", "code": "FIELD_NOT_SORTABLE", "configPath": "tabs[0].table.sort[0].field", "message": "The selected field is not sortable."}], "acknowledgedOmissions": []}
+  ],
+  "revision": {
+    "id": "0198a7d1-6c2b-7000-8000-000000000301",
+    "projectId": "acme/cancer-study",
+    "configId": "patient-overview",
+    "revisionNumber": 1,
+    "contentDigest": "sha256:explorer",
+    "loomRecipeRevisionId": "0198a7d1-6c2b-7000-8000-000000000003",
+    "status": "VALID",
+    "diagnostics": [],
+    "createdAt": "2026-08-11T18:10:00Z"
+  }
+}

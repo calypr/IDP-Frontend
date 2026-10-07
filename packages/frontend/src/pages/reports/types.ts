@@ -1,15 +1,13 @@
-import { type NavPageLayoutProps } from '../../features/Navigation';
 import { SummaryTable } from '../../features/CohortBuilder/ExplorerTable/types';
 import { HistogramData } from '@gen3/core';
+import type { ConfigPageProps } from '../../lib/pageLoader';
 
 export interface ReportsConfiguration {
   tableConfig: SummaryTable;
   Title: string;
 }
 
-export interface ReportsPageProps extends NavPageLayoutProps {
-  reportsConfig: ReportsConfiguration;
-}
+export type ReportsPageProps = ConfigPageProps<ReportsConfiguration>;
 
 // a definition of the query response
 export interface HistData {

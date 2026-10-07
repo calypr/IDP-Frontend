@@ -6,10 +6,12 @@ import { UploadPageProps } from './types';
 const UploadPage = ({
   headerProps,
   footerProps,
+  pageProblems,
 }: UploadPageProps): JSX.Element => {
   return (
     <NavPageLayout
       {...{ footerProps, headerProps }}
+      pageProblems={pageProblems}
       headerMetadata={{
         title: 'Gen3 Upload Page',
         content: 'Upload page',

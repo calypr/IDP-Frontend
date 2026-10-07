@@ -2,28 +2,27 @@ import React from 'react';
 
 // if we want to use MDX
 // import LandingPageMDX from "../../content/landing.mdx"
-import LandingPageContent, {
-  LandingPageProps,
-} from '../../components/Content/LandingPageContent';
+import LandingPageContent from '../../components/Content/LandingPageContent';
 import NavPageLayout from '../../features/Navigation/NavPageLayout';
-import type { NavPageLayoutProps } from '../../features/Navigation';
-interface Props extends NavPageLayoutProps {
-  landingPage: LandingPageProps;
-}
+import type { LandingPageProps } from './types';
 
-const LandingPage = ({ headerProps, footerProps, landingPage }: Props) => {
+const LandingPage = ({ headerProps, footerProps, pageProblems, configuration }: LandingPageProps) => {
   return (
     <NavPageLayout
-      {...{ footerProps, headerProps }}
+      {...{ footerProps, headerProps, pageProblems }}
       headerMetadata={{
         title: 'Gen3 Home Page',
         content: 'Home page',
         key: 'gen3-home-page',
-        ...(landingPage?.headerMetadata ? landingPage.headerMetadata : {}),
+        ...(configuration?.landing?.headerMetadata
+          ? configuration.landing.headerMetadata
+          : {}),
       }}
     >
       <div className="flex justify-items-center w-full">
-        <LandingPageContent content={landingPage} />
+        {configuration?.landing && (
+          <LandingPageContent content={configuration.landing} />
+        )}
       </div>
     </NavPageLayout>
   );

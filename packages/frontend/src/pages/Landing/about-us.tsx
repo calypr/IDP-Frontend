@@ -1,19 +1,16 @@
 import React from 'react';
-import { GetServerSideProps } from 'next';
 import NavPageLayout from '../../features/Navigation/NavPageLayout';
-import type { NavPageLayoutProps } from '../../features/Navigation';
-import { getNavPageLayoutPropsFromConfig } from '../../lib/common/staticProps';
+import { definePageLoader, type PageProps } from '../../lib/pageLoader';
+import { loadNavigationFromContext } from '../../lib/common/staticProps';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useRouter } from 'next/router';
 import { Text } from '@mantine/core';
 import { FaExternalLinkAlt } from 'react-icons/fa';
 
-const AboutUsPage = ({ footerProps, headerProps }: NavPageLayoutProps) => {
-  const { basePath } = useRouter();
+const AboutUsPage = ({ footerProps, headerProps, pageProblems }: PageProps) => {
   return (
     <NavPageLayout
-      {...{ footerProps, headerProps }}
+      {...{ footerProps, headerProps, pageProblems }}
       headerMetadata={{
         title: 'Gen3 About Us Page',
         content: ' About Us Page',
@@ -100,14 +97,10 @@ const AboutUsPage = ({ footerProps, headerProps }: NavPageLayoutProps) => {
 };
 
 // should move this thing into _app.tsx and make a dedicated layout component after https://github.com/vercel/next.js/discussions/10949 is addressed
-export const getStaticProps: GetServerSideProps<
-  NavPageLayoutProps
-> = async () => {
-  return {
-    props: {
-      ...(await getNavPageLayoutPropsFromConfig()),
-    },
-  };
-};
+export const getServerSideProps = definePageLoader<PageProps>({
+  name: 'AboutUs',
+  loadNavigation: loadNavigationFromContext,
+  load: async () => ({}),
+});
 
 export default AboutUsPage;

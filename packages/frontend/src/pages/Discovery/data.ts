@@ -1,54 +1,42 @@
-import { GetServerSideProps } from 'next';
 import { DataLibraryStoreMode, GEN3_COMMONS_NAME } from '@gen3/core';
-import { getNavPageLayoutPropsFromConfig } from '../../lib/common/staticProps';
-import ContentSource from '../../lib/content';
+import { definePageLoader } from '../../lib/pageLoader';
+import { loadNavigationFromContext } from '../../lib/common/staticProps';
 import { type DiscoveryConfig } from '../../features/Discovery';
-import type { NavPageLayoutProps } from '../../features/Navigation';
 import { DataLibraryConfig } from '../../features/DataLibrary';
-import { DiscoveryPageProps } from './types';
+import { DiscoveryConfigurationSchema } from './configurationSchema';
+import { DataLibraryConfigurationSchema } from '../DataLibrary/configurationSchema';
+import type { DiscoveryPageProps } from './types';
 
-export const DiscoveryPageGetServerSideProps: GetServerSideProps<
-  DiscoveryPageProps
-> = async (context) => {
-  const cookieHeader = context.req.headers.cookie;
-  const requestHeaders: Record<string, string> = {};
-  if (cookieHeader) {
-    requestHeaders['Cookie'] = cookieHeader;
-  }
-  try {
-    const discoveryConfig: DiscoveryConfig =
-      await ContentSource.getContentDatabase().get(
-        `${GEN3_COMMONS_NAME}/discovery.json`,
-        requestHeaders,
-      );
-    // need data library config for export from discovery using the DataLibrary
-    const datalibraryConfig: DataLibraryConfig =
-      await ContentSource.getContentDatabase().get(
-        `${GEN3_COMMONS_NAME}/dataLibrary.json`,
-        requestHeaders,
-      );
-
-    discoveryConfig.metadataConfig?.forEach((index) => {
-      if (index.features.exportFromDiscovery)
-        index.features.exportFromDiscovery.dataLibraryStoreMode =
-          datalibraryConfig?.storageMode ?? DataLibraryStoreMode.ApiOnly;
-    });
-
-    return {
-      props: {
-        ...(await getNavPageLayoutPropsFromConfig(requestHeaders)),
-        discoveryConfig: discoveryConfig,
-      },
-    };
-  } catch (err: unknown) {
-    const status = (err as any).status || 500;
-    context.res.statusCode = status;
-    return {
-      props: {
-        ...(await getNavPageLayoutPropsFromConfig(requestHeaders)),
-        discoveryConfig: null as any,
-        errorStatus: status,
-      },
-    };
-  }
+const discoveryConfiguration = {
+  id: 'discovery',
+  source: 'content' as const,
+  resolvePath: () => `${GEN3_COMMONS_NAME}/discovery.json`,
+  schema: DiscoveryConfigurationSchema,
 };
+
+const dataLibraryConfiguration = {
+  id: 'discovery-data-library',
+  source: 'content' as const,
+  resolvePath: () => `${GEN3_COMMONS_NAME}/dataLibrary.json`,
+  schema: DataLibraryConfigurationSchema,
+};
+
+export const DiscoveryPageGetServerSideProps =
+  definePageLoader<DiscoveryPageProps>({
+    name: 'Discovery',
+    loadNavigation: loadNavigationFromContext,
+    load: async (context) => {
+      const discoveryConfig = (await context.config.load(discoveryConfiguration)) as unknown as DiscoveryConfig;
+      const dataLibraryConfig = (await context.config.load(dataLibraryConfiguration)) as unknown as DataLibraryConfig;
+
+      discoveryConfig.metadataConfig?.forEach((index) => {
+        if (index.features.exportFromDiscovery) {
+          index.features.exportFromDiscovery.dataLibraryStoreMode =
+            dataLibraryConfig.storageMode ?? DataLibraryStoreMode.ApiOnly;
+        }
+      });
+
+      return { configuration: discoveryConfig };
+    },
+    fallback: () => ({ configuration: null }),
+  });

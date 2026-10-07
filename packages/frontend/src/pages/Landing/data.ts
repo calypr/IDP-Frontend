@@ -1,94 +1,61 @@
-import { GetServerSideProps } from 'next';
-import path from 'path'; // Import the path module to resolve file paths
-import { getNavPageLayoutPropsFromConfig } from '../../lib/common/staticProps';
-import ContentSource from '../../lib/content';
+import { definePageLoader, type ServerPageContext } from '../../lib/pageLoader';
+import { loadNavigationFromContext } from '../../lib/common/staticProps';
 import { GEN3_COMMONS_NAME } from '@gen3/core';
-import { type SmmartProps } from '../Smmart/types';
-import { NavPageLayoutProps } from '../../features/Navigation';
-import { SmmartConfig } from '../Smmart/types';
+import { LandingConfigurationSchema } from './configurationSchema';
+import { SmmartConfigurationSchema } from '../Smmart/configurationSchema';
+import type { LandingConfiguration, LandingPageProps } from './types';
+
+const landingConfiguration = {
+  id: 'landing-page',
+  source: 'content' as const,
+  resolvePath: () => `${GEN3_COMMONS_NAME}/landingPage.json`,
+  schema: LandingConfigurationSchema,
+};
+
+const smmartConfiguration = {
+  id: 'smmart-landing-page',
+  source: 'content' as const,
+  resolvePath: () => `${GEN3_COMMONS_NAME}/smmartLandingPage.json`,
+  schema: SmmartConfigurationSchema,
+};
+
+const hasAuthenticatedSession = (context: ServerPageContext): boolean =>
+  Boolean(context.headers.Authorization) ||
+  /(?:^|;\s*)(?:access_token|credentials_token)=/i.test(
+    context.headers.Cookie ?? '',
+  );
+
+const loadLandingNavigation = async (context: ServerPageContext) => {
+  const navigation = await loadNavigationFromContext(context);
+  if (hasAuthenticatedSession(context)) return navigation;
+
+  return {
+    ...navigation,
+    headerProps: {
+      ...navigation.headerProps,
+      topBar: {
+        ...navigation.headerProps.topBar,
+        items: navigation.headerProps.topBar.items.filter(
+          (item: { href: string }) => item.href !== '/git',
+        ),
+      },
+    },
+  };
+};
 
 /**
  * Fetches the necessary data for the landing page from content sources.
  * It handles potential file-not-found errors gracefully by returning null for missing configs.
  * @returns {Promise<{ props: { ... } }>} The props for the landing page component.
  */
-export const LandingPageGetServerSideProps: GetServerSideProps = async (
-  context,
-) => {
-  let navPageLayoutProps: NavPageLayoutProps | null = null;
-  let landingPage: any | null = null;
-  let smmartConfig: SmmartConfig | null = null;
-  const requestHeaders: Record<string, string> = {};
-  const cookieHeader = context.req.headers.cookie;
-  const authorizationHeader = context.req.headers.authorization;
-  const hasAuthenticatedSession =
-    (typeof authorizationHeader === 'string' && authorizationHeader.length > 0) ||
-    (typeof cookieHeader === 'string' &&
-      /(?:^|;\s*)(?:access_token|credentials_token)=/i.test(cookieHeader));
-
-  if (typeof cookieHeader === 'string' && cookieHeader) {
-    requestHeaders.Cookie = cookieHeader;
-  }
-  if (typeof authorizationHeader === 'string' && authorizationHeader) {
-    requestHeaders.Authorization = authorizationHeader;
-  }
-
-  try {
-    navPageLayoutProps = await getNavPageLayoutPropsFromConfig(requestHeaders);
-    if (navPageLayoutProps && !hasAuthenticatedSession) {
-      const filteredItems = navPageLayoutProps.headerProps.topBar.items.filter(
-        (item: { href: string }) => item.href !== '/git',
-      );
-      navPageLayoutProps = {
-        ...navPageLayoutProps,
-        headerProps: {
-          ...navPageLayoutProps.headerProps,
-          topBar: {
-            ...navPageLayoutProps.headerProps.topBar,
-            items: filteredItems,
-          },
-        },
-      };
-    }
-  } catch (err) {
-    console.error('Error fetching NavPageLayoutProps:', err);
-  }
-
-  if (!navPageLayoutProps) {
-    return { notFound: true };
-  }
-
-  try {
-    // Fetch the landing page config.
-    // Assuming getContentDatabase().get() expects a path relative to the content root.
-    landingPage = await ContentSource.getContentDatabase().get(
-      `${GEN3_COMMONS_NAME}/landingPage.json`,
-    );
-  } catch (err) {
-    console.error('Error fetching landingPage config:', err);
-  }
-
-  try {
-    // Correcting the file path: The original error 'config/config/...'
-    // suggests the path passed to getContentDatabase().get() was redundant.
-    const smmartConfigPath = path.join(
-      GEN3_COMMONS_NAME,
-      'smmartLandingPage.json',
-    );
-    smmartConfig =
-      await ContentSource.getContentDatabase().get<SmmartConfig>(
-        smmartConfigPath,
-      );
-  } catch (err) {
-    // Gracefully handle the error if the config file is not found.
-    console.error('Error fetching smmartConfig:', err);
-  }
-
-  return {
-    props: {
-      ...navPageLayoutProps,
-      landingPage,
-      smmartConfig,
-    },
-  };
-};
+export const LandingPageGetServerSideProps = definePageLoader<LandingPageProps>({
+  name: 'Landing',
+  loadNavigation: loadLandingNavigation,
+  load: async (context) => ({
+    configuration: ( {
+      landing: await context.config.load(landingConfiguration),
+      smmart: await context.config.optional(smmartConfiguration),
+    } as unknown) as LandingConfiguration,
+  }),
+  fallback: () => ({ configuration: null }),
+});

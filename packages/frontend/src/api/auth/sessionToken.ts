@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { getCookie } from 'cookies-next';
+import { deleteCookie, getCookie } from 'cookies-next';
 import { decodeJwt, errors, importSPKI, jwtVerify } from 'jose';
 import type { CryptoKey, JWTPayload } from 'jose';
 import { fetchJWTKey } from './utils';
@@ -68,6 +68,16 @@ export default async function handler(
       typeof fenceToken === 'string'
         ? await readToken(fenceToken, publicKey)
         : undefined;
+
+    if (access.status === 'issued' && getCookie('credentials_token', { req, res })) {
+      deleteCookie('credentials_token', {
+        req,
+        res,
+        sameSite: 'lax',
+        httpOnly: process.env.NODE_ENV === 'production',
+        secure: process.env.NODE_ENV === 'production',
+      });
+    }
 
     res.status(200).json({
       ...access,

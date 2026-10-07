@@ -6,19 +6,20 @@ import { DictionaryPageProps } from './types';
 const DictionaryPage = ({
   headerProps,
   footerProps,
-  config,
+  pageProblems,
+  configuration,
 }: DictionaryPageProps): JSX.Element => {
   return (
     <NavPageLayout
-      {...{ headerProps, footerProps, mainProps: { fixed: true } }}
+      {...{ headerProps, footerProps, pageProblems, layoutMode: 'viewport' as const }}
       headerMetadata={{
         title: 'Gen3 DataDictionary Page',
         content: 'Data Dictionary',
         key: 'gen3-data-dictionary-page',
-        ...(config?.headerMetadata ? config.headerMetadata : {}),
+        ...(configuration?.headerMetadata ? configuration.headerMetadata : {}),
       }}
     >
-      <DictionaryWithContext config={config} />
+      {configuration && <DictionaryWithContext config={configuration} />}
     </NavPageLayout>
   );
 };

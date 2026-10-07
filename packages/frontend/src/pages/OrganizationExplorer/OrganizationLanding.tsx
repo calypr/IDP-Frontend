@@ -131,6 +131,7 @@ const OrganizationRow = ({
 const OrganizationLandingPage = ({
   headerProps,
   footerProps,
+  pageProblems,
   selectedOrganization,
 }: OrganizationExplorerPageProps & {
   selectedOrganization?: string;
@@ -218,6 +219,7 @@ const OrganizationLandingPage = ({
   return (
     <NavPageLayout
       {...{ headerProps, footerProps }}
+      pageProblems={pageProblems}
       headerMetadata={{
         content: 'Syfon organization explorer',
         key: 'syfon-organization-explorer',

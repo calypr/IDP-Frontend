@@ -6,7 +6,10 @@ export interface UserAuthMapping {
 }
 
 export const resourcePathFromProjectID = (projectID: string) => {
-  const split = projectID.split('-');
+  const normalized = projectID.trim();
+  const split = normalized.includes('/')
+    ? normalized.split('/')
+    : normalized.split('-');
   const program = split[0];
   const project = split.length > 1 ? split.slice(1).join('-') : '';
   return `/programs/${program}/projects/${project}`;

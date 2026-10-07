@@ -16,6 +16,9 @@ jest.mock('../../features/Navigation', () => ({
     <>{children}</>
   ),
 }));
+jest.mock('../../components/Protected', () => ({
+  ProtectedContent: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
 
 const pageProps = {
   headerProps: {},

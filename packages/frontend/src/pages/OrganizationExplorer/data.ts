@@ -1,11 +1,12 @@
-import { GetServerSideProps } from 'next';
-import { getNavPageLayoutPropsFromConfig } from '../../lib/common/staticProps';
+import { definePageLoader } from '../../lib/pageLoader';
+import { loadNavigationFromContext } from '../../lib/common/staticProps';
 import type { OrganizationExplorerPageProps } from './types';
 
-export const OrganizationExplorerPageGetServerSideProps: GetServerSideProps<
+export const OrganizationExplorerPageGetServerSideProps = definePageLoader<
   OrganizationExplorerPageProps
-> = async () => ({
-  props: {
-    ...(await getNavPageLayoutPropsFromConfig()),
-  },
+>({
+  name: 'OrganizationExplorer',
+  loadNavigation: loadNavigationFromContext,
+  load: async () => ({
+  }),
 });

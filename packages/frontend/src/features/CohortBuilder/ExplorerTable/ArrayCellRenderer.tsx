@@ -14,7 +14,20 @@ export const ArrayCellRenderer = (
   if (isArray(value)) {
     return (
       <div className="w-64 flex flex-wrap gap-0.5">
-        {value.map((x) => cellRenderFunction({ ...props, cell: x }, args))}
+        {value.map((x, index) => {
+          // Preserve the MRT cell metadata while making the item the value
+          // returned by getValue(). This keeps custom renderers safe for
+          // arrays containing objects as well as scalar values.
+          const itemCell = {
+            ...cell,
+            getValue: () => x,
+          } as typeof cell;
+          return (
+            <React.Fragment key={`${cell.id}-value-${index}`}>
+              {cellRenderFunction({ ...props, cell: itemCell }, args)}
+            </React.Fragment>
+          );
+        })}
       </div>
     );
   } else {

@@ -1,7 +1,10 @@
 import { AuthzMapping } from '../authz';
 
 export const resourcePathFromProjectID = (projectID: string): string => {
-  const split = projectID.split('-');
+  const normalized = projectID.trim();
+  const split = normalized.includes('/')
+    ? normalized.split('/')
+    : normalized.split('-');
   const program = split[0];
   const project = split.slice(1).join('-');
   const resourcePath = ['/programs', program, 'projects', project].join('/');

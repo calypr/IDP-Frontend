@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "activation": {
+    "releaseId": "0198a7d1-6c2b-7000-8000-000000000401",
+    "explorerRevisionId": "0198a7d1-6c2b-7000-8000-000000000301",
+    "shareUrl": "/Explorer/share/0198a7d1-6c2b-7000-8000-000000000401"
+  },
+  "resolved": {
+    "status": "VALID",
+    "releaseId": "0198a7d1-6c2b-7000-8000-000000000401",
+    "configRevisionId": "0198a7d1-6c2b-7000-8000-000000000301",
+    "project": {"organization": "acme", "project": "cancer-study"},
+    "recipeRevisionId": "0198a7d1-6c2b-7000-8000-000000000003",
+    "recipeName": "project_8bfa2cdce7f7d443",
+    "translationVersion": "r000003_0198a7d1",
+    "recipeDigest": "sha256:recipe",
+    "sourceGeneration": "generation-42",
+    "outputs": {"Patients": {"output": "Patients", "materializationId": "0198a7d1-6c2b-7000-8000-000000000203", "recipeName": "project_8bfa2cdce7f7d443", "translationVersion": "r000003_0198a7d1", "recipeDigest": "sha256:recipe", "resolvedSchemaDigest": "sha256:schema", "sourceGeneration": "generation-42"}},
+    "config": {"schemaVersion": 1, "tabs": [{"id": "patients", "title": "Patients", "output": "Patients"}]},
+    "errors": [],
+    "warnings": [],
+    "acknowledgedOmissions": []
+  }
+}

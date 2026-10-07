@@ -36,6 +36,7 @@ interface ChartsProps {
   numCols?: number;
   style?: 'tile' | 'box';
   showLegends?: boolean;
+  layout?: 'grid' | 'horizontal';
 }
 //Colors grabbed from echarts src/model/globalDefault.ts
 const chartColors = [
@@ -193,6 +194,9 @@ interface ChartItemProps {
 
   /** Flag to determine if the legend should be displayed. */
   showLegends?: boolean;
+
+  /** Display cards in the standard responsive grid or a compact row. */
+  layout: 'grid' | 'horizontal';
 }
 
 const ChartItem = ({
@@ -204,6 +208,7 @@ const ChartItem = ({
   colSpan,
   style,
   showLegends,
+  layout,
 }: ChartItemProps) => {
   // You'll need to define ChartItemProps
 
@@ -222,9 +227,19 @@ const ChartItem = ({
       )
     : [];
 
-  return (
-    <Grid.Col span={colSpan} key={`charts-${field}-col`}>
-      <Card shadow="md" withBorder={style === 'box'} className="h-full">
+  const card = (
+    <Card
+      shadow={layout === 'horizontal' ? 'sm' : 'md'}
+      withBorder={layout === 'horizontal' || style === 'box'}
+      className={`h-full ${
+        layout === 'horizontal' ? '[&_.h-64]:h-52' : ''
+      }`}
+    >
+      {layout === 'horizontal' && (
+        <Text fw={600} className="truncate text-sm" title={chartTitle}>
+          {chartTitle}
+        </Text>
+      )}
         {/* ... Card.Section, LoadingOverlay, createChart, Legend, etc. */}
         {/* ... The Switch for filterNoData and its onChange prop ... */}
         {hasNoData && (
@@ -245,7 +260,20 @@ const ChartItem = ({
           total: counts ?? 1,
           // ... other props
         })}
-      </Card>
+    </Card>
+  );
+
+  if (layout === 'horizontal') {
+    return (
+      <div className="min-w-[18rem] flex-1 basis-80" key={`charts-${field}`}>
+        {card}
+      </div>
+    );
+  }
+
+  return (
+    <Grid.Col span={colSpan} key={`charts-${field}-col`}>
+      {card}
     </Grid.Col>
   );
 };
@@ -259,33 +287,48 @@ const Charts = ({
   numCols = DEFAULT_COLS,
   style = 'tile',
   showLegends = false,
+  layout = 'grid',
 }: ChartsProps) => {
   const colSpan = 12 / numCols;
 
+  const chartItems = Object.entries(charts).map(([field, chartConfig]) => {
+    // Skip if data is missing or empty for this field
+    if (Object.keys(data).length === 0 || !(field in data)) {
+      return null; // Or return the ErrorCard/loading state here
+    }
+
+    const chartData = data[field];
+
+    return (
+      <ChartItem
+        key={field}
+        field={field}
+        chartConfig={chartConfig}
+        chartData={chartData}
+        counts={counts}
+        isSuccess={isSuccess}
+        colSpan={colSpan}
+        style={style}
+        showLegends={showLegends}
+        layout={layout}
+      />
+    );
+  });
+
+  if (layout === 'horizontal') {
+    return (
+      <div
+        className="flex w-full gap-3 overflow-x-auto pb-2"
+        aria-label="Summary charts"
+      >
+        {chartItems}
+      </div>
+    );
+  }
+
   return (
     <Grid className="w-full mx-2" gutter="md">
-      {Object.entries(charts).map(([field, chartConfig]) => {
-        // Skip if data is missing or empty for this field
-        if (Object.keys(data).length === 0 || !(field in data)) {
-          return null; // Or return the ErrorCard/loading state here
-        }
-
-        const chartData = data[field];
-
-        return (
-          <ChartItem
-            key={field}
-            field={field}
-            chartConfig={chartConfig}
-            chartData={chartData}
-            counts={counts}
-            isSuccess={isSuccess}
-            colSpan={colSpan}
-            style={style}
-            showLegends={showLegends}
-          />
-        );
-      })}
+      {chartItems}
     </Grid>
   );
 };

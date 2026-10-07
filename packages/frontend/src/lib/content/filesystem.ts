@@ -1,6 +1,7 @@
 import { ContentStore } from './types';
 import fs from 'fs';
 import path from 'path';
+import { ContentError } from './errors';
 
 export class FilesystemContent implements ContentStore {
   constructor(public rootPath: string = '') {}
@@ -19,9 +20,24 @@ export class FilesystemContent implements ContentStore {
     try {
       const txt = fs.readFileSync(full, 'utf8');
       return JSON.parse(txt) as T;
-    } catch (e) {
+    } catch (cause) {
       this.log(`ERROR ${full}`);
-      throw new Error(`Cannot process ${full}`);
+      const code =
+        typeof cause === 'object' && cause !== null && 'code' in cause
+          ? String(cause.code)
+          : undefined;
+      throw new ContentError(
+        code === 'ENOENT'
+          ? `Configuration file not found: ${filepath}`
+          : `Cannot process configuration file: ${filepath}`,
+        {
+          kind: code === 'ENOENT' ? 'filesystem' : 'parse',
+          status: code === 'ENOENT' ? 404 : 500,
+          retryable: false,
+          path: filepath,
+          cause,
+        },
+      );
     }
   }
 

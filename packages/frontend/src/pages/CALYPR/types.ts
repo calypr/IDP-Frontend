@@ -1,4 +1,4 @@
-import { NavPageLayoutProps } from '../../features/Navigation';
+import type { ConfigPageProps } from '../../lib/pageLoader';
 
 interface CalyprConfig {
   readonly textBoxes: ReadonlyArray<{
@@ -12,4 +12,10 @@ export interface CalyprProps {
   loginError?: 'no_project_access' | 'access_check_unavailable';
 }
 
-export type CalyprLandingPageProps = NavPageLayoutProps & CalyprProps;
+export type CalyprLandingPageProps = ConfigPageProps<
+  CalyprProps,
+  {
+    hasAuthenticatedSession: boolean | null;
+    loginError?: 'no_project_access' | 'access_check_unavailable';
+  }
+>;

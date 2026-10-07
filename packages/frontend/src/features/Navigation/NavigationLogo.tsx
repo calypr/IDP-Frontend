@@ -81,6 +81,7 @@ const NavigationLogo = ({
             !basepage ? `${basePath}/icons/ohsu_white.svg` : `${basePath}${src}`
           }
           alt={description ?? title ?? 'link back to homepage'}
+          loading="eager"
           style={
             basepage
               ? width && height

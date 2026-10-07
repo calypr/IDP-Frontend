@@ -1,5 +1,5 @@
 export const GEN3_COMMONS_NAME =
-  process.env.NEXT_PUBLIC_GEN3_COMMONS_NAME || 'gen3';
+  process.env.NEXT_PUBLIC_GEN3_COMMONS_NAME || 'cbds';
 export const GEN3_API = process.env.NEXT_PUBLIC_GEN3_API || '';
 export const GEN3_DOMAIN = process.env.NEXT_PUBLIC_GEN3_DOMAIN || '';
 export const GUID_PREFIX_PATTERN = /^dg.[a-zA-Z0-9]+\//;
@@ -9,6 +9,8 @@ export const GUID_PREFIX_PATTERN = /^dg.[a-zA-Z0-9]+\//;
  */
 export const GEN3_GUPPY_API =
   process.env.NEXT_PUBLIC_GEN3_GUPPY_API || `${GEN3_API}/guppy`;
+export const GEN3_LOOM_API =
+  process.env.NEXT_PUBLIC_GEN3_LOOM_API || `${GEN3_API}/loom`;
 export const GEN3_MDS_API =
   process.env.NEXT_PUBLIC_GEN3_MDS_API || `${GEN3_API}/mds`;
 export const GEN3_DOWNLOADS_ENDPOINT =
@@ -51,10 +53,8 @@ export const GEN3_GRIP_API =
   process.env.NEXT_PUBLIC_GEN3_GRIP_API || `${GEN3_API}/grip`;
 export const DIR_SEARCH_API =
   process.env.NEXT_PUBLIC_GEN3_DIR_API || `${GEN3_API}/Dir`;
-export const CALYPR_EXPLORER_CONFIG_API =
-  process.env.NEXT_PUBLIC_GEN3_CONFIG_API || `${GEN3_API}/gecko`;
 export const GEN3_GECKO_API =
-  process.env.NEXT_PUBLIC_GEN3_GECKO_API || `${GEN3_API}/api`;
+  process.env.NEXT_PUBLIC_GEN3_GECKO_API || `${GEN3_API}/gecko`;
 
 export enum Accessibility {
   ACCESSIBLE = 'accessible',

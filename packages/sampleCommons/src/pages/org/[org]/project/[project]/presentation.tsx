@@ -1,11 +1,8 @@
 import {
   ProjectPresentationPage,
-  getNavPageLayoutPropsFromConfig,
 } from '@gen3/frontend';
-import { GetServerSideProps } from 'next';
+import { defineSamplePageLoader } from '@/lib/content/pageLoader';
 
-export const getServerSideProps: GetServerSideProps = async () => ({
-  props: await getNavPageLayoutPropsFromConfig(),
-});
+export const getServerSideProps = defineSamplePageLoader('ProjectPresentation');
 
 export default ProjectPresentationPage;

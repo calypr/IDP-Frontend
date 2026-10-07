@@ -1,9 +1,5 @@
-import { NavPageLayoutProps } from '../../features/Navigation';
+import type { ConfigPageProps } from '../../lib/pageLoader';
 import { SummaryTableColumn } from '../../features/CohortBuilder/ExplorerTable/types';
-
-export interface FileSummaryProps {
-  filesummaryConfig?: FilesummaryConfig;
-}
 
 export interface FilesummaryConfig {
   barChartColor?: string;
@@ -16,4 +12,4 @@ export interface FilesummaryConfig {
   maxTraversalPages?: number;
 }
 
-export type FileSummaryPageProps = NavPageLayoutProps & FileSummaryProps;
+export type FileSummaryPageProps = ConfigPageProps<FilesummaryConfig>;

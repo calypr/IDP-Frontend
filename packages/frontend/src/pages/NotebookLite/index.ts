@@ -1,2 +1,2 @@
-export { default } from './NotebookLite';
+export { default, default as NotebookLitePage } from './NotebookLite';
 export { NotebookLitePageGetServerSideProps } from './data';

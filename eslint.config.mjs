@@ -63,17 +63,55 @@ export default [
     },
     rules: {
       '@typescript-eslint/no-explicit-any': 'warn',
-      "@typescript-eslint/no-unused-vars": [
-        "warn",
+      '@typescript-eslint/no-unused-vars': [
+        'warn',
         {
-          "argsIgnorePattern": "^_",
-          "varsIgnorePattern": "^_"
-        }
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+        },
       ],
       'react/prop-types': 'warn',
       'reactHooks/rules-of-hooks': 'error',
       'reactHooks/exhaustive-deps': 'warn',
     },
   },
-  ...storybook.configs["flat/recommended"]
+  {
+    files: [
+      'packages/frontend/src/features/ExplorerBuilder/**/*.{ts,tsx}',
+      'packages/frontend/src/features/CohortBuilder/**/*.{ts,tsx}',
+      'packages/frontend/src/pages/Explorer/**/*.{ts,tsx}',
+      'packages/sampleCommons/src/pages/Explorer/**/*.{ts,tsx}',
+    ],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'react',
+              importNames: ['useEffect', 'useLayoutEffect'],
+              message:
+                'Explorer feature code must use event-owned state transitions or a named external-system adapter.',
+            },
+            {
+              name: 'use-deep-compare',
+              importNames: ['useDeepCompareEffect'],
+              message:
+                'Explorer feature code must use event-owned state transitions or a named external-system adapter.',
+            },
+          ],
+        },
+      ],
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            "MemberExpression[object.name='React'][property.name=/^use(Layout)?Effect$/]",
+          message:
+            'Explorer feature code must use event-owned state transitions or a named external-system adapter.',
+        },
+      ],
+    },
+  },
+  ...storybook.configs['flat/recommended'],
 ];

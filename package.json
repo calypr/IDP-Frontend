@@ -12,7 +12,7 @@
   ],
   "engines": {
     "npm": ">=10.2.3",
-    "node": ">=22.13.0"
+    "node": ">=22.11.0"
   },
   "scripts": {
     "lint": "lerna run lint",
@@ -25,14 +25,15 @@
     "compile": "lerna run compile",
     "dev": "NODE_OPTIONS='--max_old_space_size=4096' lerna run dev",
     "dev:watch": "lerna watch -- lerna run dev --scope=\\$LERNA_PACKAGE_NAME --include-dependencies",
-    "dev:app": "lerna run dev --scope=@gen3/samplecommons",
+    "dev:app": "lerna run dev --scope=@gen3/samplecommons --include-dependencies --stream",
+    "devssh": "NODE_OPTIONS='--max_old_space_size=4096' lerna run devssh --scope=@gen3/samplecommons --include-dependencies --stream",
     "start": "lerna run start",
     "storybook": "lerna run storybook --scope @gen3/storybook",
     "build:start": "npm run build && npm run start",
     "setProxy": "(cd ./packages/tools/localDev/nginx/; ./configureNginx.sh -d $npm_config_domain)",
     "test": "npm run test --workspace=@gen3/core && npm run test --workspace=@gen3/frontend",
-    "test:int": "npm run test:int --workspaces",
-    "test:all": "npm run test:all --workspaces"
+    "test:int": "npm run test:int --workspaces --if-present",
+    "test:all": "npm run test:all --workspaces --if-present"
   },
   "keywords": [],
   "author": "",
@@ -77,6 +78,7 @@
     "@rollup/plugin-typescript": "^12.3.0",
     "@swc/cli": "^0.8.0",
     "@swc/core": "^1.15.11",
+    "@testing-library/dom": "^10.4.2",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@types/d3": "^7.4.3",
@@ -85,8 +87,10 @@
     "@types/react": "^19.2.14",
     "@typescript-eslint/eslint-plugin": "^8.56.0",
     "@typescript-eslint/parser": "^8.56.0",
+    "@typescript/native": "npm:typescript@^7.0.2",
     "@welldone-software/why-did-you-render": "^10.0.1",
     "autoprefixer": "^10.4.24",
+    "dayjs": "^1.11.23",
     "eslint": "^9.10.0",
     "eslint-config-next": "^16.3.8",
     "eslint-config-prettier": "^10.1.8",
@@ -116,6 +120,7 @@
     "rollup-plugin-postcss": "^4.0.2",
     "rollup-plugin-swc3": "^0.12.1",
     "rollup-swc-preserve-directives": "^0.7.0",
+    "tailwindcss": "^3.4.19",
     "terser-webpack-plugin": "^5.3.16",
     "ts-jest": "^29.4.6",
     "ts-json-schema-generator": "^2.5.0",
@@ -143,7 +148,6 @@
     },
     "vite@^8.0.16": {
       "esbuild": "^0.28.1"
-    },
-    "axios": "^1.20.0"
+    }
   }
 }

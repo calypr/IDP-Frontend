@@ -172,7 +172,7 @@ const SidebarContent = ({
     <>
       <button
         aria-label="Close navigation"
-        className={`fixed inset-0 top-16 z-30 bg-slate-900/18 transition-opacity duration-300 ${
+        className={`fixed inset-0 top-[var(--gen3-header-height)] z-30 bg-slate-900/18 transition-opacity duration-300 ${
           state === 'open'
             ? 'pointer-events-auto opacity-100'
             : 'pointer-events-none opacity-0'
@@ -182,7 +182,7 @@ const SidebarContent = ({
       />
       <aside
         className={`
-          fixed top-16 bottom-0 left-0 z-40
+          fixed top-[var(--gen3-header-height)] bottom-0 left-0 z-40
           w-80 flex flex-col bg-white dark:bg-gray-800
           border-r border-gray-200 dark:border-gray-700
           transform transition-transform duration-300 ease-out shadow-xl overflow-hidden

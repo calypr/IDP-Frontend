@@ -2,11 +2,9 @@ import React from 'react';
 import {
   NavPageLayout,
   ProtectedContent,
-  getNavPageLayoutPropsFromConfig,
   NavPageLayoutProps,
 } from '@gen3/frontend';
-
-import { GetServerSideProps } from 'next';
+import { defineSamplePageLoader } from '@/lib/content/pageLoader';
 
 import { Card, Text } from '@mantine/core';
 
@@ -92,10 +90,11 @@ const DiscoveryBannerCard = ({
     </Card>
   );
 };
-const DiscoveryPage = ({ headerProps, footerProps }: NavPageLayoutProps) => {
+const DiscoveryPage = ({ headerProps, footerProps, pageProblems }: NavPageLayoutProps) => {
   return (
     <NavPageLayout
       {...{ headerProps, footerProps }}
+      pageProblems={pageProblems}
       headerMetadata={{
         title: 'CALYPR Discovery Page',
         content: 'Discovery Page',
@@ -120,14 +119,6 @@ const DiscoveryPage = ({ headerProps, footerProps }: NavPageLayoutProps) => {
   );
 };
 
-export const getServerSideProps: GetServerSideProps<
-  NavPageLayoutProps
-> = async () => {
-  return {
-    props: {
-      ...(await getNavPageLayoutPropsFromConfig()),
-    },
-  };
-};
+export const getServerSideProps = defineSamplePageLoader('Discovery');
 
 export default DiscoveryPage;

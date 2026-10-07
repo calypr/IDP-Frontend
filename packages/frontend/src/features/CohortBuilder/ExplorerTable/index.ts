@@ -4,6 +4,7 @@ import {
   ExplorerTableCellRendererFactory,
   registerExplorerDefaultCellRenderers,
   RenderFileActions,
+  getSafeRowValue,
 } from './ExplorerTableCellRenderers';
 
 import { SummaryTableColumn } from './types';
@@ -15,6 +16,7 @@ export {
   ExplorerTableCellRendererFactory,
   registerExplorerDefaultCellRenderers,
   RenderFileActions,
+  getSafeRowValue,
   type ColumnDefinition,
   type CellRendererFunctionProps,
 };

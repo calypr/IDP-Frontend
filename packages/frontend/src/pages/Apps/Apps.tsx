@@ -3,6 +3,7 @@ import { MantineProvider, Text } from '@mantine/core';
 import { useRouter } from 'next/router';
 import type { AppsPageProps } from './types';
 import { NavPageLayout } from '../../features/Navigation';
+import { ProtectedContent } from '../../components/Protected';
 import {
   useGetGeckoProjectSummaryQuery,
   useGetGeckoProjectsQuery,
@@ -13,7 +14,7 @@ const projectPresentationHref = (organization: string, project: string) =>
 
 const fallbackProjectThumbnailURL = '/icons/calypr-mark-mono.svg';
 
-const AppsPage = ({ headerProps, footerProps }: AppsPageProps) => {
+const AppsPage = ({ headerProps, footerProps, pageProblems }: AppsPageProps) => {
   const router = useRouter();
   const { isLoading: isGeckoProjectsLoading } = useGetGeckoProjectsQuery();
   const {
@@ -156,17 +157,20 @@ const AppsPage = ({ headerProps, footerProps }: AppsPageProps) => {
   );
 
   return (
-    <NavPageLayout
-      {...{ footerProps }}
-      headerMetadata={{
-        title: 'CALYPR Projects',
-        content: 'Project catalog',
-        key: 'calypr-project-catalog',
-      }}
-      headerProps={headerProps}
-    >
-      <MantineProvider withGlobalClasses>{content}</MantineProvider>
-    </NavPageLayout>
+    <ProtectedContent>
+      <NavPageLayout
+        {...{ footerProps }}
+        pageProblems={pageProblems}
+        headerMetadata={{
+          title: 'CALYPR Projects',
+          content: 'Project catalog',
+          key: 'calypr-project-catalog',
+        }}
+        headerProps={headerProps}
+      >
+        <MantineProvider withGlobalClasses>{content}</MantineProvider>
+      </NavPageLayout>
+    </ProtectedContent>
   );
 };
 

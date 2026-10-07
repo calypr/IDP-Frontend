@@ -1,6 +1,5 @@
 import React, { useContext, useReducer, useRef, useState } from 'react';
 import { Button, Tooltip } from '@mantine/core';
-import { useDeepCompareEffect } from 'use-deep-compare';
 import {
   MdKeyboardArrowDown as DownArrowIcon,
   MdKeyboardArrowUp as UpArrowIcon,
@@ -23,6 +22,7 @@ import {
   getCombinedClassesForRowCollapse,
 } from '../style';
 import CohortSelector from '../CohortSelector';
+import { useElementScrollHeight } from '../../../hooks/explorerViewer/useElementScrollHeight';
 
 const QueryExpressionContainer = tw.div`
   flex
@@ -126,26 +126,20 @@ const QueryExpressionSection: React.FC<QueryExpressionSectionProps> = ({
   showHeading = true,
 }: Readonly<QueryExpressionSectionProps>) => {
   const [expandedState, setExpandedState] = useReducer(reducer, {});
-  const [filtersSectionCollapsed, setFiltersSectionCollapsed] = useState(showHeading);
+  const [filtersSectionCollapsed, setFiltersSectionCollapsed] =
+    useState(showHeading);
   const filtersRef = useRef<HTMLDivElement>(null);
-  const [QESectionHeight, setQESectionHeight] = useState(0);
 
   const { cohortName, cohortId, useClearCohortFilters, useGetFilters } =
     useContext(QueryExpressionContext);
   const clearCohortFilters = useClearCohortFilters();
   const filters = useGetFilters(index);
-  useDeepCompareEffect(() => {
-    if (filtersRef.current) {
-      const height = filtersRef.current.scrollHeight;
-      setQESectionHeight(
-        height > MAX_HEIGHT_QE_SECTION
-          ? MAX_HEIGHT_QE_SECTION
-          : height === 0
-            ? MIN_HEIGHT_QE_SECTION
-            : height,
-      );
-    }
-  }, [expandedState, filters, filtersRef]);
+  const QESectionHeight = useElementScrollHeight(
+    filtersRef,
+    JSON.stringify({ expandedState, filters }),
+    MIN_HEIGHT_QE_SECTION,
+    MAX_HEIGHT_QE_SECTION,
+  );
 
   const clearAllFilters = () => {
     clearCohortFilters(index);
@@ -161,16 +155,6 @@ const QueryExpressionSection: React.FC<QueryExpressionSectionProps> = ({
   ).every((q) => !q);
 
   const noFilters = Object.keys(filters?.root || {}).length === 0;
-
-  useDeepCompareEffect(() => {
-    if (cohortId && expandedState?.[cohortId] === undefined) {
-      setExpandedState({
-        type: 'init',
-        cohortId: cohortId,
-        field: 'unset',
-      });
-    }
-  }, [cohortId, expandedState]);
 
   return (
     <QueryExpressionContainer>

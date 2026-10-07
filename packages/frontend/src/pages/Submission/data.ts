@@ -1,32 +1,20 @@
-import { GetServerSideProps } from 'next';
-import { getNavPageLayoutPropsFromConfig } from '../../lib/common/staticProps';
+import { definePageLoader } from '../../lib/pageLoader';
+import { loadNavigationFromContext } from '../../lib/common/staticProps';
 import { SubmissionConfig } from '../../features/Submission/types';
-import ContentSource from '../../lib/content';
 import { GEN3_COMMONS_NAME } from '@gen3/core';
 import { SubmissionsPageLayoutProps } from './types';
+import { SubmissionConfigurationSchema } from './configurationSchema';
 
-export const SubmissionPageGetServerSideProps: GetServerSideProps<
-  SubmissionsPageLayoutProps
-> = async () => {
-  try {
-    const submissionConfig: SubmissionConfig =
-      await ContentSource.getContentDatabase().get(
-        `${GEN3_COMMONS_NAME}/submission.json`,
-      );
-
-    return {
-      props: {
-        ...(await getNavPageLayoutPropsFromConfig()),
-        submissionConfig: submissionConfig,
-      },
-    };
-  } catch (err) {
-    console.error(err);
-    return {
-      props: {
-        ...(await getNavPageLayoutPropsFromConfig()),
-        submissionConfig: undefined,
-      },
-    };
-  }
-};
+export const SubmissionPageGetServerSideProps = definePageLoader<SubmissionsPageLayoutProps>({
+  name: 'Submission',
+  loadNavigation: loadNavigationFromContext,
+  load: async (context) => ({
+    configuration: await context.config.load({
+      id: 'submission',
+      source: 'content',
+      resolvePath: () => `${GEN3_COMMONS_NAME}/submission.json`,
+      schema: SubmissionConfigurationSchema,
+    }) as SubmissionConfig,
+  }),
+  fallback: () => ({ configuration: null }),
+});

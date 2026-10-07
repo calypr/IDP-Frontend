@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "revisions": [
+    {"id": "0198a7d1-6c2b-7000-8000-000000000001", "revisionNumber": 1, "status": "VALIDATING", "diagnostics": []},
+    {"id": "0198a7d1-6c2b-7000-8000-000000000002", "revisionNumber": 2, "status": "MATERIALIZING", "diagnostics": []},
+    {"id": "0198a7d1-6c2b-7000-8000-000000000003", "revisionNumber": 3, "status": "READY", "recipeName": "project_8bfa2cdce7f7d443", "translationVersion": "r000003_0198a7d1", "executionId": "0198a7d1-6c2b-7000-8000-000000000103", "outputs": [{"output": "Patients", "materializationId": "0198a7d1-6c2b-7000-8000-000000000203"}], "diagnostics": []},
+    {"id": "0198a7d1-6c2b-7000-8000-000000000004", "revisionNumber": 4, "status": "FAILED", "diagnostics": [{"severity": "error", "code": "MATERIALIZATION_FAILED", "configPath": "outputs[0]", "message": "The selected output could not be materialized.", "retryable": true}]}
+  ]
+}
