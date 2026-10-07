@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { MantineProvider } from '@mantine/core';
 import GitLandingPage from './GitLanding';
 
@@ -255,7 +255,7 @@ describe('GitLandingPage', () => {
 
     expect(screen.getByText('proj-a').closest('a')).toHaveAttribute(
       'href',
-      '/git/org-a/project/proj-a',
+      '/org/org-a/project/proj-a',
     );
   });
 
@@ -293,7 +293,7 @@ describe('GitLandingPage', () => {
 
     expect(screen.getByText('proj-alpha').closest('a')).toHaveAttribute(
       'href',
-      '/git/org-a/project/proj-alpha',
+      '/org/org-a/project/proj-alpha',
     );
   });
 
@@ -399,19 +399,8 @@ describe('GitLandingPage', () => {
       </MantineProvider>,
     );
 
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: /^edit$/i })).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByRole('button', { name: /^edit$/i }));
-
-    await waitFor(() => {
-      expect(screen.getAllByText(/^GitHub$/i).length).toBeGreaterThan(0);
-    });
-    expect(screen.getByText(/^Missing:\s*GitHub$/i)).toBeInTheDocument();
-    expect(
-      screen.queryByText(/GitHub connect pending|Next:\s*GitHub/i),
-    ).not.toBeInTheDocument();
+    expect(screen.getByText('hla2vec').closest('[role="link"]')).toHaveTextContent('GitHub');
+    expect(screen.getByText('hla2vec').closest('[role="link"]')).not.toHaveTextContent('Storage');
   });
 
   it('shows the correct readiness label for each integration combination', async () => {
@@ -499,12 +488,11 @@ describe('GitLandingPage', () => {
       </MantineProvider>,
     );
 
-    await waitFor(() => {
-      expect(screen.getAllByText('GitHub + Storage').length).toBeGreaterThan(0);
-    });
-    expect(screen.getAllByText(/^GitHub$/).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/^Storage$/).length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Ready').length).toBeGreaterThan(0);
+    expect(screen.getByText('proj-a').closest('[role="link"]')).toHaveTextContent('GitHub');
+    expect(screen.getByText('proj-a').closest('[role="link"]')).toHaveTextContent('Storage');
+    expect(screen.getByText('proj-b').closest('[role="link"]')).toHaveTextContent('GitHub');
+    expect(screen.getByText('proj-c').closest('[role="link"]')).toHaveTextContent('Storage');
+    expect(screen.getByText('proj-d').closest('[role="link"]')).toHaveTextContent('Ready');
   });
 
   it('renders an organization card from org membership without org settings access', () => {

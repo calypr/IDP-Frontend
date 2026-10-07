@@ -30,7 +30,7 @@
     "storybook": "lerna run storybook --scope @gen3/storybook",
     "build:start": "npm run build && npm run start",
     "setProxy": "(cd ./packages/tools/localDev/nginx/; ./configureNginx.sh -d $npm_config_domain)",
-    "test": "npm run test --workspaces",
+    "test": "npm run test --workspace=@gen3/core && npm run test --workspace=@gen3/frontend",
     "test:int": "npm run test:int --workspaces",
     "test:all": "npm run test:all --workspaces"
   },

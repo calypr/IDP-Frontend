@@ -17,13 +17,13 @@ describe('fetchFence request guardrails', () => {
     });
 
     const request = fetchFence({ endpoint: '/user', timeoutMs: 25 });
-    await jest.advanceTimersByTimeAsync(25);
-
-    await expect(request).rejects.toMatchObject({
+    const result = expect(request).rejects.toMatchObject({
       kind: 'timeout',
       status: 408,
       statusText: 'Fence request timed out',
     });
+    await jest.advanceTimersByTimeAsync(25);
+    await result;
   });
 
   it('returns structured HTTP failures', async () => {

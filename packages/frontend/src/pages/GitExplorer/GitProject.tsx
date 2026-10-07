@@ -301,7 +301,11 @@ const GitProjectPage = ({
   }, [actionError]);
 
   useEffect(() => {
-    const nextError = projectStatus?.last_error?.trim() || null;
+    const nextError =
+      projectStatus?.sync_state === 'updating' ||
+      projectStatus?.sync_state === 'ready'
+        ? null
+        : projectStatus?.last_error?.trim() || null;
     setVisibleProjectError(nextError);
     if (!nextError || isPersistentGitProjectError(nextError)) {
       return;
@@ -312,7 +316,7 @@ const GitProjectPage = ({
       );
     }, TRANSIENT_ALERT_TIMEOUT_MS);
     return () => window.clearTimeout(timeout);
-  }, [projectStatus?.last_error]);
+  }, [projectStatus?.last_error, projectStatus?.sync_state]);
 
   useEffect(() => {
     if (
@@ -1033,7 +1037,9 @@ const GitProjectPage = ({
                 </Alert>
               ) : null}
 
-              {visibleProjectError ? (
+              {visibleProjectError &&
+              projectStatus?.sync_state !== 'updating' &&
+              projectStatus?.sync_state !== 'ready' ? (
                 <Alert color="red" variant="light">
                   {visibleProjectError}
                 </Alert>

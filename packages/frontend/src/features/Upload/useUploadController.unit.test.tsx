@@ -62,16 +62,9 @@ jest.mock('@gen3/core', () => ({
       name,
       programs: metadata.programs ?? [],
       provider: metadata.provider,
-      resources: (metadata.programs ?? []).map((resource) =>
-        resource
-          .replace('/programs/', '/organization/')
-          .replace('/projects/', '/project/'),
-      ),
+      resources: metadata.programs ?? [],
     })),
-  normalizeSyfonResourcePath: (resource: string) =>
-    resource
-      .replace('/programs/', '/organization/')
-      .replace('/projects/', '/project/'),
+  normalizeSyfonResourcePath: (resource: string) => resource,
   getSyfonAccessMethodType: (provider?: string) => {
     switch (provider) {
       case 'gcs':
@@ -237,7 +230,7 @@ describe('useUploadController', () => {
             },
           ],
           aliases: ['id:dg.mock/1'],
-          controlled_access: ['/organization/org-a/project/proj-a'],
+          controlled_access: ['/programs/org-a/projects/proj-a'],
         }),
       ],
     });

@@ -412,6 +412,13 @@ describe('test grouping by index', () => {
   it('should group by index', () => {
     const results = groupSharedFields(data);
 
-    expect(results).toEqual(expected);
+    expect(results).toEqual(
+      Object.fromEntries(
+        Object.entries(expected).map(([field, indexes]) => [
+          field,
+          indexes.map((index) => ({ field, index })),
+        ]),
+      ),
+    );
   });
 });

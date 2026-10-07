@@ -16,6 +16,7 @@ module.exports = {
   ],
   globalSetup: '<rootDir>/setupTests.ts',
   moduleNameMapper: {
+    '^until-async$': '<rootDir>/__mocks__/untilAsync.js',
     '^@/core/(.*)$': '<rootDir>/src/$1',
     'jsonpath-plus': '<rootDir>/../../node_modules/jsonpath-plus',
     'flat': '<rootDir>/../../node_modules/flat',

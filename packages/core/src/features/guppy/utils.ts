@@ -85,7 +85,7 @@ export const downloadFromGuppyToBlob = async ({
   const url = prepareUrl(GEN3_GUPPY_API);
   const fetchConfig = prepareFetchConfig(parameters, csrfToken);
 
-  fetch(url.toString(), {
+  return fetch(url.toString(), {
     ...fetchConfig,
     ...(signal ? { signal: signal } : {}),
   } as RequestInit)

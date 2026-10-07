@@ -401,6 +401,7 @@ describe('GitProjectPage', () => {
       installation_target_type: 'Organization',
       organization_app_installed: true,
       sync_state: 'updating',
+      last_error: 'Fence github broker request failed with status 504',
       default_branch: 'main',
       mirror_ready: false,
     };
@@ -425,7 +426,7 @@ describe('GitProjectPage', () => {
       refetch: jest.fn(),
     });
 
-    render(
+    const { rerender } = render(
       <MantineProvider>
         <GitProjectPage {...layoutProps} />
       </MantineProvider>,
@@ -434,12 +435,43 @@ describe('GitProjectPage', () => {
     expect(
       screen.getByText(/initializing repository mirror/i),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByText('Fence github broker request failed with status 504'),
+    ).not.toBeInTheDocument();
 
     act(() => {
       jest.advanceTimersByTime(1000);
     });
 
     expect(refetchStatus).toHaveBeenCalled();
+
+    coreMocks.useGetGeckoGitProjectsQuery.mockReturnValue({
+      data: [{ ...projectStatus, sync_state: 'failed' }],
+      isLoading: false,
+      refetch: refetchStatus,
+    });
+    rerender(
+      <MantineProvider>
+        <GitProjectPage {...layoutProps} />
+      </MantineProvider>,
+    );
+    expect(
+      screen.getByText('Fence github broker request failed with status 504'),
+    ).toBeInTheDocument();
+
+    coreMocks.useGetGeckoGitProjectsQuery.mockReturnValue({
+      data: [{ ...projectStatus, sync_state: 'ready', mirror_ready: true }],
+      isLoading: false,
+      refetch: refetchStatus,
+    });
+    rerender(
+      <MantineProvider>
+        <GitProjectPage {...layoutProps} />
+      </MantineProvider>,
+    );
+    expect(
+      screen.queryByText('Fence github broker request failed with status 504'),
+    ).not.toBeInTheDocument();
   });
 
   it('shows lfs download actions when the selected file is a git lfs pointer', () => {

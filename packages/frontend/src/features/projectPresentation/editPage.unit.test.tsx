@@ -3,6 +3,12 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MantineProvider } from '@mantine/core';
 import { ProjectPresentationEditPage } from '../../pages/ProjectPresentation/ProjectPresentationEdit';
 
+jest.mock('react-markdown', () => ({
+  __esModule: true,
+  default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+jest.mock('remark-gfm', () => ({ __esModule: true, default: () => null }));
+
 const useGetGeckoProjectsQueryMock = jest.fn();
 const useGetGeckoProjectSummaryQueryMock = jest.fn();
 const useGetGeckoGitProjectPresentationConfigQueryMock = jest.fn();
@@ -31,6 +37,10 @@ jest.mock('@gen3/frontend', () => ({
   ),
   ProtectedContent: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   getNavPageLayoutPropsFromConfig: jest.fn(),
+}));
+
+jest.mock('../../features/Navigation', () => ({
+  NavPageLayout: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
 const useSessionMock = jest.fn();
