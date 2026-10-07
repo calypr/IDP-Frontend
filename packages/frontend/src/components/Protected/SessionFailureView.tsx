@@ -17,14 +17,14 @@ const SessionFailureView = ({
     <Stack maw={560} gap="lg">
       <Alert
         icon={<IconAlertTriangle size={22} />}
-        title="We could not verify your session"
+        title="The service could not complete this request"
         color="orange"
         variant="light"
       >
         <Stack gap="sm">
           <Text>
-            The authentication service did not respond in time. Your browser is
-            not stuck, and this page will not keep waiting indefinitely.
+            The service could not complete this request. You can retry when it
+            is available.
           </Text>
           {detail && (
             <Text size="sm" c="dimmed">
@@ -33,7 +33,9 @@ const SessionFailureView = ({
           )}
         </Stack>
       </Alert>
-      <Title order={3}>Try the request again or start a clean sign-in.</Title>
+      <Title order={3}>
+        Try the request again when the service is available.
+      </Title>
       <Group>
         <Button leftSection={<IconRefresh size={18} />} onClick={onRetry}>
           Retry verification

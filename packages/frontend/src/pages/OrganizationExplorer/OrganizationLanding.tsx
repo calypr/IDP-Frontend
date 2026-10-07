@@ -43,8 +43,7 @@ const CompactProjectRow = ({
   project: string;
   resourcePath: string;
 }) => (
-  <Link href={href} legacyBehavior>
-    <a className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-t border-slate-100 px-6 py-2.5 text-sm transition hover:bg-slate-50/80">
+  <Link href={href} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-t border-slate-100 px-6 py-2.5 text-sm transition hover:bg-slate-50/80">
       <div className="min-w-0">
         <Text fw={600} truncate>
           {project}
@@ -56,8 +55,7 @@ const CompactProjectRow = ({
       <Text c="dimmed" size="sm">
         Open
       </Text>
-    </a>
-  </Link>
+    </Link>
 );
 
 const OrganizationRow = ({
@@ -76,12 +74,10 @@ const OrganizationRow = ({
     <div className="overflow-hidden border-b border-slate-200 bg-white">
       {hideCollapse ? (
         <div className="grid grid-cols-[auto_1fr] items-center gap-3 px-6 py-4">
-          <Link href="/organization" legacyBehavior>
-            <a className="inline-flex w-fit items-center gap-1 text-sm font-medium text-slate-500 transition hover:text-slate-900">
+          <Link href="/organization" className="inline-flex w-fit items-center gap-1 text-sm font-medium text-slate-500 transition hover:text-slate-900">
               <IconChevronLeft size={16} />
               Organizations
-            </a>
-          </Link>
+            </Link>
           <div className="min-w-0 text-center">
             <Text fw={700} size="lg" truncate>
               {group.organization}
@@ -104,13 +100,11 @@ const OrganizationRow = ({
           </button>
           <div className="min-w-0">
             <Tooltip label={`Visit ${group.organization} page`}>
-              <Link href={`/git/${encodeURIComponent(group.organization)}`} legacyBehavior>
-                <a className="inline-flex max-w-full text-left decoration-slate-400 underline-offset-4 transition hover:text-slate-700 hover:underline focus-visible:underline">
+              <Link href={`/git/${encodeURIComponent(group.organization)}`} className="inline-flex max-w-full text-left decoration-slate-400 underline-offset-4 transition hover:text-slate-700 hover:underline focus-visible:underline">
                   <Text fw={700} size="lg" truncate>
                     {group.organization}
                   </Text>
-                </a>
-              </Link>
+                </Link>
             </Tooltip>
           </div>
         </div>
@@ -284,9 +278,7 @@ const OrganizationLandingPage = ({
                             <Link
                               href={result.href}
                               key={result.key}
-                              legacyBehavior
-                            >
-                              <a
+
                                 className="flex items-start gap-3 px-3 py-2 text-left hover:bg-slate-50"
                                 onClick={() => setSearchQuery('')}
                               >
@@ -313,8 +305,7 @@ const OrganizationLandingPage = ({
                                     {result.sublabel}
                                   </Text>
                                 </div>
-                              </a>
-                            </Link>
+                              </Link>
                           ))
                         ) : (
                           <Text c="dimmed" className="px-3 py-3" size="sm">

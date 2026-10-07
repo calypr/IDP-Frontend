@@ -13,6 +13,7 @@ import '@xyflow/react/dist/style.css';
 import 'react-complex-tree/lib/style-modern.css';
 import {
   Gen3Provider,
+  AuthenticatedPage,
   type ModalsConfig,
   RegisteredIcons,
   SessionConfiguration,
@@ -35,7 +36,6 @@ import '@fontsource/lato';
 import { setDRSHostnames } from '@gen3/core';
 import drsHostnames from '../../config/drsHostnames.json';
 import { loadContent } from '@/lib/content/loadContent';
-import Loading from '../components/Loading';
 
 if (
   typeof window !== 'undefined' &&
@@ -56,6 +56,8 @@ interface Gen3AppProps {
   modalsConfig: ModalsConfig;
   sessionConfig: SessionConfiguration;
 }
+
+let clientContent: Gen3AppProps | undefined;
 
 const Gen3App = ({
   Component,
@@ -81,7 +83,9 @@ const Gen3App = ({
   }, []);
 
   const [isClient, setIsClient] = useState(false);
-
+  useEffect(() => {
+    clientContent = { icons, sessionConfig, modalsConfig };
+  }, [icons, sessionConfig, modalsConfig]);
   useEffect(() => {
     setIsClient(true); // Only on client-side
   }, []);
@@ -104,19 +108,18 @@ const Gen3App = ({
         <title>Calypr</title>
       </Head>
       <MantineProvider theme={mantinetheme}>
-        {isClient ? (
-          <Suspense fallback={<Loading />}>
+        {isClient && (
+          <Suspense fallback={null}>
             <Gen3Provider
               icons={icons}
               sessionConfig={sessionConfig}
               modalsConfig={modalsConfig}
             >
-              <Component {...pageProps} />
+              <AuthenticatedPage>
+                <Component {...pageProps} />
+              </AuthenticatedPage>
             </Gen3Provider>
           </Suspense>
-        ) : (
-          // Show some fallback UI while waiting for the client to load
-          <Loading />
         )}
       </MantineProvider>
     </React.Fragment>
@@ -129,7 +132,9 @@ Gen3App.getInitialProps = async (
   const ctx = await App.getInitialProps(context);
 
   try {
-    const res = await loadContent();
+    const res = typeof window !== 'undefined' && clientContent
+      ? clientContent
+      : await loadContent();
     return {
       ...ctx,
       ...res,

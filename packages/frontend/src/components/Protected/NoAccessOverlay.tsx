@@ -1,6 +1,6 @@
-import React, { useEffect } from 'react';
-import { Button } from '@mantine/core';
+import React from 'react';
 import { useSession } from '../../lib/session/session';
+import { Button } from '@mantine/core';
 
 type AccessPermission = { method?: string; service?: string };
 type FenceAuthzMapping = Record<string, AccessPermission[]>;
@@ -64,8 +64,9 @@ export function hasFenceAccess(authz: unknown) {
       if (parts[0] !== 'programs' || parts[2] !== 'projects') return false;
       if (!Array.isArray(perms)) return false;
 
-      return perms.some((permission) =>
-        permission?.method === 'read' && permission?.service === '*',
+      return perms.some(
+        (permission) =>
+          permission?.method === 'read' && permission?.service === '*',
       );
     },
   ).length;
@@ -74,26 +75,14 @@ export function hasFenceAccess(authz: unknown) {
     ([resource, perms]) =>
       isProgramScopedResource(resource) &&
       Array.isArray(perms) &&
-      hasMeaningfulArboristAccess(
-        resource,
-        perms as AccessPermission[],
-      ),
+      hasMeaningfulArboristAccess(resource, perms as AccessPermission[]),
   );
 
   return len_access_projects > 0 || hasProgramScopedAccess;
 }
 
-
 export const NoAccessOverlay = () => {
   const { endSession } = useSession();
-
-  // Silently log the user out using the proper hook
-  useEffect(() => {
-    if (endSession) {
-      endSession(false);
-    }
-  }, [endSession]);
-
   return (
     <div className="fixed inset-0 z-[1000] flex flex-col items-center justify-center bg-gray-100 py-12 px-4">
       <div className="max-w-xl w-full bg-white shadow-2xl rounded-2xl overflow-hidden text-center p-8 border border-gray-100">
@@ -101,24 +90,29 @@ export const NoAccessOverlay = () => {
           Welcome to CALYPR
         </h2>
         <p className="text-gray-600 mb-6">
-          Your account has been authenticated, but currently does not have access to any projects or files in the system.
+          This account does not have access to CALYPR projects. Sign out to use
+          another account.
         </p>
         <div className="bg-blue-50 text-blue-800 p-4 rounded-lg mb-8 text-sm text-left">
           <strong>Requesting Access:</strong>
           <ul className="list-disc pl-5 mt-2 space-y-1">
-            <li>Reach out to our administrators to request access to specific projects.</li>
-            <li>If you believe you should already have access, contact support.</li>
+            <li>
+              Reach out to our administrators to request access to specific
+              projects.
+            </li>
+            <li>
+              If you believe you should already have access, contact support.
+            </li>
           </ul>
         </div>
         <div className="flex justify-center mt-4">
-          <Button 
-            component="a" 
-            href="/" 
-            variant="outline" 
+          <Button
+            onClick={() => endSession()}
+            variant="outline"
             color="gray"
             size="md"
           >
-            Return Home
+            Sign out and switch account
           </Button>
         </div>
       </div>

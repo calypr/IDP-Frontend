@@ -7,31 +7,19 @@ import {
 import { GEN3_COMMONS_NAME } from '@gen3/core';
 
 export const loadContent = async () => {
-  const modals = await ContentSource.getContentDatabase().get(
-    `${GEN3_COMMONS_NAME}/modals.json`,
-  );
-  const session = await ContentSource.getContentDatabase().get(
-    `${GEN3_COMMONS_NAME}/session.json`,
-  );
-
-  const fonts = await ContentSource.getContentDatabase().get(
-    `${GEN3_COMMONS_NAME}/themeFonts.json`,
-  );
-
-  const themeColors = await ContentSource.getContentDatabase().get(
-    `${GEN3_COMMONS_NAME}/themeColors.json`,
-  );
+  const [modals, session, fonts, themeColors, icons] = await Promise.all([
+    ContentSource.getContentDatabase().get(`${GEN3_COMMONS_NAME}/modals.json`),
+    ContentSource.getContentDatabase().get(`${GEN3_COMMONS_NAME}/session.json`),
+    ContentSource.getContentDatabase().get(`${GEN3_COMMONS_NAME}/themeFonts.json`),
+    ContentSource.getContentDatabase().get(`${GEN3_COMMONS_NAME}/themeColors.json`),
+    ContentSource.getContentDatabase().getAll(`icons/`, '\\.json'),
+  ]);
 
   const colors = Object.fromEntries(
     Object.entries(themeColors).map(([key, values]) => {
       const stringValues = values as { [s: string]: string };
       return [key, Object.values(stringValues) as TenStringArray];
     }),
-  );
-
-  const icons = await ContentSource.getContentDatabase().getAll(
-    `icons/`,
-    '\\.json',
   );
 
   return {

@@ -17,6 +17,28 @@ export interface UserAuthResponse {
   readonly loginStatus: LoginStatus;
 }
 
+const getRequestErrorStatus = (error: unknown): number | undefined => {
+  if (typeof error !== 'object' || error === null) return undefined;
+
+  if ('status' in error && typeof error.status === 'number') {
+    return error.status;
+  }
+
+  if ('error' in error) {
+    const nestedError = error.error;
+    if (
+      typeof nestedError === 'object' &&
+      nestedError !== null &&
+      'status' in nestedError &&
+      typeof nestedError.status === 'number'
+    ) {
+      return nestedError.status;
+    }
+  }
+
+  return undefined;
+};
+
 export const userAuthApi = createApi({
   reducerPath: 'userAuthApi',
   refetchOnMountOrArgChange: 1800,
@@ -37,10 +59,10 @@ export const userAuthApi = createApi({
 
     try {
       results = await fetchFence({ endpoint, headers, signal });
-    } catch (error: any) {
+    } catch (error: unknown) {
       return {
         error: {
-          status: error?.status || 0,
+          status: getRequestErrorStatus(error) ?? 0,
           data: error,
         },
       };
@@ -51,6 +73,25 @@ export const userAuthApi = createApi({
   endpoints: (builder) => ({
     fetchUserDetails: builder.query<UserAuthResponse, void>({
       query: () => ({ endpoint: '/user' }),
+      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
+        try {
+          await queryFulfilled;
+        } catch (error: unknown) {
+          if (getRequestErrorStatus(error) !== 401) return;
+
+          dispatch(
+            userAuthApi.util.updateQueryData(
+              'fetchUserDetails',
+              undefined,
+              () =>
+                ({
+                  data: EMPTY_USER,
+                  loginStatus: 'unauthenticated',
+                }) satisfies UserAuthResponse,
+            ),
+          );
+        }
+      },
       transformResponse(response: Gen3FenceResponse<Gen3User>) {
         return {
           data: response.data,
@@ -91,12 +132,21 @@ export const userAuthApi = createApi({
               data: { csrfToken: token },
             };
           }
+
+          return {
+            error: {
+              status: res.status,
+              data: await res.text(),
+            },
+          };
         } catch (error: unknown) {
           if (error instanceof Error) {
             return {
               error: {
                 status: timedOut ? 408 : 0,
-                data: timedOut ? 'Commons status request timed out' : error.message,
+                data: timedOut
+                  ? 'Commons status request timed out'
+                  : error.message,
               },
             };
           } else {
@@ -140,13 +190,28 @@ export const selectUserDetails = createSelector(
 
 export const selectUserAuthStatus = createSelector(
   selectUserDetailsFromState,
-  (userLoginState) =>
-    userLoginState.status === QueryStatus.pending
-      ? ('pending' as LoginStatus)
-      : userLoginState.status === QueryStatus.uninitialized
-        ? ('not present' as LoginStatus)
-        : (userLoginState?.data?.loginStatus ??
-          ('unauthenticated' as LoginStatus)),
+  (userLoginState): LoginStatus => {
+    if (getRequestErrorStatus(userLoginState.error) === 401) {
+      return 'unauthenticated';
+    }
+
+    if (userLoginState.data?.loginStatus) {
+      return userLoginState.data.loginStatus;
+    }
+
+    if (
+      userLoginState.status === QueryStatus.pending ||
+      userLoginState.status === QueryStatus.rejected
+    ) {
+      return 'pending';
+    }
+
+    if (userLoginState.status === QueryStatus.uninitialized) {
+      return 'not present';
+    }
+
+    return 'unauthenticated';
+  },
 );
 
 export const selectCSRFTokenData = userAuthApi.endpoints.getCSRF.select();

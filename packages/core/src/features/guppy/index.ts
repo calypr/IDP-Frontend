@@ -3,8 +3,8 @@ export * from './guppySlice';
 import {
   downloadFromGuppyToBlob,
   downloadJSONDataFromGuppy,
-  groupSharedFields,
 } from './utils';
+import { groupSharedFields } from './grouping';
 import { useDownloadFromGuppyMutation } from './guppyDownloadSlice';
 export * from './types';
 export * from './processing';

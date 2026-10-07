@@ -5,6 +5,10 @@ export interface AuthTokenData {
   issued?: number;
   expires?: number;
   status: JWTSessionStatus;
+  expiresInMs?: number;
+  fenceStatus?: JWTSessionStatus;
+  fenceExpires?: number;
+  fenceExpiresInMs?: number;
   userContext?: Record<string, string>;
 }
 
@@ -22,10 +26,13 @@ export interface SessionConfig {
 
 export interface SessionConfiguration {
   /**
-   * A time interval (in minutes) after which the session will be re-fetched.
-   * If set to `0` (default), the session is not polled.
+   * Interval in minutes for inactivity checks. Token renewal uses token expiry.
+   * Set to `0` to disable inactivity checks.
    */
   updateSessionTime?: number;
+
+  /** Refresh this many milliseconds before a token expires. */
+  renewAccessTokenEarlyMilliseconds?: number;
 
   /**
    * number of seconds after which the session will be considered inactive.

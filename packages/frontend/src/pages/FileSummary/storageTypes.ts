@@ -172,6 +172,7 @@ export type StorageCleanupScope =
 
 export interface StorageCleanupAccessProbe {
   readonly url: string;
+  readonly operation?: string;
   readonly provider?: string;
   readonly bucket?: string;
   readonly key?: string;
@@ -279,6 +280,7 @@ export interface StorageApplyFindingRequest {
     }>;
     readonly access_probes?: Array<{
       readonly url: string;
+      readonly operation?: string;
       readonly provider?: string;
       readonly bucket?: string;
       readonly key?: string;

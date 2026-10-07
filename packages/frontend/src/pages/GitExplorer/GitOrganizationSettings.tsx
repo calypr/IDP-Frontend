@@ -1716,13 +1716,10 @@ const GitOrganizationSettingsPage = ({
             <div>
               <Link
                 href={`/git/${encodeURIComponent(organization)}`}
-                legacyBehavior
-              >
-                <a className="inline-flex items-center gap-1 text-sm text-slate-600 hover:text-slate-900">
+               className="inline-flex items-center gap-1 text-sm text-slate-600 hover:text-slate-900">
                   <IconChevronLeft size={16} />
                   Back to organization
-                </a>
-              </Link>
+                </Link>
               <Title order={2}>Settings: {organization}</Title>
               <Text c="dimmed" size="sm">
                 Manage project access and storage.

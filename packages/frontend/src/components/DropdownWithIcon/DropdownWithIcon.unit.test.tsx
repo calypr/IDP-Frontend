@@ -1,7 +1,11 @@
 import React from 'react';
-import { render, waitFor } from '@testing-library/react';
+import { render as renderScreen, waitFor } from '@testing-library/react';
+import { MantineProvider } from '@mantine/core';
 import { DropdownWithIcon } from './DropdownWithIcon';
 import userEvent from '@testing-library/user-event';
+
+const render = (ui: React.ReactElement) =>
+  renderScreen(<MantineProvider>{ui}</MantineProvider>);
 
 describe('<DropdownWithIcon />', () => {
   it('if right icon is NOT provided, dropdown icon should be a default', () => {

@@ -1,0 +1,122 @@
+import React, { ReactNode, useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/router';
+import { useSession } from '../../lib/session/session';
+import { AccessGate } from './ProtectedContent';
+import { VerifyingAccessLoader } from './VerifyingAccessLoader';
+import {
+  useGetGeckoProjectsQuery,
+  useGetGeckoProjectSummaryQuery,
+} from '@gen3/core';
+import { InitialPageReadyContext } from './InitialPageReady';
+
+const HomeCatalogGate = ({ children }: { children: ReactNode }) => {
+  const { isLoading: isProjectsLoading } = useGetGeckoProjectsQuery();
+  const { isLoading: isSummaryLoading } = useGetGeckoProjectSummaryQuery();
+
+  return isProjectsLoading || isSummaryLoading ? null : <>{children}</>;
+};
+
+/** Gate page mounting until Fence has resolved the browser session. */
+export const AuthenticatedPage = ({ children }: { children: ReactNode }) => {
+  const router = useRouter();
+  const { status, pending } = useSession();
+  const isPublicPage = router.pathname === '/';
+  const isProfilePage = router.pathname === '/Profile';
+  const waitsForPage =
+    router.pathname === '/Query' ||
+    router.pathname === '/org/[org]/project/[project]/presentation/edit' ||
+    router.pathname === '/org/[org]/project/[project]/edit' ||
+    (router.pathname === '/app/[appName]' &&
+      router.query?.appName === 'CohortDiscovery');
+  const pageLoadingMessage =
+    router.pathname === '/Query'
+      ? 'Loading query editor...'
+      : router.pathname === '/app/[appName]'
+        ? 'Loading cohort discovery...'
+        : 'Loading project page...';
+  const [readyPagePath, setReadyPagePath] = useState<string | null>(null);
+  const reportPageReady = useCallback(
+    () => setReadyPagePath(router.asPath),
+    [router.asPath],
+  );
+  useEffect(() => {
+    const reset = () => setReadyPagePath(null);
+    router.events?.on('routeChangeStart', reset);
+    return () => router.events?.off('routeChangeStart', reset);
+  }, [router.events]);
+  const isProjectPage = router.pathname.startsWith(
+    '/org/[org]/project/[project]',
+  );
+  const organization =
+    typeof router.query?.org === 'string' ? router.query.org : '';
+  const project =
+    typeof router.query?.project === 'string' ? router.query.project : '';
+  const projectRouteReady = !isProjectPage || Boolean(organization && project);
+  useEffect(() => {
+    if (!router.isReady || isPublicPage || pending || status === 'issued') {
+      return;
+    }
+
+    // Keep the requested in-app path for the login link on the public home page.
+    const referer =
+      router.asPath.startsWith('/') && !router.asPath.startsWith('//')
+        ? router.asPath
+        : '/';
+    void router.replace({ pathname: '/', query: { referer } });
+  }, [router, router.isReady, router.asPath, isPublicPage, pending, status]);
+
+  if (waitsForPage) {
+    const canMountPage =
+      router.isReady && projectRouteReady && !pending && status === 'issued';
+    return status === 'issued' ? (
+      <>
+        {(!canMountPage || readyPagePath !== router.asPath) && (
+          <VerifyingAccessLoader message={pageLoadingMessage} />
+        )}
+        {canMountPage && (
+          <InitialPageReadyContext.Provider value={reportPageReady}>
+            <div
+              style={{
+                display: readyPagePath === router.asPath ? 'contents' : 'none',
+              }}
+            >
+              <AccessGate
+                projectScope={
+                  isProjectPage ? { organization, project } : undefined
+                }
+                showLoadingIndicator={false}
+                onBlocked={reportPageReady}
+              >
+                {children}
+              </AccessGate>
+            </div>
+          </InitialPageReadyContext.Provider>
+        )}
+      </>
+    ) : null;
+  }
+
+  if (router.isReady && projectRouteReady && !pending && status === 'issued') {
+    if (isProfilePage) return <>{children}</>;
+    return (
+      <AccessGate
+        projectScope={isProjectPage ? { organization, project } : undefined}
+        showLoadingIndicator={!isPublicPage}
+      >
+        {isPublicPage ? (
+          <HomeCatalogGate>{children}</HomeCatalogGate>
+        ) : (
+          children
+        )}
+      </AccessGate>
+    );
+  }
+
+  if (isPublicPage && router.isReady && !pending) {
+    return <>{children}</>;
+  }
+
+  return status === 'issued' && !isPublicPage && !isProfilePage ? (
+    <VerifyingAccessLoader />
+  ) : null;
+};

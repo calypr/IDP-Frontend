@@ -6,7 +6,6 @@ import {
   Alert,
   Button,
   Card,
-  Code,
   Container,
   Group,
   Menu,
@@ -23,6 +22,7 @@ import {
 import {
   SYFON_API,
   mintSyfonObjectIdFromChecksum,
+  useGetConfigListQuery,
   useGetConfigContentQuery,
   useLazyGetGeckoGitProjectFileQuery,
   useGetGeckoGitProjectsQuery,
@@ -58,7 +58,6 @@ import type { FileActionsConfig } from '../../features/CohortBuilder/types';
 import { getFileExtensionCandidates } from '../OrganizationExplorer/utils';
 import { useIsEmbedded } from '../../utils';
 import type { GitExplorerPageProps } from './types';
-import GitUploadPRModal from './GitUploadPRModal';
 import { hardNavigate } from './navigation';
 
 const formatBytes = (size: number): string => {
@@ -171,11 +170,6 @@ const MIRROR_STATUS_POLL_INTERVAL_MS = 1000;
 const isPersistentGitProjectError = (message: string | null | undefined) =>
   (message ?? '').toLowerCase().includes('remote repository is empty');
 
-interface GitProjectSuccessBanner {
-  readonly branchName: string;
-  readonly pullRequestURL: string;
-}
-
 const GitProjectPage = ({
   headerProps,
   footerProps,
@@ -198,12 +192,9 @@ const GitProjectPage = ({
   const [visibleProjectError, setVisibleProjectError] = useState<string | null>(
     null,
   );
-  const [successBanner, setSuccessBanner] =
-    useState<GitProjectSuccessBanner | null>(null);
   const [downloadingChecksum, setDownloadingChecksum] = useState<string | null>(
     null,
   );
-  const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [hasCopiedRepoPath, setHasCopiedRepoPath] = useState(false);
   const [hasCopiedCloneCommand, setHasCopiedCloneCommand] = useState(false);
@@ -218,10 +209,16 @@ const GitProjectPage = ({
   } = useGetGeckoGitProjectsQuery();
   const explorerConfigId =
     organization && project ? `${organization}-${project}` : '';
+  const { data: explorerConfigs } = useGetConfigListQuery(undefined, {
+    skip: !explorerConfigId,
+  });
+  const explorerConfigAvailable =
+    Array.isArray(explorerConfigs?.data) &&
+    explorerConfigs.data.includes(explorerConfigId);
   const { data: explorerConfigResponse } = useGetConfigContentQuery(
     explorerConfigId,
     {
-      skip: !explorerConfigId,
+      skip: !explorerConfigId || !explorerConfigAvailable,
     },
   );
   const projectStatus = useMemo(
@@ -304,7 +301,11 @@ const GitProjectPage = ({
   }, [actionError]);
 
   useEffect(() => {
-    const nextError = projectStatus?.last_error?.trim() || null;
+    const nextError =
+      projectStatus?.sync_state === 'updating' ||
+      projectStatus?.sync_state === 'ready'
+        ? null
+        : projectStatus?.last_error?.trim() || null;
     setVisibleProjectError(nextError);
     if (!nextError || isPersistentGitProjectError(nextError)) {
       return;
@@ -315,7 +316,7 @@ const GitProjectPage = ({
       );
     }, TRANSIENT_ALERT_TIMEOUT_MS);
     return () => window.clearTimeout(timeout);
-  }, [projectStatus?.last_error]);
+  }, [projectStatus?.last_error, projectStatus?.sync_state]);
 
   useEffect(() => {
     if (
@@ -397,13 +398,6 @@ const GitProjectPage = ({
   const isSearchOpen = normalizedSearchQuery.length > 0;
   const currentPathSegments = currentPath.split('/').filter(Boolean);
   const isRootView = currentPathSegments.length === 0;
-  const hasNoRepositoryBranches =
-    projectStatus?.installation_state === 'connected' &&
-    projectStatus?.mirror_ready &&
-    !areRefsLoading &&
-    refOptions.length === 0;
-  const isRepositoryUninitialized =
-    hasNoRepositoryBranches && !projectStatus?.default_branch;
   const currentRepoPath = [organization, project, ...currentPathSegments].join('/');
   const breadcrumbSegments = currentPathSegments.map((segment, index) => ({
     label: segment,
@@ -425,8 +419,8 @@ const GitProjectPage = ({
     project,
   );
   const hasExplorerConfig = useMemo(
-    () => Boolean(explorerConfigResponse?.data),
-    [explorerConfigResponse?.data],
+    () => explorerConfigAvailable && Boolean(explorerConfigResponse?.data),
+    [explorerConfigAvailable, explorerConfigResponse?.data],
   );
   const effectiveFileActions = useMemo(() => {
     const explorerConfigData = explorerConfigResponse?.data as
@@ -856,17 +850,14 @@ const GitProjectPage = ({
                   <Group className="min-w-0 flex-1" gap={6} wrap="nowrap">
                     <Link
                       href={`/git/${encodeURIComponent(organization)}`}
-                      legacyBehavior
-                    >
-                      <a className="min-w-0 no-underline text-primary hover:underline">
+                     className="min-w-0 no-underline text-primary hover:underline">
                         <Title
                           className="truncate text-[1.1rem] leading-tight"
                           order={3}
                         >
                           {organization}
                         </Title>
-                      </a>
-                    </Link>
+                      </Link>
                     <Text c="dimmed" fw={700} size="sm">
                       /
                     </Text>
@@ -888,16 +879,6 @@ const GitProjectPage = ({
                   >
                     {isRefreshing ? 'Refreshing...' : 'Refresh repository'}
                   </Button>
-                  {!hasNoRepositoryBranches ? (
-                    <Button
-                      className="px-2"
-                      onClick={() => setIsUploadOpen(true)}
-                      size="xs"
-                      variant="default"
-                    >
-                      Upload files
-                    </Button>
-                  ) : null}
                 </Group>
               </Group>
 
@@ -1056,29 +1037,11 @@ const GitProjectPage = ({
                 </Alert>
               ) : null}
 
-              {visibleProjectError ? (
+              {visibleProjectError &&
+              projectStatus?.sync_state !== 'updating' &&
+              projectStatus?.sync_state !== 'ready' ? (
                 <Alert color="red" variant="light">
                   {visibleProjectError}
-                </Alert>
-              ) : null}
-              {successBanner ? (
-                <Alert color="green" variant="light">
-                  Pull request created on branch{' '}
-                  <Code>{successBanner.branchName}</Code>.{' '}
-                  <a
-                    className="text-primary hover:underline"
-                    href={successBanner.pullRequestURL}
-                    rel="noreferrer"
-                    target="_blank"
-                  >
-                    Open pull request
-                  </a>
-                </Alert>
-              ) : null}
-              {isRepositoryUninitialized ? (
-                <Alert color="yellow" variant="light">
-                  This repository has no default branch yet. Initialize your
-                  repo first before uploading files.
                 </Alert>
               ) : null}
               {projectStatus?.installation_state !== 'connected' ? (
@@ -1088,33 +1051,13 @@ const GitProjectPage = ({
                     : 'This organization does not have the GitHub App installed yet. Connect it from '}
                   <Link
                     href="/git"
-                    legacyBehavior
-                  >
-                    <a className="font-medium underline">
+                   className="font-medium underline">
                       /git
-                    </a>
-                  </Link>{' '}
+                    </Link>{' '}
                   {projectStatus?.organization_app_installed
                     ? 'to include this repository.'
                     : 'before refreshing this repository mirror.'}
                 </Alert>
-              ) : null}
-
-              {isUploadOpen ? (
-                <GitUploadPRModal
-                  initialBaseBranch={effectiveRef ?? projectStatus?.default_branch}
-                  isRepositoryUninitialized={isRepositoryUninitialized}
-                  onClose={() => setIsUploadOpen(false)}
-                  onSuccess={(result) => {
-                    setSuccessBanner(result);
-                    setIsUploadOpen(false);
-                  }}
-                  opened={isUploadOpen}
-                  organization={organization}
-                  project={project}
-                  refs={refsData?.refs ?? []}
-                  targetSubdirectory={currentPath}
-                />
               ) : null}
 
               {isRootView ? (

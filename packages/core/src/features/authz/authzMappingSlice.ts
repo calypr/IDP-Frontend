@@ -75,11 +75,11 @@ export const authzApi = authzTags.injectEndpoints({
         );
 
         const cachedUser = userDetailsState?.data?.data;
-        if (cachedUser) {
+        const cachedMapping =
+          cachedUser?.authz ?? cachedUser?.project_access;
+        if (cachedMapping !== undefined) {
           return {
-            data: normalizeFenceAuthzMapping(
-              cachedUser.authz ?? cachedUser.project_access,
-            ),
+            data: normalizeFenceAuthzMapping(cachedMapping),
           };
         }
 
@@ -99,17 +99,23 @@ export const authzApi = authzTags.injectEndpoints({
 
         const userResult = await api.dispatch(
           userAuthApi.endpoints.fetchUserDetails.initiate(undefined, {
-            forceRefetch: false,
+            forceRefetch: Boolean(cachedUser),
           }),
         );
 
         try {
           if ('data' in userResult && userResult.data?.data) {
+            const mapping =
+              userResult.data.data.authz ??
+              userResult.data.data.project_access;
+            if (mapping !== undefined) {
+              return { data: normalizeFenceAuthzMapping(mapping) };
+            }
             return {
-              data: normalizeFenceAuthzMapping(
-                userResult.data.data.authz ??
-                  userResult.data.data.project_access,
-              ),
+              error: {
+                status: 'CUSTOM_ERROR',
+                error: 'Fence user response did not include an access mapping',
+              } satisfies FetchBaseQueryError,
             };
           }
         } finally {

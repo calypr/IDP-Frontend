@@ -9,7 +9,7 @@ import {
 import { guppyApi, guppyApiSliceRequest } from './guppyApi';
 import { SharedFieldMapping } from './types';
 
-import { groupSharedFields } from './utils';
+import { groupSharedFields } from './grouping';
 import { processHistogramResponse } from './processing';
 
 const statusEndpoint = '/_status';

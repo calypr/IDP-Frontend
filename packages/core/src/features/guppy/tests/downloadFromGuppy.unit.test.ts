@@ -24,28 +24,24 @@ describe('Test for downloadFromGuppy function', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({}),
+    });
   });
 
-  it('should call the function correctly', () => {
-    downloadFromGuppyToBlob(downloadOptions);
+  it('should call the function correctly', async () => {
+    await downloadFromGuppyToBlob(downloadOptions);
     expect(onStartMock).toHaveBeenCalledTimes(1);
-    expect(downloadFromGuppyToBlob).toHaveBeenCalledWith(downloadOptions);
   });
 
-  it('test for onDone function', () => {
-    downloadFromGuppyToBlob(downloadOptions);
+  it('test for onDone function', async () => {
+    await downloadFromGuppyToBlob(downloadOptions);
     expect(onDoneMock).toHaveBeenCalledTimes(1);
   });
 
-  it('test for onError function', () => {
-    downloadFromGuppyToBlob(downloadOptions);
+  it('test for onError function', async () => {
+    await downloadFromGuppyToBlob(downloadOptions);
     expect(onErrorMock).toHaveBeenCalledTimes(0);
   });
-
-  // mock the fetch function
-  global.fetch = jest.fn(() =>
-    Promise.resolve({
-      json: () => Promise.resolve({}),
-    }),
-  ) as jest.Mock;
 });

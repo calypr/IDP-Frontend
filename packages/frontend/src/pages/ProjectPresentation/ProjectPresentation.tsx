@@ -1,16 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import {
   useGetAuthzMappingsQuery,
+  useGetConfigListQuery,
   useGetConfigContentQuery,
   useGetGeckoProjectSummaryQuery,
   useGetGeckoProjectsQuery,
   useGetGeckoGitProjectPresentationConfigQuery,
 } from '@gen3/core';
-import { Center, Loader } from '@mantine/core';
 import { useRouter } from 'next/router';
 import { NavPageLayout } from '../../features/Navigation';
 import { ProjectWorkspaceTabs } from '../../features/Navigation';
-import { ProtectedContent } from '../../components/Protected';
+import { useInitialPageReady } from '../../components/Protected/InitialPageReady';
 import { useIsEmbedded } from '../../utils';
 import { getNavPageLayoutPropsFromConfig } from '../../lib/common/staticProps';
 import {
@@ -43,6 +43,17 @@ export const ProjectPresentationPage = ({
     isAdmin ||
     hasOrganizationMembership(authzMapping, organization) ||
     hasProjectMembershipOrAccess(authzMapping, organization, project);
+  const { data: explorerConfigs } = useGetConfigListQuery(undefined, {
+    skip:
+      !explorerConfigId ||
+      !sessionReady ||
+      !isAuthenticated ||
+      isAuthzLoading ||
+      !canLikelyReadProjectScopedData,
+  });
+  const explorerConfigAvailable =
+    Array.isArray(explorerConfigs?.data) &&
+    explorerConfigs.data.includes(explorerConfigId);
 
   const { data: geckoProjects = [], isLoading: isProjectsLoading } =
     useGetGeckoProjectsQuery();
@@ -51,6 +62,7 @@ export const ProjectPresentationPage = ({
     {
       skip:
         !explorerConfigId ||
+        !explorerConfigAvailable ||
         !sessionReady ||
         !isAuthenticated ||
         isAuthzLoading ||
@@ -92,44 +104,43 @@ export const ProjectPresentationPage = ({
     bodyHTML: presentationHTML,
   });
 
-  const presentationContent =
-    !sessionReady || (isAuthenticated && isAuthzLoading) ? (
-      <Center className="min-h-[55vh]">
-        <Loader />
-      </Center>
-    ) : isProjectsLoading || isSummaryLoading || isPresentationLoading ? (
-      <Center className="min-h-[55vh]">
-        <Loader />
-      </Center>
-    ) : (
-      <div className="px-6 py-8 lg:px-8">
-        <ProjectPresentationView draft={draft} />
-      </div>
-    );
+  const isPageLoading =
+    !sessionReady ||
+    (isAuthenticated && isAuthzLoading) ||
+    isProjectsLoading ||
+    isSummaryLoading ||
+    isPresentationLoading;
+  useInitialPageReady(!isPageLoading);
+
+  const presentationContent = isPageLoading ? null : (
+    <div className="px-6 py-8 lg:px-8">
+      <ProjectPresentationView draft={draft} />
+    </div>
+  );
 
   if (isEmbedded) {
-    return <ProtectedContent>{presentationContent}</ProtectedContent>;
+    return presentationContent;
   }
 
   return (
-    <ProtectedContent>
-      <NavPageLayout
-        {...{ headerProps, footerProps }}
-        headerMetadata={{
-          title: 'Project Presentation',
-          content: 'Project presentation page',
-          key: 'project-presentation',
-        }}
+    <NavPageLayout
+      {...{ headerProps, footerProps }}
+      headerMetadata={{
+        title: 'Project Presentation',
+        content: 'Project presentation page',
+        key: 'project-presentation',
+      }}
+    >
+      <ProjectWorkspaceTabs
+        activeTab="presentation"
+        hasExplorerConfig={
+          explorerConfigAvailable && Boolean(explorerConfigResponse?.data)
+        }
+        organization={organization}
+        project={project}
       >
-        <ProjectWorkspaceTabs
-          activeTab="presentation"
-          hasExplorerConfig={Boolean(explorerConfigResponse?.data)}
-          organization={organization}
-          project={project}
-        >
-          {presentationContent}
-        </ProjectWorkspaceTabs>
-      </NavPageLayout>
-    </ProtectedContent>
+        {presentationContent}
+      </ProjectWorkspaceTabs>
+    </NavPageLayout>
   );
 };

@@ -9,8 +9,9 @@ import { useRouter } from 'next/router';
 import { getCookie } from 'cookies-next';
 import { useDeepCompareMemo } from 'use-deep-compare';
 import { useManageSession } from './hooks';
+import { nextRefreshDelay } from './refreshTiming';
 import { showNotification } from '@mantine/notifications';
-import { Session, SessionProviderProps } from './types';
+import { AuthTokenData, Session, SessionProviderProps } from './types';
 import { isUserOnPage } from './utils';
 import {
   type CoreState,
@@ -22,7 +23,6 @@ import {
   useLazyFetchUserDetailsQuery,
 } from '@gen3/core';
 
-import { Center } from '@mantine/core';
 
 import { MinutesToMilliseconds } from '../../utils';
 import { useWorkspaceResourceMonitor } from '../../components/Providers/ResourceMonitor';
@@ -32,13 +32,34 @@ import { WORKSPACES_ENABLED } from '../../features/Workspace/config';
 
 const ACTIVITY_CHANNEL = 'gen3-user-activity';
 const FORCE_LOGOUT_EVENT = 'gen3-force-logout';
+const VERIFY_SESSION_EVENT = 'gen3-verify-session';
+const RETRY_BASE_DELAY_MS = 2_000;
+const RETRY_MAX_DELAY_MS = 30_000;
 const isAppHomePath = (path?: string): boolean =>
   path === '/' || Boolean(path?.startsWith('/Apps'));
 
+const getRetryDelay = (attempt: number): number =>
+  Math.min(RETRY_MAX_DELAY_MS, RETRY_BASE_DELAY_MS * 2 ** Math.min(attempt, 4));
+
 const getRequestErrorStatus = (error: unknown): number | undefined => {
-  if (!error || typeof error !== 'object' || !('status' in error)) return;
-  const status = (error as { status?: unknown }).status;
-  return typeof status === 'number' ? status : undefined;
+  if (typeof error !== 'object' || error === null) return undefined;
+
+  if ('status' in error && typeof error.status === 'number') {
+    return error.status;
+  }
+
+  return undefined;
+};
+
+const isRetryableRequestError = (error: unknown): boolean => {
+  const status = getRequestErrorStatus(error);
+  return (
+    status === undefined ||
+    status === 0 ||
+    status === 408 ||
+    status === 429 ||
+    (status >= 500 && status < 600)
+  );
 };
 
 const getRequestErrorDetail = (error: unknown): string => {
@@ -47,6 +68,12 @@ const getRequestErrorDetail = (error: unknown): string => {
   if ('error' in error && typeof error.error === 'string') return error.error;
   const status = getRequestErrorStatus(error);
   return status ? `Fence returned HTTP ${status}.` : 'The request failed.';
+};
+
+export const requestSessionVerification = () => {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(VERIFY_SESSION_EVENT));
+  }
 };
 
 export const requestSessionLogout = ({
@@ -131,11 +158,12 @@ export const getSession = async () => {
   try {
     const res = await fetch('/api/auth/sessionToken', { cache: 'no-store' });
     if (res.status === 200) {
-      return await res.json();
+      return (await res.json()) as AuthTokenData;
     }
-  } catch (error) {
-    return { status: 'error' };
+  } catch {
+    return { status: 'error' } as AuthTokenData;
   }
+  return { status: 'error' } as AuthTokenData;
 };
 
 export const useSession = (
@@ -171,23 +199,6 @@ export const useIsAuthenticated = () => {
   };
 };
 
-const refreshSession = (
-  getUserDetails: () => void,
-  mostRecentSessionRefreshTimestamp: number,
-  updateSessionRefreshTimestamp: (arg0: number) => void,
-): void => {
-  const timeSinceLastSessionUpdate =
-    Date.now() - mostRecentSessionRefreshTimestamp;
-  // don't hit Fence to refresh tokens too frequently
-  if (timeSinceLastSessionUpdate < UPDATE_SESSION_LIMIT) {
-    return;
-  }
-
-  // hitting Fence endpoint refreshes the token
-  updateSessionRefreshTimestamp(Date.now());
-  getUserDetails();
-};
-
 type IntervalFunction = () => unknown | void;
 
 const useInterval = (callback: IntervalFunction, delay: number | null) => {
@@ -210,8 +221,6 @@ const useInterval = (callback: IntervalFunction, delay: number | null) => {
   }, [delay]);
 };
 
-const UPDATE_SESSION_LIMIT = MinutesToMilliseconds(5);
-
 /**
  * SessionProvider creates a React context which keeps track of wether the user is authenticated
  * and if their session is stale and logs them out if they do not preform an action in an alotted amount of time
@@ -226,6 +235,7 @@ const UPDATE_SESSION_LIMIT = MinutesToMilliseconds(5);
 export const SessionProvider = ({
   children,
   updateSessionTime = 1440,
+  renewAccessTokenEarlyMilliseconds = 120_000,
   inactiveTimeLimit = 1440,
   workspaceInactivityTimeLimit = 0,
   logoutInactiveUsers = true,
@@ -236,6 +246,8 @@ export const SessionProvider = ({
   const {
     isSuccess: isGetCSRFSuccess,
     isError: isGetCSRFError,
+    isLoading: isGetCSRFLoading,
+    isFetching: isGetCSRFFetching,
     error: getCSRFError,
     refetch: refetchCSRF,
   } = useGetCSRFQuery();
@@ -253,6 +265,8 @@ export const SessionProvider = ({
   const userStatus = useCoreSelector((state: CoreState) =>
     selectUserAuthStatus(state),
   );
+  const csrfRetryAttemptRef = useRef(0);
+  const userRetryAttemptRef = useRef(0);
 
   const [mostRecentActivityTimestamp, setMostRecentActivityTimestamp] =
     useState(Date.now());
@@ -261,44 +275,45 @@ export const SessionProvider = ({
   const homeUnauthorizedRef = useRef(false);
   const [isUserVerificationPending, setIsUserVerificationPending] =
     useState(true);
-  const [isHomeRouteTransitionPending, setIsHomeRouteTransitionPending] =
-    useState(false);
   const [isLogoutTransitionPending, setIsLogoutTransitionPending] =
     useState(false);
-  const homeNavigationVerificationRef = useRef<Promise<void> | null>(null);
 
   const broadcastChannelRef = useRef<BroadcastChannel | null>(null);
 
   // Initialize BroadcastChannel for cross-tab communication
   // any user event on one tab or window will update mostRecentActivityTimestamp
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const channel = new BroadcastChannel(ACTIVITY_CHANNEL);
-      broadcastChannelRef.current = channel;
+    if (typeof window === 'undefined' || typeof BroadcastChannel === 'undefined')
+      return;
 
-      // Listen for activity updates from other tabs
-      const handleActivityMessage = (event: MessageEvent) => {
-        if (event.data.type === 'activity-update') {
-          setMostRecentActivityTimestamp(event.data.timestamp);
-        }
-      };
-
-      channel.addEventListener('message', handleActivityMessage);
-
-      return () => {
-        channel.removeEventListener('message', handleActivityMessage);
-        channel.close();
-        if (broadcastChannelRef.current === channel) {
-          broadcastChannelRef.current = null;
-        }
-      };
+    let channel: BroadcastChannel;
+    try {
+      channel = new BroadcastChannel(ACTIVITY_CHANNEL);
+    } catch {
+      return;
     }
-  }, []);
+    broadcastChannelRef.current = channel;
 
-  const [
-    mostRecentSessionRefreshTimestamp,
-    setMostRecentSessionRefreshTimestamp,
-  ] = useState(Date.now());
+    const handleActivityMessage = (event: MessageEvent) => {
+      const data = event.data as
+        | { type?: unknown; timestamp?: unknown }
+        | null
+        | undefined;
+      if (data?.type !== 'activity-update') return;
+      if (typeof data.timestamp !== 'number' || !Number.isFinite(data.timestamp))
+        return;
+      setMostRecentActivityTimestamp(Math.min(data.timestamp, Date.now()));
+    };
+
+    channel.addEventListener('message', handleActivityMessage);
+    return () => {
+      channel.removeEventListener('message', handleActivityMessage);
+      channel.close();
+      if (broadcastChannelRef.current === channel) {
+        broadcastChannelRef.current = null;
+      }
+    };
+  }, []);
 
   const inactiveTimeLimitMilliseconds =
     MinutesToMilliseconds(inactiveTimeLimit);
@@ -312,6 +327,62 @@ export const SessionProvider = ({
   // update session status using the user status
 
   const sessionInfo = useManageSession(userStatus);
+
+  useEffect(() => {
+    if (isGetCSRFLoading || isGetCSRFFetching) return;
+    if (isGetCSRFSuccess) {
+      csrfRetryAttemptRef.current = 0;
+      return;
+    }
+    if (!isGetCSRFError) return;
+    if (!isRetryableRequestError(getCSRFError)) {
+      csrfRetryAttemptRef.current = 0;
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      csrfRetryAttemptRef.current += 1;
+      void refetchCSRF();
+    }, getRetryDelay(csrfRetryAttemptRef.current));
+
+    return () => clearTimeout(timeout);
+  }, [
+    isGetCSRFError,
+    isGetCSRFLoading,
+    isGetCSRFSuccess,
+    isGetCSRFFetching,
+    getCSRFError,
+    refetchCSRF,
+  ]);
+
+  useEffect(() => {
+    if (isUserDetailsLoading || isUserDetailsFetching) return;
+    if (!isUserDetailsError) {
+      userRetryAttemptRef.current = 0;
+      return;
+    }
+    if (getRequestErrorStatus(userDetailsError) === 401) {
+      userRetryAttemptRef.current = 0;
+      return;
+    }
+    if (!isRetryableRequestError(userDetailsError)) {
+      userRetryAttemptRef.current = 0;
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      userRetryAttemptRef.current += 1;
+      void getUserDetails();
+    }, getRetryDelay(userRetryAttemptRef.current));
+
+    return () => clearTimeout(timeout);
+  }, [
+    getUserDetails,
+    isUserDetailsError,
+    isUserDetailsFetching,
+    isUserDetailsLoading,
+    userDetailsError,
+  ]);
 
   // for now, we are using the user status to determine if the user is logged in
   const endSession = useCallback(
@@ -411,9 +482,9 @@ export const SessionProvider = ({
           !forcedLogoutInFlightRef.current
         ) {
           // The 401 has already resolved authentication as logged out. Clear
-          // the rejected bearer session without issuing another /user request.
+          // the rejected bearer cookie without redirecting through Fence logout.
           forcedLogoutInFlightRef.current = true;
-          void logoutSession()
+          await fetchWithDeadline('/api/auth/credentialsLogout')
             .catch((logoutError: unknown) => {
               showNotification({
                 title: 'Logout Error',
@@ -441,48 +512,126 @@ export const SessionProvider = ({
     return verification;
   }, [getUserDetails, router.pathname]);
 
-  useEffect(() => {
-    const routePath = (url: string) => url.split(/[?#]/, 1)[0];
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const refreshActiveRef = useRef(false);
+  const refreshInFlightRef = useRef(false);
+  const previousTokenRef = useRef<AuthTokenData | undefined>(undefined);
+  const retryDelayRef = useRef(5_000);
+  const runRefreshRef = useRef<() => Promise<void>>(async () => undefined);
 
-    const handleRouteChangeStart = (url: string) => {
-      if (!isAppHomePath(routePath(url))) return;
+  const clearRefreshTimer = useCallback(() => {
+    if (refreshTimerRef.current !== null) clearTimeout(refreshTimerRef.current);
+    refreshTimerRef.current = null;
+  }, []);
 
-      setIsHomeRouteTransitionPending(true);
-      homeNavigationVerificationRef.current = updateSession();
-    };
+  const armRefresh = useCallback((delay: number) => {
+    if (!refreshActiveRef.current) return;
+    clearRefreshTimer();
+    refreshTimerRef.current = setTimeout(() => {
+      void runRefreshRef.current();
+    }, delay);
+  }, [clearRefreshTimer]);
 
-    const handleRouteChangeComplete = (url: string) => {
-      if (!isAppHomePath(routePath(url))) {
-        homeNavigationVerificationRef.current = null;
-        setIsHomeRouteTransitionPending(false);
+  const runRefresh = useCallback(async (): Promise<void> => {
+    if (refreshInFlightRef.current) return;
+    refreshInFlightRef.current = true;
+    try {
+      // A real Fence request renews the HttpOnly cookies when allowed.
+      await getUserDetails().unwrap();
+      const token = await getSession();
+      if (token.status === 'error') throw new Error('Session status unavailable');
+
+      const delay = nextRefreshDelay(
+        token,
+        renewAccessTokenEarlyMilliseconds,
+        previousTokenRef.current,
+      );
+      previousTokenRef.current = token;
+      retryDelayRef.current = 5_000;
+      if (delay !== null) armRefresh(delay);
+    } catch (error: unknown) {
+      if (getRequestErrorStatus(error) === 401) {
+        clearRefreshTimer();
         return;
       }
+      armRefresh(retryDelayRef.current);
+      retryDelayRef.current = Math.min(retryDelayRef.current * 2, 300_000);
+    } finally {
+      refreshInFlightRef.current = false;
+    }
+  }, [
+    armRefresh,
+    clearRefreshTimer,
+    getUserDetails,
+    renewAccessTokenEarlyMilliseconds,
+  ]);
 
-      const verification =
-        homeNavigationVerificationRef.current ?? updateSession();
-      void verification.finally(() => {
-        if (homeNavigationVerificationRef.current === verification) {
-          homeNavigationVerificationRef.current = null;
-          setIsHomeRouteTransitionPending(false);
-        }
-      });
+  useEffect(() => {
+    runRefreshRef.current = runRefresh;
+  }, [runRefresh]);
+
+  useEffect(() => {
+    if (sessionInfo.status !== 'issued') {
+      refreshActiveRef.current = false;
+      clearRefreshTimer();
+      previousTokenRef.current = undefined;
+      retryDelayRef.current = 5_000;
+      return;
+    }
+
+    refreshActiveRef.current = true;
+    // The provider already requested /user on mount. Read the resulting
+    // cookies without issuing a second Fence request.
+    void getSession().then((token) => {
+      if (!refreshActiveRef.current) return;
+      const delay =
+        token.status === 'error'
+          ? 5_000
+          : nextRefreshDelay(token, renewAccessTokenEarlyMilliseconds);
+      previousTokenRef.current = token;
+      if (delay !== null) armRefresh(delay);
+    });
+    let lastCatchUp = 0;
+    const catchUp = () => {
+      if (Date.now() - lastCatchUp < 10_000) return;
+      lastCatchUp = Date.now();
+      void runRefresh();
     };
-
-    const handleRouteChangeError = () => {
-      homeNavigationVerificationRef.current = null;
-      setIsHomeRouteTransitionPending(false);
+    const catchUpIfVisible = () => {
+      if (document.visibilityState === 'visible') catchUp();
     };
-
-    router.events.on('routeChangeStart', handleRouteChangeStart);
-    router.events.on('routeChangeComplete', handleRouteChangeComplete);
-    router.events.on('routeChangeError', handleRouteChangeError);
-
+    document.addEventListener('visibilitychange', catchUpIfVisible);
+    window.addEventListener('focus', catchUp);
+    window.addEventListener('online', catchUp);
     return () => {
-      router.events.off('routeChangeStart', handleRouteChangeStart);
-      router.events.off('routeChangeComplete', handleRouteChangeComplete);
-      router.events.off('routeChangeError', handleRouteChangeError);
+      refreshActiveRef.current = false;
+      clearRefreshTimer();
+      document.removeEventListener('visibilitychange', catchUpIfVisible);
+      window.removeEventListener('focus', catchUp);
+      window.removeEventListener('online', catchUp);
     };
-  }, [router.events, updateSession]);
+  }, [
+    sessionInfo.status,
+    runRefresh,
+    clearRefreshTimer,
+    armRefresh,
+    renewAccessTokenEarlyMilliseconds,
+  ]);
+
+  useEffect(() => {
+    const verifyAfterUnauthorized = () => {
+      // The initial /user request already determines whether a visitor is a guest.
+      // Only an authenticated session needs a second Fence check after a service 401.
+      if (userStatus !== 'authenticated' || userVerificationPromiseRef.current)
+        return;
+      void updateSession();
+    };
+    window.addEventListener(VERIFY_SESSION_EVENT, verifyAfterUnauthorized);
+    return () => {
+      window.removeEventListener(VERIFY_SESSION_EVENT, verifyAfterUnauthorized);
+    };
+  }, [updateSession, userStatus]);
+
   /**
    * Update session value every updateSessionInterval seconds
    */
@@ -537,7 +686,6 @@ export const SessionProvider = ({
   useInterval(
     () => {
       if (sessionInfo.status != 'issued') return; // no need to update session if user is not logged in
-      if (isUserOnPage('/') /* || this.popupShown */) return;
 
       const timeSinceLastActivity = Date.now() - mostRecentActivityTimestamp;
 
@@ -558,32 +706,28 @@ export const SessionProvider = ({
           return;
         }
       }
-      // fetching a userState will renew the session
-      refreshSession(
-        getUserDetails,
-        mostRecentSessionRefreshTimestamp,
-        (ts: number) => setMostRecentSessionRefreshTimestamp(ts),
-      );
-      void updateSession();
     },
     updateSessionIntervalMilliseconds > 0
       ? updateSessionIntervalMilliseconds
       : null,
   );
 
+  const hasVerifiedAuthenticatedUser = userStatus === 'authenticated';
   const value: Session = useDeepCompareMemo(() => {
     return {
       ...sessionInfo,
       pending:
         sessionInfo.pending ||
-        isUserVerificationPending ||
-        isUserDetailsLoading ||
-        isUserDetailsFetching,
+        (!hasVerifiedAuthenticatedUser &&
+          (isUserVerificationPending ||
+            isUserDetailsLoading ||
+            isUserDetailsFetching)),
       updateSession,
       endSession,
     };
   }, [
     sessionInfo,
+    hasVerifiedAuthenticatedUser,
     isUserVerificationPending,
     isUserDetailsLoading,
     isUserDetailsFetching,
@@ -591,48 +735,33 @@ export const SessionProvider = ({
     endSession,
   ]);
 
-  const restartLogin = useCallback(() => {
-    const next = `${GEN3_REDIRECT_URL}/Login`;
-    window.location.assign(
-      `${GEN3_FENCE_API}/logout?next=${encodeURIComponent(next)}`,
-    );
-  }, []);
-
-  if (isGetCSRFError) {
-    return (
-      <SessionFailureView
-        detail={`The commons status check failed. ${getRequestErrorDetail(getCSRFError)}`}
-        onRetry={() => void refetchCSRF()}
-        onRestartLogin={restartLogin}
-      />
-    );
-  }
-
-  if (isUserDetailsError && getRequestErrorStatus(userDetailsError) !== 401) {
+  const isUserUnauthorized = getRequestErrorStatus(userDetailsError) === 401;
+  if (
+    isUserDetailsError &&
+    !isUserUnauthorized &&
+    !hasVerifiedAuthenticatedUser
+  ) {
     return (
       <SessionFailureView
         detail={`Fence could not return your user session. ${getRequestErrorDetail(userDetailsError)}`}
         onRetry={() => void getUserDetails()}
-        onRestartLogin={restartLogin}
       />
     );
   }
 
   if (isGetCSRFSuccess && isAppHomePath(router.pathname) && value.pending) {
-    return <VerifyingAccessLoader />;
+    return null;
   }
 
-  if (isGetCSRFSuccess)
+  if (
+    isGetCSRFSuccess ||
+    hasVerifiedAuthenticatedUser ||
+    userStatus === 'unauthenticated'
+  )
     return (
       <SessionContext.Provider value={value}>
-        {isHomeRouteTransitionPending || isLogoutTransitionPending ? (
-          <VerifyingAccessLoader
-            message={
-              isLogoutTransitionPending
-                ? 'Signing out...'
-                : 'Loading home page...'
-            }
-          />
+        {isLogoutTransitionPending ? (
+          <VerifyingAccessLoader message="Signing out..." />
         ) : (
           children
         )}
@@ -640,8 +769,8 @@ export const SessionProvider = ({
     );
 
   if (isAppHomePath(router.pathname)) {
-    return <VerifyingAccessLoader message="Contacting commons services..." />;
+    return null;
   }
 
-  return <Center h="100vh" />;
+  return null;
 };

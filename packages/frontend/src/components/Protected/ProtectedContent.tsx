@@ -1,8 +1,7 @@
-import React, { ReactNode, useEffect, useState } from 'react';
+import React, { ReactNode, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useSession } from '../../lib/session/session';
 import { Text } from '@mantine/core';
-import { type JWTSessionStatus } from '@gen3/core';
 import { LoginView } from '../Modals/LoginModal';
 
 import Custom403Page from '../../pages/403/Custom403Page';
@@ -14,20 +13,22 @@ export interface ProtectedContentProps {
 
 import { useGetAuthzMappingsQuery } from '@gen3/core';
 import { hasFenceAccess, NoAccessOverlay } from './NoAccessOverlay';
+import { hasProjectMembershipOrAccess } from '../../features/projectPresentation/access';
 
-import { VerifyingAccessLoader } from './VerifyingAccessLoader';
 import SessionFailureView from './SessionFailureView';
-export { VerifyingAccessLoader };
+import { VerifyingAccessLoader } from './VerifyingAccessLoader';
 
-const isAppHomePath = (path?: string): boolean =>
-  path === '/' || Boolean(path?.startsWith('/Apps'));
-
-const AccessGate = ({
+export const AccessGate = ({
   children,
   errorStatus,
+  projectScope,
+  showLoadingIndicator = true,
   onBlocked,
-}: ProtectedContentProps & { onBlocked: () => void }) => {
-  const router = useRouter();
+}: ProtectedContentProps & {
+  projectScope?: { organization: string; project: string };
+  showLoadingIndicator?: boolean;
+  onBlocked?: () => void;
+}) => {
   const {
     data: authzMapping = {},
     isLoading: isAuthZLoading,
@@ -35,22 +36,32 @@ const AccessGate = ({
     refetch: refetchAuthz,
   } = useGetAuthzMappingsQuery();
   const hasAccess = hasFenceAccess(authzMapping);
-
+  const projectDenied = Boolean(
+    projectScope &&
+    !hasProjectMembershipOrAccess(
+      authzMapping,
+      projectScope.organization,
+      projectScope.project,
+    ),
+  );
   useEffect(() => {
-    if (!isAuthZLoading && !isAuthZError) {
-      if (!hasAccess) {
-        onBlocked();
-      } else {
-        sessionStorage.setItem('hasVerifiedAccess', 'true');
-      }
+    if (
+      !isAuthZLoading &&
+      (isAuthZError || !hasAccess || projectDenied || errorStatus === 403)
+    ) {
+      onBlocked?.();
     }
-  }, [hasAccess, isAuthZError, isAuthZLoading, onBlocked]);
+  }, [
+    isAuthZLoading,
+    isAuthZError,
+    hasAccess,
+    projectDenied,
+    errorStatus,
+    onBlocked,
+  ]);
 
   if (isAuthZLoading) {
-    if (isAppHomePath(router.pathname)) {
-      return <VerifyingAccessLoader />;
-    }
-    return null;
+    return showLoadingIndicator ? <VerifyingAccessLoader /> : null;
   }
 
   if (isAuthZError) {
@@ -63,7 +74,11 @@ const AccessGate = ({
   }
 
   if (!hasAccess) {
-    return null; // Will unmount shortly because parent will pick up the blocked state
+    return <NoAccessOverlay />;
+  }
+
+  if (projectDenied) {
+    return <Custom403Page />;
   }
 
   if (errorStatus === 403) {
@@ -75,39 +90,15 @@ const AccessGate = ({
 
 const ProtectedContent = ({ children, errorStatus }: ProtectedContentProps) => {
   const router = useRouter();
-  const [stableStatus, setStableStatus] = useState<
-    JWTSessionStatus | undefined
-  >();
-  const [isBlocked, setIsBlocked] = useState(false);
-
   const { status, pending } = useSession(true, () => {
     /* prevent redirect */
   });
 
-  useEffect(() => {
-    if (!pending && stableStatus !== status) {
-      setStableStatus(status);
-    }
-  }, [status, pending, stableStatus]);
-
-  const handleBlocked = React.useCallback(() => setIsBlocked(true), []);
-
-  if (isBlocked) {
-    return <NoAccessOverlay />;
-  }
-
-  if (stableStatus === 'issued') {
-    return (
-      <AccessGate errorStatus={errorStatus} onBlocked={handleBlocked}>
-        {children}
-      </AccessGate>
-    );
+  if (status === 'issued') {
+    return <AccessGate errorStatus={errorStatus}>{children}</AccessGate>;
   }
 
   if (pending) {
-    if (isAppHomePath(router.pathname)) {
-      return <VerifyingAccessLoader />;
-    }
     return null;
   }
 

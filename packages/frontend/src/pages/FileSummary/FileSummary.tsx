@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import {
   CALYPR_EXPLORER_CONFIG_API,
+  useGetConfigListQuery,
   useGetConfigContentQuery,
 } from '@gen3/core';
 import {
@@ -205,13 +206,20 @@ export const FileSummaryPage = ({
   const explorerConfigId = selectedProjectParts
     ? `${selectedProjectParts.organization}-${selectedProjectParts.project}`
     : '';
+  const { data: explorerConfigs } = useGetConfigListQuery(undefined, {
+    skip: !explorerConfigId,
+  });
+  const explorerConfigAvailable =
+    Array.isArray(explorerConfigs?.data) &&
+    explorerConfigs.data.includes(explorerConfigId);
   const { data: explorerConfigResponse } = useGetConfigContentQuery(
     explorerConfigId,
     {
-      skip: !explorerConfigId,
+      skip: !explorerConfigId || !explorerConfigAvailable,
     },
   );
-  const hasExplorerConfig = Boolean(explorerConfigResponse?.data);
+  const hasExplorerConfig =
+    explorerConfigAvailable && Boolean(explorerConfigResponse?.data);
   const breadcrumbSegments = useMemo(
     () => getPathSegments(currentPath),
     [currentPath],
@@ -1008,14 +1016,13 @@ export const FileSummaryPage = ({
   );
 
   const handleApplySelectedChainObjects = useCallback(
-    async (issueId: string) => {
+    async (issueId: string, targetPaths: Array<string>) => {
       const targetIssue = chainIssueSummaries.find(
         (issue) => issue.id === issueId,
       );
       if (!targetIssue) {
         return;
       }
-      const targetPaths = selectedChainPathsByIssue[targetIssue.id] ?? [];
       if (targetPaths.length === 0) {
         return;
       }
@@ -1080,12 +1087,10 @@ export const FileSummaryPage = ({
       removeHealedChainFindings,
       refresh,
       runChainAudit,
-      selectedChainPathsByIssue,
     ],
   );
 
-  const handleRegisterSelectedGitOnly = useCallback(async () => {
-    const targetPaths = selectedChainPathsByIssue.git_only_no_syfon ?? [];
+  const handleRegisterSelectedGitOnly = useCallback(async (targetPaths: Array<string>) => {
     const gitRevision = chainAuditResult?.summary.gitRevision;
     if (targetPaths.length === 0 || !gitRevision) {
       return;
@@ -1123,7 +1128,6 @@ export const FileSummaryPage = ({
     refresh,
     registerGitOnlySyfonRecords,
     runChainAudit,
-    selectedChainPathsByIssue.git_only_no_syfon,
     setSelectedChainPathsForIssue,
   ]);
 
@@ -1264,11 +1268,11 @@ export const FileSummaryPage = ({
                     }}
                     onSelectedChainPathsChange={setSelectedChainPathsForIssue}
                     onToggleChainIssueDetails={handleToggleChainIssueDetails}
-                    onApplySelectedChainObjects={(issueId) => {
-                      void handleApplySelectedChainObjects(issueId);
+                    onApplySelectedChainObjects={(issueId, paths) => {
+                      void handleApplySelectedChainObjects(issueId, paths);
                     }}
-                    onRegisterSelectedGitOnly={() => {
-                      void handleRegisterSelectedGitOnly();
+                    onRegisterSelectedGitOnly={(paths) => {
+                      void handleRegisterSelectedGitOnly(paths);
                     }}
                     selectedChainPathsByIssue={selectedChainPathsByIssue}
                     setExpandedChainTreeNodes={setExpandedChainTreeNodes}

@@ -22,7 +22,9 @@ const NavigationLogo = ({
   const classNamesDefaults = {
     root: 'relative flex py-2 justify-start items-center align-middle font-heading font-bold tracking-wide text-xl',
     link: 'relative object-contain',
-    logo: 'flex-shrink-0 min-w-[50px] max-h-[40px]',
+    logo: basepage
+      ? 'flex-shrink-0 min-w-[50px] max-h-[40px]'
+      : 'flex-shrink-0 object-contain',
     title: 'border-solid border-base-darker ml-1 mr-3',
     divider:
       'border-solid border-gen3-smoke border-l-1 ml-[2px] mr-[7px] h-[64px] w-1',
@@ -36,6 +38,8 @@ const NavigationLogo = ({
     classNamesDefaults,
     classNames,
   );
+  const homeHref =
+    title?.trim().toLowerCase() === 'calypr' && !basepage ? '/Apps' : href;
 
   return (
     <div
@@ -65,19 +69,25 @@ const NavigationLogo = ({
       )}
       <HoverLink
         className={extractClassName('link', mergedClassnames)}
-        href={href}
+        href={homeHref}
         noBasePath={noBasePath}
       >
         <Image
           className={extractClassName('logo', mergedClassnames)}
-          width={width ?? undefined}
-          height={height ?? undefined}
-          fill={!width && !height}
+          width={basepage ? width : 38}
+          height={basepage ? height : 48}
+          fill={basepage && !width && !height}
           src={
             !basepage ? `${basePath}/icons/ohsu_white.svg` : `${basePath}${src}`
           }
           alt={description ?? title ?? 'link back to homepage'}
-          style={(!width && !height) ? undefined : { width: 'auto', height: 'auto' }}
+          style={
+            basepage
+              ? width && height
+                ? { width: 'auto', height: 'auto' }
+                : undefined
+              : { width: 'auto', height: 40 }
+          }
         />
       </HoverLink>
       {divider && (
@@ -90,7 +100,7 @@ const NavigationLogo = ({
         >
           <HoverLink
             className={extractClassName('titleLink', mergedClassnames)}
-            href={href}
+            href={homeHref}
           >
             {title}
           </HoverLink>

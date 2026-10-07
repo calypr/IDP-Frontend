@@ -2,7 +2,7 @@ import React from 'react';
 import dynamic from 'next/dynamic';
 import { NavPageLayout } from '../../features/Navigation';
 import { ExplorerPageProps } from './types';
-import { Center } from '@mantine/core';
+import { Button, Center, Stack, Text } from '@mantine/core';
 import ProtectedContent from '../../components/Protected/ProtectedContent';
 
 const CohortBuilder = dynamic(
@@ -64,6 +64,22 @@ const ExplorerPage = ({
     ...(headerMetadata ? headerMetadata : {}),
   };
   const router = useRouter();
+  const explorerContent = errorStatus && errorStatus !== 403 ? (
+    <Center mih={240}>
+      <Stack align="center" gap="md">
+        <Text>Could not load the Explorer configuration.</Text>
+        <Button onClick={() => router.reload()}>Try again</Button>
+      </Stack>
+    </Center>
+  ) : (
+    <ExplorerMainContent
+      key={router.asPath}
+      explorerConfig={explorerConfig}
+      tabsLayout={tabsLayout}
+      sharedFiltersMap={sharedFiltersMap}
+      fileActions={fileActions}
+    />
+  );
 
   return (
     <NavPageLayout
@@ -71,13 +87,7 @@ const ExplorerPage = ({
       headerMetadata={pageHeaderMetadata}
     >
       <ProtectedContent errorStatus={errorStatus}>
-        <ExplorerMainContent
-          key={router.asPath}
-          explorerConfig={explorerConfig}
-          tabsLayout={tabsLayout}
-          sharedFiltersMap={sharedFiltersMap}
-          fileActions={fileActions}
-        />
+        {explorerContent}
       </ProtectedContent>
     </NavPageLayout>
   );
