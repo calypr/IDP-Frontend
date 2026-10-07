@@ -67,7 +67,7 @@ const LoginMenu = ({
           zIndex={zIndex}
         />
       ) : frontBanner ? (
-        <UnstyledButton className="mx-2" onClick={() => router.push('/')}>
+        <UnstyledButton className="mx-2" onClick={() => router.push('/Apps')}>
           <div className={classNames.label}> Open CALYPR </div>
         </UnstyledButton>
       ) : (

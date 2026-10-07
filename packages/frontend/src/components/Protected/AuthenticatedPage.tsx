@@ -4,45 +4,26 @@ import { useSession } from '../../lib/session/session';
 import { AccessGate } from './ProtectedContent';
 import { VerifyingAccessLoader } from './VerifyingAccessLoader';
 import {
-  useGetAuthzMappingsQuery,
   useGetGeckoProjectsQuery,
   useGetGeckoProjectSummaryQuery,
 } from '@gen3/core';
-import { hasFenceAccess } from './NoAccessOverlay';
 import { InitialPageReadyContext } from './InitialPageReady';
 
-const HomeCatalogGate = ({
-  children,
-  onReady,
-}: {
-  children: ReactNode;
-  onReady?: () => void;
-}) => {
+const HomeCatalogGate = ({ children }: { children: ReactNode }) => {
   const { isLoading: isProjectsLoading } = useGetGeckoProjectsQuery();
   const { isLoading: isSummaryLoading } = useGetGeckoProjectSummaryQuery();
-
-  useEffect(() => {
-    if (!isProjectsLoading && !isSummaryLoading) onReady?.();
-  }, [isProjectsLoading, isSummaryLoading, onReady]);
 
   return isProjectsLoading || isSummaryLoading ? null : <>{children}</>;
 };
 
 /** Gate page mounting until Fence has resolved the browser session. */
-export const AuthenticatedPage = ({
-  children,
-  onHomeReady,
-}: {
-  children: ReactNode;
-  onHomeReady?: () => void;
-}) => {
+export const AuthenticatedPage = ({ children }: { children: ReactNode }) => {
   const router = useRouter();
   const { status, pending } = useSession();
   const isPublicPage = router.pathname === '/';
   const isProfilePage = router.pathname === '/Profile';
   const waitsForPage =
     router.pathname === '/Query' ||
-    router.pathname === '/org/[org]/project/[project]/presentation' ||
     router.pathname === '/org/[org]/project/[project]/presentation/edit' ||
     router.pathname === '/org/[org]/project/[project]/edit' ||
     (router.pathname === '/app/[appName]' &&
@@ -71,26 +52,6 @@ export const AuthenticatedPage = ({
   const project =
     typeof router.query?.project === 'string' ? router.query.project : '';
   const projectRouteReady = !isProjectPage || Boolean(organization && project);
-  const checkHomeAccess =
-    isPublicPage && router.isReady && !pending && status === 'issued';
-  const {
-    data: authzMapping,
-    isLoading: isAuthzLoading,
-    isError: isAuthzError,
-  } = useGetAuthzMappingsQuery(undefined, { skip: !checkHomeAccess });
-  const hasAccess = hasFenceAccess(authzMapping);
-  const homeReady =
-    isPublicPage &&
-    router.isReady &&
-    !pending &&
-    (status !== 'issued' ||
-      (!isAuthzLoading &&
-        (isAuthzError || (authzMapping !== undefined && !hasAccess))));
-
-  useEffect(() => {
-    if (homeReady) onHomeReady?.();
-  }, [homeReady, onHomeReady]);
-
   useEffect(() => {
     if (!router.isReady || isPublicPage || pending || status === 'issued') {
       return;
@@ -143,7 +104,7 @@ export const AuthenticatedPage = ({
         showLoadingIndicator={!isPublicPage}
       >
         {isPublicPage ? (
-          <HomeCatalogGate onReady={onHomeReady}>{children}</HomeCatalogGate>
+          <HomeCatalogGate>{children}</HomeCatalogGate>
         ) : (
           children
         )}

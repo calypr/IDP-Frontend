@@ -191,6 +191,23 @@ describe('SessionProvider service failure recovery', () => {
     ).toBe(false);
   });
 
+  it('does not interrupt a page while the user check outlasts a failed commons status check', async () => {
+    mockRouter.pathname = '/org/HTAN_INT/project/BForePC';
+    fetchMock.mockImplementation(async (input) => {
+      if (String(input).endsWith('/_status')) return response({}, 503);
+      return new Promise<Response>((resolve) => {
+        setTimeout(() => resolve(response({ username: 'active-user' })), 5_000);
+      });
+    });
+
+    renderSession(store);
+    await advanceTime(1);
+    expect(screen.queryByText('The service could not complete this request')).toBeNull();
+
+    await advanceTime(5_000);
+    expect(screen.getByText('Session issued')).toBeVisible();
+  });
+
   it('automatically retries a failed commons status check without reloading', async () => {
     let statusRequests = 0;
     fetchMock.mockImplementation(async (input, init) => {

@@ -188,12 +188,6 @@ describe('AuthenticatedPage', () => {
     message: string;
   }>([
     {
-      pathname: '/org/[org]/project/[project]/presentation',
-      asPath: '/org/alpha/project/secret/presentation',
-      query: { org: 'alpha', project: 'secret' },
-      message: 'Loading project page...',
-    },
-    {
       pathname: '/app/[appName]',
       asPath: '/app/CohortDiscovery',
       query: { appName: 'CohortDiscovery' },
@@ -234,6 +228,36 @@ describe('AuthenticatedPage', () => {
       expect(screen.getByText('Page content')).toBeVisible();
     },
   );
+
+  it('mounts the project Home frame while its data is loading', () => {
+    router.pathname = '/org/[org]/project/[project]/presentation';
+    router.asPath = '/org/alpha/project/secret/presentation';
+    useSession.mockReturnValue({ status: 'issued', pending: false });
+    useGetAuthzMappingsQuery.mockReturnValue({
+      data: {
+        '/programs/alpha/projects/secret': [
+          { method: 'read', service: 'arborist' },
+        ],
+      },
+      isLoading: false,
+      isError: false,
+    });
+    const Content = () => {
+      useInitialPageReady(false);
+      return <div>Project tabs</div>;
+    };
+
+    render(
+      <MantineProvider>
+        <AuthenticatedPage>
+          <Content />
+        </AuthenticatedPage>
+      </MantineProvider>,
+    );
+
+    expect(screen.getByText('Project tabs')).toBeVisible();
+    expect(screen.queryByText('Loading project page...')).toBeNull();
+  });
 
   it('denies a different project before mounting its page', () => {
     router.pathname = '/org/[org]/project/[project]/storage';
@@ -315,7 +339,7 @@ describe('AuthenticatedPage', () => {
     expect(replace).not.toHaveBeenCalled();
   });
 
-  it('reports signed-in home readiness only after access and catalog checks finish', () => {
+  it('shows signed-in home content after access and catalog checks finish', () => {
     router.pathname = '/';
     router.asPath = '/';
     router.query = {};
@@ -325,17 +349,14 @@ describe('AuthenticatedPage', () => {
       isLoading: true,
       isError: false,
     });
-    const onHomeReady = jest.fn();
     const renderHome = () => (
       <MantineProvider>
-        <AuthenticatedPage onHomeReady={onHomeReady}>
-          Public home
-        </AuthenticatedPage>
+        <AuthenticatedPage>Public home</AuthenticatedPage>
       </MantineProvider>
     );
 
     const view = render(renderHome());
-    expect(onHomeReady).not.toHaveBeenCalled();
+    expect(screen.queryByText('Public home')).toBeNull();
 
     useGetAuthzMappingsQuery.mockReturnValue({
       data: {
@@ -348,37 +369,32 @@ describe('AuthenticatedPage', () => {
     });
     useGetGeckoProjectsQuery.mockReturnValue({ isLoading: true });
     view.rerender(renderHome());
-    expect(onHomeReady).not.toHaveBeenCalled();
+    expect(screen.queryByText('Public home')).toBeNull();
 
     useGetGeckoProjectsQuery.mockReturnValue({ isLoading: false });
     useGetGeckoProjectSummaryQuery.mockReturnValue({ isLoading: true });
     view.rerender(renderHome());
-    expect(onHomeReady).not.toHaveBeenCalled();
+    expect(screen.queryByText('Public home')).toBeNull();
 
     useGetGeckoProjectSummaryQuery.mockReturnValue({ isLoading: false });
     view.rerender(renderHome());
-    expect(onHomeReady).toHaveBeenCalled();
+    expect(screen.getByText('Public home')).toBeVisible();
   });
 
-  it('finishes home verification on an access denial without loading the catalog', () => {
+  it('shows access denial without loading the catalog', () => {
     router.pathname = '/';
     router.asPath = '/';
     router.query = {};
     useSession.mockReturnValue({ status: 'issued', pending: false });
     hasFenceAccess.mockReturnValue(false);
-    const onHomeReady = jest.fn();
-
     render(
       <MantineProvider>
-        <AuthenticatedPage onHomeReady={onHomeReady}>
-          Public home
-        </AuthenticatedPage>
+        <AuthenticatedPage>Public home</AuthenticatedPage>
       </MantineProvider>,
     );
 
     expect(screen.getByText('No project access')).toBeVisible();
     expect(screen.queryByText('Public home')).toBeNull();
-    expect(onHomeReady).toHaveBeenCalled();
     expect(useGetGeckoProjectsQuery).not.toHaveBeenCalled();
   });
 });

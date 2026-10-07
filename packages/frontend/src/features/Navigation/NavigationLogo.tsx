@@ -38,6 +38,8 @@ const NavigationLogo = ({
     classNamesDefaults,
     classNames,
   );
+  const homeHref =
+    title?.trim().toLowerCase() === 'calypr' && !basepage ? '/Apps' : href;
 
   return (
     <div
@@ -67,7 +69,7 @@ const NavigationLogo = ({
       )}
       <HoverLink
         className={extractClassName('link', mergedClassnames)}
-        href={href}
+        href={homeHref}
         noBasePath={noBasePath}
       >
         <Image
@@ -98,7 +100,7 @@ const NavigationLogo = ({
         >
           <HoverLink
             className={extractClassName('titleLink', mergedClassnames)}
-            href={href}
+            href={homeHref}
           >
             {title}
           </HoverLink>

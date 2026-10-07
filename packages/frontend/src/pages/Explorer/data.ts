@@ -135,7 +135,6 @@ export const ExplorerPageGetServerSideProps: GetServerSideProps<
     };
   } catch (err: unknown) {
     const status = (err as any).status || 500;
-    context.res.statusCode = status;
     return {
       props: {
         ...(await getNavPageLayoutPropsFromConfig(requestHeaders)),
@@ -195,7 +194,6 @@ export const ExplorerPageGetServerSidePropsForConfigId: GetServerSideProps<
     };
   } catch (err: unknown) {
     const status = (err as any).status || 500;
-    context.res.statusCode = status;
     return {
       props: {
         ...(await getNavPageLayoutPropsFromConfig(requestHeaders)),

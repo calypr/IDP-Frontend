@@ -4,7 +4,7 @@ if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
   whyDidYouRender(React);
 }
 import App, { AppProps, AppContext, AppInitialProps } from 'next/app';
-import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
 import Head from 'next/head';
 import { MantineProvider } from '@mantine/core';
 import mantinetheme from '../mantineTheme';
@@ -14,7 +14,6 @@ import 'react-complex-tree/lib/style-modern.css';
 import {
   Gen3Provider,
   AuthenticatedPage,
-  VerifyingAccessLoader,
   type ModalsConfig,
   RegisteredIcons,
   SessionConfiguration,
@@ -58,10 +57,11 @@ interface Gen3AppProps {
   sessionConfig: SessionConfiguration;
 }
 
+let clientContent: Gen3AppProps | undefined;
+
 const Gen3App = ({
   Component,
   pageProps,
-  router,
   icons,
   sessionConfig,
   modalsConfig,
@@ -83,23 +83,9 @@ const Gen3App = ({
   }, []);
 
   const [isClient, setIsClient] = useState(false);
-  const initialAuthenticated = pageProps.hasAuthenticatedSession === true;
-  const [readyHomePath, setReadyHomePath] = useState<string | null>(null);
-  const showHomeLoader =
-    initialAuthenticated &&
-    router.pathname === '/' &&
-    readyHomePath !== router.asPath;
-  const onHomeReady = useCallback(
-    () => setReadyHomePath(router.asPath),
-    [router.asPath],
-  );
-
   useEffect(() => {
-    const resetHomeReadiness = () => setReadyHomePath(null);
-    router.events.on('routeChangeStart', resetHomeReadiness);
-    return () => router.events.off('routeChangeStart', resetHomeReadiness);
-  }, [router.events]);
-
+    clientContent = { icons, sessionConfig, modalsConfig };
+  }, [icons, sessionConfig, modalsConfig]);
   useEffect(() => {
     setIsClient(true); // Only on client-side
   }, []);
@@ -122,7 +108,6 @@ const Gen3App = ({
         <title>Calypr</title>
       </Head>
       <MantineProvider theme={mantinetheme}>
-        {showHomeLoader && <VerifyingAccessLoader />}
         {isClient && (
           <Suspense fallback={null}>
             <Gen3Provider
@@ -130,7 +115,7 @@ const Gen3App = ({
               sessionConfig={sessionConfig}
               modalsConfig={modalsConfig}
             >
-              <AuthenticatedPage onHomeReady={onHomeReady}>
+              <AuthenticatedPage>
                 <Component {...pageProps} />
               </AuthenticatedPage>
             </Gen3Provider>
@@ -147,7 +132,9 @@ Gen3App.getInitialProps = async (
   const ctx = await App.getInitialProps(context);
 
   try {
-    const res = await loadContent();
+    const res = typeof window !== 'undefined' && clientContent
+      ? clientContent
+      : await loadContent();
     return {
       ...ctx,
       ...res,

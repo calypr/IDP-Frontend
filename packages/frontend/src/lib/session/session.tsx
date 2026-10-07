@@ -775,18 +775,6 @@ export const SessionProvider = ({
   ]);
 
   const isUserUnauthorized = getRequestErrorStatus(userDetailsError) === 401;
-  const hasResolvedUserStatus =
-    hasVerifiedAuthenticatedUser || userStatus === 'unauthenticated';
-
-  if (isGetCSRFError && !hasResolvedUserStatus) {
-    return (
-      <SessionFailureView
-        detail={`The commons status check failed. ${getRequestErrorDetail(getCSRFError)}`}
-        onRetry={() => void refetchCSRF()}
-      />
-    );
-  }
-
   if (
     isUserDetailsError &&
     !isUserUnauthorized &&

@@ -16,12 +16,14 @@ export const FileSummaryPageGetServerSideProps: GetServerSideProps<
     requestHeaders['Host'] = context.req.headers.host;
   }
 
-  const summaryPageProps: FileSummaryProps =
-    await microserviceDb.get<FileSummaryProps>('file_summary/1', requestHeaders);
+  const [summaryPageProps, navPageLayoutProps] = await Promise.all([
+    microserviceDb.get<FileSummaryProps>('file_summary/1', requestHeaders),
+    getNavPageLayoutPropsFromConfig(requestHeaders),
+  ]);
 
   return {
     props: {
-      ...(await getNavPageLayoutPropsFromConfig(requestHeaders)),
+      ...navPageLayoutProps,
       filesummaryConfig: summaryPageProps,
     },
   };
