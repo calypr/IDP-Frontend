@@ -61,7 +61,7 @@ const CohortBuilderPage = ({
     >
       <ProjectWorkspaceTabs
         activeTab="explorer"
-        hasExplorerConfig={Boolean(organization && project)}
+        hasExplorerConfig={Boolean(explorerConfig && organization && project)}
         organization={organization}
         project={project}
       >

@@ -6,6 +6,7 @@ import { ProjectPresentationPage } from '../../pages/ProjectPresentation/Project
 const useGetGeckoProjectsQueryMock = jest.fn();
 const useGetGeckoProjectSummaryQueryMock = jest.fn();
 const useGetConfigContentQueryMock = jest.fn();
+const useGetConfigListQueryMock = jest.fn();
 const useGetAuthzMappingsQueryMock = jest.fn();
 const useGetGeckoGitProjectPresentationConfigQueryMock = jest.fn();
 
@@ -18,6 +19,8 @@ jest.mock('@gen3/core', () => ({
     useGetGeckoProjectSummaryQueryMock(...args),
   useGetConfigContentQuery: (...args: unknown[]) =>
     useGetConfigContentQueryMock(...args),
+  useGetConfigListQuery: (...args: unknown[]) =>
+    useGetConfigListQueryMock(...args),
   useGetGeckoGitProjectPresentationConfigQuery: (...args: unknown[]) =>
     useGetGeckoGitProjectPresentationConfigQueryMock(...args),
 }));
@@ -102,6 +105,7 @@ describe('ProjectPresentationPage', () => {
     useGetGeckoProjectsQueryMock.mockReset();
     useGetGeckoProjectSummaryQueryMock.mockReset();
     useGetConfigContentQueryMock.mockReset();
+    useGetConfigListQueryMock.mockReset();
     useGetGeckoGitProjectPresentationConfigQueryMock.mockReset();
     useSessionMock.mockReset();
 
@@ -123,6 +127,9 @@ describe('ProjectPresentationPage', () => {
       data: undefined,
       isLoading: false,
       isError: true,
+    });
+    useGetConfigListQueryMock.mockReturnValue({
+      data: { success: true, data: [] },
     });
     useGetGeckoGitProjectPresentationConfigQueryMock.mockReturnValue({
       data: { presentationConfig: '' },

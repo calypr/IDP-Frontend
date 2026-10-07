@@ -15,11 +15,16 @@ export interface ApiResponse {
   error?: string;
 }
 
-export const explorerConfigApi = gen3Api.injectEndpoints({
+const taggedExplorerApi = gen3Api.enhanceEndpoints({
+  addTagTypes: ['ExplorerConfigs'],
+});
+
+export const explorerConfigApi = taggedExplorerApi.injectEndpoints({
   endpoints: (builder) => ({
     getConfigList: builder.query<ConfigResponse, void>({
+      providesTags: [{ type: 'ExplorerConfigs', id: 'LIST' }],
       query: () => ({
-        url: `${CALYPR_EXPLORER_CONFIG_API}/list`,
+        url: `${CALYPR_EXPLORER_CONFIG_API}/explorer/list`,
         method: 'GET',
       }),
       transformResponse: (response: string[]) => ({
@@ -36,6 +41,9 @@ export const explorerConfigApi = gen3Api.injectEndpoints({
       },
     }),
     getConfigContent: builder.query<ConfigResponse, string>({
+      providesTags: (_result, _error, name) => [
+        { type: 'ExplorerConfigs', id: name },
+      ],
       query: (name) => ({
         url: `${CALYPR_EXPLORER_CONFIG_API}/explorer/${name}`,
         method: 'GET',
@@ -57,6 +65,10 @@ export const explorerConfigApi = gen3Api.injectEndpoints({
       ApiResponse,
       { name: string; configData: JSONObject }
     >({
+      invalidatesTags: (_result, _error, { name }) => [
+        { type: 'ExplorerConfigs', id: 'LIST' },
+        { type: 'ExplorerConfigs', id: name },
+      ],
       query: ({ name, configData }) => ({
         url: `${CALYPR_EXPLORER_CONFIG_API}/explorer/${name}`,
         method: 'PUT',

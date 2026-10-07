@@ -10,6 +10,7 @@ jest.mock('next/router', () => ({
 jest.mock('@gen3/core', () => ({
   SYFON_API: '/syfon',
   mintSyfonObjectIdFromChecksum: jest.fn(),
+  useGetConfigListQuery: jest.fn(),
   useGetConfigContentQuery: jest.fn(),
   useGetGeckoProjectsQuery: jest.fn(),
   useGetGeckoGitProjectsQuery: jest.fn(),
@@ -22,7 +23,9 @@ jest.mock('@gen3/core', () => ({
 }));
 
 jest.mock('../../features/Navigation', () => ({
-  NavPageLayout: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  NavPageLayout: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
   ProjectWorkspaceTabs: ({
     children,
     hasExplorerConfig,
@@ -35,7 +38,10 @@ jest.mock('../../features/Navigation', () => ({
     project: string;
   }) => (
     <>
-      <a href={`/org/${organization}/project/${project}/presentation`} role="tab">
+      <a
+        href={`/org/${organization}/project/${project}/presentation`}
+        role="tab"
+      >
         Home
       </a>
       {hasExplorerConfig ? (
@@ -70,6 +76,7 @@ const { useIsEmbedded } = jest.requireMock('../../utils') as {
 
 const coreMocks = jest.requireMock('@gen3/core') as {
   mintSyfonObjectIdFromChecksum: jest.Mock;
+  useGetConfigListQuery: jest.Mock;
   useGetConfigContentQuery: jest.Mock;
   useGetGeckoProjectsQuery: jest.Mock;
   useGetGeckoGitProjectsQuery: jest.Mock;
@@ -121,6 +128,9 @@ describe('GitProjectPage', () => {
       jest.fn(),
       { isLoading: false },
     ]);
+    coreMocks.useGetConfigListQuery.mockReturnValue({
+      data: { success: true, data: [] },
+    });
     coreMocks.useGetConfigContentQuery.mockReturnValue({
       data: undefined,
       isLoading: false,
@@ -217,9 +227,16 @@ describe('GitProjectPage', () => {
     ).not.toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Source' })).toBeInTheDocument();
     expect(screen.getByText('About')).toBeInTheDocument();
+    expect(coreMocks.useGetConfigContentQuery).toHaveBeenCalledWith(
+      'Ellrott_Lab-embedding_rotation',
+      expect.objectContaining({ skip: true }),
+    );
   });
 
   it('renders the Explorer tab when Gecko config exists for the project', () => {
+    coreMocks.useGetConfigListQuery.mockReturnValue({
+      data: { success: true, data: ['Ellrott_Lab-embedding_rotation'] },
+    });
     const projectStatus = {
       project_id: 'Ellrott_Lab/embedding_rotation',
       organization: 'Ellrott_Lab',
@@ -269,6 +286,10 @@ describe('GitProjectPage', () => {
     );
 
     expect(screen.getByRole('tab', { name: 'Explorer' })).toBeInTheDocument();
+    expect(coreMocks.useGetConfigContentQuery).toHaveBeenCalledWith(
+      'Ellrott_Lab-embedding_rotation',
+      expect.objectContaining({ skip: false }),
+    );
   });
 
   it('renders repository tree controls for a connected project', () => {
@@ -496,7 +517,9 @@ describe('GitProjectPage', () => {
 
     expect(screen.getAllByText('LFS').length).toBeGreaterThan(0);
     expect(
-      screen.getByLabelText(/download lfs object for data\/tcga\.tumor\.ensembl\.tsv/i),
+      screen.getByLabelText(
+        /download lfs object for data\/tcga\.tumor\.ensembl\.tsv/i,
+      ),
     ).toBeInTheDocument();
   });
 
@@ -599,5 +622,4 @@ describe('GitProjectPage', () => {
     );
     openSpy.mockRestore();
   });
-
 });

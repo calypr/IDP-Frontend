@@ -22,6 +22,7 @@ import {
 import {
   SYFON_API,
   mintSyfonObjectIdFromChecksum,
+  useGetConfigListQuery,
   useGetConfigContentQuery,
   useLazyGetGeckoGitProjectFileQuery,
   useGetGeckoGitProjectsQuery,
@@ -208,10 +209,16 @@ const GitProjectPage = ({
   } = useGetGeckoGitProjectsQuery();
   const explorerConfigId =
     organization && project ? `${organization}-${project}` : '';
+  const { data: explorerConfigs } = useGetConfigListQuery(undefined, {
+    skip: !explorerConfigId,
+  });
+  const explorerConfigAvailable =
+    Array.isArray(explorerConfigs?.data) &&
+    explorerConfigs.data.includes(explorerConfigId);
   const { data: explorerConfigResponse } = useGetConfigContentQuery(
     explorerConfigId,
     {
-      skip: !explorerConfigId,
+      skip: !explorerConfigId || !explorerConfigAvailable,
     },
   );
   const projectStatus = useMemo(
@@ -408,8 +415,8 @@ const GitProjectPage = ({
     project,
   );
   const hasExplorerConfig = useMemo(
-    () => Boolean(explorerConfigResponse?.data),
-    [explorerConfigResponse?.data],
+    () => explorerConfigAvailable && Boolean(explorerConfigResponse?.data),
+    [explorerConfigAvailable, explorerConfigResponse?.data],
   );
   const effectiveFileActions = useMemo(() => {
     const explorerConfigData = explorerConfigResponse?.data as

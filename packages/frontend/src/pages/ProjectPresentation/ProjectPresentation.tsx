@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   useGetAuthzMappingsQuery,
+  useGetConfigListQuery,
   useGetConfigContentQuery,
   useGetGeckoProjectSummaryQuery,
   useGetGeckoProjectsQuery,
@@ -42,6 +43,17 @@ export const ProjectPresentationPage = ({
     isAdmin ||
     hasOrganizationMembership(authzMapping, organization) ||
     hasProjectMembershipOrAccess(authzMapping, organization, project);
+  const { data: explorerConfigs } = useGetConfigListQuery(undefined, {
+    skip:
+      !explorerConfigId ||
+      !sessionReady ||
+      !isAuthenticated ||
+      isAuthzLoading ||
+      !canLikelyReadProjectScopedData,
+  });
+  const explorerConfigAvailable =
+    Array.isArray(explorerConfigs?.data) &&
+    explorerConfigs.data.includes(explorerConfigId);
 
   const { data: geckoProjects = [], isLoading: isProjectsLoading } =
     useGetGeckoProjectsQuery();
@@ -50,6 +62,7 @@ export const ProjectPresentationPage = ({
     {
       skip:
         !explorerConfigId ||
+        !explorerConfigAvailable ||
         !sessionReady ||
         !isAuthenticated ||
         isAuthzLoading ||
@@ -120,7 +133,9 @@ export const ProjectPresentationPage = ({
     >
       <ProjectWorkspaceTabs
         activeTab="presentation"
-        hasExplorerConfig={Boolean(explorerConfigResponse?.data)}
+        hasExplorerConfig={
+          explorerConfigAvailable && Boolean(explorerConfigResponse?.data)
+        }
         organization={organization}
         project={project}
       >
