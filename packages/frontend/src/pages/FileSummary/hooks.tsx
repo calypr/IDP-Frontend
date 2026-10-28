@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   CoreState,
   GEN3_API,
@@ -1017,6 +1024,10 @@ const normalizeStorageChainAuditResult = ({
         typeof summary?.git_revision === 'string'
           ? summary.git_revision
           : undefined,
+      syfonRevision:
+        typeof summary?.syfon_revision === 'string'
+          ? summary.syfon_revision
+          : undefined,
       syfonRecordCount:
         typeof summary?.syfon_record_count === 'number'
           ? summary.syfon_record_count
@@ -1468,6 +1479,15 @@ export const useSyfonStorageChain = ({
   currentPath: string;
   projectSelection: string;
 }) => {
+  const auditScopeKey = JSON.stringify([
+    projectSelection,
+    normalizeStoragePath(currentPath),
+  ]);
+  const auditScopeKeyRef = useRef(auditScopeKey);
+  const auditScopeGenerationRef = useRef(0);
+  const auditRequestIdRef = useRef(0);
+  const activeAuditControllersRef = useRef(new Set<AbortController>());
+  const persistedAuditControllerRef = useRef<AbortController | null>(null);
   const [auditError, setAuditError] = useState<string | null>(null);
   const [auditResult, setAuditResult] =
     useState<StorageChainAuditResult | null>(null);
@@ -1479,6 +1499,37 @@ export const useSyfonStorageChain = ({
 
   void config;
 
+  const abortActiveRequests = useCallback(() => {
+    activeAuditControllersRef.current.forEach((controller) =>
+      controller.abort(),
+    );
+    activeAuditControllersRef.current.clear();
+    persistedAuditControllerRef.current = null;
+  }, []);
+
+  useLayoutEffect(() => {
+    if (auditScopeKeyRef.current === auditScopeKey) {
+      return;
+    }
+
+    auditScopeKeyRef.current = auditScopeKey;
+    auditScopeGenerationRef.current += 1;
+    auditRequestIdRef.current += 1;
+    abortActiveRequests();
+    setAuditError(null);
+    setAuditResult(null);
+    setIsAuditing(false);
+  }, [abortActiveRequests, auditScopeKey]);
+
+  useEffect(
+    () => () => {
+      auditScopeGenerationRef.current += 1;
+      auditRequestIdRef.current += 1;
+      abortActiveRequests();
+    },
+    [abortActiveRequests],
+  );
+
   const runAudit = useCallback(
     async ({
       bucketInventoryMode,
@@ -1486,6 +1537,7 @@ export const useSyfonStorageChain = ({
       findingKind,
       findingLimit,
       forceAuditRefresh,
+      forceBucketInventoryRefresh,
       persistResult = true,
       probeMode,
     }: {
@@ -1494,20 +1546,40 @@ export const useSyfonStorageChain = ({
       findingKind?: string;
       findingLimit?: number;
       forceAuditRefresh?: boolean;
+      forceBucketInventoryRefresh?: boolean;
       persistResult?: boolean;
       probeMode?: 'full' | 'inventory_only';
     } = {}): Promise<StorageChainAuditResult | null> => {
+      const requestScopeKey = auditScopeKey;
+      if (auditScopeKeyRef.current !== requestScopeKey) {
+        return null;
+      }
+      const requestScopeGeneration = auditScopeGenerationRef.current;
+      const requestId = persistResult ? ++auditRequestIdRef.current : null;
+      if (persistResult) {
+        persistedAuditControllerRef.current?.abort();
+        persistedAuditControllerRef.current = null;
+      }
       const selection = splitProjectSelectionValue(projectSelection);
       if (!selection) {
         setAuditError(
           'Select a project before running the storage chain audit.',
         );
         setAuditResult(null);
+        setIsAuditing(false);
         return null;
       }
 
       setAuditError(null);
-      setIsAuditing(true);
+      if (persistResult) {
+        setIsAuditing(true);
+      }
+
+      const controller = new AbortController();
+      activeAuditControllersRef.current.add(controller);
+      if (persistResult) {
+        persistedAuditControllerRef.current = controller;
+      }
 
       try {
         const response = await fetch(
@@ -1524,6 +1596,8 @@ export const useSyfonStorageChain = ({
               finding_kind: findingKind,
               finding_limit: findingLimit,
               force_audit_refresh: forceAuditRefresh || undefined,
+              force_bucket_inventory_refresh:
+                forceBucketInventoryRefresh || undefined,
               git_subpath: normalizeStoragePath(currentPath) || undefined,
               probe_mode: probeMode,
             }),
@@ -1533,6 +1607,7 @@ export const useSyfonStorageChain = ({
               ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
             },
             method: 'POST',
+            signal: controller.signal,
           },
         );
 
@@ -1553,31 +1628,59 @@ export const useSyfonStorageChain = ({
           pathPrefix: normalizeStoragePath(currentPath),
           response: await readJsonResponse<Record<string, unknown>>(response),
         });
+        if (
+          auditScopeKeyRef.current !== requestScopeKey ||
+          auditScopeGenerationRef.current !== requestScopeGeneration ||
+          (persistResult && auditRequestIdRef.current !== requestId)
+        ) {
+          return null;
+        }
         if (persistResult) {
           setAuditResult(normalized);
         }
         return normalized;
       } catch (auditFailure) {
+        if (controller.signal.aborted) {
+          return null;
+        }
         const message =
           auditFailure instanceof Error
             ? auditFailure.message
             : 'Failed to audit the storage chain.';
-        setAuditError(message);
-        if (persistResult) {
-          setAuditResult(null);
+        if (
+          auditScopeKeyRef.current === requestScopeKey &&
+          auditScopeGenerationRef.current === requestScopeGeneration &&
+          (!persistResult || auditRequestIdRef.current === requestId)
+        ) {
+          setAuditError(message);
         }
         return null;
       } finally {
-        setIsAuditing(false);
+        activeAuditControllersRef.current.delete(controller);
+        if (persistedAuditControllerRef.current === controller) {
+          persistedAuditControllerRef.current = null;
+        }
+        if (
+          persistResult &&
+          auditScopeKeyRef.current === requestScopeKey &&
+          auditScopeGenerationRef.current === requestScopeGeneration &&
+          auditRequestIdRef.current === requestId
+        ) {
+          setIsAuditing(false);
+        }
       }
     },
-    [csrfToken, currentPath, projectSelection],
+    [auditScopeKey, csrfToken, currentPath, projectSelection],
   );
 
   const clearAudit = useCallback(() => {
+    auditScopeGenerationRef.current += 1;
+    auditRequestIdRef.current += 1;
+    abortActiveRequests();
     setAuditError(null);
     setAuditResult(null);
-  }, []);
+    setIsAuditing(false);
+  }, [abortActiveRequests]);
 
   return {
     auditError,
@@ -1747,6 +1850,8 @@ export const useSyfonStorageCleanup = ({
       deleteStaleDuplicates,
       deleteBucketOnlyObjects = false,
       dryRun = false,
+      expectedGitRevision,
+      expectedSyfonRevision,
       selectedPaths,
       findings,
     }: {
@@ -1756,6 +1861,8 @@ export const useSyfonStorageCleanup = ({
       deleteStaleDuplicates: boolean;
       deleteBucketOnlyObjects?: boolean;
       dryRun?: boolean;
+      expectedGitRevision?: string;
+      expectedSyfonRevision?: string;
       selectedPaths?: Array<string>;
     }): Promise<StorageCleanupApplyResult | null> => {
       const selection = splitProjectSelectionValue(projectSelection);
@@ -1782,6 +1889,8 @@ export const useSyfonStorageCleanup = ({
               delete_stale_duplicates: deleteStaleDuplicates,
               delete_bucket_only_objects: deleteBucketOnlyObjects,
               dry_run: dryRun,
+              expected_git_revision: expectedGitRevision,
+              expected_syfon_revision: expectedSyfonRevision,
               findings: findings?.map(buildStorageApplyFindingRequest),
               git_subpath: normalizeStoragePath(currentPath) || undefined,
               selected_repo_paths: selectedPaths,

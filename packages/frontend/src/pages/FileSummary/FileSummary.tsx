@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useState,
+} from 'react';
 import { useRouter } from 'next/router';
 import {
   GEN3_GECKO_API,
@@ -295,8 +301,7 @@ export const FileSummaryPage = ({
     clearCleanupResults();
   }, [clearChainAudit, clearCleanupResults, selectedProject]);
 
-  useEffect(() => {
-    setActionFeedbackMessage(null);
+  const resetChainIssueState = useCallback(() => {
     setExpandedChainIssueIds(new Set());
     setSelectedChainPathsByIssue({});
     setExpandedChainTreeNodes({});
@@ -305,7 +310,14 @@ export const FileSummaryPage = ({
     setChainIssueLoadErrors({});
     setChainIssueLoadNotices({});
     setLoadingChainIssueId(null);
-  }, [selectedProject]);
+  }, []);
+  useLayoutEffect(() => {
+    setActionFeedbackMessage(null);
+    resetChainIssueState();
+  }, [currentPath, resetChainIssueState, selectedProject]);
+  useLayoutEffect(() => {
+    resetChainIssueState();
+  }, [chainAuditResult, resetChainIssueState]);
 
   const sortedRows = useMemo(
     () =>
@@ -676,6 +688,8 @@ export const FileSummaryPage = ({
             deleteRepoOrphans: false,
             deleteStaleDuplicates: false,
             dryRun: true,
+            expectedGitRevision: chainAuditResult?.summary.gitRevision,
+            expectedSyfonRevision: chainAuditResult?.summary.syfonRevision,
             selectedPaths,
           });
 
@@ -707,6 +721,8 @@ export const FileSummaryPage = ({
         deleteRepoOrphans: false,
         deleteStaleDuplicates: false,
         dryRun: false,
+        expectedGitRevision: chainAuditResult?.summary.gitRevision,
+        expectedSyfonRevision: chainAuditResult?.summary.syfonRevision,
         selectedPaths,
       });
 
@@ -728,6 +744,8 @@ export const FileSummaryPage = ({
       applyCleanup,
       buildActionRequests,
       buildSuggestedActionRequests,
+      chainAuditResult?.summary.gitRevision,
+      chainAuditResult?.summary.syfonRevision,
       loadChainIssueDetails,
       removeHealedChainFindings,
       refresh,
@@ -1039,6 +1057,8 @@ export const FileSummaryPage = ({
         deleteBucketOnlyObjects: isBucketOnlyIssue,
         deleteRepoOrphans: isBucketSyfonNoGitIssue,
         deleteStaleDuplicates: false,
+        expectedGitRevision: chainAuditResult?.summary.gitRevision,
+        expectedSyfonRevision: chainAuditResult?.summary.syfonRevision,
         findings: targetFindings,
         dryRun: false,
         selectedPaths: targetPaths,
@@ -1065,6 +1085,7 @@ export const FileSummaryPage = ({
       const refreshed = await runChainAudit({
         bucketInventoryMode: 'validate',
         forceAuditRefresh: true,
+        forceBucketInventoryRefresh: true,
       });
       applyStorageChainAuditSummary(refreshed);
       refresh();
@@ -1072,6 +1093,8 @@ export const FileSummaryPage = ({
     [
       applyCleanup,
       applyStorageChainAuditSummary,
+      chainAuditResult?.summary.gitRevision,
+      chainAuditResult?.summary.syfonRevision,
       chainIssueSummaries,
       getChainFindingsForIssue,
       removeHealedChainFindings,

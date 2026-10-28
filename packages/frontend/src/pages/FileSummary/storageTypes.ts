@@ -107,6 +107,7 @@ export interface StorageChainAuditSummary {
   readonly syfonRecordCount: number;
   readonly gitTrackedFileCount: number;
   readonly gitRevision?: string;
+  readonly syfonRevision?: string;
   readonly bucketInventoryAvailable: boolean;
   readonly bucketInventoryError?: string;
   readonly auditCacheHit?: boolean;
