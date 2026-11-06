@@ -643,12 +643,9 @@ describe('GitProjectPage', () => {
 
     await act(async () => {});
 
-    expect(coreMocks.mintSyfonObjectIdFromChecksum).toHaveBeenCalledWith(
-      '0bfab2917ce05007ff6297c0ec93ef575209210e4ca998dbd243a270e2f9ca83',
-      ['/programs/Ellrott_Lab/projects/embedding_rotation'],
-    );
+    expect(coreMocks.mintSyfonObjectIdFromChecksum).not.toHaveBeenCalled();
     expect(openSpy).toHaveBeenCalledWith(
-      '/image-viewer/view/did-123',
+      '/image-viewer/view/0bfab2917ce05007ff6297c0ec93ef575209210e4ca998dbd243a270e2f9ca83',
       '_blank',
       'noopener,noreferrer',
     );
