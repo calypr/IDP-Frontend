@@ -21,7 +21,6 @@ import {
 } from '@mantine/core';
 import {
   SYFON_API,
-  mintSyfonObjectIdFromChecksum,
   useGetConfigListQuery,
   useGetConfigContentQuery,
   useLazyGetGeckoGitProjectFileQuery,
@@ -503,26 +502,13 @@ const GitProjectPage = ({
     }
   };
 
-  const handleLFSImageViewerOpen = async (checksum: string) => {
+  const handleLFSImageViewerOpen = (checksum: string) => {
     setActionError(null);
-    setDownloadingChecksum(checksum);
-    try {
-      const objectId = await mintSyfonObjectIdFromChecksum(
-        checksum,
-        [`/programs/${organization}/projects/${project}`],
-      );
-      window.open(
-        `/image-viewer/view/${encodeURIComponent(objectId)}`,
-        '_blank',
-        'noopener,noreferrer',
-      );
-    } catch {
-      setActionError(
-        `Failed to resolve an image viewer object for LFS checksum ${checksum}.`,
-      );
-    } finally {
-      setDownloadingChecksum(null);
-    }
+    window.open(
+      `/image-viewer/view/${encodeURIComponent(checksum)}`,
+      '_blank',
+      'noopener,noreferrer',
+    );
   };
 
   const canOpenGitImageViewer = (entry: GeckoGitTreeEntry): boolean => {
