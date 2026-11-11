@@ -114,7 +114,7 @@ const ExplorerPage = ({
       : 'default';
   const explorerState = useGetExplorerStateV1Query(
     { project: routeProject ?? '', explorerId: routeExplorerId },
-    { skip: !routeProject },
+    { skip: !routeProject, refetchOnMountOrArgChange: true },
   );
   const effectiveRuntime = explorerState.data?.runtime ?? runtime;
   const clientProblems =

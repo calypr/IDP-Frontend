@@ -8,8 +8,13 @@ jest.mock('next/router', () => ({
 }));
 
 jest.mock('@gen3/core', () => ({
+  GEN3_API: '',
   SYFON_API: '/syfon',
+  mintSyfonObjectIdFromChecksum: jest.fn(),
+  useCreateFunnelTaskMutation: jest.fn(),
+  useGetConfigListQuery: jest.fn(),
   useGetConfigContentQuery: jest.fn(),
+  useGetFunnelTaskQuery: jest.fn(),
   useGetGeckoProjectsQuery: jest.fn(),
   useGetGeckoGitProjectsQuery: jest.fn(),
   useGetExplorerStateV1Query: jest.fn(),
@@ -74,6 +79,10 @@ const { useIsEmbedded } = jest.requireMock('../../utils') as {
 };
 
 const coreMocks = jest.requireMock('@gen3/core') as {
+  useCreateFunnelTaskMutation: jest.Mock;
+  useGetFunnelTaskQuery: jest.Mock;
+  mintSyfonObjectIdFromChecksum: jest.Mock;
+  useGetConfigListQuery: jest.Mock;
   useGetConfigContentQuery: jest.Mock;
   useGetGeckoProjectsQuery: jest.Mock;
   useGetGeckoGitProjectsQuery: jest.Mock;
@@ -126,6 +135,19 @@ describe('GitProjectPage', () => {
       jest.fn(),
       { isLoading: false },
     ]);
+    coreMocks.useCreateFunnelTaskMutation.mockReturnValue([
+      jest.fn(),
+      { isLoading: false },
+    ]);
+    coreMocks.useGetFunnelTaskQuery.mockReturnValue({
+      data: undefined,
+      isError: false,
+      isFetching: false,
+      refetch: jest.fn(),
+    });
+    coreMocks.useGetConfigListQuery.mockReturnValue({
+      data: { success: true, data: [] },
+    });
     coreMocks.useGetConfigContentQuery.mockReturnValue({
       data: undefined,
       isLoading: false,
@@ -156,7 +178,11 @@ describe('GitProjectPage', () => {
       refetch: jest.fn(),
     });
     coreMocks.useGetGeckoGitProjectTreeQuery.mockReturnValue({
-      data: { entries: [] },
+      data: {
+        path: '',
+        ref: 'main',
+        entries: [],
+      },
       isLoading: false,
       refetch: jest.fn(),
     });
@@ -347,6 +373,8 @@ describe('GitProjectPage', () => {
     });
     coreMocks.useGetGeckoGitProjectTreeQuery.mockReturnValue({
       data: {
+        path: '',
+        ref: 'main',
         entries: [
           {
             name: 'README.md',
@@ -427,7 +455,11 @@ describe('GitProjectPage', () => {
       refetch: jest.fn(),
     });
     coreMocks.useGetGeckoGitProjectTreeQuery.mockReturnValue({
-      data: { entries: [] },
+      data: {
+        path: '',
+        ref: 'main',
+        entries: [],
+      },
       isLoading: false,
       refetch: jest.fn(),
     });
@@ -529,6 +561,8 @@ describe('GitProjectPage', () => {
     });
     coreMocks.useGetGeckoGitProjectTreeQuery.mockReturnValue({
       data: {
+        path: '',
+        ref: 'main',
         entries: [
           {
             name: 'tcga.tumor.ensembl.tsv',
@@ -606,6 +640,8 @@ describe('GitProjectPage', () => {
     });
     coreMocks.useGetGeckoGitProjectTreeQuery.mockReturnValue({
       data: {
+        path: '',
+        ref: 'main',
         entries: [
           {
             name: 'sample.ome.tiff',
@@ -649,6 +685,7 @@ describe('GitProjectPage', () => {
 
     await act(async () => {});
 
+    expect(coreMocks.mintSyfonObjectIdFromChecksum).not.toHaveBeenCalled();
     expect(openSpy).toHaveBeenCalledWith(
       '/image-viewer/view/0bfab2917ce05007ff6297c0ec93ef575209210e4ca998dbd243a270e2f9ca83',
       '_blank',

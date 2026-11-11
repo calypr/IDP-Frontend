@@ -1,7 +1,10 @@
 import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { useRouter } from 'next/router';
-import ProjectExplorerBuilder from '../pages/org/[org]/project/[project]/explorers/builder';
+import ProjectExplorerBuilder, {
+  getServerSideProps,
+} from '../pages/org/[org]/project/[project]/explorers/builder';
+import type { GetServerSidePropsContext } from 'next';
 
 jest.mock('next/router', () => ({
   useRouter: jest.fn(),
@@ -26,6 +29,8 @@ jest.mock(
 );
 
 jest.mock('@gen3/frontend', () => ({
+  isExplorerBuilderEnabled: () =>
+    process.env.NEXT_PUBLIC_GEN3_EXPLORER_BUILDER_ENABLED === 'true',
   ExplorerBuilderPage: ({
     explorerId,
     onExplorerChange,
@@ -64,7 +69,11 @@ describe('project Explorer Builder route', () => {
           basePage: false,
         }}
         footerProps={{ basePage: false }}
-        headerMetadata={{ title: 'Explorer Builder', content: '', key: 'builder' }}
+        headerMetadata={{
+          title: 'Explorer Builder',
+          content: '',
+          key: 'builder',
+        }}
         pageProblems={[]}
       />,
     );
@@ -83,5 +92,21 @@ describe('project Explorer Builder route', () => {
       undefined,
       { shallow: true },
     );
+  });
+});
+
+describe('Builder route availability', () => {
+  it('returns 404 before loading the page when Builder is disabled', async () => {
+    const original = process.env.NEXT_PUBLIC_GEN3_EXPLORER_BUILDER_ENABLED;
+    delete process.env.NEXT_PUBLIC_GEN3_EXPLORER_BUILDER_ENABLED;
+    try {
+      await expect(
+        getServerSideProps({} as GetServerSidePropsContext),
+      ).resolves.toEqual({ notFound: true });
+    } finally {
+      if (original === undefined)
+        delete process.env.NEXT_PUBLIC_GEN3_EXPLORER_BUILDER_ENABLED;
+      else process.env.NEXT_PUBLIC_GEN3_EXPLORER_BUILDER_ENABLED = original;
+    }
   });
 });

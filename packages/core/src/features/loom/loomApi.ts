@@ -29,20 +29,6 @@ interface GraphQLExecutionResult<T> {
   readonly meta: LoomRequestMeta;
 }
 
-const authSummary = (headers: Record<string, string>) => {
-  const cookie = headers.Cookie ?? headers.cookie;
-  const authorization = headers.Authorization ?? headers.authorization;
-  return {
-    hasCookie: Boolean(cookie),
-    cookieNames: cookie
-      ?.split(';')
-      .map((part) => part.trim().split('=', 1)[0])
-      .filter(Boolean),
-    hasAuthorization: Boolean(authorization),
-    authorizationScheme: authorization?.split(' ', 1)[0],
-  };
-};
-
 export const fetchLoomResponse = async (
   endpoint: string,
   init: RequestInit = {},
@@ -57,29 +43,12 @@ export const fetchLoomResponse = async (
     if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`);
   }
 
-  console.info('[Loom] Request', {
-    endpoint,
-    method: init.method ?? 'GET',
-    ...(typeof window === 'undefined'
-      ? {
-          auth: authSummary({
-            Cookie: headers.get('Cookie') ?? '',
-            Authorization: headers.get('Authorization') ?? '',
-          }),
-        }
-      : {}),
-  });
-
   const response = await fetch(endpoint, {
     ...init,
     credentials: 'include',
     headers,
   });
 
-  console.info('[Loom] Response', {
-    status: response.status,
-    requestId: response.headers.get('x-request-id') ?? 'none',
-  });
   return response;
 };
 
@@ -140,7 +109,8 @@ const getGraphQLErrorFieldPath = (
 ): string | null | undefined => {
   const fieldPath = error?.extensions?.fieldPath;
   if (typeof fieldPath === 'string' || fieldPath === null) return fieldPath;
-  if (Array.isArray(fieldPath)) return fieldPath.filter(Boolean).join('.') || undefined;
+  if (Array.isArray(fieldPath))
+    return fieldPath.filter(Boolean).join('.') || undefined;
   return error?.path?.length ? error.path.join('.') : undefined;
 };
 
@@ -162,10 +132,9 @@ const createGraphQLError = ({
   const requestId = getGraphQLErrorRequestId(firstError, responseRequestId);
   const unauthorized = response.status === 401;
   const status = response.ok ? 'CUSTOM_ERROR' : response.status;
-  const retryable =
-    unauthorized
-      ? false
-      : typeof extensions?.retryable === 'boolean'
+  const retryable = unauthorized
+    ? false
+    : typeof extensions?.retryable === 'boolean'
       ? extensions.retryable
       : isRetryableHttpStatus(response.status);
 
@@ -174,8 +143,8 @@ const createGraphQLError = ({
     httpStatus: response.status,
     message: unauthorized
       ? 'Your Loom session has expired. Sign in again to continue.'
-      : firstError?.message ??
-        `Loom GraphQL request failed with HTTP ${response.status}`,
+      : (firstError?.message ??
+        `Loom GraphQL request failed with HTTP ${response.status}`),
     data: payload,
     code: unauthorized
       ? 'AUTHENTICATION_REQUIRED'

@@ -1,13 +1,13 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
-import { ExplorerBuilderPage } from './ExplorerBuilderPage';
+import { ExplorerBuilderClient as ExplorerBuilderPage } from './ExplorerBuilderClient';
 
 const mockCreateLoomClient = jest.fn((_options: unknown) => ({
   getBuilder: jest.fn(),
 }));
-const mockLoomExplorerBuilder = jest.fn(
-  (_props: Record<string, unknown>) => <div>Loom Builder</div>,
-);
+const mockLoomExplorerBuilder = jest.fn((_props: Record<string, unknown>) => (
+  <div>Loom Builder</div>
+));
 const mockSelectCSRFToken = jest.fn((_state: unknown) => 'csrf-current');
 const mockFetchLoomResponse = jest.fn();
 const mockHandleUnauthorizedStatus = jest.fn();

@@ -8,6 +8,7 @@ import {
 } from '@gen3/core';
 import {
   ExplorerMainContent,
+  isExplorerBuilderEnabled,
   ExplorerPageGetServerSideProps as getServerSideProps,
   NavPageLayout,
   ProjectWorkspaceTabs,
@@ -34,9 +35,10 @@ const CohortBuilderPage = ({
   const projectId = canonicalLoomProjectId(configId);
   const explorerState = useGetExplorerStateV1Query(
     { project: projectId, explorerId },
-    { skip: !configId },
+    { skip: !configId, refetchOnMountOrArgChange: true },
   );
   const runtime = explorerState.data?.runtime ?? initialRuntime ?? null;
+  const effectiveProject = explorerState.data?.project ?? explorerProject;
   const clientProblems: readonly PageLoadProblem[] = explorerState.error
     ? [
         {
@@ -118,10 +120,10 @@ const CohortBuilderPage = ({
   const showTabsInToolbar = Boolean(organization && project && !isEmbedded);
 
   const explorerContent =
-    runtime && explorerProject ? (
+    runtime && effectiveProject ? (
       <ExplorerMainContent
         runtime={runtime}
-        project={explorerProject}
+        project={effectiveProject}
         activeTab={showTabsInToolbar ? activeExplorerTab : undefined}
         hideTabList={showTabsInToolbar}
         onTabChange={showTabsInToolbar ? setActiveExplorerTab : undefined}
@@ -135,8 +137,8 @@ const CohortBuilderPage = ({
     ) : (
       <main className="mx-auto max-w-screen-2xl p-6">
         <p role="alert">
-          The published Explorer configuration could not be loaded. Open the
-          Builder to inspect or revise the draft.
+          The published Explorer could not be loaded. Check the metadata
+          publication status in Source, then refresh this page.
         </p>
         {problems.length > 0 && (
           <ul className="mt-3 list-disc pl-5 text-sm text-slate-700">
@@ -159,9 +161,9 @@ const CohortBuilderPage = ({
       headerProps={headerProps}
       footerProps={footerProps}
       headerMetadata={{
-        title: 'Gen3 Cohort Builder Page',
-        content: 'Cohort Builder',
-        key: 'gen3-cohort-builder-page',
+        title: 'Project Explorer',
+        content: 'Published project metadata',
+        key: 'project-explorer-page',
       }}
       pageProblems={problems}
     >
@@ -199,26 +201,30 @@ const CohortBuilderPage = ({
                   );
                 })}
               </div>
-              <div
-                aria-label="Explorer workspace"
-                className="ml-auto flex shrink-0 self-stretch gap-5 border-l border-slate-200 pl-5"
-                role="tablist"
-              >
-                <span
-                  aria-selected="true"
-                  className="rounded-none border-0 border-b-2 border-[#2f5aac] bg-transparent px-0 pb-3 pt-3 text-sm font-semibold text-[#2f5aac]"
-                  role="tab"
+              {isExplorerBuilderEnabled() && (
+                <div
+                  aria-label="Explorer workspace"
+                  className="ml-auto flex shrink-0 self-stretch gap-5 border-l border-slate-200 pl-5"
+                  role="tablist"
                 >
-                  View
-                </span>
-                <Link
-                  className="rounded-none border-0 border-b-2 border-transparent bg-transparent px-0 pb-3 pt-3 text-sm font-semibold text-slate-500 hover:text-slate-800"
-                  href={builderHref}
-                  role="tab"
-                >
-                  Builder
-                </Link>
-              </div>
+                  <span
+                    aria-selected="true"
+                    className="rounded-none border-0 border-b-2 border-[#2f5aac] bg-transparent px-0 pb-3 pt-3 text-sm font-semibold text-[#2f5aac]"
+                    role="tab"
+                  >
+                    View
+                  </span>
+                  {isExplorerBuilderEnabled() && (
+                    <Link
+                      className="rounded-none border-0 border-b-2 border-transparent bg-transparent px-0 pb-3 pt-3 text-sm font-semibold text-slate-500 hover:text-slate-800"
+                      href={builderHref}
+                      role="tab"
+                    >
+                      Builder
+                    </Link>
+                  )}
+                </div>
+              )}
             </div>
           ) : null
         }
