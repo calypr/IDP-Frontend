@@ -109,6 +109,27 @@ jest.mock('@gen3/core', () => ({
 }));
 jest.mock('@gen3/frontend', () => ({
   ...jest.requireActual('../../../frontend/src/pages/Explorer/selection'),
+  ProjectConfigurationSelect: ({
+    value,
+    options,
+    onChange,
+  }: {
+    value: string;
+    options: Array<{ value: string; label: string }>;
+    onChange: React.ChangeEventHandler<HTMLSelectElement>;
+  }) => (
+    <select
+      aria-label="Project configuration"
+      value={value}
+      onChange={onChange}
+    >
+      {options.map((option) => (
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </select>
+  ),
   isExplorerBuilderEnabled: () =>
     process.env.NEXT_PUBLIC_GEN3_EXPLORER_BUILDER_ENABLED === 'true',
   ExplorerMainContent: ({

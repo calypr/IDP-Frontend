@@ -300,3 +300,5 @@ export {
   selectedProjectViewTab,
   useProjectViewTab,
 } from './pages/Explorer/selection';
+
+export { ProjectConfigurationSelect } from './features/CohortBuilder/ExplorerToolbar';

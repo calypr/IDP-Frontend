@@ -58,6 +58,8 @@ import {
 import DropdownPanel from '../../components/facets/Panels/DropdownPanel';
 import QueryExpression from './QueryExpression';
 
+import { ExplorerToolbar } from './ExplorerToolbar';
+
 const EmptyData = {};
 
 interface CohortPanelConfigurationWithAccessLevel extends CohortPanelConfiguration {
@@ -665,47 +667,43 @@ export const CohortPanel = ({
             </div>
           )}
 
-          <div
-            className={
-              toolbarCenter
-                ? 'grid min-h-10 grid-cols-1 items-center gap-3 py-1 xl:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]'
-                : 'flex min-h-10 items-center justify-between gap-3 py-1'
-            }
-          >
-            <DownloadsPanel
-              dropdowns={defaultDropdowns}
-              buttons={defaultButtons}
-              loginForDownload={loginForDownload}
-              index={index}
-              totalCount={counts ?? 0}
-              fields={runtimeTable?.fields ?? []}
-              filter={cohortFilters}
-              loomDataset={loomDataset}
-              loomProjectIds={loomProjectIds}
-            />
-            {toolbarCenter ? (
-              <div className="flex justify-center">{toolbarCenter}</div>
-            ) : null}
-            <div className="ml-auto flex items-center gap-3">
-              {Object.keys(summaryCharts).length !== 0 && (
-                <button
-                  type="button"
-                  onClick={() => setShowCharts((current) => !current)}
-                  className="rounded-md border border-primary px-3 py-1.5 text-sm font-semibold text-primary transition-colors hover:bg-primary-lightest active:scale-95"
-                  aria-expanded={showCharts}
-                  aria-controls="explorer-summary-charts"
-                >
-                  {showCharts ? 'Hide charts' : 'Show charts'}
-                </button>
-              )}
-              <CountsValue
-                label={guppyConfig.nodeCountTitle ?? ''}
-                counts={counts}
-                isFetching={isCountsFetching}
-                isError={isCountsError}
+          <ExplorerToolbar
+            downloads={
+              <DownloadsPanel
+                dropdowns={defaultDropdowns}
+                buttons={defaultButtons}
+                loginForDownload={loginForDownload}
+                index={index}
+                totalCount={counts ?? 0}
+                fields={runtimeTable?.fields ?? []}
+                filter={cohortFilters}
+                loomDataset={loomDataset}
+                loomProjectIds={loomProjectIds}
               />
-            </div>
-          </div>
+            }
+            selection={toolbarCenter}
+            controls={
+              <>
+                {Object.keys(summaryCharts).length !== 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowCharts((current) => !current)}
+                    className="h-9 shrink-0 rounded-md border border-primary bg-base-max px-3 text-sm font-semibold text-primary transition-colors hover:bg-primary-lightest focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary active:scale-95"
+                    aria-expanded={showCharts}
+                    aria-controls="explorer-summary-charts"
+                  >
+                    {showCharts ? 'Hide charts' : 'Show charts'}
+                  </button>
+                )}
+                <CountsValue
+                  label={guppyConfig.nodeCountTitle ?? ''}
+                  counts={counts}
+                  isFetching={isCountsFetching}
+                  isError={isCountsError}
+                />
+              </>
+            }
+          />
 
           {showCharts && Object.keys(summaryCharts).length !== 0 && (
             <section

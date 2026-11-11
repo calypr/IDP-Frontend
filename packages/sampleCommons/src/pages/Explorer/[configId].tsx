@@ -10,6 +10,7 @@ import {
 } from '@gen3/core';
 import {
   ExplorerMainContent,
+  ProjectConfigurationSelect,
   selectedProjectViewId,
   useProjectViewTab,
   isExplorerBuilderEnabled,
@@ -180,22 +181,14 @@ const CohortBuilderPage = ({
           pageProblems={pageProblems}
           toolbarCenter={
             showExplorerConfigPicker ? (
-              <label className="flex flex-wrap items-center justify-center gap-2 text-sm text-slate-600">
-                <span>Project configuration</span>
-                <select
-                  aria-label="Project configuration"
-                  className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800"
-                  value={selectedExplorerConfigId}
-                  onChange={handleExplorerConfigChange}
-                >
-                  <option value="">Select a published configuration</option>
-                  {publishedExplorerConfigs.map((summary) => (
-                    <option key={summary.explorerId} value={summary.explorerId}>
-                      {summary.title || summary.explorerId}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <ProjectConfigurationSelect
+                value={selectedExplorerConfigId}
+                options={publishedExplorerConfigs.map((summary) => ({
+                  value: summary.explorerId,
+                  label: summary.title || summary.explorerId,
+                }))}
+                onChange={handleExplorerConfigChange}
+              />
             ) : null
           }
         />
