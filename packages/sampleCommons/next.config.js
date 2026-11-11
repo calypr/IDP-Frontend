@@ -12,8 +12,8 @@ const webpackAliases = {
   '@gen3/frontend': path.join(workspaceRoot, 'packages/frontend/src/index.ts'),
 };
 const turbopackAliases = {
-  '@gen3/core': 'packages/core/src/index.ts',
-  '@gen3/frontend': 'packages/frontend/src/index.ts',
+  '@gen3/core': '../core/src/index.ts',
+  '@gen3/frontend': '../frontend/src/index.ts',
 };
 
 dns.setDefaultResultOrder('ipv4first');

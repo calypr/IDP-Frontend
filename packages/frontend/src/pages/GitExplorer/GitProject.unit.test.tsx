@@ -8,10 +8,13 @@ jest.mock('next/router', () => ({
 }));
 
 jest.mock('@gen3/core', () => ({
+  GEN3_API: '',
   SYFON_API: '/syfon',
   mintSyfonObjectIdFromChecksum: jest.fn(),
+  useCreateFunnelTaskMutation: jest.fn(),
   useGetConfigListQuery: jest.fn(),
   useGetConfigContentQuery: jest.fn(),
+  useGetFunnelTaskQuery: jest.fn(),
   useGetGeckoProjectsQuery: jest.fn(),
   useGetGeckoGitProjectsQuery: jest.fn(),
   useGetGeckoGitProjectRefsQuery: jest.fn(),
@@ -75,6 +78,8 @@ const { useIsEmbedded } = jest.requireMock('../../utils') as {
 };
 
 const coreMocks = jest.requireMock('@gen3/core') as {
+  useCreateFunnelTaskMutation: jest.Mock;
+  useGetFunnelTaskQuery: jest.Mock;
   mintSyfonObjectIdFromChecksum: jest.Mock;
   useGetConfigListQuery: jest.Mock;
   useGetConfigContentQuery: jest.Mock;
@@ -128,6 +133,16 @@ describe('GitProjectPage', () => {
       jest.fn(),
       { isLoading: false },
     ]);
+    coreMocks.useCreateFunnelTaskMutation.mockReturnValue([
+      jest.fn(),
+      { isLoading: false },
+    ]);
+    coreMocks.useGetFunnelTaskQuery.mockReturnValue({
+      data: undefined,
+      isError: false,
+      isFetching: false,
+      refetch: jest.fn(),
+    });
     coreMocks.useGetConfigListQuery.mockReturnValue({
       data: { success: true, data: [] },
     });

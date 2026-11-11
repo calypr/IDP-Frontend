@@ -6,6 +6,7 @@ import {
   Alert,
   Button,
   Card,
+  Checkbox,
   Container,
   Group,
   Menu,
@@ -21,8 +22,10 @@ import {
 } from '@mantine/core';
 import {
   SYFON_API,
+  useCreateFunnelTaskMutation,
   useGetConfigListQuery,
   useGetConfigContentQuery,
+  useGetFunnelTaskQuery,
   useLazyGetGeckoGitProjectFileQuery,
   useGetGeckoGitProjectsQuery,
   useGetGeckoGitProjectRefsQuery,
@@ -31,6 +34,7 @@ import {
   type GeckoGitRefreshResponse,
   type GeckoGitProjectStatus,
   type GeckoGitTreeEntry,
+  type FunnelTaskState,
 } from '@gen3/core';
 import {
   IconCheck,
@@ -169,6 +173,67 @@ const MIRROR_STATUS_POLL_INTERVAL_MS = 1000;
 const isPersistentGitProjectError = (message: string | null | undefined) =>
   (message ?? '').toLowerCase().includes('remote repository is empty');
 
+const isGitObjectId = (value: string | undefined): value is string =>
+  value !== undefined && /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/i.test(value);
+
+const isDirectMetadataNdjson = (entry: GeckoGitTreeEntry): boolean => {
+  const pathParts = entry.path.split('/');
+  return (
+    entry.type === 'blob' &&
+    pathParts.length === 2 &&
+    pathParts[0] === 'META' &&
+    pathParts[1] === entry.name &&
+    entry.name !== '.' &&
+    entry.name !== '..' &&
+    entry.name.endsWith('.ndjson')
+  );
+};
+
+const isTerminalFunnelTaskState = (state?: FunnelTaskState): boolean =>
+  state === 'COMPLETE' ||
+  state === 'EXECUTOR_ERROR' ||
+  state === 'SYSTEM_ERROR' ||
+  state === 'CANCELED';
+
+const getPublishErrorMessage = (error: unknown): string => {
+  if (typeof error === 'object' && error !== null && 'data' in error) {
+    const errorData = error.data;
+    if (typeof errorData === 'string') {
+      return errorData;
+    }
+    if (
+      typeof errorData === 'object' &&
+      errorData !== null &&
+      'message' in errorData &&
+      typeof errorData.message === 'string'
+    ) {
+      return errorData.message;
+    }
+    return JSON.stringify(errorData) ?? 'The publish request failed.';
+  }
+  return 'The publish request failed.';
+};
+
+type MetadataSelection = {
+  readonly scope: string;
+  readonly paths: Array<string>;
+};
+
+type SubmittedFunnelTask = {
+  readonly id: string;
+  readonly organization: string;
+  readonly project: string;
+  readonly revision: string;
+  readonly files: Array<string>;
+};
+
+type PublishMetadataPayload = {
+  readonly organization: string;
+  readonly project: string;
+  readonly revision: string;
+  readonly files: Array<string>;
+};
+
 const GitProjectPage = ({
   headerProps,
   footerProps,
@@ -187,6 +252,11 @@ const GitProjectPage = ({
 
   const [selectedRef, setSelectedRef] = useState<string | null>(null);
   const [currentPath, setCurrentPath] = useState<string>(requestedPath);
+  const [metadataSelection, setMetadataSelection] =
+    useState<MetadataSelection>({ scope: '', paths: [] });
+  const [submittedFunnelTask, setSubmittedFunnelTask] =
+    useState<SubmittedFunnelTask | null>(null);
+  const [publishError, setPublishError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [visibleProjectError, setVisibleProjectError] = useState<string | null>(
     null,
@@ -199,6 +269,7 @@ const GitProjectPage = ({
   const [hasCopiedCloneCommand, setHasCopiedCloneCommand] = useState(false);
   const [hasCopiedRemoteCommand, setHasCopiedRemoteCommand] = useState(false);
   const hasHydratedTreeRef = useRef<string | null>(null);
+  const publishRequestStartedRef = useRef(false);
 
   const shouldSkip = !organization || !project;
   const {
@@ -243,9 +314,24 @@ const GitProjectPage = ({
         !projectStatus?.mirror_ready,
     },
   );
+  const resolvedRevision = useMemo(() => {
+    const requestedRevision = effectiveRef ?? undefined;
+    if (isGitObjectId(requestedRevision)) {
+      return requestedRevision;
+    }
+    const selectedRefData = refsData?.refs.find(
+      (ref) => ref.name === effectiveRef,
+    );
+    return isGitObjectId(selectedRefData?.hash)
+      ? selectedRefData.hash
+      : null;
+  }, [effectiveRef, refsData?.refs]);
+  const treeRef = resolvedRevision ?? effectiveRef ?? undefined;
   const {
     data: treeData,
     isLoading: isTreeLoading,
+    isFetching: isTreeFetching,
+    isError: isTreeError,
     refetch: refetchTree,
   } = useGetGeckoGitProjectTreeQuery(
     {
@@ -257,7 +343,7 @@ const GitProjectPage = ({
       organization,
       project,
       path: currentPath,
-      ref: effectiveRef ?? undefined,
+      ref: treeRef,
     },
     {
       skip:
@@ -271,6 +357,42 @@ const GitProjectPage = ({
 
   const [refreshProject, { isLoading: isRefreshing }] =
     useRefreshGeckoGitProjectMutation();
+  const [createFunnelTask, { isLoading: isCreatingFunnelTask }] =
+    useCreateFunnelTaskMutation();
+  const {
+    data: funnelTaskStatus,
+    isError: isFunnelTaskStatusError,
+    isFetching: isFetchingFunnelTaskStatus,
+    refetch: refetchFunnelTaskStatus,
+  } = useGetFunnelTaskQuery(submittedFunnelTask?.id ?? '', {
+    skip: !submittedFunnelTask,
+  });
+  const funnelTaskIsTerminal = isTerminalFunnelTaskState(
+    funnelTaskStatus?.state,
+  );
+  const isPublishingMetadata =
+    submittedFunnelTask !== null && !funnelTaskIsTerminal;
+
+  useEffect(() => {
+    if (
+      !submittedFunnelTask ||
+      funnelTaskIsTerminal ||
+      isFetchingFunnelTaskStatus
+    ) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      void refetchFunnelTaskStatus();
+    }, 15_000);
+
+    return () => window.clearTimeout(timeout);
+  }, [
+    funnelTaskIsTerminal,
+    isFetchingFunnelTaskStatus,
+    refetchFunnelTaskStatus,
+    submittedFunnelTask,
+  ]);
 
   useEffect(() => {
     if (requestedRef) {
@@ -349,7 +471,7 @@ const GitProjectPage = ({
       return;
     }
 
-    const hydrationKey = `${organization}/${project}/${effectiveRef ?? projectStatus?.default_branch ?? ''}/${currentPath}`;
+    const hydrationKey = `${organization}/${project}/${treeRef ?? ''}/${currentPath}`;
     if (hasHydratedTreeRef.current === hydrationKey) {
       return;
     }
@@ -367,6 +489,7 @@ const GitProjectPage = ({
     refetchRefs,
     refetchTree,
     shouldSkip,
+    treeRef,
   ]);
 
   const refOptions = useMemo(
@@ -397,6 +520,59 @@ const GitProjectPage = ({
   const isSearchOpen = normalizedSearchQuery.length > 0;
   const currentPathSegments = currentPath.split('/').filter(Boolean);
   const isRootView = currentPathSegments.length === 0;
+  const isMetadataDirectory =
+    currentPathSegments.length === 1 && currentPathSegments[0] === 'META';
+  const isTreeForDisplay =
+    (!treeRef || treeData?.ref === treeRef) &&
+    treeData?.path === currentPathSegments.join('/');
+  const isTreeForResolvedRevision =
+    Boolean(resolvedRevision) &&
+    treeData?.ref === resolvedRevision &&
+    treeData?.path === currentPathSegments.join('/');
+  const metadataSelectionScope = JSON.stringify([
+    organization,
+    project,
+    effectiveRef,
+    currentPathSegments.join('/'),
+    resolvedRevision,
+  ]);
+  const metadataEntries = useMemo(
+    () =>
+      isMetadataDirectory && isTreeForDisplay
+        ? (treeData?.entries ?? []).filter(isDirectMetadataNdjson)
+        : [],
+    [isMetadataDirectory, isTreeForDisplay, treeData?.entries],
+  );
+  const selectedMetadataPaths = useMemo(
+    () =>
+      metadataSelection.scope === metadataSelectionScope
+        ? new Set(metadataSelection.paths)
+        : new Set<string>(),
+    [metadataSelection, metadataSelectionScope],
+  );
+  const selectedMetadataFiles = useMemo(
+    () =>
+      metadataEntries
+        .filter((entry) => selectedMetadataPaths.has(entry.path))
+        .map((entry) => entry.path),
+    [metadataEntries, selectedMetadataPaths],
+  );
+  useEffect(() => {
+    setMetadataSelection((current) =>
+      current.scope === metadataSelectionScope
+        ? current
+        : { scope: metadataSelectionScope, paths: [] },
+    );
+    setPublishError(null);
+  }, [metadataSelectionScope]);
+  const canPublishMetadata =
+    isMetadataDirectory &&
+    isTreeForResolvedRevision === true &&
+    projectStatus?.installation_state === 'connected' &&
+    projectStatus.mirror_ready &&
+    selectedMetadataFiles.length > 0 &&
+    !isCreatingFunnelTask &&
+    !isPublishingMetadata;
   const currentRepoPath = [organization, project, ...currentPathSegments].join('/');
   const breadcrumbSegments = currentPathSegments.map((segment, index) => ({
     label: segment,
@@ -477,6 +653,68 @@ const GitProjectPage = ({
     } catch {
       // Ignore follow-up refetch failures. The refresh itself already succeeded,
       // and transient query issues should not surface as a repository refresh error.
+    }
+  };
+
+  const toggleMetadataFile = (path: string, checked: boolean) => {
+    if (!metadataEntries.some((entry) => entry.path === path)) {
+      return;
+    }
+
+    setMetadataSelection((current) => {
+      const paths =
+        current.scope === metadataSelectionScope ? current.paths : [];
+      if (checked) {
+        return paths.includes(path)
+          ? current
+          : { scope: metadataSelectionScope, paths: [...paths, path] };
+      }
+      return {
+        scope: metadataSelectionScope,
+        paths: paths.filter((selectedPath) => selectedPath !== path),
+      };
+    });
+  };
+
+  const handlePublishMetadata = async () => {
+    if (
+      !canPublishMetadata ||
+      !resolvedRevision ||
+      selectedMetadataFiles.length === 0 ||
+      publishRequestStartedRef.current
+    ) {
+      return;
+    }
+
+    publishRequestStartedRef.current = true;
+    setPublishError(null);
+    const files = [...selectedMetadataFiles];
+    const payload: PublishMetadataPayload = {
+      organization,
+      project,
+      revision: resolvedRevision,
+      files,
+    };
+
+    try {
+      const task = await createFunnelTask({
+        name: 'Publish metadata',
+        tags: {
+          'calypr.publish': JSON.stringify(payload),
+        },
+      }).unwrap();
+      setSubmittedFunnelTask({
+        id: task.id,
+        organization,
+        project,
+        revision: resolvedRevision,
+        files,
+      });
+      setMetadataSelection({ scope: metadataSelectionScope, paths: [] });
+    } catch (error) {
+      setPublishError(getPublishErrorMessage(error));
+    } finally {
+      publishRequestStartedRef.current = false;
     }
   };
 
@@ -612,12 +850,44 @@ const GitProjectPage = ({
     handleOpenFile(entry.path);
   };
 
+  const repositoryTableColumnCount = isMetadataDirectory ? 6 : 5;
+  const isRepositoryTreeLoading =
+    projectStatus?.installation_state === 'connected' &&
+    projectStatus.mirror_ready &&
+    !isTreeError &&
+    (isTreeLoading || isTreeFetching || areRefsLoading);
+
   const repositoryTable = (
     <Card padding={0} radius="md" withBorder>
       <ScrollArea>
         <Table highlightOnHover stickyHeader>
           <Table.Thead>
             <Table.Tr>
+              {isMetadataDirectory ? (
+                <Table.Th className="px-2 py-1" w={36}>
+                  <Checkbox
+                    aria-label="Select all metadata files"
+                    checked={
+                      metadataEntries.length > 0 &&
+                      selectedMetadataFiles.length === metadataEntries.length
+                    }
+                    indeterminate={
+                      selectedMetadataFiles.length > 0 &&
+                      selectedMetadataFiles.length < metadataEntries.length
+                    }
+                    disabled={metadataEntries.length === 0}
+                    onChange={(event) =>
+                      setMetadataSelection({
+                        scope: metadataSelectionScope,
+                        paths: event.currentTarget.checked
+                          ? metadataEntries.map((entry) => entry.path)
+                          : [],
+                      })
+                    }
+                    size="xs"
+                  />
+                </Table.Th>
+              ) : null}
               <Table.Th className="pl-3 pr-4 py-2 text-xs">
                 Name
               </Table.Th>
@@ -646,15 +916,28 @@ const GitProjectPage = ({
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {isTreeLoading ? (
+            {isRepositoryTreeLoading ? (
               <Table.Tr>
-                <Table.Td colSpan={5}>
+                <Table.Td colSpan={repositoryTableColumnCount}>
                   <Text c="dimmed" py="xl" ta="center">
-                    Loading repository tree...
+                    {resolvedRevision || !effectiveRef
+                      ? 'Loading repository tree...'
+                      : 'Loading repository tree. Metadata publishing needs a resolved commit SHA.'}
                   </Text>
                 </Table.Td>
               </Table.Tr>
-            ) : treeData?.entries?.length ? (
+            ) : isTreeError ? (
+              <Table.Tr>
+                <Table.Td colSpan={repositoryTableColumnCount}>
+                  <Stack align="center" gap="sm" py="xl">
+                    <Text c="red">Could not load this directory.</Text>
+                    <Button onClick={() => void refetchTree()} size="xs" variant="light">
+                      Retry
+                    </Button>
+                  </Stack>
+                </Table.Td>
+              </Table.Tr>
+            ) : isTreeForDisplay && treeData?.entries?.length ? (
               treeData.entries.map((entry) => (
                 <Table.Tr
                   className="cursor-pointer"
@@ -669,6 +952,28 @@ const GitProjectPage = ({
                     }
                   }}
                 >
+                  {isMetadataDirectory ? (
+                    <Table.Td
+                      className="px-2 py-1"
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      {metadataEntries.some(
+                        (metadataEntry) => metadataEntry.path === entry.path,
+                      ) ? (
+                        <Checkbox
+                          aria-label={`Select ${entry.path} for metadata publishing`}
+                          checked={selectedMetadataPaths.has(entry.path)}
+                          onChange={(event) =>
+                            toggleMetadataFile(
+                              entry.path,
+                              event.currentTarget.checked,
+                            )
+                          }
+                          size="xs"
+                        />
+                      ) : null}
+                    </Table.Td>
+                  ) : null}
                   <Table.Td className="pl-3 pr-4 py-1">
                     <div className="flex w-full items-center gap-2.5 px-1.5 py-1">
                       {entry.type === 'tree' ? (
@@ -807,7 +1112,7 @@ const GitProjectPage = ({
               ))
             ) : (
               <Table.Tr>
-                <Table.Td colSpan={5}>
+                <Table.Td colSpan={repositoryTableColumnCount}>
                   <Text c="dimmed" py="xl" ta="center">
                     {projectStatus?.installation_state !==
                     'connected'
@@ -826,6 +1131,23 @@ const GitProjectPage = ({
       </ScrollArea>
     </Card>
   );
+
+  const funnelTaskStatusMessage =
+    funnelTaskStatus?.state === 'COMPLETE'
+      ? 'Metadata publishing completed.'
+      : funnelTaskIsTerminal
+        ? `Metadata publishing ended with ${funnelTaskStatus?.state}.`
+        : funnelTaskStatus
+          ? `Metadata publishing is ${funnelTaskStatus.state.toLowerCase()}.`
+          : 'The publish task was submitted. Waiting for task status.';
+  const funnelTaskAlertColor =
+    funnelTaskStatus?.state === 'COMPLETE'
+      ? 'green'
+      : funnelTaskIsTerminal
+        ? 'red'
+        : isFunnelTaskStatusError
+          ? 'yellow'
+          : 'blue';
 
   const gitProjectContent = (
     <div className="min-h-screen bg-[#f6f8fa]">
@@ -1030,6 +1352,48 @@ const GitProjectPage = ({
                   {visibleProjectError}
                 </Alert>
               ) : null}
+              {publishError ? (
+                <Alert color="red" variant="light">
+                  {publishError}
+                </Alert>
+              ) : null}
+              {submittedFunnelTask ? (
+                <Alert color={funnelTaskAlertColor} title={funnelTaskStatusMessage} variant="light">
+                  <Stack gap={4}>
+                    <Text size="sm">
+                      {submittedFunnelTask.organization}/
+                      {submittedFunnelTask.project} at commit{' '}
+                      <span className="font-mono">
+                        {submittedFunnelTask.revision}
+                      </span>{' '}
+                      with {submittedFunnelTask.files.length} file(s).
+                    </Text>
+                    {isFunnelTaskStatusError ? (
+                      <Text size="sm">
+                        Task status could not be read. This page will keep checking.
+                      </Text>
+                    ) : null}
+                    {funnelTaskStatus?.errorMessage ? (
+                      <Text component="pre" size="sm" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
+                        {funnelTaskStatus.errorMessage}
+                      </Text>
+                    ) : null}
+                    <Group gap="xs">
+                      <Text className="font-mono" size="xs">
+                        Task {submittedFunnelTask.id}
+                      </Text>
+                      <Button
+                        variant="subtle"
+                        size="xs"
+                        loading={isFetchingFunnelTaskStatus}
+                        onClick={() => void refetchFunnelTaskStatus()}
+                      >
+                        Refresh task status
+                      </Button>
+                    </Group>
+                  </Stack>
+                </Alert>
+              ) : null}
               {projectStatus?.installation_state !== 'connected' ? (
                 <Alert color="blue" variant="light">
                   {projectStatus?.organization_app_installed
@@ -1044,6 +1408,49 @@ const GitProjectPage = ({
                     ? 'to include this repository.'
                     : 'before refreshing this repository mirror.'}
                 </Alert>
+              ) : null}
+
+              {isMetadataDirectory ? (
+                <Card padding="md" radius="md" withBorder>
+                  <Group align="center" justify="space-between" wrap="wrap">
+                    <Stack gap={4}>
+                      <Text fw={700}>Publish metadata</Text>
+                      <Text c="dimmed" size="sm">
+                        Publish the selected .ndjson file versions from this
+                        commit. Records removed from these files are removed
+                        from the published data. Records from other source files
+                        are retained.
+                      </Text>
+                      {resolvedRevision && isTreeForResolvedRevision ? (
+                        <Text className="font-mono" size="xs">
+                          Revision {resolvedRevision}
+                        </Text>
+                      ) : resolvedRevision ? (
+                        <Text c="dimmed" size="sm">
+                          Loading META files at the resolved commit...
+                        </Text>
+                      ) : areRefsLoading ? (
+                        <Text c="dimmed" size="sm">
+                          Resolving the selected ref to a commit SHA...
+                        </Text>
+                      ) : (
+                        <Text c="orange" size="sm">
+                          This ref has no resolved commit SHA. You can browse
+                          files, but publishing stays disabled.
+                        </Text>
+                      )}
+                    </Stack>
+                    <Button
+                      disabled={!canPublishMetadata}
+                      loading={isCreatingFunnelTask}
+                      onClick={() => void handlePublishMetadata()}
+                    >
+                      {isPublishingMetadata
+                        ? 'Publishing metadata...'
+                        : `Publish metadata (${selectedMetadataFiles.length})`}
+                    </Button>
+                  </Group>
+                </Card>
               ) : null}
 
               {isRootView ? (
