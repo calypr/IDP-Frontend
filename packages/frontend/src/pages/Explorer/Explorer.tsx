@@ -2,7 +2,11 @@ import React from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/router';
 import type { SharedFieldMapping } from '@gen3/core';
-import { canonicalLoomProjectId, useGetExplorerStateV1Query } from '@gen3/core';
+import {
+  canonicalLoomProjectId,
+  useGetExplorerStateV1Query,
+  useGetProjectViewBuilderQuery,
+} from '@gen3/core';
 import { NavPageLayout } from '../../features/Navigation';
 import PageLoadBoundary from '../../components/MessageCards/PageLoadBoundary';
 import { ProtectedContent } from '../../components/Protected';
@@ -10,6 +14,7 @@ import type { PageLoadProblem } from '../../lib/pageLoader';
 import type { ExplorerRuntimeV1 } from '@gen3/core';
 import { useSession } from '../../lib/session/session';
 import { ExplorerPageProps } from './types';
+import { selectedProjectViewId, useProjectViewTab } from './selection';
 
 const CohortBuilder = dynamic(
   () => import('../../features/CohortBuilder/CohortBuilder'),
@@ -99,6 +104,7 @@ const ExplorerPage = ({
   footerProps,
   runtime,
   project,
+  explorerId: initialExplorerId,
   headerMetadata,
   sharedFiltersMap,
   pageProblems,
@@ -108,15 +114,44 @@ const ExplorerPage = ({
     typeof router.query.configId === 'string'
       ? canonicalLoomProjectId(router.query.configId)
       : project;
-  const routeExplorerId =
+  const explicitExplorerId =
     typeof router.query.explorerId === 'string'
       ? router.query.explorerId
-      : 'default';
-  const explorerState = useGetExplorerStateV1Query(
-    { project: routeProject ?? '', explorerId: routeExplorerId },
+      : undefined;
+  const viewSettings = useGetProjectViewBuilderQuery(
+    { project: routeProject ?? '' },
     { skip: !routeProject, refetchOnMountOrArgChange: true },
   );
-  const effectiveRuntime = explorerState.data?.runtime ?? runtime;
+  const settings = viewSettings.currentData?.settings;
+  const routeExplorerId = selectedProjectViewId(
+    explicitExplorerId,
+    settings?.defaultConfigId,
+  );
+  const waitingForDefaults = !explicitExplorerId && !viewSettings.currentData;
+  const initialFrame =
+    typeof router.query.frame === 'string'
+      ? router.query.frame
+      : routeExplorerId === settings?.defaultConfigId
+        ? settings.defaultFrameId
+        : undefined;
+  const explorerState = useGetExplorerStateV1Query(
+    { project: routeProject ?? '', explorerId: routeExplorerId },
+    {
+      skip: !routeProject || waitingForDefaults,
+      refetchOnMountOrArgChange: true,
+    },
+  );
+  const effectiveRuntime = waitingForDefaults
+    ? null
+    : (explorerState.currentData?.runtime ??
+      (routeProject === project && routeExplorerId === initialExplorerId
+        ? runtime
+        : null));
+  const { activeTab, selectTab, unavailableDefault } = useProjectViewTab(
+    effectiveRuntime,
+    initialFrame,
+    `${routeProject}/${routeExplorerId}`,
+  );
   const clientProblems =
     !effectiveRuntime && explorerState.error
       ? [explorerQueryProblem(explorerState.error)]
@@ -147,14 +182,28 @@ const ExplorerPage = ({
       headerMetadata={pageHeaderMetadata}
       pageProblems={problems}
     >
-      {!effectiveRuntime &&
-      (explorerState.isLoading || explorerState.isFetching) ? (
+      {unavailableDefault && (
+        <p role="alert">
+          The saved default table needs updating. Choose another tab or repair
+          the view.
+        </p>
+      )}
+      {waitingForDefaults && viewSettings.error ? (
+        <p role="alert">
+          The project’s default view could not be loaded. Refresh to retry.
+        </p>
+      ) : !effectiveRuntime &&
+        (waitingForDefaults ||
+          explorerState.isLoading ||
+          explorerState.isFetching) ? (
         <main className="mx-auto max-w-screen-2xl p-6">
           <p role="status">Loading Explorer…</p>
         </main>
       ) : (
         <ExplorerMainContent
           runtime={effectiveRuntime}
+          activeTab={activeTab}
+          onTabChange={selectTab}
           project={explorerState.data?.project ?? project}
           sharedFiltersMap={sharedFiltersMap}
           pageProblems={problems}

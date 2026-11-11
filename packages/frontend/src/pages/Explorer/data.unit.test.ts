@@ -10,6 +10,9 @@ jest.mock('@gen3/core', () => ({
   encodeLoomProjectPath: (value: string) =>
     encodeURIComponent(encodeURIComponent(value)),
   assertExplorerStateV1: (value: unknown) => value,
+  viewBuilderStateSchema: jest.requireActual(
+    '../../../../core/src/features/loom/projectViewBuilder',
+  ).viewBuilderStateSchema,
 }));
 import { loadExplorerStateV1 } from './data';
 import type { ServerPageContext } from '../../lib/pageLoader';
@@ -40,7 +43,20 @@ const contextFor = (
 ) =>
   ({
     next: { query },
-    loom: { get: jest.fn().mockResolvedValue(response) },
+    loom: {
+      get: jest.fn().mockImplementation((endpoint: string) =>
+        Promise.resolve(
+          endpoint.endsWith('/view-builder')
+            ? {
+                settings: { project: 'project/1', version: 0, catalogs: {} },
+                configs: [],
+                catalogs: [],
+                canEdit: false,
+              }
+            : response,
+        ),
+      ),
+    },
     problems: { add: jest.fn() },
   }) as unknown as ServerPageContext;
 
@@ -119,6 +135,43 @@ describe('Explorer page loader', () => {
         code: 'EXPLORER_RUNTIME_REQUIRED',
         retryable: false,
       }),
+    );
+  });
+
+  it('loads the project-selected default rather than a literal default owner', async () => {
+    const context = contextFor({ configId: 'project-1' });
+    (context.loom.get as jest.Mock)
+      .mockResolvedValueOnce({
+        settings: {
+          project: 'project/1',
+          version: 4,
+          catalogs: {},
+          defaultConfigId: 'files',
+          defaultFrameId: 'metadata/Documents',
+        },
+        configs: [],
+        catalogs: [],
+        canEdit: true,
+      })
+      .mockResolvedValueOnce({ ...explorerState, explorerId: 'files' });
+    const result = await loadExplorerStateV1(context);
+    expect(result).toEqual(
+      expect.objectContaining({ explorerId: 'files', runtime }),
+    );
+    expect(context.loom.get).toHaveBeenLastCalledWith(
+      '/api/v1/projects/project%252F1/explorers/files',
+    );
+  });
+
+  it('never silently falls back when project default lookup fails', async () => {
+    const context = contextFor({ configId: 'project-1' });
+    (context.loom.get as jest.Mock).mockRejectedValue(
+      new Error('Settings unavailable'),
+    );
+    await loadExplorerStateV1(context);
+    expect(context.loom.get).toHaveBeenCalledTimes(1);
+    expect(context.loom.get).toHaveBeenCalledWith(
+      '/api/v1/projects/project%252F1/view-builder',
     );
   });
 

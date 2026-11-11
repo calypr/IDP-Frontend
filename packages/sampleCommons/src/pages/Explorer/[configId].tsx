@@ -1,14 +1,17 @@
-import React, { useMemo, useState } from 'react';
+import React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import {
   canonicalLoomProjectId,
   useGetExplorerAuthoringExplorersQuery,
+  useGetProjectViewBuilderQuery,
   useGetExplorerStateV1Query,
   useGetGeckoProjectsQuery,
 } from '@gen3/core';
 import {
   ExplorerMainContent,
+  selectedProjectViewId,
+  useProjectViewTab,
   isExplorerBuilderEnabled,
   ExplorerPageGetServerSideProps as getServerSideProps,
   NavPageLayout,
@@ -30,11 +33,27 @@ const CohortBuilderPage = ({
   const { data: geckoProjects = [] } = useGetGeckoProjectsQuery();
   const configId =
     typeof router.query.configId === 'string' ? router.query.configId : '';
-  const explorerId =
+  const explicitExplorerId =
     typeof router.query.explorerId === 'string'
       ? router.query.explorerId
-      : 'default';
+      : undefined;
   const projectId = canonicalLoomProjectId(configId);
+  const viewSettings = useGetProjectViewBuilderQuery(
+    { project: projectId },
+    { skip: !projectId, refetchOnMountOrArgChange: true },
+  );
+  const settings = viewSettings.currentData?.settings;
+  const explorerId = selectedProjectViewId(
+    explicitExplorerId,
+    settings?.defaultConfigId,
+  );
+  const waitingForDefaults = !explicitExplorerId && !viewSettings.currentData;
+  const initialFrame =
+    typeof router.query.frame === 'string'
+      ? router.query.frame
+      : explorerId === settings?.defaultConfigId
+        ? settings.defaultFrameId
+        : undefined;
   const explorerConfigsQuery = useGetExplorerAuthoringExplorersQuery(
     { project: projectId },
     { skip: !projectId, refetchOnMountOrArgChange: true },
@@ -57,7 +76,11 @@ const CohortBuilderPage = ({
     void router.replace(
       {
         pathname: router.pathname,
-        query: { ...router.query, explorerId: nextExplorerId },
+        query: {
+          ...router.query,
+          explorerId: nextExplorerId,
+          frame: undefined,
+        },
       },
       undefined,
       { shallow: true },
@@ -65,14 +88,15 @@ const CohortBuilderPage = ({
   };
   const explorerState = useGetExplorerStateV1Query(
     { project: projectId, explorerId },
-    { skip: !configId, refetchOnMountOrArgChange: true },
+    { skip: !configId || waitingForDefaults, refetchOnMountOrArgChange: true },
   );
   const currentExplorerState = explorerState.currentData;
-  const runtime =
-    currentExplorerState?.runtime ??
-    (explorerProject === projectId && initialExplorerId === explorerId
-      ? initialRuntime
-      : null);
+  const runtime = waitingForDefaults
+    ? null
+    : (currentExplorerState?.runtime ??
+      (explorerProject === projectId && initialExplorerId === explorerId
+        ? initialRuntime
+        : null));
   const effectiveProject = currentExplorerState?.project ?? explorerProject;
   const clientProblems: readonly PageLoadProblem[] = explorerState.error
     ? [
@@ -118,29 +142,11 @@ const CohortBuilderPage = ({
       : [];
   const problems = [...(pageProblems ?? []), ...clientProblems];
   const isEmbedded = useIsEmbedded();
-  const runtimeIdentity = useMemo(
-    () =>
-      JSON.stringify({
-        configId,
-        projectId,
-        explorerId,
-        outputs: runtime?.outputs ?? [],
-      }),
-    [configId, explorerId, projectId, runtime?.outputs],
-  );
-  const [tabSelection, setTabSelection] = useState<{
-    readonly runtimeIdentity: string;
-    readonly value: string | null;
-  }>({
-    runtimeIdentity,
-    value: runtime?.outputs[0]?.title ?? null,
-  });
-  const activeExplorerTab =
-    tabSelection.runtimeIdentity === runtimeIdentity
-      ? tabSelection.value
-      : (runtime?.outputs[0]?.title ?? null);
-  const setActiveExplorerTab = (value: string | null) =>
-    setTabSelection({ runtimeIdentity, value });
+  const {
+    activeTab: activeExplorerTab,
+    selectTab: setActiveExplorerTab,
+    unavailableDefault,
+  } = useProjectViewTab(runtime, initialFrame, `${projectId}/${explorerId}`);
 
   const matchingProject = geckoProjects.find((candidate) => {
     const parts = candidate.resourcePath.split('/').filter(Boolean);
@@ -152,20 +158,34 @@ const CohortBuilderPage = ({
   const project = matchingProjectParts[3] ?? '';
   const explorerHref = `/Explorer/${encodeURIComponent(projectId)}${explorerId ? `?explorerId=${encodeURIComponent(explorerId)}` : ''}`;
   const builderHref = `/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}/explorers/builder${explorerId ? `?explorerId=${encodeURIComponent(explorerId)}` : ''}`;
+  const viewBuilderHref = `/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}/explorers/views?explorerId=${encodeURIComponent(explorerId)}`;
   const showTabsInToolbar = Boolean(organization && project && !isEmbedded);
 
   const explorerContent =
     runtime && effectiveProject ? (
-      <ExplorerMainContent
-        runtime={runtime}
-        project={effectiveProject}
-        activeTab={showTabsInToolbar ? activeExplorerTab : undefined}
-        hideTabList={showTabsInToolbar}
-        onTabChange={showTabsInToolbar ? setActiveExplorerTab : undefined}
-        sharedFiltersMap={sharedFiltersMap}
-        pageProblems={pageProblems}
-      />
-    ) : explorerState.isLoading ||
+      <>
+        {unavailableDefault && (
+          <p role="alert" className="p-4 text-amber-800">
+            The saved default table needs updating for the current data. Choose
+            another tab or repair the view in View Builder.
+          </p>
+        )}
+        <ExplorerMainContent
+          runtime={runtime}
+          project={effectiveProject}
+          activeTab={activeExplorerTab}
+          hideTabList={showTabsInToolbar}
+          onTabChange={setActiveExplorerTab}
+          sharedFiltersMap={sharedFiltersMap}
+          pageProblems={pageProblems}
+        />
+      </>
+    ) : waitingForDefaults && viewSettings.error ? (
+      <p role="alert" className="p-6">
+        The project’s default view could not be loaded. Refresh to retry.
+      </p>
+    ) : waitingForDefaults ||
+      explorerState.isLoading ||
       explorerState.isUninitialized ||
       explorerState.isFetching ? (
       <main className="mx-auto max-w-screen-2xl p-6">
@@ -259,7 +279,8 @@ const CohortBuilderPage = ({
                   </select>
                 </label>
               )}
-              {isExplorerBuilderEnabled() && (
+              {(viewSettings.currentData?.canEdit ||
+                isExplorerBuilderEnabled()) && (
                 <div
                   aria-label="Explorer workspace"
                   className="ml-auto flex shrink-0 self-stretch gap-5 border-l border-slate-200 pl-5"
@@ -272,6 +293,15 @@ const CohortBuilderPage = ({
                   >
                     View
                   </span>
+                  {viewSettings.currentData?.canEdit && (
+                    <Link
+                      href={viewBuilderHref}
+                      className="px-0 pb-3 pt-3 text-sm font-semibold text-slate-500 hover:text-slate-800"
+                      role="tab"
+                    >
+                      View Builder
+                    </Link>
+                  )}
                   {isExplorerBuilderEnabled() && (
                     <Link
                       className="rounded-none border-0 border-b-2 border-transparent bg-transparent px-0 pb-3 pt-3 text-sm font-semibold text-slate-500 hover:text-slate-800"

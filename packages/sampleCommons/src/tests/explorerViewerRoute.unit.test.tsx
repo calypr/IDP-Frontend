@@ -26,6 +26,7 @@ type ViewerStateResult = {
       readonly outputs: ReadonlyArray<{
         readonly outputId: string;
         readonly title: string;
+        readonly selector: { readonly recipe: string; readonly output: string };
       }>;
     };
   };
@@ -35,6 +36,14 @@ type ViewerStateResult = {
   readonly isUninitialized?: boolean;
 };
 
+let mockEmbedded = false;
+let mockViewerProps: { activeTab?: string | null } = {};
+let mockViewSettings = {
+  currentData: {
+    canEdit: false,
+    settings: { defaultConfigId: '', defaultFrameId: '' },
+  },
+};
 const mockRouterReplace = jest.fn();
 const mockRouter: {
   pathname: string;
@@ -50,7 +59,13 @@ const mockGetExplorerState = jest.fn(
     currentData: {
       project: args.project,
       runtime: {
-        outputs: [{ outputId: 'Specimen', title: `${args.explorerId} view` }],
+        outputs: [
+          {
+            outputId: 'Specimen',
+            title: `${args.explorerId} view`,
+            selector: { recipe: 'metadata', output: 'Specimen' },
+          },
+        ],
       },
     },
   }),
@@ -81,6 +96,7 @@ jest.mock('next/link', () => ({
 }));
 jest.mock('@gen3/core', () => ({
   canonicalLoomProjectId: (project: string) => project,
+  useGetProjectViewBuilderQuery: () => mockViewSettings,
   useGetGeckoProjectsQuery: () => ({
     data: [{ resourcePath: '/programs/HTAN_INT/projects/BForePC' }],
   }),
@@ -92,19 +108,25 @@ jest.mock('@gen3/core', () => ({
   ) => mockGetExplorerSummaries(args, options),
 }));
 jest.mock('@gen3/frontend', () => ({
+  ...jest.requireActual('../../../frontend/src/pages/Explorer/selection'),
   isExplorerBuilderEnabled: () =>
     process.env.NEXT_PUBLIC_GEN3_EXPLORER_BUILDER_ENABLED === 'true',
   ExplorerMainContent: ({
     project,
     runtime,
+    activeTab,
   }: {
+    activeTab?: string | null;
     project: string;
     runtime: { outputs: ReadonlyArray<{ title: string }> };
-  }) => (
-    <div>
-      Published metadata for {project} ({runtime.outputs[0]?.title})
-    </div>
-  ),
+  }) => {
+    mockViewerProps = { activeTab };
+    return (
+      <div>
+        Published metadata for {project} ({runtime.outputs[0]?.title})
+      </div>
+    );
+  },
   ExplorerPageGetServerSideProps: jest.fn(),
   NavPageLayout: ({ children }: { children: React.ReactNode }) => children,
   ProjectWorkspaceTabs: ({
@@ -119,7 +141,7 @@ jest.mock('@gen3/frontend', () => ({
       {children}
     </>
   ),
-  useIsEmbedded: () => false,
+  useIsEmbedded: () => mockEmbedded,
 }));
 
 const props = {
@@ -161,6 +183,14 @@ describe('published Explorer route', () => {
   const original = process.env.NEXT_PUBLIC_GEN3_EXPLORER_BUILDER_ENABLED;
 
   beforeEach(() => {
+    mockEmbedded = false;
+    mockViewerProps = {};
+    mockViewSettings = {
+      currentData: {
+        canEdit: false,
+        settings: { defaultConfigId: '', defaultFrameId: '' },
+      },
+    };
     mockRouter.pathname = '/Explorer/[configId]';
     mockRouter.query = {
       configId: project,
@@ -169,7 +199,21 @@ describe('published Explorer route', () => {
       facets: ['active', 'recent'],
     };
     mockRouter.replace.mockReset();
-    mockGetExplorerState.mockClear();
+    mockGetExplorerState.mockReset();
+    mockGetExplorerState.mockImplementation((args: ViewerStateArgs) => ({
+      currentData: {
+        project: args.project,
+        runtime: {
+          outputs: [
+            {
+              outputId: 'Specimen',
+              title: `${args.explorerId} view`,
+              selector: { recipe: 'metadata', output: 'Specimen' },
+            },
+          ],
+        },
+      },
+    }));
     mockGetExplorerSummaries.mockReset();
     mockGetExplorerSummaries.mockReturnValue({ data: publishedConfigs });
     delete process.env.NEXT_PUBLIC_GEN3_EXPLORER_BUILDER_ENABLED;
@@ -313,6 +357,65 @@ describe('published Explorer route', () => {
     );
     expect(screen.queryByText(/SSR Metadata/)).not.toBeInTheDocument();
     expect(screen.getByRole('status')).toHaveTextContent('Loading Explorer…');
+  });
+
+  it('opens the project-selected view and offers only the presentation builder', () => {
+    mockRouter.query = { configId: project };
+    mockViewSettings = {
+      currentData: {
+        canEdit: true,
+        settings: {
+          defaultConfigId: 'files',
+          defaultFrameId: 'metadata/Specimen',
+        },
+      },
+    };
+    render(<Explorer {...props} />);
+    expect(mockGetExplorerState).toHaveBeenLastCalledWith(
+      { project, explorerId: 'files' },
+      { skip: false, refetchOnMountOrArgChange: true },
+    );
+    expect(mockViewerProps.activeTab).toBe('files view');
+    expect(screen.getByRole('tab', { name: 'View Builder' })).toHaveAttribute(
+      'href',
+      '/org/HTAN_INT/project/BForePC/explorers/views?explorerId=files',
+    );
+    expect(
+      screen.queryByRole('tab', { name: 'Builder' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('keeps an unavailable default unselected and visible as a warning when embedded', () => {
+    mockRouter.query = { configId: project };
+    mockEmbedded = true;
+    mockViewSettings = {
+      currentData: {
+        canEdit: false,
+        settings: {
+          defaultConfigId: 'files',
+          defaultFrameId: 'metadata/Removed',
+        },
+      },
+    };
+    mockGetExplorerState.mockReturnValueOnce({
+      currentData: {
+        project,
+        runtime: {
+          outputs: [
+            {
+              outputId: 'Specimen',
+              title: 'Other table',
+              selector: { recipe: 'metadata', output: 'Specimen' },
+            },
+          ],
+        },
+      },
+    });
+    render(<Explorer {...props} />);
+    expect(mockViewerProps.activeTab).toBeNull();
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'saved default table needs updating',
+    );
   });
 
   it('exposes the preserved Builder link only after explicit opt-in', () => {

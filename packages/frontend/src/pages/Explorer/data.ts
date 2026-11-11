@@ -6,7 +6,9 @@ import {
   assertExplorerStateV1,
   canonicalLoomProjectId,
   encodeLoomProjectPath,
+  viewBuilderStateSchema,
 } from '@gen3/core';
+import { selectedProjectViewId } from './selection';
 import { normalizePageProblem } from '../../lib/pageLoader/errors';
 
 const emptyExplorerPage = (explorerId: string): ExplorerPageData => ({
@@ -18,7 +20,7 @@ const emptyExplorerPage = (explorerId: string): ExplorerPageData => ({
 export const loadExplorerStateV1 = async (
   context: ServerPageContext,
 ): Promise<ExplorerPageData | PageLoadResult<ExplorerPageData>> => {
-  const explorerId =
+  let explorerId =
     typeof context.next.query.explorerId === 'string'
       ? context.next.query.explorerId
       : 'default';
@@ -38,9 +40,20 @@ export const loadExplorerStateV1 = async (
     });
     return emptyExplorerPage(explorerId);
   }
-  const endpoint = `/api/v1/projects/${encodeLoomProjectPath(project)}/explorers/${encodeURIComponent(explorerId)}`;
+  let endpoint = `/api/v1/projects/${encodeLoomProjectPath(project)}/explorers/${encodeURIComponent(explorerId)}`;
 
   try {
+    if (typeof context.next.query.explorerId !== 'string') {
+      endpoint = `/api/v1/projects/${encodeLoomProjectPath(project)}/view-builder`;
+      const response = await context.loom.get<unknown>(endpoint);
+      const payload =
+        typeof response === 'object' && response !== null && 'data' in response
+          ? response.data
+          : response;
+      const settings = viewBuilderStateSchema.parse(payload).settings;
+      explorerId = selectedProjectViewId(undefined, settings.defaultConfigId);
+      endpoint = `/api/v1/projects/${encodeLoomProjectPath(project)}/explorers/${encodeURIComponent(explorerId)}`;
+    }
     const response = await context.loom.get<unknown>(endpoint);
     const payload =
       typeof response === 'object' && response !== null && 'data' in response

@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react';
 import {
   userHasMethodForServiceOnResource,
   useGetAuthzMappingsQuery,
-  useGetExplorerStateV1Query,
+  useGetProjectViewBuilderQuery,
 } from '@gen3/core';
 import ProjectWorkspaceTabs from './ProjectWorkspaceTabs';
 
@@ -22,7 +22,7 @@ jest.mock('next/link', () => ({
 
 jest.mock('@gen3/core', () => ({
   useGetAuthzMappingsQuery: jest.fn(),
-  useGetExplorerStateV1Query: jest.fn(),
+  useGetProjectViewBuilderQuery: jest.fn(),
   userHasMethodForServiceOnResource: jest.fn(),
 }));
 
@@ -43,7 +43,9 @@ const renderTabs = (hasExplorerConfig = false) =>
 describe('ProjectWorkspaceTabs', () => {
   beforeEach(() => {
     (useGetAuthzMappingsQuery as jest.Mock).mockReturnValue({ data: {} });
-    (useGetExplorerStateV1Query as jest.Mock).mockReturnValue({ data: null });
+    (useGetProjectViewBuilderQuery as jest.Mock).mockReturnValue({
+      data: null,
+    });
     mockedAuthorization.mockReturnValue(false);
   });
 
@@ -53,10 +55,18 @@ describe('ProjectWorkspaceTabs', () => {
       'href',
       '/Explorer/HTAN_INT%2FBForePC',
     );
-    expect(useGetExplorerStateV1Query).toHaveBeenCalledWith(
-      { project: 'HTAN_INT/BForePC', explorerId: 'default' },
+    expect(useGetProjectViewBuilderQuery).toHaveBeenCalledWith(
+      { project: 'HTAN_INT/BForePC' },
       { skip: true },
     );
+  });
+
+  it('shows an independently named published view to project readers', () => {
+    (useGetProjectViewBuilderQuery as jest.Mock).mockReturnValue({
+      data: { configs: [{ revisionId: 'published-custom-view' }] },
+    });
+    renderTabs(false);
+    expect(screen.getByRole('tab', { name: 'Explorer' })).toBeInTheDocument();
   });
 
   it('shows Explorer to project updaters so they can create the first configuration', () => {

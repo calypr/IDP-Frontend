@@ -80,7 +80,6 @@ import { CalyprPageGetServerSideProps } from './pages/CALYPR';
 import FileSummaryPage from './pages/FileSummary/FileSummary';
 import { FileSummaryPageGetServerSideProps } from './pages/FileSummary';
 
-
 import AppsPage from './pages/Apps/Apps';
 import { AppsPageGetServerSideProps } from './pages/Apps';
 import AvailableImagesPage, {
@@ -294,3 +293,10 @@ export {
   ExplorerTableCellRendererFactory,
   registerExplorerDefaultCellRenderers,
 };
+
+export { ExplorerViewBuilder } from './features/ExplorerViewBuilder/ExplorerViewBuilder';
+export {
+  selectedProjectViewId,
+  selectedProjectViewTab,
+  useProjectViewTab,
+} from './pages/Explorer/selection';
