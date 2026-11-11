@@ -141,7 +141,7 @@ const ProjectWorkspaceTabs = ({
   return (
     <div>
       <div className="border-b border-slate-200 bg-white">
-        <div className="flex min-h-[3rem] items-center gap-6 px-4">
+        <div className="flex min-h-[3rem] flex-wrap items-center gap-x-6 px-4">
           <div
             aria-label={`Project workspaces for ${organization}/${project}`}
             className="flex self-stretch gap-5"
@@ -168,7 +168,7 @@ const ProjectWorkspaceTabs = ({
             })}
           </div>
           {toolbarContent ? (
-            <div className="min-w-0 flex-1">{toolbarContent}</div>
+            <div className="min-w-0 flex-[1_1_18rem]">{toolbarContent}</div>
           ) : null}
         </div>
       </div>

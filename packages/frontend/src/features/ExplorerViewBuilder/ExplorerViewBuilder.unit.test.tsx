@@ -154,9 +154,9 @@ describe('Project View Builder', () => {
       screen.getByRole('textbox', { name: 'Column label for Specimen ID' }),
       { target: { value: 'Sample identifier' } },
     );
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Use as filter' }));
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Use as chart' }));
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Pin column' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Filter' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Chart' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Pinned' }));
     fireEvent.click(screen.getByRole('button', { name: 'Save config' }));
 
     await waitFor(() => expect(mockSaveProjectViewConfig).toHaveBeenCalled());
@@ -306,5 +306,123 @@ describe('Project View Builder', () => {
         project,
       }),
     );
+  });
+  it('edits one table at a time and retains edits when switching tabs', async () => {
+    const files = {
+      ...projectConfig.views[0],
+      id: 'files',
+      title: 'Files',
+      output: 'DocumentReference',
+      table: {
+        columns: [
+          { column: 'document_reference_id', label: 'File ID', visible: true },
+        ],
+      },
+      fixedFilters: {},
+      actions: [],
+    };
+    const multi: ProjectViewBuilderState = {
+      ...baseState,
+      configs: [
+        {
+          ...baseState.configs[0],
+          config: { ...projectConfig, views: [projectConfig.views[0], files] },
+        },
+      ],
+      catalogs: [
+        {
+          ...baseState.catalogs[0],
+          frames: [
+            ...baseState.catalogs[0].frames,
+            {
+              id: 'DocumentReference',
+              title: 'Files',
+              columns: [
+                {
+                  name: 'document_reference_id',
+                  label: 'File ID',
+                  logicalType: 'string',
+                  cardinality: 'required_one',
+                  filterable: true,
+                  chartable: true,
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    mockGetProjectViewBuilder.mockReturnValue({
+      data: multi,
+      refetch: jest.fn(),
+    });
+    mockSaveProjectViewConfig.mockReturnValue({
+      unwrap: () => Promise.resolve(multi),
+    });
+    renderViewBuilder('metadata');
+    fireEvent.change(
+      screen.getByRole('textbox', { name: 'Column label for Specimen ID' }),
+      { target: { value: 'Sample identifier' } },
+    );
+    expect(screen.getByText('Unsaved changes')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Files' }));
+    expect(
+      screen.queryByRole('textbox', { name: 'Column label for Specimen ID' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('textbox', { name: 'Column label for File ID' }),
+    ).toHaveValue('File ID');
+    fireEvent.click(screen.getByRole('tab', { name: 'Specimens' }));
+    expect(
+      screen.getByRole('textbox', { name: 'Column label for Specimen ID' }),
+    ).toHaveValue('Sample identifier');
+    fireEvent.click(screen.getByRole('button', { name: 'Save config' }));
+    await waitFor(() => expect(mockSaveProjectViewConfig).toHaveBeenCalled());
+    const saved = mockSaveProjectViewConfig.mock.calls[0][0].request.config;
+    expect(saved.views).toHaveLength(2);
+    expect(saved.views[0].table.columns[0].label).toBe('Sample identifier');
+    expect(saved.recipeRef).toEqual(projectConfig.recipeRef);
+  });
+  it('adds a published column directly to the local draft without autosaving', async () => {
+    const extra = {
+      name: 'another_id',
+      label: 'Another ID',
+      logicalType: 'string',
+      cardinality: 'required_one',
+      filterable: true,
+      chartable: true,
+    };
+    const state: ProjectViewBuilderState = {
+      ...baseState,
+      catalogs: [
+        {
+          ...baseState.catalogs[0],
+          frames: [
+            {
+              ...baseState.catalogs[0].frames[0],
+              columns: [...baseState.catalogs[0].frames[0].columns, extra],
+            },
+          ],
+        },
+      ],
+    };
+    mockGetProjectViewBuilder.mockReturnValue({
+      data: state,
+      refetch: jest.fn(),
+    });
+    renderViewBuilder('metadata');
+    const picker = screen.getByRole('textbox', {
+      name: 'Add a column from this published frame',
+    });
+    fireEvent.click(picker);
+    fireEvent.change(picker, { target: { value: 'Another ID' } });
+    fireEvent.click(
+      await screen.findByRole('option', { name: 'Another ID · another_id' }),
+    );
+    expect(
+      screen.getByRole('textbox', { name: 'Column label for Another ID' }),
+    ).toHaveValue('Another ID');
+    expect(screen.getByText('Unsaved changes')).toBeInTheDocument();
+    expect(mockSaveProjectViewConfig).not.toHaveBeenCalled();
   });
 });

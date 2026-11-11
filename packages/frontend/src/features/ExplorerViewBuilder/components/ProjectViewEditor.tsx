@@ -1,8 +1,7 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   Alert,
   Button,
-  Card,
   Checkbox,
   Group,
   Select,
@@ -52,7 +51,6 @@ const FieldRow = ({
   readonly onChange: (config: ProjectViewConfig) => void;
 }) => {
   const tableColumns = view.table.columns;
-  const [addColumn, setAddColumn] = useState<string | null>(null);
   const availableColumns = (frame?.columns ?? []).filter(
     (column) =>
       !tableColumns.some((configured) => configured.column === column.name),
@@ -116,12 +114,31 @@ const FieldRow = ({
     );
   };
 
+  const addPublishedColumn = (columnName: string) => {
+    const source = frame?.columns.find((column) => column.name === columnName);
+    if (!source) return;
+    onChange(
+      updateView(config, view.id, (currentView) => ({
+        ...currentView,
+        table: {
+          ...currentView.table,
+          columns: [
+            ...currentView.table.columns,
+            { column: source.name, label: source.label, visible: true },
+          ],
+        },
+      })),
+    );
+  };
+
   return (
-    <Stack gap="sm">
-      <Group align="end" wrap="nowrap">
+    <Stack gap="xs">
+      <Group align="end" wrap="wrap" gap="xs">
         <Select
+          size="xs"
           className="min-w-0 flex-1"
-          label="Add a column from this published frame"
+          label="Add column"
+          aria-label="Add a column from this published frame"
           placeholder={
             availableColumns.length ? 'Choose a column' : 'No more columns'
           }
@@ -129,37 +146,14 @@ const FieldRow = ({
             value: column.name,
             label: `${column.label} · ${column.name}`,
           }))}
-          value={addColumn}
-          onChange={setAddColumn}
+          value={null}
+          onChange={(columnName) => {
+            if (columnName) addPublishedColumn(columnName);
+          }}
           disabled={!canEdit || availableColumns.length === 0}
           searchable
           clearable
         />
-        <Button
-          variant="light"
-          disabled={!canEdit || !addColumn}
-          onClick={() => {
-            const source = frame?.columns.find(
-              (column) => column.name === addColumn,
-            );
-            if (!source) return;
-            onChange(
-              updateView(config, view.id, (currentView) => ({
-                ...currentView,
-                table: {
-                  ...currentView.table,
-                  columns: [
-                    ...currentView.table.columns,
-                    { column: source.name, label: source.label, visible: true },
-                  ],
-                },
-              })),
-            );
-            setAddColumn(null);
-          }}
-        >
-          Add column
-        </Button>
       </Group>
 
       {tableColumns.length === 0 ? (
@@ -182,12 +176,24 @@ const FieldRow = ({
               (candidate) => candidate.column === column.column,
             );
             return (
-              <Card key={column.column} padding="sm" radius="md" withBorder>
-                <Stack gap="sm">
-                  <Group align="end" wrap="nowrap">
+              <div
+                key={column.column}
+                role="group"
+                aria-label={`Column ${column.label ?? schemaColumn?.label ?? column.column}`}
+                className="border-b border-base-lighter py-2"
+                title={column.column}
+              >
+                <div className="grid gap-2 lg:grid-cols-[minmax(15rem,1fr)_minmax(0,1fr)] xl:grid-cols-[minmax(12rem,1.1fr)_minmax(16rem,1fr)_minmax(9rem,.8fr)_minmax(16rem,1.1fr)]">
+                  <Group align="end" wrap="wrap" gap="xs">
                     <TextInput
+                      size="xs"
                       className="min-w-0 flex-1"
-                      label={`Column label for ${schemaColumn?.label ?? column.column}`}
+                      aria-label={`Column label for ${schemaColumn?.label ?? column.column}`}
+                      variant="unstyled"
+                      classNames={{
+                        input:
+                          'rounded px-2 hover:bg-base-lightest focus:bg-white focus:outline focus:outline-2 focus:outline-primary',
+                      }}
                       value={
                         column.label ?? schemaColumn?.label ?? column.column
                       }
@@ -200,6 +206,7 @@ const FieldRow = ({
                       }
                     />
                     <Button
+                      size="xs"
                       aria-label={`Move ${column.label ?? column.column} up`}
                       variant="default"
                       disabled={!canEdit || index === 0}
@@ -222,6 +229,7 @@ const FieldRow = ({
                       ↑
                     </Button>
                     <Button
+                      size="xs"
                       aria-label={`Move ${column.label ?? column.column} down`}
                       variant="default"
                       disabled={!canEdit || index === tableColumns.length - 1}
@@ -244,6 +252,7 @@ const FieldRow = ({
                       ↓
                     </Button>
                     <Button
+                      size="xs"
                       aria-label={`Remove ${column.label ?? column.column}`}
                       color="red"
                       variant="subtle"
@@ -262,7 +271,7 @@ const FieldRow = ({
                         )
                       }
                     >
-                      Remove
+                      ×
                     </Button>
                   </Group>
                   {!schemaColumn ? (
@@ -275,9 +284,10 @@ const FieldRow = ({
                       should no longer reference it.
                     </Alert>
                   ) : null}
-                  <Group align="center" wrap="wrap">
+                  <Group align="center" wrap="wrap" gap="sm">
                     <Checkbox
-                      label="Show in table"
+                      size="xs"
+                      label="Visible"
                       checked={column.visible}
                       disabled={!canEdit}
                       onChange={(event) =>
@@ -288,7 +298,8 @@ const FieldRow = ({
                       }
                     />
                     <Checkbox
-                      label="Pin column"
+                      size="xs"
+                      label="Pinned"
                       checked={column.pinned ?? false}
                       disabled={!canEdit}
                       onChange={(event) =>
@@ -299,7 +310,8 @@ const FieldRow = ({
                       }
                     />
                     <Checkbox
-                      label="Use as filter"
+                      size="xs"
+                      label="Filter"
                       checked={Boolean(filter)}
                       disabled={
                         !canEdit || (!capabilities.filterable && !filter)
@@ -342,7 +354,8 @@ const FieldRow = ({
                       }}
                     />
                     <Checkbox
-                      label="Use as chart"
+                      size="xs"
+                      label="Chart"
                       checked={Boolean(chart)}
                       disabled={!canEdit || (!capabilities.chartable && !chart)}
                       onChange={(event) => {
@@ -386,7 +399,15 @@ const FieldRow = ({
                   </Group>
                   {filter ? (
                     <TextInput
-                      label={`Filter label for ${column.label ?? column.column}`}
+                      size="xs"
+                      className="xl:col-start-3"
+                      label="Filter label"
+                      aria-label={`Filter label for ${column.label ?? column.column}`}
+                      variant="unstyled"
+                      classNames={{
+                        input:
+                          'rounded px-2 hover:bg-base-lightest focus:bg-white focus:outline focus:outline-2 focus:outline-primary',
+                      }}
                       value={filter.label ?? ''}
                       disabled={!canEdit}
                       onChange={(event) =>
@@ -398,10 +419,17 @@ const FieldRow = ({
                     />
                   ) : null}
                   {chart ? (
-                    <Group align="end" wrap="nowrap">
+                    <Group
+                      align="end"
+                      wrap="wrap"
+                      gap="xs"
+                      className="xl:col-start-4"
+                    >
                       <Select
+                        size="xs"
                         className="min-w-0 flex-1"
-                        label={`Chart type for ${column.label ?? column.column}`}
+                        label="Chart type"
+                        aria-label={`Chart type for ${column.label ?? column.column}`}
                         data={[
                           { value: 'bar', label: 'Bar' },
                           {
@@ -423,8 +451,14 @@ const FieldRow = ({
                         }}
                       />
                       <TextInput
+                        size="xs"
                         className="min-w-0 flex-1"
                         label="Chart title"
+                        variant="unstyled"
+                        classNames={{
+                          input:
+                            'rounded px-2 hover:bg-base-lightest focus:bg-white focus:outline focus:outline-2 focus:outline-primary',
+                        }}
                         value={chart.title ?? ''}
                         disabled={!canEdit}
                         onChange={(event) =>
@@ -436,8 +470,8 @@ const FieldRow = ({
                       />
                     </Group>
                   ) : null}
-                </Stack>
-              </Card>
+                </div>
+              </div>
             );
           })}
         </Stack>
@@ -473,10 +507,14 @@ export const ProjectViewEditor = ({
   const update = (nextView: typeof view) =>
     onChange(updateView(config, view.id, () => nextView));
   return (
-    <Card padding="lg" radius="md" withBorder>
-      <Stack gap="md">
-        <Group align="end" wrap="nowrap">
+    <section
+      id={`view-${view.id}`}
+      className="scroll-mt-32 border-t border-base-lighter py-3"
+    >
+      <Stack gap="xs">
+        <Group align="end" wrap="wrap" gap="xs">
           <TextInput
+            size="xs"
             className="min-w-0 flex-1"
             label="Tab title"
             value={view.title}
@@ -486,7 +524,8 @@ export const ProjectViewEditor = ({
             }
           />
           <Select
-            className="min-w-56"
+            size="xs"
+            className="w-full min-w-0 sm:w-56"
             label="Table"
             data={[
               ...(frame
@@ -499,7 +538,7 @@ export const ProjectViewEditor = ({
                   ]),
               ...(catalog?.frames.map((candidate) => ({
                 value: candidate.id,
-                label: `${candidate.title} · ${candidate.id}`,
+                label: candidate.title || candidate.id,
               })) ?? []),
             ]}
             value={view.output}
@@ -510,6 +549,7 @@ export const ProjectViewEditor = ({
             searchable
           />
           <Button
+            size="xs"
             aria-label={`Move tab ${view.title} up`}
             variant="default"
             disabled={!canEdit || index === 0}
@@ -518,6 +558,7 @@ export const ProjectViewEditor = ({
             ↑
           </Button>
           <Button
+            size="xs"
             aria-label={`Move tab ${view.title} down`}
             variant="default"
             disabled={!canEdit || index === total - 1}
@@ -526,6 +567,7 @@ export const ProjectViewEditor = ({
             ↓
           </Button>
           <Button
+            size="xs"
             color="red"
             variant="subtle"
             disabled={!canEdit || total <= 1}
@@ -565,7 +607,7 @@ export const ProjectViewEditor = ({
           onChange={onChange}
         />
       </Stack>
-    </Card>
+    </section>
   );
 };
 

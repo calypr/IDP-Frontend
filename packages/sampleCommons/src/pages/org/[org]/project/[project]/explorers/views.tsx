@@ -62,9 +62,24 @@ const ProjectViewBuilder = ({
           project={project}
           explorerHref={explorerHref}
           toolbarContent={
-            <div className="flex items-center gap-5 border-l border-slate-200 pl-5">
-              <Link href={explorerHref}>Viewer</Link>
-              <span aria-current="page" className="font-semibold">
+            <div
+              className="ml-auto flex min-w-0 justify-end gap-5"
+              role="tablist"
+              aria-label="Explorer workspace"
+            >
+              <Link
+                href={explorerHref}
+                role="tab"
+                className="rounded-none border-0 border-b-2 border-transparent px-0 py-3 text-sm font-semibold text-slate-500 hover:text-slate-800"
+              >
+                Viewer
+              </Link>
+              <span
+                aria-current="page"
+                aria-selected="true"
+                role="tab"
+                className="rounded-none border-0 border-b-2 border-[#2f5aac] px-0 py-3 text-sm font-semibold text-[#2f5aac]"
+              >
                 View Builder
               </span>
             </div>

@@ -1,14 +1,5 @@
 import React, { useState } from 'react';
-import {
-  Alert,
-  Button,
-  Card,
-  Group,
-  Select,
-  Stack,
-  Text,
-  Title,
-} from '@mantine/core';
+import { Alert, Button, Group, Select, Stack, Text } from '@mantine/core';
 import {
   useSaveProjectViewDefaultsMutation,
   type ProjectViewBuilderState,
@@ -90,13 +81,16 @@ export const ProjectViewDefaults = ({
   };
 
   return (
-    <Card withBorder padding="lg">
-      <Stack gap="md">
-        <Title order={2}>Project default</Title>
-        <Text c="dimmed" size="sm">
-          Defaults change only when you save them here. Opening the Viewer does
-          not change project settings.
-        </Text>
+    <section className="pb-2">
+      <Stack gap="xs">
+        <Group gap="sm">
+          <Text size="sm" fw={600}>
+            Project default
+          </Text>
+          <Text c="dimmed" size="xs">
+            Saved separately from view edits.
+          </Text>
+        </Group>
         {saveError ? (
           <Alert color="red" title="Default was not changed">
             {saveError}
@@ -104,7 +98,8 @@ export const ProjectViewDefaults = ({
         ) : null}
         <Group align="end" wrap="wrap">
           <Select
-            className="min-w-64 flex-1"
+            size="xs"
+            className="w-full min-w-0 sm:w-64"
             label="Default view"
             placeholder="Choose a saved view"
             data={state.configs.map(({ config }) => ({
@@ -121,7 +116,8 @@ export const ProjectViewDefaults = ({
             clearable
           />
           <Select
-            className="min-w-64 flex-1"
+            size="xs"
+            className="w-full min-w-0 sm:w-64"
             label="Default table"
             placeholder="Choose a saved tab"
             data={defaultFrameOptions}
@@ -136,6 +132,7 @@ export const ProjectViewDefaults = ({
             disabled={!canEdit || !defaultConfig}
           />
           <Button
+            size="xs"
             loading={saveDefaultsStatus.isLoading}
             disabled={!canEdit || !dirty || !defaultConfig || !defaultFrame}
             onClick={() => void handleSave()}
@@ -144,6 +141,6 @@ export const ProjectViewDefaults = ({
           </Button>
         </Group>
       </Stack>
-    </Card>
+    </section>
   );
 };

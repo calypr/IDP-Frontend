@@ -1,14 +1,14 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import {
   Alert,
   Badge,
   Button,
-  Card,
   Group,
   Select,
   Stack,
   Text,
   TextInput,
+  Tabs,
   Title,
 } from '@mantine/core';
 import {
@@ -17,7 +17,7 @@ import {
   useGetProjectViewBuilderQuery,
   useSaveProjectViewConfigMutation,
 } from '@gen3/core';
-import type { ProjectViewBuilderCatalog, ProjectViewConfig } from '@gen3/core';
+import type { ProjectViewConfig } from '@gen3/core';
 import {
   duplicateProjectConfig,
   moveArrayItem,
@@ -99,6 +99,10 @@ export const ExplorerViewBuilder = ({
   const [newConfigTitle, setNewConfigTitle] = useState('');
   const [newConfigRecipe, setNewConfigRecipe] = useState<string | null>(null);
   const [newFrameId, setNewFrameId] = useState<string | null>(null);
+  const [tableSelection, setTableSelection] = useState<{
+    configId: string;
+    tabId: string;
+  } | null>(null);
   const [saveError, setSaveError] = useState<ErrorDetails | null>(null);
 
   const state = stateQuery.data;
@@ -118,6 +122,14 @@ export const ExplorerViewBuilder = ({
   const selectedConfig = localDraftMatches
     ? localDraft?.config
     : serverConfigRevision?.config;
+  const selectedTableId =
+    selectedConfig?.views.find(
+      (view) =>
+        tableSelection?.configId === selectedConfig.id &&
+        tableSelection.tabId === view.id,
+    )?.id ??
+    selectedConfig?.views[0]?.id ??
+    null;
   const expectedRevisionId = localDraftMatches
     ? (localDraft?.expectedRevisionId ?? '')
     : (serverConfigRevision?.revisionId ?? '');
@@ -218,6 +230,7 @@ export const ExplorerViewBuilder = ({
       views: [...selectedConfig.views, nextView],
     });
     setNewFrameId(null);
+    setTableSelection({ configId: selectedConfig.id, tabId: nextView.id });
   };
 
   const handleSaveConfig = async () => {
@@ -319,17 +332,39 @@ export const ExplorerViewBuilder = ({
   }
 
   return (
-    <main className="mx-auto max-w-screen-2xl space-y-6 p-6">
-      <Group justify="space-between" align="flex-start">
+    <main className="mx-auto max-w-screen-2xl space-y-4 px-4 py-3 sm:px-6">
+      <Group
+        justify="space-between"
+        align="center"
+        className="sticky top-0 z-20 border-b border-base-lighter bg-white py-3"
+      >
         <div>
-          <Title order={1}>Project View Builder</Title>
-          <Text c="dimmed" mt="xs">
-            Choose tables, columns, filters, and charts for this project.
-          </Text>
+          <Title order={3}>View Builder</Title>
         </div>
-        <Button component="a" href={viewHref} variant="default">
-          Open Viewer
-        </Button>
+        <Group gap="sm">
+          <Badge variant="light" color={isDirty ? 'yellow' : 'gray'}>
+            {isDirty ? 'Unsaved changes' : 'Saved'}
+          </Badge>
+          <Button component="a" href={viewHref} variant="subtle" size="xs">
+            Open Viewer
+          </Button>
+          <Group justify="flex-end">
+            <Button
+              size="xs"
+              loading={saveConfigStatus.isLoading}
+              disabled={
+                !state.canEdit ||
+                !isDirty ||
+                isMutationPending ||
+                !currentCatalogRevision ||
+                (selectedConfig?.views.length ?? 0) === 0
+              }
+              onClick={() => void handleSaveConfig()}
+            >
+              Save config
+            </Button>
+          </Group>
+        </Group>
       </Group>
 
       {error ? (
@@ -378,7 +413,7 @@ export const ExplorerViewBuilder = ({
       ) : null}
 
       {state.catalogs.length === 0 ? (
-        <Card withBorder padding="lg">
+        <section className="border-b border-base-lighter pb-4">
           <Stack gap="sm">
             <Title order={3}>No published tables are available yet</Title>
             <Text c="dimmed" size="sm">
@@ -387,6 +422,7 @@ export const ExplorerViewBuilder = ({
             </Text>
             {state.canEdit ? (
               <Button
+                size="xs"
                 loading={adoptCatalogsStatus.isLoading}
                 disabled={isMutationPending}
                 onClick={() => void handleAdoptCatalogs()}
@@ -395,15 +431,18 @@ export const ExplorerViewBuilder = ({
               </Button>
             ) : null}
           </Stack>
-        </Card>
+        </section>
       ) : null}
 
-      <Card withBorder padding="lg">
-        <Stack gap="md">
-          <Title order={2}>Views</Title>
+      <section className="border-b border-base-lighter pb-4">
+        <Stack gap="xs">
+          <Text size="sm" fw={600}>
+            Project views
+          </Text>
           <Group align="end" wrap="wrap">
             <Select
-              className="min-w-64 flex-1"
+              size="xs"
+              className="w-full min-w-0 sm:w-64"
               label="Project view"
               placeholder="Select a view"
               data={Array.from(selectableConfigs, ([value, item]) => ({
@@ -416,7 +455,23 @@ export const ExplorerViewBuilder = ({
               searchable
               clearable
             />
+            {selectedConfig ? (
+              <TextInput
+                size="xs"
+                label="View title"
+                className="w-full min-w-0 sm:w-56"
+                value={selectedConfig.title}
+                disabled={!state.canEdit}
+                onChange={(event) =>
+                  commitConfig({
+                    ...selectedConfig,
+                    title: event.currentTarget.value,
+                  })
+                }
+              />
+            ) : null}
             <TextInput
+              size="xs"
               label="New view title"
               value={newConfigTitle}
               onChange={(event) => setNewConfigTitle(event.currentTarget.value)}
@@ -424,8 +479,9 @@ export const ExplorerViewBuilder = ({
             />
             {state.catalogs.length > 1 ? (
               <Select
-                label="Data source"
-                placeholder="Choose a data source"
+                size="xs"
+                label="Dataframer configuration"
+                placeholder="Choose a dataframer configuration"
                 data={state.catalogs.map((catalog) => ({
                   value: catalog.recipeName,
                   label: catalog.recipeName,
@@ -438,6 +494,7 @@ export const ExplorerViewBuilder = ({
               />
             ) : null}
             <Button
+              size="xs"
               disabled={
                 !state.canEdit ||
                 !newConfigTitle.trim() ||
@@ -452,6 +509,7 @@ export const ExplorerViewBuilder = ({
             </Button>
             {selectedConfig ? (
               <Button
+                size="xs"
                 variant="default"
                 disabled={!state.canEdit || isMutationPending}
                 onClick={handleDuplicateConfig}
@@ -461,6 +519,7 @@ export const ExplorerViewBuilder = ({
             ) : null}
             {selectedConfig && serverConfigRevision ? (
               <Button
+                size="xs"
                 color="red"
                 variant="light"
                 loading={deleteConfigStatus.isLoading}
@@ -475,44 +534,18 @@ export const ExplorerViewBuilder = ({
               </Button>
             ) : null}
           </Group>
-          {selectedConfig &&
-          selectedConfig.id === state.settings.defaultConfigId ? (
-            <Text c="dimmed" size="xs">
-              Set a different project default before deleting this config.
-            </Text>
-          ) : null}
         </Stack>
-      </Card>
+      </section>
+
+      <ProjectViewDefaults
+        project={project}
+        state={state}
+        canEdit={state.canEdit}
+      />
 
       {selectedConfig ? (
-        <Card withBorder padding="lg">
-          <Stack gap="lg">
-            <Group justify="space-between" align="flex-start">
-              <div>
-                <Title order={2}>{selectedConfig.title}</Title>
-                {state.catalogs.length > 1 ? (
-                  <Text c="dimmed" size="sm">
-                    Data source: {selectedConfig.recipeRef.name}
-                  </Text>
-                ) : null}
-              </div>
-              {expectedRevisionId ? (
-                <Badge variant="light">Saved revision</Badge>
-              ) : (
-                <Badge color="yellow">New draft</Badge>
-              )}
-            </Group>
-            <TextInput
-              label="View title"
-              value={selectedConfig.title}
-              disabled={!state.canEdit}
-              onChange={(event) =>
-                commitConfig({
-                  ...selectedConfig,
-                  title: event.currentTarget.value,
-                })
-              }
-            />
+        <section className="border-b border-base-lighter pb-4">
+          <Stack gap="sm">
             {!currentCatalogRevision ? (
               <Alert
                 color="yellow"
@@ -541,105 +574,108 @@ export const ExplorerViewBuilder = ({
               </Alert>
             ) : null}
 
-            <Group align="end">
-              <Select
-                className="min-w-64 flex-1"
-                label="Add a tab"
-                placeholder="Choose a published table"
-                data={availableNewFrames.map((frame) => ({
-                  value: frame.id,
-                  label: `${frame.title} · ${frame.id}`,
-                }))}
-                value={newFrameId}
-                onChange={setNewFrameId}
-                disabled={
-                  !state.canEdit ||
-                  !currentCatalogRevision ||
-                  !availableNewFrames.length
-                }
-                searchable
-                clearable
-              />
-              <Button
-                variant="light"
-                disabled={
-                  !state.canEdit || !newFrameId || !currentCatalogRevision
-                }
-                onClick={handleAddTab}
-              >
-                Add tab
-              </Button>
-            </Group>
-
-            <Stack gap="md">
+            <Tabs
+              value={selectedTableId}
+              onChange={(tabId) => {
+                if (tabId)
+                  setTableSelection({ configId: selectedConfig.id, tabId });
+              }}
+              keepMounted={false}
+            >
+              <Group align="center" justify="space-between" gap="sm">
+                <Tabs.List
+                  aria-label="Table editors"
+                  className="overflow-x-auto flex-nowrap"
+                >
+                  {selectedConfig.views.map((view) => (
+                    <Tabs.Tab key={view.id} value={view.id}>
+                      {view.title || view.output}
+                    </Tabs.Tab>
+                  ))}
+                </Tabs.List>
+                <Group align="end">
+                  <Select
+                    size="xs"
+                    className="w-full min-w-0 sm:w-64"
+                    aria-label="Add a tab"
+                    placeholder="Add a table"
+                    data={availableNewFrames.map((frame) => ({
+                      value: frame.id,
+                      label: frame.title || frame.id,
+                    }))}
+                    value={newFrameId}
+                    onChange={setNewFrameId}
+                    disabled={
+                      !state.canEdit ||
+                      !currentCatalogRevision ||
+                      !availableNewFrames.length
+                    }
+                    searchable
+                    clearable
+                  />
+                  <Button
+                    size="xs"
+                    variant="light"
+                    disabled={
+                      !state.canEdit || !newFrameId || !currentCatalogRevision
+                    }
+                    onClick={handleAddTab}
+                  >
+                    Add tab
+                  </Button>
+                </Group>
+              </Group>
               {selectedConfig.views.map((view, index) => (
-                <ProjectViewEditor
-                  key={view.id}
-                  config={selectedConfig}
-                  catalog={selectedCatalog}
-                  canEdit={state.canEdit && Boolean(currentCatalogRevision)}
-                  index={index}
-                  total={selectedConfig.views.length}
-                  onChange={commitConfig}
-                  onChangeOutput={(output) =>
-                    commitConfig(
-                      updateProjectView(
-                        selectedConfig,
-                        view.id,
-                        (currentView) => ({
-                          ...currentView,
-                          output,
-                        }),
-                      ),
-                    )
-                  }
-                  onMove={(offset) =>
-                    commitConfig({
-                      ...selectedConfig,
-                      views: moveArrayItem(selectedConfig.views, index, offset),
-                    })
-                  }
-                  onRemove={() =>
-                    commitConfig({
-                      ...selectedConfig,
-                      views: selectedConfig.views.filter(
-                        (candidate) => candidate.id !== view.id,
-                      ),
-                    })
-                  }
-                />
+                <Tabs.Panel key={view.id} value={view.id} pt="sm">
+                  <ProjectViewEditor
+                    config={selectedConfig}
+                    catalog={selectedCatalog}
+                    canEdit={state.canEdit && Boolean(currentCatalogRevision)}
+                    index={index}
+                    total={selectedConfig.views.length}
+                    onChange={commitConfig}
+                    onChangeOutput={(output) =>
+                      commitConfig(
+                        updateProjectView(
+                          selectedConfig,
+                          view.id,
+                          (currentView) => ({
+                            ...currentView,
+                            output,
+                          }),
+                        ),
+                      )
+                    }
+                    onMove={(offset) =>
+                      commitConfig({
+                        ...selectedConfig,
+                        views: moveArrayItem(
+                          selectedConfig.views,
+                          index,
+                          offset,
+                        ),
+                      })
+                    }
+                    onRemove={() =>
+                      commitConfig({
+                        ...selectedConfig,
+                        views: selectedConfig.views.filter(
+                          (candidate) => candidate.id !== view.id,
+                        ),
+                      })
+                    }
+                  />
+                </Tabs.Panel>
               ))}
-              {selectedConfig.views.length === 0 ? (
+              {(selectedConfig?.views.length ?? 0) === 0 ? (
                 <Alert color="yellow" title="Add a tab before saving">
                   A project view must contain at least one tab.
                 </Alert>
               ) : null}
-            </Stack>
-
-            <Group justify="flex-end">
-              <Button
-                loading={saveConfigStatus.isLoading}
-                disabled={
-                  !state.canEdit ||
-                  !isDirty ||
-                  isMutationPending ||
-                  !currentCatalogRevision ||
-                  selectedConfig.views.length === 0
-                }
-                onClick={() => void handleSaveConfig()}
-              >
-                Save config
-              </Button>
-            </Group>
+            </Tabs>
           </Stack>
-        </Card>
+        </section>
       ) : null}
-
-      <ProjectViewDefaults
-        project={project}
-        state={state}
-        canEdit={state.canEdit}
-      />
     </main>
   );
 };
