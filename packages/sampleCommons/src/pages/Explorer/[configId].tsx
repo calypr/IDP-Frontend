@@ -178,6 +178,26 @@ const CohortBuilderPage = ({
           onTabChange={setActiveExplorerTab}
           sharedFiltersMap={sharedFiltersMap}
           pageProblems={pageProblems}
+          toolbarCenter={
+            showExplorerConfigPicker ? (
+              <label className="flex flex-wrap items-center justify-center gap-2 text-sm text-slate-600">
+                <span>Project configuration</span>
+                <select
+                  aria-label="Project configuration"
+                  className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800"
+                  value={selectedExplorerConfigId}
+                  onChange={handleExplorerConfigChange}
+                >
+                  <option value="">Select a published configuration</option>
+                  {publishedExplorerConfigs.map((summary) => (
+                    <option key={summary.explorerId} value={summary.explorerId}>
+                      {summary.title || summary.explorerId}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null
+          }
         />
       </>
     ) : waitingForDefaults && viewSettings.error ? (
@@ -258,27 +278,6 @@ const CohortBuilderPage = ({
                   );
                 })}
               </div>
-              {showExplorerConfigPicker && (
-                <label className="ml-4 flex shrink-0 items-center gap-2 text-sm text-slate-600">
-                  <span>Project configuration</span>
-                  <select
-                    aria-label="Project configuration"
-                    className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800"
-                    value={selectedExplorerConfigId}
-                    onChange={handleExplorerConfigChange}
-                  >
-                    <option value="">Select a published configuration</option>
-                    {publishedExplorerConfigs.map((summary) => (
-                      <option
-                        key={summary.explorerId}
-                        value={summary.explorerId}
-                      >
-                        {summary.title || summary.explorerId}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              )}
               {(viewSettings.currentData?.canEdit ||
                 isExplorerBuilderEnabled()) && (
                 <div

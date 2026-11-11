@@ -63,6 +63,7 @@ const EmptyData = {};
 interface CohortPanelConfigurationWithAccessLevel extends CohortPanelConfiguration {
   showAccessLevel?: boolean;
   fileActions?: FileActionsConfig;
+  toolbarCenter?: React.ReactNode;
 }
 
 export const CohortPanel = ({
@@ -77,6 +78,7 @@ export const CohortPanel = ({
   loginForDownload,
   showAccessLevel = false,
   fileActions,
+  toolbarCenter,
 }: CohortPanelConfigurationWithAccessLevel): JSX.Element => {
   const [showCharts, setShowCharts] = useState(true);
   const [accessLevel, setAccessLevel] = useState<Accessibility>(
@@ -663,7 +665,13 @@ export const CohortPanel = ({
             </div>
           )}
 
-          <div className="flex min-h-10 items-center justify-between gap-3 py-1">
+          <div
+            className={
+              toolbarCenter
+                ? 'grid min-h-10 grid-cols-1 items-center gap-3 py-1 xl:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]'
+                : 'flex min-h-10 items-center justify-between gap-3 py-1'
+            }
+          >
             <DownloadsPanel
               dropdowns={defaultDropdowns}
               buttons={defaultButtons}
@@ -675,6 +683,9 @@ export const CohortPanel = ({
               loomDataset={loomDataset}
               loomProjectIds={loomProjectIds}
             />
+            {toolbarCenter ? (
+              <div className="flex justify-center">{toolbarCenter}</div>
+            ) : null}
             <div className="ml-auto flex items-center gap-3">
               {Object.keys(summaryCharts).length !== 0 && (
                 <button

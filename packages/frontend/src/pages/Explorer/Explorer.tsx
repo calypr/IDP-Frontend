@@ -50,6 +50,7 @@ interface ExplorerMainContentProps {
   onTabChange?: (value: string | null) => void;
   sharedFiltersMap: SharedFieldMapping | null;
   pageProblems?: readonly PageLoadProblem[];
+  toolbarCenter?: React.ReactNode;
 }
 
 export const ExplorerMainContent = ({
@@ -59,6 +60,7 @@ export const ExplorerMainContent = ({
   hideTabList,
   onTabChange,
   sharedFiltersMap,
+  toolbarCenter,
   pageProblems = [],
 }: ExplorerMainContentProps) => {
   if (!runtime || !project) return <PageLoadBoundary problems={pageProblems} />;
@@ -72,6 +74,7 @@ export const ExplorerMainContent = ({
         hideTabList={hideTabList}
         onTabChange={onTabChange}
         sharedFiltersMap={sharedFiltersMap}
+        toolbarCenter={toolbarCenter}
       />
     </ProtectedContent>
   );
@@ -84,6 +87,7 @@ const AuthenticatedExplorerContent = ({
   hideTabList,
   onTabChange,
   sharedFiltersMap,
+  toolbarCenter,
 }: Omit<ExplorerMainContentProps, 'pageProblems'>) => {
   const { status } = useSession();
   if (status !== 'issued') return null;
@@ -95,6 +99,7 @@ const AuthenticatedExplorerContent = ({
       hideTabList={hideTabList}
       onTabChange={onTabChange}
       sharedFiltersMap={sharedFiltersMap}
+      toolbarCenter={toolbarCenter}
     />
   );
 };

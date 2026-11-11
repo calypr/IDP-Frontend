@@ -19,6 +19,7 @@ const CohortBuilder = ({
   hideTabList = false,
   onTabChange,
   sharedFiltersMap = null,
+  toolbarCenter,
 }: CohortBuilderProps) => {
   const runtimeProjection = React.useMemo(
     () => cohortBuilderPanelsFromRuntime(runtime, project),
@@ -96,6 +97,7 @@ const CohortBuilder = ({
                 loginForDownload={panelConfig.loginForDownload}
                 sharedFiltersMap={resolvedSharedFiltersMap ?? undefined}
                 fileActions={fileActions}
+                toolbarCenter={toolbarCenter}
               />
             </Tabs.Panel>
           ))}

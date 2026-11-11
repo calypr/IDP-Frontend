@@ -115,14 +115,17 @@ jest.mock('@gen3/frontend', () => ({
     project,
     runtime,
     activeTab,
+    toolbarCenter,
   }: {
     activeTab?: string | null;
+    toolbarCenter?: React.ReactNode;
     project: string;
     runtime: { outputs: ReadonlyArray<{ title: string }> };
   }) => {
     mockViewerProps = { activeTab };
     return (
       <div>
+        {toolbarCenter}
         Published metadata for {project} ({runtime.outputs[0]?.title})
       </div>
     );

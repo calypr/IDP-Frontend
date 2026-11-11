@@ -7,8 +7,13 @@ import {
 import { SummaryTable } from './ExplorerTable/types';
 import { FacetSortType, FieldToName } from '../../components/facets/types';
 import { DownloadButtonProps } from '../../components/Buttons/DropdownButtons';
-import { Dispatch, SetStateAction } from 'react';
-import { ExplorerRuntimeV1, LoomDatasetSelector, Modals, SharedFieldMapping } from '@gen3/core';
+import { Dispatch, SetStateAction, type ReactNode } from 'react';
+import {
+  ExplorerRuntimeV1,
+  LoomDatasetSelector,
+  Modals,
+  SharedFieldMapping,
+} from '@gen3/core';
 import { StylingOverride } from '../../types/styling';
 import { FacetDefinition } from '@gen3/core';
 
@@ -118,6 +123,7 @@ export interface CohortBuilderProps {
   hideTabList?: boolean;
   onTabChange?: (value: string | null) => void;
   sharedFiltersMap: SharedFieldMapping | null;
+  toolbarCenter?: ReactNode;
 }
 
 export enum DownloadFileFormats {
