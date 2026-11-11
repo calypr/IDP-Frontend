@@ -4,6 +4,7 @@ import type { PageProps } from '../../lib/pageLoader';
 export interface ExplorerPageData {
   runtime: ExplorerRuntimeV1 | null;
   project?: string;
+  explorerId: string;
   sharedFiltersMap: SharedFieldMapping | null;
 }
 

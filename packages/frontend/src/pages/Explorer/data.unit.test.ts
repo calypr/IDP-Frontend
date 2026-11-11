@@ -53,6 +53,7 @@ describe('Explorer page loader', () => {
     await expect(loadExplorerStateV1(context)).resolves.toEqual({
       runtime,
       project: 'project/1',
+      explorerId: 'default',
       sharedFiltersMap: null,
     });
     expect(context.loom.get).toHaveBeenCalledWith(
@@ -68,6 +69,7 @@ describe('Explorer page loader', () => {
     await expect(loadExplorerStateV1(context)).resolves.toEqual({
       runtime,
       project: 'HTAN_INT/BForePC',
+      explorerId: 'published explorer',
       sharedFiltersMap: null,
     });
     expect(context.loom.get).toHaveBeenCalledWith(
@@ -84,6 +86,7 @@ describe('Explorer page loader', () => {
     await expect(loadExplorerStateV1(context)).resolves.toEqual({
       runtime: null,
       project: 'project/1',
+      explorerId: 'default',
       sharedFiltersMap: null,
     });
     expect(context.problems.add).toHaveBeenCalledWith(
@@ -105,6 +108,7 @@ describe('Explorer page loader', () => {
     await expect(loadExplorerStateV1(context)).resolves.toEqual({
       runtime: null,
       project: 'project/1',
+      explorerId: 'default',
       sharedFiltersMap: null,
     });
     expect(context.problems.add).toHaveBeenCalledWith(
@@ -122,6 +126,7 @@ describe('Explorer page loader', () => {
     const context = contextFor({});
     await expect(loadExplorerStateV1(context)).resolves.toEqual({
       runtime: null,
+      explorerId: 'default',
       sharedFiltersMap: null,
     });
     expect(context.problems.add).toHaveBeenCalledWith(

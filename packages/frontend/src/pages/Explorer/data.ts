@@ -9,14 +9,19 @@ import {
 } from '@gen3/core';
 import { normalizePageProblem } from '../../lib/pageLoader/errors';
 
-const emptyExplorerPage = (): ExplorerPageData => ({
+const emptyExplorerPage = (explorerId: string): ExplorerPageData => ({
   runtime: null,
+  explorerId,
   sharedFiltersMap: null,
 });
 
 export const loadExplorerStateV1 = async (
   context: ServerPageContext,
 ): Promise<ExplorerPageData | PageLoadResult<ExplorerPageData>> => {
+  const explorerId =
+    typeof context.next.query.explorerId === 'string'
+      ? context.next.query.explorerId
+      : 'default';
   const project =
     typeof context.next.query.configId === 'string'
       ? canonicalLoomProjectId(context.next.query.configId)
@@ -31,12 +36,8 @@ export const loadExplorerStateV1 = async (
       message:
         'The requested Explorer is unavailable or you do not have project read access.',
     });
-    return emptyExplorerPage();
+    return emptyExplorerPage(explorerId);
   }
-  const explorerId =
-    typeof context.next.query.explorerId === 'string'
-      ? context.next.query.explorerId
-      : 'default';
   const endpoint = `/api/v1/projects/${encodeLoomProjectPath(project)}/explorers/${encodeURIComponent(explorerId)}`;
 
   try {
@@ -58,6 +59,7 @@ export const loadExplorerStateV1 = async (
     return {
       runtime: explorerState.runtime,
       project: explorerState.project,
+      explorerId,
       sharedFiltersMap: null,
     };
   } catch (error) {
@@ -70,7 +72,7 @@ export const loadExplorerStateV1 = async (
         configPath: endpoint,
       }),
     );
-    return { ...emptyExplorerPage(), project };
+    return { ...emptyExplorerPage(explorerId), project };
   }
 };
 

@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import {
   canonicalLoomProjectId,
+  useGetExplorerAuthoringExplorersQuery,
   useGetExplorerStateV1Query,
   useGetGeckoProjectsQuery,
 } from '@gen3/core';
@@ -21,6 +22,7 @@ const CohortBuilderPage = ({
   footerProps,
   runtime: initialRuntime,
   project: explorerProject,
+  explorerId: initialExplorerId,
   sharedFiltersMap,
   pageProblems,
 }: ExplorerPageProps): JSX.Element => {
@@ -33,12 +35,45 @@ const CohortBuilderPage = ({
       ? router.query.explorerId
       : 'default';
   const projectId = canonicalLoomProjectId(configId);
+  const explorerConfigsQuery = useGetExplorerAuthoringExplorersQuery(
+    { project: projectId },
+    { skip: !projectId, refetchOnMountOrArgChange: true },
+  );
+  const publishedExplorerConfigs = (explorerConfigsQuery.data ?? []).filter(
+    (summary) => Boolean(summary.activeRevisionId),
+  );
+  const showExplorerConfigPicker =
+    !explorerConfigsQuery.error && publishedExplorerConfigs.length >= 2;
+  const selectedExplorerConfigId = publishedExplorerConfigs.some(
+    (summary) => summary.explorerId === explorerId,
+  )
+    ? explorerId
+    : '';
+  const handleExplorerConfigChange = (
+    event: React.ChangeEvent<HTMLSelectElement>,
+  ) => {
+    const nextExplorerId = event.currentTarget.value;
+    if (!nextExplorerId) return;
+    void router.replace(
+      {
+        pathname: router.pathname,
+        query: { ...router.query, explorerId: nextExplorerId },
+      },
+      undefined,
+      { shallow: true },
+    );
+  };
   const explorerState = useGetExplorerStateV1Query(
     { project: projectId, explorerId },
     { skip: !configId, refetchOnMountOrArgChange: true },
   );
-  const runtime = explorerState.data?.runtime ?? initialRuntime ?? null;
-  const effectiveProject = explorerState.data?.project ?? explorerProject;
+  const currentExplorerState = explorerState.currentData;
+  const runtime =
+    currentExplorerState?.runtime ??
+    (explorerProject === projectId && initialExplorerId === explorerId
+      ? initialRuntime
+      : null);
+  const effectiveProject = currentExplorerState?.project ?? explorerProject;
   const clientProblems: readonly PageLoadProblem[] = explorerState.error
     ? [
         {
@@ -68,7 +103,7 @@ const CohortBuilderPage = ({
               : 'The Explorer state could not be loaded.',
         },
       ]
-    : explorerState.data && !explorerState.data.runtime
+    : currentExplorerState && !currentExplorerState.runtime
       ? [
           {
             severity: 'error',
@@ -130,7 +165,9 @@ const CohortBuilderPage = ({
         sharedFiltersMap={sharedFiltersMap}
         pageProblems={pageProblems}
       />
-    ) : explorerState.isLoading || explorerState.isUninitialized ? (
+    ) : explorerState.isLoading ||
+      explorerState.isUninitialized ||
+      explorerState.isFetching ? (
       <main className="mx-auto max-w-screen-2xl p-6">
         <p role="status">Loading Explorer…</p>
       </main>
@@ -201,6 +238,27 @@ const CohortBuilderPage = ({
                   );
                 })}
               </div>
+              {showExplorerConfigPicker && (
+                <label className="ml-4 flex shrink-0 items-center gap-2 text-sm text-slate-600">
+                  <span>Project configuration</span>
+                  <select
+                    aria-label="Project configuration"
+                    className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800"
+                    value={selectedExplorerConfigId}
+                    onChange={handleExplorerConfigChange}
+                  >
+                    <option value="">Select a published configuration</option>
+                    {publishedExplorerConfigs.map((summary) => (
+                      <option
+                        key={summary.explorerId}
+                        value={summary.explorerId}
+                      >
+                        {summary.title || summary.explorerId}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
               {isExplorerBuilderEnabled() && (
                 <div
                   aria-label="Explorer workspace"
