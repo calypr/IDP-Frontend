@@ -1,82 +1,50 @@
-import {
-  downloadJSONDataFromLoom,
-  LoomDownloadParams,
-  LoomDatasetSelector,
-} from '@gen3/core';
+import { downloadLoomFile } from '@gen3/core';
 import { handleDownload } from './utils';
-import { jsonToCsv } from '../utils/jsonToCsv';
-import { ActionButtonWithArgsFunction } from '../../types';
-
-export interface DownloadTabularParams {
-  resourceIndexType: string;
-  fileFields: string[];
-  type: string;
-  filter?: any;
-  filename?: string;
-  accessibility?: any;
-  sort?: any;
-  selector?: LoomDatasetSelector;
-  projectIds?: ReadonlyArray<string>;
-}
+import { downloadParameters } from './downloadParameters';
+import type { ActionButtonWithArgsFunction } from '../../types';
 
 export const downloadTabularAction: ActionButtonWithArgsFunction = async (
-  params: Record<string, any>, // Change from DownloadTabularParams to Record<string, any>
-  done?: () => void,
-  onError?: (error: Error) => void,
-  onAbort?: () => void,
-  signal?: AbortSignal,
+  params,
+  done,
+  onError,
+  onAbort,
+  signal,
 ): Promise<void> => {
-  // Cast the generic record to your specific interface for internal use
-  const {
-    fileFields,
-    type,
-    filter,
-    sort,
-    filename,
-    selector,
-    projectIds,
-  } = params as DownloadTabularParams;
-  const downloadFilename = filename ?? `${type}_export.csv`;
-  if (!selector) {
-    onError?.(
-      new Error('This download has no published Loom dataset selector.'),
-    );
-    return;
-  }
-
-  const cohortFilterParams: LoomDownloadParams = {
-    filter,
-    selector,
-    projectIds,
-    fields: fileFields,
-    sort,
-    format: 'json',
-  };
-
   try {
-    const data = await downloadJSONDataFromLoom({
-      parameters: cohortFilterParams,
-      onAbort,
+    const {
+      fileFields,
+      fields,
+      type,
+      filter,
+      sort,
+      filename,
+      selector,
+      projectIds,
+      exportHeaders,
+    } = downloadParameters.parse(params);
+    const blob = await downloadLoomFile(
+      {
+        selector,
+        projectIds,
+        fields: fileFields ?? fields,
+        sort,
+        filter,
+        format: 'csv',
+        exportHeaders,
+      },
       signal,
-    });
-
-    if (!data?.length) {
-      throw new Error('no data found for the current filters');
+    );
+    signal?.throwIfAborted();
+    handleDownload(blob, filename ?? `${type}_export.csv`);
+    done?.();
+  } catch (error: unknown) {
+    if (
+      signal?.aborted ||
+      (error instanceof Error && error.name === 'AbortError')
+    ) {
+      onAbort?.();
+      return;
     }
-
-    const csv = jsonToCsv(data);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-    handleDownload(blob, downloadFilename);
-
-    if (done) done();
-  } catch (err) {
-    const resultErr =
-      err instanceof Error
-        ? err
-        : typeof err === 'string'
-          ? new Error(err)
-          : new Error('unknown error in download tabular data');
-
-    if (onError) onError(resultErr);
+    onError?.(error instanceof Error ? error : new Error(String(error)));
   }
 };

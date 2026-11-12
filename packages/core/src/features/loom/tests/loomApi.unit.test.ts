@@ -1,4 +1,11 @@
-import { fetchGraphQL, fetchLoomGraphQL, loomBaseQuery } from '../loomApi';
+import { getCookie } from 'cookies-next';
+jest.mock('cookies-next', () => ({ getCookie: jest.fn() }));
+import {
+  fetchLoomResponse,
+  fetchGraphQL,
+  fetchLoomGraphQL,
+  loomBaseQuery,
+} from '../loomApi';
 import { isLoomGraphQLRequestError, LoomGraphQLRequestError } from '../types';
 
 const jsonResponse = (body: unknown, init: ResponseInit = {}): Response =>
@@ -214,19 +221,25 @@ describe('Loom GraphQL transport', () => {
   });
 
   it('preserves Loom recipe validation field-path arrays', async () => {
-    fetchMock.mockResolvedValue(jsonResponse({
-      data: null,
-      errors: [{
-        message: 'the request is invalid',
-        extensions: {
-          code: 'INVALID_REQUEST',
-          fieldPath: ['$.outputs[0].fields[1].name'],
-          details: { validationCode: 'duplicate_name' },
-        },
-      }],
-    }));
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        data: null,
+        errors: [
+          {
+            message: 'the request is invalid',
+            extensions: {
+              code: 'INVALID_REQUEST',
+              fieldPath: ['$.outputs[0].fields[1].name'],
+              details: { validationCode: 'duplicate_name' },
+            },
+          },
+        ],
+      }),
+    );
 
-    await expect(fetchGraphQL({ query: 'query BrokenRecipe { preview }' })).rejects.toMatchObject({
+    await expect(
+      fetchGraphQL({ query: 'query BrokenRecipe { preview }' }),
+    ).rejects.toMatchObject({
       code: 'INVALID_REQUEST',
       fieldPath: '$.outputs[0].fields[1].name',
     });
@@ -390,5 +403,33 @@ describe('Loom GraphQL transport', () => {
         requestId: 'failure-1',
       },
     });
+  });
+});
+
+describe('Loom request CSRF headers', () => {
+  const originalFetch = global.fetch;
+  afterEach(() => {
+    global.fetch = originalFetch;
+    jest.mocked(getCookie).mockReset();
+  });
+  it('adds the browser CSRF cookie for POSTs and preserves explicit request headers', async () => {
+    jest.mocked(getCookie).mockReturnValue('current-cookie');
+    const request = jest.fn().mockResolvedValue(new Response('{}'));
+    global.fetch = request;
+    await fetchLoomResponse('/loom/graphql/graph', {
+      method: 'POST',
+      body: '{}',
+    });
+    expect(
+      new Headers(request.mock.calls[0][1].headers).get('X-CSRF-Token'),
+    ).toBe('current-cookie');
+    await fetchLoomResponse('/loom/graphql/graph', {
+      method: 'POST',
+      body: '{}',
+      headers: { 'X-CSRF-Token': 'explicit-token' },
+    });
+    expect(
+      new Headers(request.mock.calls[1][1].headers).get('X-CSRF-Token'),
+    ).toBe('explicit-token');
   });
 });

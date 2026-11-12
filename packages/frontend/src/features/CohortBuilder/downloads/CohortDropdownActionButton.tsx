@@ -4,23 +4,22 @@ import { FloatingPosition } from '@mantine/core';
 import { Tooltip } from '@mantine/core';
 import { IoMdArrowDropdown as Dropdown } from 'react-icons/io';
 import { focusStyles } from '../../../utils';
-import useGuppyActionButton from './downloadActionHook';
+import useDownloadAction from '../../../hooks/explorerViewer/useDownloadAction';
 import { Modals } from '@gen3/core';
 import { ActionButtonWithArgsFunction, GuppyActionButtonProps } from '../types';
 import { useDeepCompareMemo } from 'use-deep-compare';
 
-interface GuppyDropdownMenuItemProps
-  extends Pick<
-    GuppyActionButtonProps,
-    | 'disabled'
-    | 'Modal400'
-    | 'Modal403'
-    | 'done'
-    | 'customErrorMessage'
-    | 'hideNotification'
-    | 'actionFunction'
-    | 'actionArgs'
-  > {
+interface GuppyDropdownMenuItemProps extends Pick<
+  GuppyActionButtonProps,
+  | 'disabled'
+  | 'Modal400'
+  | 'Modal403'
+  | 'done'
+  | 'customErrorMessage'
+  | 'hideNotification'
+  | 'actionFunction'
+  | 'actionArgs'
+> {
   title: string;
   idx: number;
   setIsActive?: (active: boolean) => void;
@@ -48,7 +47,7 @@ const GuppyDropdownMenuItem = ({
   actionArgs,
   children,
 }: GuppyDropdownMenuItemProps & MenuItemProps) => {
-  const { handleClick, icon } = useGuppyActionButton({
+  const { handleClick, icon } = useDownloadAction({
     Modal403,
     Modal400,
     done,

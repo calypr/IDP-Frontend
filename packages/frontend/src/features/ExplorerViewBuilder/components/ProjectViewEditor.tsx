@@ -1,4 +1,5 @@
 import React from 'react';
+import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd';
 import {
   Alert,
   Button,
@@ -16,7 +17,6 @@ import type {
 } from '@gen3/core';
 import {
   canUseViewColumnPresentation,
-  moveArrayItem,
   removeUnavailableViewBindings,
 } from '../projectViewDraft';
 
@@ -132,8 +132,13 @@ const FieldRow = ({
   };
 
   return (
-    <Stack gap="xs">
-      <Group align="end" wrap="wrap" gap="xs">
+    <div className="contents">
+      <Group
+        align="end"
+        wrap="wrap"
+        gap="xs"
+        className="min-w-0 lg:col-start-2 lg:row-start-1"
+      >
         <Select
           size="xs"
           className="min-w-0 flex-1"
@@ -161,322 +166,393 @@ const FieldRow = ({
           This tab has no configured columns.
         </Text>
       ) : (
-        <Stack gap="xs">
-          {tableColumns.map((column, index) => {
-            const schemaColumn = frame?.columns.find(
-              (candidate) => candidate.name === column.column,
+        <DragDropContext
+          onDragEnd={({ source, destination }) => {
+            if (!canEdit || !destination || source.index === destination.index)
+              return;
+            const columns = [...tableColumns];
+            const [moved] = columns.splice(source.index, 1);
+            if (!moved) return;
+            columns.splice(destination.index, 0, moved);
+            onChange(
+              updateView(config, view.id, (current) => ({
+                ...current,
+                table: { ...current.table, columns },
+              })),
             );
-            const capabilities = schemaColumn
-              ? canUseViewColumnPresentation(schemaColumn)
-              : { filterable: false, chartable: false };
-            const filter = view.filters?.find(
-              (candidate) => candidate.column === column.column,
-            );
-            const chart = view.charts?.find(
-              (candidate) => candidate.column === column.column,
-            );
-            return (
-              <div
-                key={column.column}
-                role="group"
-                aria-label={`Column ${column.label ?? schemaColumn?.label ?? column.column}`}
-                className="border-b border-base-lighter py-2"
-                title={column.column}
+          }}
+        >
+          <Droppable droppableId={`columns-${view.id}`}>
+            {(provided) => (
+              <Stack
+                ref={provided.innerRef}
+                {...provided.droppableProps}
+                gap={0}
+                className="min-w-0 rounded-md border border-base-lighter lg:col-span-2"
               >
-                <div className="grid gap-2 lg:grid-cols-[minmax(15rem,1fr)_minmax(0,1fr)] xl:grid-cols-[minmax(12rem,1.1fr)_minmax(16rem,1fr)_minmax(9rem,.8fr)_minmax(16rem,1.1fr)]">
-                  <Group align="end" wrap="wrap" gap="xs">
-                    <TextInput
-                      size="xs"
-                      className="min-w-0 flex-1"
-                      aria-label={`Column label for ${schemaColumn?.label ?? column.column}`}
-                      variant="unstyled"
-                      classNames={{
-                        input:
-                          'rounded px-2 hover:bg-base-lightest focus:bg-white focus:outline focus:outline-2 focus:outline-primary',
-                      }}
-                      value={
-                        column.label ?? schemaColumn?.label ?? column.column
-                      }
-                      disabled={!canEdit}
-                      onChange={(event) =>
-                        updateColumn(column.column, (current) => ({
-                          ...current,
-                          label: event.currentTarget.value,
-                        }))
-                      }
-                    />
-                    <Button
-                      size="xs"
-                      aria-label={`Move ${column.label ?? column.column} up`}
-                      variant="default"
-                      disabled={!canEdit || index === 0}
-                      onClick={() =>
-                        onChange(
-                          updateView(config, view.id, (currentView) => ({
-                            ...currentView,
-                            table: {
-                              ...currentView.table,
-                              columns: moveArrayItem(
-                                currentView.table.columns,
-                                index,
-                                -1,
-                              ),
-                            },
-                          })),
-                        )
-                      }
-                    >
-                      ↑
-                    </Button>
-                    <Button
-                      size="xs"
-                      aria-label={`Move ${column.label ?? column.column} down`}
-                      variant="default"
-                      disabled={!canEdit || index === tableColumns.length - 1}
-                      onClick={() =>
-                        onChange(
-                          updateView(config, view.id, (currentView) => ({
-                            ...currentView,
-                            table: {
-                              ...currentView.table,
-                              columns: moveArrayItem(
-                                currentView.table.columns,
-                                index,
-                                1,
-                              ),
-                            },
-                          })),
-                        )
-                      }
-                    >
-                      ↓
-                    </Button>
-                    <Button
-                      size="xs"
-                      aria-label={`Remove ${column.label ?? column.column}`}
-                      color="red"
-                      variant="subtle"
-                      disabled={!canEdit}
-                      onClick={() =>
-                        onChange(
-                          updateView(config, view.id, (currentView) => ({
-                            ...currentView,
-                            table: {
-                              ...currentView.table,
-                              columns: currentView.table.columns.filter(
-                                (current) => current.column !== column.column,
-                              ),
-                            },
-                          })),
-                        )
-                      }
-                    >
-                      ×
-                    </Button>
-                  </Group>
-                  {!schemaColumn ? (
-                    <Alert
-                      color="yellow"
-                      variant="light"
-                      title="Column not in current catalog"
-                    >
-                      This saved column is preserved. Remove it only if the view
-                      should no longer reference it.
-                    </Alert>
-                  ) : null}
-                  <Group align="center" wrap="wrap" gap="sm">
-                    <Checkbox
-                      size="xs"
-                      label="Visible"
-                      checked={column.visible}
-                      disabled={!canEdit}
-                      onChange={(event) =>
-                        updateColumn(column.column, (current) => ({
-                          ...current,
-                          visible: event.currentTarget.checked,
-                        }))
-                      }
-                    />
-                    <Checkbox
-                      size="xs"
-                      label="Pinned"
-                      checked={column.pinned ?? false}
-                      disabled={!canEdit}
-                      onChange={(event) =>
-                        updateColumn(column.column, (current) => ({
-                          ...current,
-                          pinned: event.currentTarget.checked,
-                        }))
-                      }
-                    />
-                    <Checkbox
-                      size="xs"
-                      label="Filter"
-                      checked={Boolean(filter)}
-                      disabled={
-                        !canEdit || (!capabilities.filterable && !filter)
-                      }
-                      onChange={(event) => {
-                        if (event.currentTarget.checked) {
-                          const filters = view.filters ?? [];
-                          if (
-                            filters.some(
-                              (candidate) => candidate.column === column.column,
-                            )
-                          )
-                            return;
-                          onChange(
-                            updateView(config, view.id, (currentView) => ({
-                              ...currentView,
-                              filters: [
-                                ...filters,
-                                {
-                                  column: column.column,
-                                  label:
-                                    column.label ??
-                                    schemaColumn?.label ??
-                                    column.column,
-                                },
-                              ],
-                            })),
-                          );
-                        } else {
-                          onChange(
-                            updateView(config, view.id, (currentView) => ({
-                              ...currentView,
-                              filters: (currentView.filters ?? []).filter(
-                                (candidate) =>
-                                  candidate.column !== column.column,
-                              ),
-                            })),
-                          );
-                        }
-                      }}
-                    />
-                    <Checkbox
-                      size="xs"
-                      label="Chart"
-                      checked={Boolean(chart)}
-                      disabled={!canEdit || (!capabilities.chartable && !chart)}
-                      onChange={(event) => {
-                        if (event.currentTarget.checked) {
-                          const charts = view.charts ?? [];
-                          if (
-                            charts.some(
-                              (candidate) => candidate.column === column.column,
-                            )
-                          )
-                            return;
-                          onChange(
-                            updateView(config, view.id, (currentView) => ({
-                              ...currentView,
-                              charts: [
-                                ...charts,
-                                {
-                                  column: column.column,
-                                  type: 'bar',
-                                  title:
-                                    column.label ??
-                                    schemaColumn?.label ??
-                                    column.column,
-                                },
-                              ],
-                            })),
-                          );
-                        } else {
-                          onChange(
-                            updateView(config, view.id, (currentView) => ({
-                              ...currentView,
-                              charts: (currentView.charts ?? []).filter(
-                                (candidate) =>
-                                  candidate.column !== column.column,
-                              ),
-                            })),
-                          );
-                        }
-                      }}
-                    />
-                  </Group>
-                  {filter ? (
-                    <TextInput
-                      size="xs"
-                      className="xl:col-start-3"
-                      label="Filter label"
-                      aria-label={`Filter label for ${column.label ?? column.column}`}
-                      variant="unstyled"
-                      classNames={{
-                        input:
-                          'rounded px-2 hover:bg-base-lightest focus:bg-white focus:outline focus:outline-2 focus:outline-primary',
-                      }}
-                      value={filter.label ?? ''}
-                      disabled={!canEdit}
-                      onChange={(event) =>
-                        updateFilter(column.column, (current) => ({
-                          ...current,
-                          label: event.currentTarget.value,
-                        }))
-                      }
-                    />
-                  ) : null}
-                  {chart ? (
-                    <Group
-                      align="end"
-                      wrap="wrap"
-                      gap="xs"
-                      className="xl:col-start-4"
-                    >
-                      <Select
-                        size="xs"
-                        className="min-w-0 flex-1"
-                        label="Chart type"
-                        aria-label={`Chart type for ${column.label ?? column.column}`}
-                        data={[
-                          { value: 'bar', label: 'Bar' },
-                          {
-                            value: 'horizontalStacked',
-                            label: 'Horizontal stacked',
-                          },
-                          { value: 'pie', label: 'Pie' },
-                          { value: 'fullPie', label: 'Full pie' },
-                          { value: 'donut', label: 'Donut' },
-                        ]}
-                        value={chart.type}
-                        disabled={!canEdit}
-                        onChange={(type) => {
-                          if (type)
-                            updateChart(column.column, (current) => ({
-                              ...current,
-                              type,
-                            }));
-                        }}
-                      />
-                      <TextInput
-                        size="xs"
-                        className="min-w-0 flex-1"
-                        label="Chart title"
-                        variant="unstyled"
-                        classNames={{
-                          input:
-                            'rounded px-2 hover:bg-base-lightest focus:bg-white focus:outline focus:outline-2 focus:outline-primary',
-                        }}
-                        value={chart.title ?? ''}
-                        disabled={!canEdit}
-                        onChange={(event) =>
-                          updateChart(column.column, (current) => ({
-                            ...current,
-                            title: event.currentTarget.value,
-                          }))
-                        }
-                      />
-                    </Group>
-                  ) : null}
+                <div
+                  aria-hidden="true"
+                  className="hidden grid-cols-[minmax(12rem,1.1fr)_minmax(16rem,1fr)_minmax(9rem,.8fr)_minmax(16rem,1.1fr)] items-center gap-2 rounded-t-md border-b border-base-lighter bg-base-lightest px-2 py-2 text-xs font-semibold text-base-darkest xl:grid"
+                >
+                  <span className="px-2">Column label and order</span>
+                  <span>Display options</span>
+                  <span className="px-2">Filter label</span>
+                  <div className="grid grid-cols-2 gap-2">
+                    <span>Chart type</span>
+                    <span className="px-2">Chart title</span>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </Stack>
+                {tableColumns.map((column, index) => {
+                  const schemaColumn = frame?.columns.find(
+                    (candidate) => candidate.name === column.column,
+                  );
+                  const capabilities = schemaColumn
+                    ? canUseViewColumnPresentation(schemaColumn)
+                    : { filterable: false, chartable: false };
+                  const filter = view.filters?.find(
+                    (candidate) => candidate.column === column.column,
+                  );
+                  const chart = view.charts?.find(
+                    (candidate) => candidate.column === column.column,
+                  );
+                  return (
+                    <Draggable
+                      key={column.column}
+                      draggableId={column.column}
+                      index={index}
+                      isDragDisabled={!canEdit}
+                      disableInteractiveElementBlocking
+                    >
+                      {(dragProvided, snapshot) => (
+                        <div
+                          ref={dragProvided.innerRef}
+                          {...dragProvided.draggableProps}
+                          style={dragProvided.draggableProps.style}
+                          data-dragging={snapshot.isDragging || undefined}
+                          role="group"
+                          aria-label={`Column ${column.label ?? schemaColumn?.label ?? column.column}`}
+                          className="border-b border-base-lighter px-2 py-1 last:border-b-0 bg-white data-[dragging=true]:shadow-lg data-[dragging=true]:ring-2 data-[dragging=true]:ring-primary hover:bg-base-lightest focus-within:bg-base-lightest"
+                          title={column.column}
+                        >
+                          <div className="grid items-center gap-2 lg:grid-cols-[minmax(15rem,1fr)_minmax(0,1fr)] xl:grid-cols-[minmax(12rem,1.1fr)_minmax(16rem,1fr)_minmax(9rem,.8fr)_minmax(16rem,1.1fr)]">
+                            <Group align="center" wrap="nowrap" gap="xs">
+                              <button
+                                type="button"
+                                {...dragProvided.dragHandleProps}
+                                disabled={!canEdit}
+                                aria-label={`Reorder ${column.label ?? column.column}`}
+                                title="Drag to reorder. Keyboard: Space to pick up, arrow keys to move, Space to drop, Escape to cancel."
+                                className="shrink-0 cursor-grab rounded px-2 py-1 text-base-darkest hover:bg-base-lighter focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary active:cursor-grabbing disabled:cursor-default disabled:opacity-40"
+                              >
+                                <svg
+                                  width="12"
+                                  height="18"
+                                  viewBox="0 0 12 18"
+                                  fill="currentColor"
+                                  aria-hidden="true"
+                                >
+                                  <circle cx="3" cy="4" r="1.5" />
+                                  <circle cx="9" cy="4" r="1.5" />
+                                  <circle cx="3" cy="9" r="1.5" />
+                                  <circle cx="9" cy="9" r="1.5" />
+                                  <circle cx="3" cy="14" r="1.5" />
+                                  <circle cx="9" cy="14" r="1.5" />
+                                </svg>
+                              </button>
+                              <TextInput
+                                size="xs"
+                                className="min-w-0 flex-1"
+                                aria-label={`Column label for ${schemaColumn?.label ?? column.column}`}
+                                variant="unstyled"
+                                classNames={{
+                                  label: 'xl:sr-only',
+                                  input:
+                                    'rounded border border-transparent px-2 hover:border-base-lighter hover:bg-white focus:bg-white focus:outline focus:outline-2 focus:outline-primary',
+                                }}
+                                value={
+                                  column.label ??
+                                  schemaColumn?.label ??
+                                  column.column
+                                }
+                                disabled={!canEdit}
+                                onChange={(event) =>
+                                  updateColumn(column.column, (current) => ({
+                                    ...current,
+                                    label: event.currentTarget.value,
+                                  }))
+                                }
+                              />
+                              <Button
+                                size="xs"
+                                aria-label={`Remove ${column.label ?? column.column}`}
+                                color="red"
+                                variant="subtle"
+                                disabled={!canEdit}
+                                onClick={() =>
+                                  onChange(
+                                    updateView(
+                                      config,
+                                      view.id,
+                                      (currentView) => ({
+                                        ...currentView,
+                                        table: {
+                                          ...currentView.table,
+                                          columns:
+                                            currentView.table.columns.filter(
+                                              (current) =>
+                                                current.column !==
+                                                column.column,
+                                            ),
+                                        },
+                                      }),
+                                    ),
+                                  )
+                                }
+                              >
+                                ×
+                              </Button>
+                            </Group>
+                            {!schemaColumn ? (
+                              <Alert
+                                color="yellow"
+                                variant="light"
+                                title="Column not in current catalog"
+                              >
+                                This saved column is preserved. Remove it only
+                                if the view should no longer reference it.
+                              </Alert>
+                            ) : null}
+                            <Group align="center" wrap="wrap" gap="sm">
+                              <Checkbox
+                                size="xs"
+                                label="Visible"
+                                checked={column.visible}
+                                disabled={!canEdit}
+                                onChange={(event) =>
+                                  updateColumn(column.column, (current) => ({
+                                    ...current,
+                                    visible: event.currentTarget.checked,
+                                  }))
+                                }
+                              />
+                              <Checkbox
+                                size="xs"
+                                label="Pinned"
+                                checked={column.pinned ?? false}
+                                disabled={!canEdit}
+                                onChange={(event) =>
+                                  updateColumn(column.column, (current) => ({
+                                    ...current,
+                                    pinned: event.currentTarget.checked,
+                                  }))
+                                }
+                              />
+                              <Checkbox
+                                size="xs"
+                                label="Filter"
+                                checked={Boolean(filter)}
+                                disabled={
+                                  !canEdit ||
+                                  (!capabilities.filterable && !filter)
+                                }
+                                onChange={(event) => {
+                                  if (event.currentTarget.checked) {
+                                    const filters = view.filters ?? [];
+                                    if (
+                                      filters.some(
+                                        (candidate) =>
+                                          candidate.column === column.column,
+                                      )
+                                    )
+                                      return;
+                                    onChange(
+                                      updateView(
+                                        config,
+                                        view.id,
+                                        (currentView) => ({
+                                          ...currentView,
+                                          filters: [
+                                            ...filters,
+                                            {
+                                              column: column.column,
+                                              label:
+                                                column.label ??
+                                                schemaColumn?.label ??
+                                                column.column,
+                                            },
+                                          ],
+                                        }),
+                                      ),
+                                    );
+                                  } else {
+                                    onChange(
+                                      updateView(
+                                        config,
+                                        view.id,
+                                        (currentView) => ({
+                                          ...currentView,
+                                          filters: (
+                                            currentView.filters ?? []
+                                          ).filter(
+                                            (candidate) =>
+                                              candidate.column !==
+                                              column.column,
+                                          ),
+                                        }),
+                                      ),
+                                    );
+                                  }
+                                }}
+                              />
+                              <Checkbox
+                                size="xs"
+                                label="Chart"
+                                checked={Boolean(chart)}
+                                disabled={
+                                  !canEdit ||
+                                  (!capabilities.chartable && !chart)
+                                }
+                                onChange={(event) => {
+                                  if (event.currentTarget.checked) {
+                                    const charts = view.charts ?? [];
+                                    if (
+                                      charts.some(
+                                        (candidate) =>
+                                          candidate.column === column.column,
+                                      )
+                                    )
+                                      return;
+                                    onChange(
+                                      updateView(
+                                        config,
+                                        view.id,
+                                        (currentView) => ({
+                                          ...currentView,
+                                          charts: [
+                                            ...charts,
+                                            {
+                                              column: column.column,
+                                              type: 'bar',
+                                              title:
+                                                column.label ??
+                                                schemaColumn?.label ??
+                                                column.column,
+                                            },
+                                          ],
+                                        }),
+                                      ),
+                                    );
+                                  } else {
+                                    onChange(
+                                      updateView(
+                                        config,
+                                        view.id,
+                                        (currentView) => ({
+                                          ...currentView,
+                                          charts: (
+                                            currentView.charts ?? []
+                                          ).filter(
+                                            (candidate) =>
+                                              candidate.column !==
+                                              column.column,
+                                          ),
+                                        }),
+                                      ),
+                                    );
+                                  }
+                                }}
+                              />
+                            </Group>
+                            {filter ? (
+                              <TextInput
+                                size="xs"
+                                className="xl:col-start-3"
+                                label="Filter label"
+                                aria-label={`Filter label for ${column.label ?? column.column}`}
+                                variant="unstyled"
+                                classNames={{
+                                  label: 'xl:sr-only',
+                                  input:
+                                    'rounded border border-transparent px-2 hover:border-base-lighter hover:bg-white focus:bg-white focus:outline focus:outline-2 focus:outline-primary',
+                                }}
+                                value={filter.label ?? ''}
+                                disabled={!canEdit}
+                                onChange={(event) =>
+                                  updateFilter(column.column, (current) => ({
+                                    ...current,
+                                    label: event.currentTarget.value,
+                                  }))
+                                }
+                              />
+                            ) : null}
+                            {chart ? (
+                              <Group
+                                align="end"
+                                wrap="wrap"
+                                gap="xs"
+                                className="xl:col-start-4"
+                              >
+                                <Select
+                                  size="xs"
+                                  className="min-w-0 flex-1"
+                                  label="Chart type"
+                                  classNames={{ label: 'xl:sr-only' }}
+                                  aria-label={`Chart type for ${column.label ?? column.column}`}
+                                  data={[
+                                    { value: 'bar', label: 'Bar' },
+                                    {
+                                      value: 'horizontalStacked',
+                                      label: 'Horizontal stacked',
+                                    },
+                                    { value: 'pie', label: 'Pie' },
+                                    { value: 'fullPie', label: 'Full pie' },
+                                    { value: 'donut', label: 'Donut' },
+                                  ]}
+                                  value={chart.type}
+                                  disabled={!canEdit}
+                                  onChange={(type) => {
+                                    if (type)
+                                      updateChart(column.column, (current) => ({
+                                        ...current,
+                                        type,
+                                      }));
+                                  }}
+                                />
+                                <TextInput
+                                  size="xs"
+                                  className="min-w-0 flex-1"
+                                  label="Chart title"
+                                  aria-label={`Chart title for ${column.label ?? column.column}`}
+                                  variant="unstyled"
+                                  classNames={{
+                                    label: 'xl:sr-only',
+                                    input:
+                                      'rounded border border-transparent px-2 hover:border-base-lighter hover:bg-white focus:bg-white focus:outline focus:outline-2 focus:outline-primary',
+                                  }}
+                                  value={chart.title ?? ''}
+                                  disabled={!canEdit}
+                                  onChange={(event) =>
+                                    updateChart(column.column, (current) => ({
+                                      ...current,
+                                      title: event.currentTarget.value,
+                                    }))
+                                  }
+                                />
+                              </Group>
+                            ) : null}
+                          </div>
+                        </div>
+                      )}
+                    </Draggable>
+                  );
+                })}
+                {provided.placeholder}
+              </Stack>
+            )}
+          </Droppable>
+        </DragDropContext>
       )}
-    </Stack>
+    </div>
   );
 };
 
@@ -486,7 +562,6 @@ export const ProjectViewEditor = ({
   canEdit,
   onChange,
   onRemove,
-  onMove,
   onChangeOutput,
   index,
   total,
@@ -497,7 +572,6 @@ export const ProjectViewEditor = ({
   readonly onChange: (next: ProjectViewConfig) => void;
   readonly onRemove: () => void;
   readonly onChangeOutput: (output: string) => void;
-  readonly onMove: (offset: -1 | 1) => void;
   readonly index: number;
   readonly total: number;
 }) => {
@@ -507,15 +581,17 @@ export const ProjectViewEditor = ({
   const update = (nextView: typeof view) =>
     onChange(updateView(config, view.id, () => nextView));
   return (
-    <section
-      id={`view-${view.id}`}
-      className="scroll-mt-32 border-t border-base-lighter py-3"
-    >
-      <Stack gap="xs">
-        <Group align="end" wrap="wrap" gap="xs">
+    <section id={`view-${view.id}`} className="scroll-mt-32 py-2">
+      <div className="grid items-end gap-x-3 gap-y-2 lg:grid-cols-[minmax(0,1fr)_minmax(12rem,.45fr)]">
+        <Group
+          align="end"
+          wrap="wrap"
+          gap="xs"
+          className="min-w-0 lg:col-start-1 lg:row-start-1"
+        >
           <TextInput
             size="xs"
-            className="min-w-0 flex-1"
+            className="min-w-0 flex-[1_1_9rem]"
             label="Tab title"
             value={view.title}
             disabled={!canEdit}
@@ -525,7 +601,7 @@ export const ProjectViewEditor = ({
           />
           <Select
             size="xs"
-            className="w-full min-w-0 sm:w-56"
+            className="min-w-0 flex-[1_1_9rem]"
             label="Table"
             data={[
               ...(frame
@@ -550,24 +626,6 @@ export const ProjectViewEditor = ({
           />
           <Button
             size="xs"
-            aria-label={`Move tab ${view.title} up`}
-            variant="default"
-            disabled={!canEdit || index === 0}
-            onClick={() => onMove(-1)}
-          >
-            ↑
-          </Button>
-          <Button
-            size="xs"
-            aria-label={`Move tab ${view.title} down`}
-            variant="default"
-            disabled={!canEdit || index === total - 1}
-            onClick={() => onMove(1)}
-          >
-            ↓
-          </Button>
-          <Button
-            size="xs"
             color="red"
             variant="subtle"
             disabled={!canEdit || total <= 1}
@@ -575,12 +633,13 @@ export const ProjectViewEditor = ({
           >
             Remove tab
           </Button>
+          {frame ? (
+            <Text c="dimmed" size="xs" className="self-center">
+              Published table · {frame.columns.length} columns
+            </Text>
+          ) : null}
         </Group>
-        {frame ? (
-          <Text c="dimmed" size="sm">
-            Published table · {frame.columns.length} columns
-          </Text>
-        ) : (
+        {!frame ? (
           <Alert
             color="yellow"
             variant="light"
@@ -589,15 +648,17 @@ export const ProjectViewEditor = ({
             This saved tab is preserved. Choose another published table or
             remove the unavailable bindings below.
           </Alert>
-        )}
+        ) : null}
         {frame && catalog ? (
-          <UnavailableBindingsRepair
-            config={config}
-            catalog={catalog}
-            viewId={view.id}
-            canEdit={canEdit}
-            onChange={onChange}
-          />
+          <div className="lg:col-span-2">
+            <UnavailableBindingsRepair
+              config={config}
+              catalog={catalog}
+              viewId={view.id}
+              canEdit={canEdit}
+              onChange={onChange}
+            />
+          </div>
         ) : null}
         <FieldRow
           config={config}
@@ -606,7 +667,7 @@ export const ProjectViewEditor = ({
           canEdit={canEdit && Boolean(frame)}
           onChange={onChange}
         />
-      </Stack>
+      </div>
     </section>
   );
 };

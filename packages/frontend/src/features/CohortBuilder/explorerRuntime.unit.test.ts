@@ -70,4 +70,35 @@ describe('ExplorerRuntimeV1 viewer projection', () => {
     expect(panel.preFilters).toEqual({ patient_status: ['active'] });
     expect(panel.runtimeOwned).toBe(true);
   });
+  it('enables configured per-tab downloads and preserves the exact export fields, headers, and filename', () => {
+    const configuration = cohortBuilderPanelsFromRuntime(
+      {
+        ...runtime,
+        outputs: runtime.outputs.map((output) => ({
+          ...output,
+          actions: [
+            {
+              type: 'export',
+              title: 'Download Manifest',
+              fileName: 'patients.csv',
+              columns: ['patient_name'],
+              exportHeaders: { patient_name: 'Participant' },
+            },
+          ],
+        })),
+      },
+      'HTAN_INT/BForePC',
+    );
+    expect(configuration.panels[0].buttons?.[0]).toMatchObject({
+      enabled: true,
+      action: 'data-table',
+      actionArgs: {
+        fileFields: ['patient_name'],
+        filename: 'patients.csv',
+        exportHeaders: { patient_name: 'Participant' },
+        projectIds: ['HTAN_INT/BForePC'],
+        selector: runtime.outputs[0].selector,
+      },
+    });
+  });
 });

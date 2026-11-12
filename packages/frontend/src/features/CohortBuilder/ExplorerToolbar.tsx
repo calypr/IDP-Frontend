@@ -38,14 +38,31 @@ export const ProjectConfigurationSelect = ({
   readonly onChange: (event: React.ChangeEvent<HTMLSelectElement>) => void;
 }) => (
   <label className="flex min-w-0 flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-center sm:gap-3">
-    <span className="shrink-0 text-sm font-medium text-base-darkest">
-      Project configuration
-    </span>
     <NativeSelect
       aria-label="Project configuration"
       className="w-full min-w-0 sm:w-56 sm:shrink"
       size="sm"
       radius="md"
+      styles={{
+        input: {
+          appearance: 'none',
+          WebkitAppearance: 'none',
+          MozAppearance: 'none',
+        },
+      }}
+      rightSection={
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          aria-hidden="true"
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      }
       value={value}
       title={options.find((option) => option.value === value)?.label}
       data={options.map((option) => ({ ...option }))}

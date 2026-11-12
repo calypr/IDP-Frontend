@@ -137,10 +137,16 @@ const panelFor = (
       ? {
           buttons: output.actions.map((action) => ({
             title: action.title,
+            enabled: true,
             action: 'data-table',
             actionArgs: {
               type: output.outputId,
-              fileFields: action.columns ?? [],
+              fileFields: action.columns?.length
+                ? [...action.columns]
+                : tableColumns
+                    .filter((column) => column.visible !== false)
+                    .map((column) => column.field),
+              exportHeaders: action.exportHeaders,
               filename: action.fileName ?? `${output.outputId}.csv`,
               selector: output.selector,
               projectIds: [project],

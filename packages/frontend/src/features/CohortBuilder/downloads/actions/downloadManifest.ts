@@ -1,13 +1,11 @@
 import {
-  downloadJSONDataFromLoom,
-  Equals,
+  downloadLoomRows,
   FilterSet,
-  LoomDownloadParams,
-  LoomDatasetSelector,
-  Includes,
+  LoomRowsDownloadParams,
   JSONObject,
 } from '@gen3/core';
 import { handleDownload } from './utils';
+import { manifestDownloadParameters } from './downloadParameters';
 
 const DEFAULT_FILE_FIELDS = ['file_name', 'file_size', 'md5sum', 'object_id'];
 
@@ -32,167 +30,126 @@ export const processManifest = (
   });
 };
 
-export interface DownloadToManifestParams extends Record<string, any> {
-  resourceIndexType: string;
-  resourceIdField: string;
-  referenceIdFieldInDataIndex?: string;
-  referenceIdFieldInResourceIndex?: string;
-  fileFields?: string[];
-  selector?: LoomDatasetSelector;
-  resourceSelector?: LoomDatasetSelector;
-  projectIds?: ReadonlyArray<string>;
-}
-
 export const downloadToManifestAction = async (
-  params: Record<string, any>,
+  params: Record<string, unknown>,
   done?: () => void,
   onError?: (error: Error) => void,
   onAbort?: () => void,
   signal?: AbortSignal,
   dataFormat?: string,
 ): Promise<void> => {
-  const {
-    referenceIdFieldInDataIndex,
-    referenceIdFieldInResourceIndex,
-    resourceIndexType,
-    resourceIdField,
-    fileFields,
-  } = params;
-
-  if (!params.selector) {
-    onError?.(
-      new Error('This manifest has no published Loom dataset selector.'),
-    );
-    return;
-  }
-
-  const manifestFields = fileFields ?? DEFAULT_FILE_FIELDS;
-  const manifestFilename = params?.filename ?? `${params.type}_manifest.json`;
-
-  const cohortFilterParams: LoomDownloadParams = {
-    filter: params.filter,
-    selector: params.selector,
-    projectIds: params.projectIds,
-    fields: params.fields,
-    sort: params.sort,
-    format: 'json',
-  };
-
-  // getting data from the same index.
-  if (params.type === resourceIndexType) {
-    try {
-      let resultManifest = await downloadJSONDataFromLoom({
-        parameters: {
-          ...cohortFilterParams,
-          fields: [referenceIdFieldInDataIndex, ...manifestFields],
-        },
-        onAbort: onAbort,
-        signal: signal,
-      });
-      resultManifest = processManifest(
-        resultManifest,
-        resourceIdField,
-        manifestFields,
-      );
-      if (resultManifest.length === 0) {
-        throw new Error('No data found for the current filters');
-      }
-      const str = JSON.stringify(resultManifest, null, 2);
-      const blob = new Blob([str], {
-        type: 'application/json;charset=utf-8',
-      });
-      handleDownload(blob, manifestFilename);
-      if (done) done();
-    } catch (err) {
-      let resultErr;
-      if (typeof err === 'string') resultErr = new Error(err);
-      if (err instanceof Error) resultErr = err;
-      if (!resultErr)
-        resultErr = new Error('unknown error in download manifest');
-
-      if (onError) onError(resultErr);
-    }
-    return;
-  }
-  if (!params.resourceSelector) {
-    onError?.(
-      new Error(
-        'This manifest requires a published selector for its resource dataset.',
-      ),
-    );
-    return;
-  }
-  // join data from two different indices
   try {
-    // get a list of reference IDs from the data index using the current cohort filters
-    const referenceRows = await downloadJSONDataFromLoom({
-      parameters: {
-        ...cohortFilterParams,
-        fields: [referenceIdFieldInDataIndex],
-      },
-      onAbort: onAbort,
-      signal: signal,
-    });
-    // get the reference IDs from the list
-    const refIDList = referenceRows
-      .map((item) => item[referenceIdFieldInDataIndex])
-      .filter(
-        (value): value is string | number =>
-          typeof value === 'string' || typeof value === 'number',
-      );
-    // create a filter of the ids to use in the resource index
-    const refIdsFilter: FilterSet = {
-      mode: 'and',
-      root: {
-        manifest_ids: {
-          operator: 'in',
-          operands: refIDList,
-          field: referenceIdFieldInResourceIndex,
-        } as Includes,
-        ...(dataFormat
-          ? {
-              data_format: {
-                operator: '=',
-                operand: dataFormat,
-                field: 'data_format',
-              } as Equals,
-            }
-          : {}),
-      },
+    const parsed = manifestDownloadParameters.parse(params);
+    const fields = parsed.fileFields ?? DEFAULT_FILE_FIELDS;
+    const request: LoomRowsDownloadParams = {
+      selector: parsed.selector,
+      projectIds: parsed.projectIds,
+      fields: parsed.fields,
+      filter: parsed.filter,
+      sort: parsed.sort,
     };
-
-    let resultManifest = await downloadJSONDataFromLoom({
-      parameters: {
-        ...cohortFilterParams,
-        selector: params.resourceSelector,
-        projectIds: params.projectIds,
-        filter: refIdsFilter,
-        fields: [
-          referenceIdFieldInResourceIndex,
-          resourceIdField,
-          ...manifestFields,
-        ],
-      },
-      onAbort: onAbort,
-      signal: signal,
-    });
-
-    resultManifest = resultManifest.filter(
-      (x: JSONObject) => !!x[resourceIdField],
+    let rows: JSONObject[];
+    if (parsed.type === parsed.resourceIndexType) {
+      const requestedFields = [
+        ...new Set(
+          [
+            parsed.resourceIdField,
+            parsed.referenceIdFieldInDataIndex,
+            ...fields,
+          ].filter((field): field is string => Boolean(field)),
+        ),
+      ];
+      rows = processManifest(
+        await downloadLoomRows({ ...request, fields: requestedFields }, signal),
+        parsed.resourceIdField,
+        fields,
+      );
+    } else {
+      const {
+        resourceSelector,
+        referenceIdFieldInDataIndex,
+        referenceIdFieldInResourceIndex,
+      } = parsed;
+      if (
+        !resourceSelector ||
+        !referenceIdFieldInDataIndex ||
+        !referenceIdFieldInResourceIndex
+      )
+        throw new Error(
+          'This manifest requires a published resource selector and source/resource reference fields.',
+        );
+      const references = await downloadLoomRows(
+        { ...request, fields: [referenceIdFieldInDataIndex] },
+        signal,
+      );
+      const ids = references
+        .map((row) => row[referenceIdFieldInDataIndex])
+        .filter(
+          (value): value is string | number =>
+            typeof value === 'string' || typeof value === 'number',
+        );
+      if (!ids.length) throw new Error('No data found for the current filters');
+      const filter: FilterSet = {
+        mode: 'and',
+        root: {
+          [referenceIdFieldInResourceIndex]: {
+            operator: 'in',
+            field: referenceIdFieldInResourceIndex,
+            operands: ids,
+          },
+          ...(dataFormat
+            ? {
+                data_format: {
+                  operator: '=' as const,
+                  operand: dataFormat,
+                  field: 'data_format',
+                },
+              }
+            : {}),
+        },
+      };
+      rows = (
+        await downloadLoomRows(
+          {
+            ...request,
+            selector: resourceSelector,
+            sort: undefined,
+            filter,
+            fields: [
+              ...new Set([
+                referenceIdFieldInResourceIndex,
+                parsed.resourceIdField,
+                ...fields,
+              ]),
+            ],
+          },
+          signal,
+        )
+      )
+        .filter((row) => Boolean(row[parsed.resourceIdField]))
+        .map((row) => ({
+          ...row,
+          [parsed.resourceIdField]:
+            typeof row[parsed.resourceIdField] === 'string'
+              ? [row[parsed.resourceIdField]]
+              : row[parsed.resourceIdField],
+        }));
+    }
+    if (!rows.length) throw new Error('No data found for the current filters');
+    signal?.throwIfAborted();
+    handleDownload(
+      new Blob([JSON.stringify(rows, null, 2)], {
+        type: 'application/json;charset=utf-8',
+      }),
+      parsed.filename ?? `${parsed.type}_manifest.json`,
     );
-
-    resultManifest.forEach((x: JSONObject) => {
-      if (typeof x[resourceIdField] === 'string') {
-        x[resourceIdField] = [x[resourceIdField]];
-      }
-    });
-    const bytes = new TextEncoder().encode(JSON.stringify(resultManifest));
-    const blob = new Blob([bytes], {
-      type: 'application/json;charset=utf-8',
-    });
-    handleDownload(blob, manifestFilename);
-    if (done) done();
-  } catch (err: any) {
-    if (onError) onError(err);
+    done?.();
+  } catch (error: unknown) {
+    if (
+      signal?.aborted ||
+      (error instanceof Error && error.name === 'AbortError')
+    )
+      onAbort?.();
+    else onError?.(error instanceof Error ? error : new Error(String(error)));
   }
 };

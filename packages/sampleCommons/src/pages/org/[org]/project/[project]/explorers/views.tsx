@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import dynamic from 'next/dynamic';
@@ -29,6 +29,9 @@ const ProjectViewBuilder = ({
   pageProblems,
 }: NavPageLayoutProps) => {
   const router = useRouter();
+  const [toolbarTarget, setToolbarTarget] = useState<HTMLDivElement | null>(
+    null,
+  );
   const organization =
     typeof router.query.org === 'string' ? router.query.org : '';
   const project =
@@ -57,31 +60,38 @@ const ProjectViewBuilder = ({
       {organization && project ? (
         <ProjectWorkspaceTabs
           activeTab="explorer"
+          stickyHeader
           hasExplorerConfig
           organization={organization}
           project={project}
           explorerHref={explorerHref}
           toolbarContent={
-            <div
-              className="ml-auto flex min-w-0 justify-end gap-5"
-              role="tablist"
-              aria-label="Explorer workspace"
-            >
-              <Link
-                href={explorerHref}
-                role="tab"
-                className="rounded-none border-0 border-b-2 border-transparent px-0 py-3 text-sm font-semibold text-slate-500 hover:text-slate-800"
+            <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
+              <div
+                ref={setToolbarTarget}
+                className="flex min-w-0 flex-1 justify-center py-2"
+              />
+              <div
+                className="ml-auto flex min-w-0 justify-end gap-5"
+                role="tablist"
+                aria-label="Explorer workspace"
               >
-                Viewer
-              </Link>
-              <span
-                aria-current="page"
-                aria-selected="true"
-                role="tab"
-                className="rounded-none border-0 border-b-2 border-[#2f5aac] px-0 py-3 text-sm font-semibold text-[#2f5aac]"
-              >
-                View Builder
-              </span>
+                <Link
+                  href={explorerHref}
+                  role="tab"
+                  className="rounded-none border-0 border-b-2 border-transparent px-0 py-3 text-sm font-semibold text-slate-500 hover:text-slate-800"
+                >
+                  Viewer
+                </Link>
+                <span
+                  aria-current="page"
+                  aria-selected="true"
+                  role="tab"
+                  className="rounded-none border-0 border-b-2 border-[#2f5aac] px-0 py-3 text-sm font-semibold text-[#2f5aac]"
+                >
+                  View Builder
+                </span>
+              </div>
             </div>
           }
         >
@@ -91,6 +101,7 @@ const ProjectViewBuilder = ({
             selectedConfigId={selectedConfigId}
             onSelectConfig={selectConfig}
             viewHref={explorerHref}
+            toolbarTarget={toolbarTarget}
           />
         </ProjectWorkspaceTabs>
       ) : (

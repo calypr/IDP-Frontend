@@ -1,3 +1,5 @@
+import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd';
+import { createPortal } from 'react-dom';
 import React, { useState } from 'react';
 import {
   Alert,
@@ -20,7 +22,6 @@ import {
 import type { ProjectViewConfig } from '@gen3/core';
 import {
   duplicateProjectConfig,
-  moveArrayItem,
   projectConfigFromCatalog,
   projectViewFromFrame,
   updateProjectView,
@@ -39,6 +40,7 @@ export interface ExplorerViewBuilderProps {
   readonly selectedConfigId?: string;
   readonly onSelectConfig: (configId: string | undefined) => void;
   readonly viewHref: string;
+  readonly toolbarTarget?: HTMLElement | null;
 }
 
 type ErrorDetails = {
@@ -85,7 +87,7 @@ export const ExplorerViewBuilder = ({
   project,
   selectedConfigId: routeConfigId,
   onSelectConfig,
-  viewHref,
+  toolbarTarget,
 }: ExplorerViewBuilderProps): JSX.Element => {
   const stateQuery = useGetProjectViewBuilderQuery({ project });
   const [saveConfig, saveConfigStatus] = useSaveProjectViewConfigMutation();
@@ -331,41 +333,38 @@ export const ExplorerViewBuilder = ({
     );
   }
 
-  return (
-    <main className="mx-auto max-w-screen-2xl space-y-4 px-4 py-3 sm:px-6">
-      <Group
-        justify="space-between"
-        align="center"
-        className="sticky top-0 z-20 border-b border-base-lighter bg-white py-3"
+  const saveActions = (
+    <Group gap="sm" wrap="nowrap" aria-label="View configuration actions">
+      <Badge variant="light" color={isDirty ? 'yellow' : 'gray'} role="status">
+        {isDirty ? 'Unsaved changes' : 'Saved'}
+      </Badge>
+      <Button
+        size="xs"
+        loading={saveConfigStatus.isLoading}
+        disabled={
+          !state.canEdit ||
+          !isDirty ||
+          isMutationPending ||
+          !currentCatalogRevision ||
+          (selectedConfig?.views.length ?? 0) === 0
+        }
+        onClick={() => void handleSaveConfig()}
       >
-        <div>
-          <Title order={3}>View Builder</Title>
-        </div>
-        <Group gap="sm">
-          <Badge variant="light" color={isDirty ? 'yellow' : 'gray'}>
-            {isDirty ? 'Unsaved changes' : 'Saved'}
-          </Badge>
-          <Button component="a" href={viewHref} variant="subtle" size="xs">
-            Open Viewer
-          </Button>
-          <Group justify="flex-end">
-            <Button
-              size="xs"
-              loading={saveConfigStatus.isLoading}
-              disabled={
-                !state.canEdit ||
-                !isDirty ||
-                isMutationPending ||
-                !currentCatalogRevision ||
-                (selectedConfig?.views.length ?? 0) === 0
-              }
-              onClick={() => void handleSaveConfig()}
-            >
-              Save config
-            </Button>
-          </Group>
-        </Group>
-      </Group>
+        Save config
+      </Button>
+    </Group>
+  );
+
+  return (
+    <main
+      aria-label="View Builder"
+      className="mx-auto max-w-screen-2xl space-y-2 px-4 py-2 sm:px-6"
+    >
+      {toolbarTarget ? (
+        createPortal(saveActions, toolbarTarget)
+      ) : (
+        <div className="flex justify-center">{saveActions}</div>
+      )}
 
       {error ? (
         <Alert
@@ -413,7 +412,10 @@ export const ExplorerViewBuilder = ({
       ) : null}
 
       {state.catalogs.length === 0 ? (
-        <section className="border-b border-base-lighter pb-4">
+        <section
+          aria-label="Table workspace"
+          className="min-w-0 rounded-md border border-base-lighter bg-white shadow-sm"
+        >
           <Stack gap="sm">
             <Title order={3}>No published tables are available yet</Title>
             <Text c="dimmed" size="sm">
@@ -434,117 +436,124 @@ export const ExplorerViewBuilder = ({
         </section>
       ) : null}
 
-      <section className="border-b border-base-lighter pb-4">
-        <Stack gap="xs">
-          <Text size="sm" fw={600}>
-            Project views
-          </Text>
-          <Group align="end" wrap="wrap">
-            <Select
-              size="xs"
-              className="w-full min-w-0 sm:w-64"
-              label="Project view"
-              placeholder="Select a view"
-              data={Array.from(selectableConfigs, ([value, item]) => ({
-                value,
-                label: item.title || value,
-              }))}
-              value={selectedConfigId || null}
-              onChange={(value) => onSelectConfig(value ?? undefined)}
-              disabled={!selectableConfigs.size}
-              searchable
-              clearable
-            />
-            {selectedConfig ? (
-              <TextInput
-                size="xs"
-                label="View title"
-                className="w-full min-w-0 sm:w-56"
-                value={selectedConfig.title}
-                disabled={!state.canEdit}
-                onChange={(event) =>
-                  commitConfig({
-                    ...selectedConfig,
-                    title: event.currentTarget.value,
-                  })
-                }
-              />
-            ) : null}
-            <TextInput
-              size="xs"
-              label="New view title"
-              value={newConfigTitle}
-              onChange={(event) => setNewConfigTitle(event.currentTarget.value)}
-              disabled={!state.canEdit}
-            />
-            {state.catalogs.length > 1 ? (
+      <div className="grid gap-3 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+        <section
+          aria-label="Project views"
+          className="min-w-0 rounded-md border border-base-lighter bg-white p-3 shadow-sm"
+        >
+          <Stack gap="xs">
+            <Group align="end" wrap="wrap" gap="xs">
               <Select
                 size="xs"
-                label="Dataframer configuration"
-                placeholder="Choose a dataframer configuration"
-                data={state.catalogs.map((catalog) => ({
-                  value: catalog.recipeName,
-                  label: catalog.recipeName,
+                className="min-w-0 flex-[1_1_9rem]"
+                label="Project view"
+                placeholder="Select a view"
+                data={Array.from(selectableConfigs, ([value, item]) => ({
+                  value,
+                  label: item.title || value,
                 }))}
-                value={newConfigRecipe}
-                onChange={setNewConfigRecipe}
-                disabled={!state.canEdit}
+                value={selectedConfigId || null}
+                onChange={(value) => onSelectConfig(value ?? undefined)}
+                disabled={!selectableConfigs.size}
                 searchable
                 clearable
               />
-            ) : null}
-            <Button
-              size="xs"
-              disabled={
-                !state.canEdit ||
-                !newConfigTitle.trim() ||
-                !recipeForNewConfig ||
-                !state.catalogs.some(
-                  (catalog) => catalog.recipeName === recipeForNewConfig,
-                )
-              }
-              onClick={handleCreateConfig}
-            >
-              Create view
-            </Button>
-            {selectedConfig ? (
+              {selectedConfig ? (
+                <TextInput
+                  size="xs"
+                  label="View title"
+                  className="min-w-0 flex-[1_1_9rem]"
+                  value={selectedConfig.title}
+                  disabled={!state.canEdit}
+                  onChange={(event) =>
+                    commitConfig({
+                      ...selectedConfig,
+                      title: event.currentTarget.value,
+                    })
+                  }
+                />
+              ) : null}
+            </Group>
+            <Group align="end" wrap="wrap" gap="xs">
+              <TextInput
+                size="xs"
+                label="New view title"
+                className="min-w-0 flex-[1_1_9rem]"
+                value={newConfigTitle}
+                onChange={(event) =>
+                  setNewConfigTitle(event.currentTarget.value)
+                }
+                disabled={!state.canEdit}
+              />
+              {state.catalogs.length > 1 ? (
+                <Select
+                  size="xs"
+                  label="Dataframer configuration"
+                  placeholder="Choose a dataframer configuration"
+                  data={state.catalogs.map((catalog) => ({
+                    value: catalog.recipeName,
+                    label: catalog.recipeName,
+                  }))}
+                  value={newConfigRecipe}
+                  onChange={setNewConfigRecipe}
+                  disabled={!state.canEdit}
+                  searchable
+                  clearable
+                />
+              ) : null}
               <Button
                 size="xs"
-                variant="default"
-                disabled={!state.canEdit || isMutationPending}
-                onClick={handleDuplicateConfig}
-              >
-                Duplicate view
-              </Button>
-            ) : null}
-            {selectedConfig && serverConfigRevision ? (
-              <Button
-                size="xs"
-                color="red"
-                variant="light"
-                loading={deleteConfigStatus.isLoading}
                 disabled={
                   !state.canEdit ||
-                  isMutationPending ||
-                  selectedConfig.id === state.settings.defaultConfigId
+                  !newConfigTitle.trim() ||
+                  !recipeForNewConfig ||
+                  !state.catalogs.some(
+                    (catalog) => catalog.recipeName === recipeForNewConfig,
+                  )
                 }
-                onClick={() => void handleDeleteConfig()}
+                onClick={handleCreateConfig}
               >
-                Delete view
+                Create view
               </Button>
-            ) : null}
-          </Group>
-        </Stack>
-      </section>
+              {selectedConfig ? (
+                <Button
+                  size="xs"
+                  variant="default"
+                  disabled={!state.canEdit || isMutationPending}
+                  onClick={handleDuplicateConfig}
+                >
+                  Duplicate view
+                </Button>
+              ) : null}
+              {selectedConfig && serverConfigRevision ? (
+                <Button
+                  size="xs"
+                  color="red"
+                  variant="light"
+                  loading={deleteConfigStatus.isLoading}
+                  disabled={
+                    !state.canEdit ||
+                    isMutationPending ||
+                    selectedConfig.id === state.settings.defaultConfigId
+                  }
+                  onClick={() => void handleDeleteConfig()}
+                >
+                  Delete view
+                </Button>
+              ) : null}
+            </Group>
+          </Stack>
+        </section>
 
-      <ProjectViewDefaults
-        project={project}
-        state={state}
-        canEdit={state.canEdit}
-      />
+        <ProjectViewDefaults
+          project={project}
+          state={state}
+          canEdit={state.canEdit}
+        />
+      </div>
 
       {selectedConfig ? (
-        <section className="border-b border-base-lighter pb-4">
+        <section className="border-b border-base-lighter pb-2">
           <Stack gap="sm">
             {!currentCatalogRevision ? (
               <Alert
@@ -582,21 +591,106 @@ export const ExplorerViewBuilder = ({
               }}
               keepMounted={false}
             >
-              <Group align="center" justify="space-between" gap="sm">
-                <Tabs.List
-                  aria-label="Table editors"
-                  className="overflow-x-auto flex-nowrap"
+              <Group
+                align="center"
+                gap="md"
+                className="rounded-t-md border-b border-base-lighter bg-base-lightest px-3 py-2"
+              >
+                <DragDropContext
+                  onDragEnd={({ source, destination }) => {
+                    if (
+                      !state.canEdit ||
+                      !currentCatalogRevision ||
+                      !destination ||
+                      source.index === destination.index
+                    )
+                      return;
+                    const views = [...selectedConfig.views];
+                    const [moved] = views.splice(source.index, 1);
+                    if (!moved) return;
+                    views.splice(destination.index, 0, moved);
+                    if (selectedTableId)
+                      setTableSelection({
+                        configId: selectedConfig.id,
+                        tabId: selectedTableId,
+                      });
+                    commitConfig({ ...selectedConfig, views });
+                  }}
                 >
-                  {selectedConfig.views.map((view) => (
-                    <Tabs.Tab key={view.id} value={view.id}>
-                      {view.title || view.output}
-                    </Tabs.Tab>
-                  ))}
-                </Tabs.List>
-                <Group align="end">
+                  <Droppable
+                    droppableId={`tabs-${selectedConfig.id}`}
+                    direction="horizontal"
+                  >
+                    {(provided) => (
+                      <Tabs.List
+                        ref={provided.innerRef}
+                        {...provided.droppableProps}
+                        aria-label="Table editors"
+                        className="min-w-0 max-w-full overflow-x-auto flex-nowrap"
+                      >
+                        {selectedConfig.views.map((view, index) => (
+                          <Draggable
+                            key={view.id}
+                            draggableId={view.id}
+                            index={index}
+                            isDragDisabled={
+                              !state.canEdit || !currentCatalogRevision
+                            }
+                            disableInteractiveElementBlocking
+                          >
+                            {(dragProvided, snapshot) => (
+                              <div
+                                ref={dragProvided.innerRef}
+                                {...dragProvided.draggableProps}
+                                style={dragProvided.draggableProps.style}
+                                className={`flex shrink-0 items-center rounded-t ${snapshot.isDragging ? 'bg-white shadow-md ring-2 ring-primary' : ''}`}
+                              >
+                                <button
+                                  type="button"
+                                  {...dragProvided.dragHandleProps}
+                                  disabled={
+                                    !state.canEdit || !currentCatalogRevision
+                                  }
+                                  aria-label={`Reorder tab ${view.title || view.output}`}
+                                  title="Drag to reorder tabs. Keyboard: Space to pick up, left/right arrows to move, Space to drop, Escape to cancel."
+                                  className="cursor-grab rounded px-1 py-2 text-base-darkest hover:bg-base-lighter focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary active:cursor-grabbing disabled:cursor-default disabled:opacity-40"
+                                >
+                                  <svg
+                                    width="10"
+                                    height="16"
+                                    viewBox="0 0 12 18"
+                                    fill="currentColor"
+                                    aria-hidden="true"
+                                  >
+                                    <circle cx="3" cy="4" r="1.5" />
+                                    <circle cx="9" cy="4" r="1.5" />
+                                    <circle cx="3" cy="9" r="1.5" />
+                                    <circle cx="9" cy="9" r="1.5" />
+                                    <circle cx="3" cy="14" r="1.5" />
+                                    <circle cx="9" cy="14" r="1.5" />
+                                  </svg>
+                                </button>
+                                <Tabs.Tab value={view.id}>
+                                  {view.title || view.output}
+                                </Tabs.Tab>
+                              </div>
+                            )}
+                          </Draggable>
+                        ))}
+                        {provided.placeholder}
+                      </Tabs.List>
+                    )}
+                  </Droppable>
+                </DragDropContext>
+                <Group
+                  align="end"
+                  gap="xs"
+                  wrap="nowrap"
+                  className="w-full sm:w-auto"
+                >
                   <Select
                     size="xs"
-                    className="w-full min-w-0 sm:w-64"
+                    className="min-w-0 flex-1 sm:w-48"
                     aria-label="Add a tab"
                     placeholder="Add a table"
                     data={availableNewFrames.map((frame) => ({
@@ -626,7 +720,12 @@ export const ExplorerViewBuilder = ({
                 </Group>
               </Group>
               {selectedConfig.views.map((view, index) => (
-                <Tabs.Panel key={view.id} value={view.id} pt="sm">
+                <Tabs.Panel
+                  key={view.id}
+                  value={view.id}
+                  className="px-3 pb-3"
+                  pt="xs"
+                >
                   <ProjectViewEditor
                     config={selectedConfig}
                     catalog={selectedCatalog}
@@ -645,16 +744,6 @@ export const ExplorerViewBuilder = ({
                           }),
                         ),
                       )
-                    }
-                    onMove={(offset) =>
-                      commitConfig({
-                        ...selectedConfig,
-                        views: moveArrayItem(
-                          selectedConfig.views,
-                          index,
-                          offset,
-                        ),
-                      })
                     }
                     onRemove={() =>
                       commitConfig({

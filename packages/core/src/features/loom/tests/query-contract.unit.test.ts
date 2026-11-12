@@ -19,7 +19,6 @@ import {
   loomFacetCacheKey,
   loomFacetSpecName,
 } from '../facetPolicy';
-import { buildLoomDownloadRequest } from '../loomDownload';
 import {
   isLoomDataType,
   loomDatasetIdentityKey,
@@ -61,7 +60,10 @@ describe('Loom GraphQL request contracts', () => {
       output: 'Patient',
     });
     expect(() =>
-      dataframeSelectorForRecipeOutput({ outputs: [{ name: 'Patient' }] }, 'Patient'),
+      dataframeSelectorForRecipeOutput(
+        { outputs: [{ name: 'Patient' }] },
+        'Patient',
+      ),
     ).toThrow('server recipe name');
   });
 
@@ -126,26 +128,36 @@ describe('Loom GraphQL request contracts', () => {
     expect(buildLoomDatasetSelectorQuery(identity).variables).toEqual({
       input: { projectId: 'HTAN_INT/BForePC', selector },
     });
-    expect(buildLoomRowsQuery({ ...identity, columns: ['id'] }).variables).toMatchObject({
+    expect(
+      buildLoomRowsQuery({ ...identity, columns: ['id'] }).variables,
+    ).toMatchObject({
       input: { projectId: 'HTAN_INT/BForePC', selector },
     });
-    expect(buildLoomAggregateQuery({ ...identity, operation: 'COUNT' }).variables).toMatchObject({
+    expect(
+      buildLoomAggregateQuery({ ...identity, operation: 'COUNT' }).variables,
+    ).toMatchObject({
       input: { projectId: 'HTAN_INT/BForePC', selector },
     });
-    expect(buildLoomCountQuery({ ...identity, operation: 'COUNT' }).variables).toMatchObject({
+    expect(
+      buildLoomCountQuery({ ...identity, operation: 'COUNT' }).variables,
+    ).toMatchObject({
       input: { projectId: 'HTAN_INT/BForePC', selector },
     });
-    expect(buildLoomAggregationsQuery({ ...identity, fields: ['status'] }).variables).toMatchObject({
+    expect(
+      buildLoomAggregationsQuery({ ...identity, fields: ['status'] }).variables,
+    ).toMatchObject({
       input0: { projectId: 'HTAN_INT/BForePC', selector },
     });
     expect(JSON.stringify(identity)).toContain('projectIds');
-    expect(JSON.stringify([
-      buildLoomDatasetSelectorQuery(identity),
-      buildLoomRowsQuery({ ...identity, columns: ['id'] }),
-      buildLoomAggregateQuery({ ...identity, operation: 'COUNT' }),
-      buildLoomCountQuery({ ...identity, operation: 'COUNT' }),
-      buildLoomAggregationsQuery({ ...identity, fields: ['status'] }),
-    ])).toContain('projectId');
+    expect(
+      JSON.stringify([
+        buildLoomDatasetSelectorQuery(identity),
+        buildLoomRowsQuery({ ...identity, columns: ['id'] }),
+        buildLoomAggregateQuery({ ...identity, operation: 'COUNT' }),
+        buildLoomCountQuery({ ...identity, operation: 'COUNT' }),
+        buildLoomAggregationsQuery({ ...identity, fields: ['status'] }),
+      ]),
+    ).toContain('projectId');
     expect(loomDatasetIdentityKey(identity)).toContain('HTAN_INT/BForePC');
   });
 
@@ -273,9 +285,7 @@ describe('Loom GraphQL request contracts', () => {
   it('builds one bounded rich aggregation request', () => {
     const request = buildLoomRichAggregationsQuery({
       ...scopedIdentity,
-      filters: [
-        { column: 'status', op: 'eq', value: 'active' },
-      ],
+      filters: [{ column: 'status', op: 'eq', value: 'active' }],
       specs: [
         {
           name: 'status_values',
@@ -353,7 +363,6 @@ describe('Loom GraphQL request contracts', () => {
       buildLoomAggregateQuery({ ...scopedIdentity, operation: 'COUNT' }),
       buildLoomCountQuery({ ...scopedIdentity, operation: 'COUNT' }),
       buildLoomAggregationsQuery({ ...scopedIdentity, fields: ['status'] }),
-      buildLoomDownloadRequest({ selector, fields: ['id'], format: 'csv' }),
     ];
     expect(JSON.stringify(requests)).not.toMatch(/materializationId|dataType/);
   });

@@ -19,6 +19,7 @@ interface ProjectWorkspaceTabsProps {
   readonly explorerHref?: string;
   readonly storageHref?: string;
   readonly toolbarContent?: React.ReactNode;
+  readonly stickyHeader?: boolean;
   readonly belowTabsContent?: React.ReactNode;
 }
 
@@ -33,6 +34,7 @@ const ProjectWorkspaceTabs = ({
   explorerHref,
   storageHref,
   toolbarContent,
+  stickyHeader = false,
   belowTabsContent,
 }: ProjectWorkspaceTabsProps) => {
   const { data: authzMapping = {} } = useGetAuthzMappingsQuery();
@@ -140,7 +142,9 @@ const ProjectWorkspaceTabs = ({
 
   return (
     <div>
-      <div className="border-b border-slate-200 bg-white">
+      <div
+        className={`border-b border-slate-200 bg-white ${stickyHeader ? 'sticky top-0 z-20' : ''}`}
+      >
         <div className="flex min-h-[3rem] flex-wrap items-center gap-x-6 px-4">
           <div
             aria-label={`Project workspaces for ${organization}/${project}`}

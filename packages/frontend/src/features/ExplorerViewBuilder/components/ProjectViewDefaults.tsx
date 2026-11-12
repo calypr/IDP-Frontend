@@ -81,25 +81,20 @@ export const ProjectViewDefaults = ({
   };
 
   return (
-    <section className="pb-2">
+    <section
+      aria-label="Project defaults"
+      className="min-w-0 rounded-md border border-base-lighter bg-white p-3 shadow-sm"
+    >
       <Stack gap="xs">
-        <Group gap="sm">
-          <Text size="sm" fw={600}>
-            Project default
-          </Text>
-          <Text c="dimmed" size="xs">
-            Saved separately from view edits.
-          </Text>
-        </Group>
         {saveError ? (
           <Alert color="red" title="Default was not changed">
             {saveError}
           </Alert>
         ) : null}
-        <Group align="end" wrap="wrap">
+        <Group align="end" wrap="wrap" gap="xs">
           <Select
             size="xs"
-            className="w-full min-w-0 sm:w-64"
+            className="min-w-0 flex-[1_1_9rem]"
             label="Default view"
             placeholder="Choose a saved view"
             data={state.configs.map(({ config }) => ({
@@ -117,7 +112,7 @@ export const ProjectViewDefaults = ({
           />
           <Select
             size="xs"
-            className="w-full min-w-0 sm:w-64"
+            className="min-w-0 flex-[1_1_9rem]"
             label="Default table"
             placeholder="Choose a saved tab"
             data={defaultFrameOptions}
@@ -131,6 +126,8 @@ export const ProjectViewDefaults = ({
             }}
             disabled={!canEdit || !defaultConfig}
           />
+        </Group>
+        <Group align="center" wrap="wrap" gap="xs">
           <Button
             size="xs"
             loading={saveDefaultsStatus.isLoading}
@@ -139,6 +136,9 @@ export const ProjectViewDefaults = ({
           >
             Save project default
           </Button>
+          <Text c="dimmed" size="xs" className="self-center">
+            Saved separately from view edits.
+          </Text>
         </Group>
       </Stack>
     </section>

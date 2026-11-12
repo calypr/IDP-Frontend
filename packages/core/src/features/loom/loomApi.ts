@@ -34,6 +34,10 @@ export const fetchLoomResponse = async (
   init: RequestInit = {},
 ): Promise<Response> => {
   const headers = new Headers(init.headers);
+  if (init.body && !headers.has('X-CSRF-Token')) {
+    const csrfToken = getCookie('csrftoken');
+    if (csrfToken) headers.set('X-CSRF-Token', String(csrfToken));
+  }
   if (!headers.has('Accept')) headers.set('Accept', 'application/json');
   if (init.body && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
