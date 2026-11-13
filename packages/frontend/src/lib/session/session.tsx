@@ -20,7 +20,7 @@ import {
   selectUserAuthStatus,
   useCoreSelector,
   useGetCSRFQuery,
-  useLazyFetchUserDetailsQuery,
+  useFetchUserDetailsQuery,
 } from '@gen3/core';
 
 
@@ -261,15 +261,13 @@ export const SessionProvider = ({
   } = useGetCSRFQuery();
   useWorkspaceResourceMonitor(monitorWorkspace && WORKSPACES_ENABLED); // monitor workspaces if explicitly enabled
 
-  const [
-    getUserDetails,
-    {
-      isLoading: isUserDetailsLoading,
-      isFetching: isUserDetailsFetching,
-      isError: isUserDetailsError,
-      error: userDetailsError,
-    },
-  ] = useLazyFetchUserDetailsQuery(); // Fetch user details
+  const {
+    refetch: getUserDetails,
+    isLoading: isUserDetailsLoading,
+    isFetching: isUserDetailsFetching,
+    isError: isUserDetailsError,
+    error: userDetailsError,
+  } = useFetchUserDetailsQuery();
   const userStatus = useCoreSelector((state: CoreState) =>
     selectUserAuthStatus(state),
   );

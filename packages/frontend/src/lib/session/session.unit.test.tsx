@@ -30,7 +30,7 @@ jest.mock('../../components/Providers/ResourceMonitor', () => ({
   useWorkspaceResourceMonitor: jest.fn(),
 }));
 
-const { userAuthApi } = jest.requireActual(
+const { userAuthApi, selectUserAuthStatus } = jest.requireActual(
   '../../../../core/src/features/user/userSliceRTK',
 );
 
@@ -53,8 +53,8 @@ const SessionConsumer = () => {
   );
 };
 
-const renderSession = (store: ReturnType<typeof createStore>) =>
-  render(
+const renderSession = (store: ReturnType<typeof createStore>, strict = false) => {
+  const tree = (
     <Provider store={store}>
       <MantineProvider>
         <SessionProvider
@@ -64,8 +64,10 @@ const renderSession = (store: ReturnType<typeof createStore>) =>
           <SessionConsumer />
         </SessionProvider>
       </MantineProvider>
-    </Provider>,
+    </Provider>
   );
+  return render(strict ? <React.StrictMode>{tree}</React.StrictMode> : tree);
+};
 
 const response = (data: unknown, status = 200): Response =>
   ({
@@ -602,6 +604,33 @@ describe('SessionProvider service failure recovery', () => {
     expect(statusRequests).toBeGreaterThan(2);
     expect(statusRequests).toBeLessThanOrEqual(8);
   });
+  it.each([false, true])('keeps authenticated Builder content after the user-query cache window (StrictMode=%s)', async (strict) => {
+    mockRouter.pathname = '/org/HTAN_INT/project/BForePC';
+    let userRequests = 0;
+    fetchMock.mockImplementation(async (input, init) => {
+      if (String(input).endsWith('/_status')) return response({ csrf: 'token' });
+      if (String(input).endsWith('/api/auth/sessionToken'))
+        return response({ status: 'issued', expires: Math.floor(Date.now() / 1000) + 3600 });
+      userRequests += 1;
+      return response({ username: 'active-user' });
+    });
+
+    renderSession(store, strict);
+    await advanceTime(50);
+    expect(screen.getByText('Session issued')).toBeVisible();
+    expect(userRequests).toBeGreaterThan(0);
+    const draft = screen.getByLabelText('Unsaved work');
+    fireEvent.change(draft, { target: { value: 'unsaved change' } });
+    await advanceTime(60_001);
+    await advanceTime(1);
+    expect(userAuthApi.endpoints.fetchUserDetails.select()(store.getState()).isSuccess).toBe(true);
+    expect(selectUserAuthStatus(store.getState())).toBe('authenticated');
+    expect(screen.getByText('Session issued')).toBeVisible();
+    expect(screen.getByLabelText('Unsaved work')).toBe(draft);
+    expect(draft).toHaveValue('unsaved change');
+    expect(fetchMock.mock.calls.some(([input]) => String(input).includes('/logout'))).toBe(false);
+  });
+
 });
 
 describe('JWT expiration units', () => {
