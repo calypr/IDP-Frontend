@@ -4,13 +4,13 @@ import { useRouter } from 'next/router';
 import {
   canonicalLoomProjectId,
   useGetExplorerAuthoringExplorersQuery,
-  useGetProjectViewBuilderQuery,
   useGetExplorerStateV1Query,
   useGetGeckoProjectsQuery,
 } from '@gen3/core';
 import {
   ExplorerMainContent,
   ProjectConfigurationSelect,
+  useGetProjectViewBuilderQuery,
   selectedProjectViewId,
   useProjectViewTab,
   isExplorerBuilderEnabled,
@@ -300,7 +300,7 @@ const CohortBuilderPage = ({
                       href={builderHref}
                       role="tab"
                     >
-                      Builder
+                      Dataframe Builder
                     </Link>
                   )}
                 </div>

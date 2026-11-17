@@ -2,9 +2,10 @@ import React, { useMemo } from 'react';
 import Link from 'next/link';
 import {
   useGetAuthzMappingsQuery,
-  useGetProjectViewBuilderQuery,
   userHasMethodForServiceOnResource,
 } from '@gen3/core';
+import { useGetProjectViewBuilderQuery } from '../ExplorerViewBuilder/projectViewBuilderApi';
+import type { ProjectViewBuilderState } from '../ExplorerViewBuilder/projectViewBuilderApi';
 
 type ProjectWorkspaceTabKey = 'git' | 'presentation' | 'explorer' | 'storage';
 
@@ -44,7 +45,11 @@ const ProjectWorkspaceTabs = ({
   );
   const hasConfiguredExplorer =
     hasExplorerConfig ||
-    Boolean(viewSettings?.configs.some((view) => view.revisionId));
+    Boolean(
+      viewSettings?.configs.some(
+        (view: ProjectViewBuilderState['configs'][number]) => view.revisionId,
+      ),
+    );
 
   const hasGitAccess = useMemo(() => {
     if (!organization || !project) return false;

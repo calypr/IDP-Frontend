@@ -3,12 +3,15 @@ import { loadNavigationFromContext } from '../../lib/common/staticProps';
 import type { PageLoadResult, ServerPageContext } from '../../lib/pageLoader';
 import type { ExplorerPageData } from './types';
 import {
+  getProjectViewBuilderState,
+  projectViewBuilderPath,
+  selectedProjectViewId,
+} from '@calypr/loom-ui/saved-views';
+import {
   assertExplorerStateV1,
   canonicalLoomProjectId,
   encodeLoomProjectPath,
-  viewBuilderStateSchema,
 } from '@gen3/core';
-import { selectedProjectViewId } from './selection';
 import { normalizePageProblem } from '../../lib/pageLoader/errors';
 
 const emptyExplorerPage = (explorerId: string): ExplorerPageData => ({
@@ -44,14 +47,15 @@ export const loadExplorerStateV1 = async (
 
   try {
     if (typeof context.next.query.explorerId !== 'string') {
-      endpoint = `/api/v1/projects/${encodeLoomProjectPath(project)}/view-builder`;
-      const response = await context.loom.get<unknown>(endpoint);
-      const payload =
-        typeof response === 'object' && response !== null && 'data' in response
-          ? response.data
-          : response;
-      const settings = viewBuilderStateSchema.parse(payload).settings;
-      explorerId = selectedProjectViewId(undefined, settings.defaultConfigId);
+      endpoint = projectViewBuilderPath(project);
+      const settings = await getProjectViewBuilderState(
+        (path: string) => context.loom.get<unknown>(path),
+        project,
+      );
+      explorerId = selectedProjectViewId(
+        undefined,
+        settings.settings.defaultConfigId,
+      );
       endpoint = `/api/v1/projects/${encodeLoomProjectPath(project)}/explorers/${encodeURIComponent(explorerId)}`;
     }
     const response = await context.loom.get<unknown>(endpoint);

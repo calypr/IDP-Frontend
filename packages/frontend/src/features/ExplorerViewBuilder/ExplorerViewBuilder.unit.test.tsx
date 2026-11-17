@@ -1,428 +1,66 @@
-import React from 'react';
-import { MantineProvider } from '@mantine/core';
-import {
-  act,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from '@testing-library/react';
-import type { ProjectViewBuilderState } from '@gen3/core';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { ExplorerViewBuilder } from './ExplorerViewBuilder';
 
-const mockGetProjectViewBuilder = jest.fn();
-const mockSaveProjectViewConfig = jest.fn();
-const mockDeleteProjectViewConfig = jest.fn();
-const mockSaveProjectViewDefaults = jest.fn();
-const mockAdoptProjectViewBuilderCatalogs = jest.fn();
+let mockPrincipal = 'user-a';
+const mockDispatch = jest.fn();
+const mockInvalidateTags = jest.fn((..._args: unknown[]) => 'INVALIDATE_SAVED_VIEWS');
+const mockInvalidateProjectViewBuilder = jest.fn((project: string) =>
+  mockInvalidateTags([{ type: 'LOOM_EXPLORER_AUTHORING', id: project }]),
+);
 
 jest.mock('@gen3/core', () => ({
-  useGetProjectViewBuilderQuery: (...args: unknown[]) =>
-    mockGetProjectViewBuilder(...args),
-  useSaveProjectViewConfigMutation: () => [
-    mockSaveProjectViewConfig,
-    { isLoading: false },
-  ],
-  useDeleteProjectViewConfigMutation: () => [
-    mockDeleteProjectViewConfig,
-    { isLoading: false },
-  ],
-  useSaveProjectViewDefaultsMutation: () => [
-    mockSaveProjectViewDefaults,
-    { isLoading: false },
-  ],
-  useAdoptProjectViewBuilderCatalogsMutation: () => [
-    mockAdoptProjectViewBuilderCatalogs,
-    { isLoading: false },
-  ],
+  selectUserDetails: jest.fn(),
+  useCoreSelector: () => ({ sub: mockPrincipal }),
+  useCoreDispatch: () => mockDispatch,
 }));
 
-const project = 'HTAN_INT/BForePC';
-const projectConfig = {
-  id: 'metadata',
-  title: 'Metadata',
-  recipeRef: { name: 'clinical_metadata', sourceOption: 'preserve-me' },
-  views: [
-    {
-      id: 'specimens',
-      title: 'Specimens',
-      output: 'Specimen',
-      table: {
-        columns: [
-          {
-            column: 'specimen_id',
-            label: 'Specimen ID',
-            visible: true,
-            pinned: false,
-            customPresentation: 'preserve-me',
-          },
-        ],
-      },
-      filters: [],
-      charts: [],
-      fixedFilters: { specimen_status: ['active'] },
-      actions: [
-        { type: 'download', title: 'Download', columns: ['specimen_id'] },
-      ],
-      customViewOption: { preserve: true },
+jest.mock('./authenticatedLoomClient', () => ({
+  useAuthenticatedLoomClient: () => ({}),
+}));
+
+jest.mock('./projectViewBuilderApi', () => ({
+  invalidateProjectViewBuilder: (project: string) => mockInvalidateProjectViewBuilder(project),
+}));
+
+jest.mock('@calypr/loom-ui/saved-views', () => {
+  const React = jest.requireActual<typeof import('react')>('react');
+  return {
+    LoomSavedViewBuilder: ({ onSaved }: { readonly onSaved?: () => void }) => {
+      const [count, setCount] = React.useState(0);
+      return React.createElement('div', {},
+        React.createElement(
+          'button',
+          { type: 'button', onClick: () => setCount((value) => value + 1) },
+          `Saved view edits: ${count}`,
+        ),
+        React.createElement('button', { type: 'button', onClick: onSaved }, 'Save view'),
+      );
     },
-  ],
-  sharedFilters: { cohort: [{ output: 'Specimen', column: 'specimen_id' }] },
-  fileActions: {
-    extensions: { csv: ['download'] },
-    actions: { download: 'Download' },
-  },
-  customConfigOption: { preserve: true },
-};
+  };
+});
 
-const baseState: ProjectViewBuilderState = {
-  settings: {
-    project,
-    version: 4,
-    defaultConfigId: 'metadata',
-    defaultFrameId: 'clinical_metadata/Specimen',
-    catalogs: { clinical_metadata: 'catalog-r1' },
-  },
-  configs: [{ config: projectConfig, revisionId: 'config-r1' }],
-  catalogs: [
-    {
-      recipeName: 'clinical_metadata',
-      revisionId: 'catalog-r1',
-      executionId: 'execution-r1',
-      generation: 'generation-r1',
-      frames: [
-        {
-          id: 'Specimen',
-          title: 'Specimens',
-          columns: [
-            {
-              name: 'specimen_id',
-              label: 'Specimen ID',
-              logicalType: 'string',
-              cardinality: 'required_one',
-              filterable: true,
-              chartable: true,
-            },
-          ],
-        },
-      ],
-    },
-  ],
-  canEdit: true,
-};
+it('resets saved-view editor state when the authenticated principal changes', () => {
+  mockDispatch.mockReset();
+  mockInvalidateTags.mockReset();
+  mockInvalidateProjectViewBuilder.mockClear();
+  mockInvalidateTags.mockReturnValue('INVALIDATE_SAVED_VIEWS');
+  mockPrincipal = 'user-a';
+  const props = {
+    project: 'HTAN_INT/BForePC',
+    onSelectConfig: jest.fn(),
+    viewHref: '/Explorer/HTAN_INT%2FBForePC',
+  };
+  const { rerender } = render(<ExplorerViewBuilder {...props} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Saved view edits: 0' }));
+  expect(screen.getByRole('button', { name: 'Saved view edits: 1' })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Save view' }));
+  expect(mockInvalidateProjectViewBuilder).toHaveBeenCalledWith(props.project);
+  expect(mockInvalidateTags).toHaveBeenCalledWith([
+    { type: 'LOOM_EXPLORER_AUTHORING', id: props.project },
+  ]);
+  expect(mockDispatch).toHaveBeenCalledWith('INVALIDATE_SAVED_VIEWS');
 
-const onSelectConfig = jest.fn();
-
-const renderViewBuilder = (selectedConfigId?: string) =>
-  render(
-    <MantineProvider>
-      <ExplorerViewBuilder
-        project={project}
-        selectedConfigId={selectedConfigId}
-        onSelectConfig={onSelectConfig}
-        viewHref="/Explorer/HTAN_INT%2FBForePC"
-      />
-    </MantineProvider>,
-  );
-
-describe('Project View Builder', () => {
-  beforeEach(() => {
-    onSelectConfig.mockReset();
-    mockGetProjectViewBuilder.mockReset();
-    mockGetProjectViewBuilder.mockReturnValue({
-      data: baseState,
-      isLoading: false,
-      isFetching: false,
-      refetch: jest.fn(),
-    });
-    mockSaveProjectViewConfig.mockReset();
-    mockDeleteProjectViewConfig.mockReset();
-    mockSaveProjectViewDefaults.mockReset();
-    mockAdoptProjectViewBuilderCatalogs.mockReset();
-  });
-
-  it('saves presentation edits with both CAS identities and preserves untouched options', async () => {
-    mockSaveProjectViewConfig.mockReturnValue({
-      unwrap: () => Promise.resolve(baseState),
-    });
-    renderViewBuilder('metadata');
-
-    fireEvent.change(screen.getByRole('textbox', { name: 'View title' }), {
-      target: { value: 'Clinical metadata' },
-    });
-    fireEvent.change(
-      screen.getByRole('textbox', { name: 'Column label for Specimen ID' }),
-      { target: { value: 'Sample identifier' } },
-    );
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Filter' }));
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Chart' }));
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Pinned' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Save config' }));
-
-    await waitFor(() => expect(mockSaveProjectViewConfig).toHaveBeenCalled());
-    const request = mockSaveProjectViewConfig.mock.calls[0]?.[0];
-    expect(request).toEqual({
-      project,
-      configId: 'metadata',
-      request: {
-        expectedRevisionId: 'config-r1',
-        catalogRevisionId: 'catalog-r1',
-        config: expect.objectContaining({
-          title: 'Clinical metadata',
-          customConfigOption: { preserve: true },
-          recipeRef: { name: 'clinical_metadata', sourceOption: 'preserve-me' },
-          sharedFilters: baseState.configs[0]?.config.sharedFilters,
-          fileActions: baseState.configs[0]?.config.fileActions,
-          views: [
-            expect.objectContaining({
-              customViewOption: { preserve: true },
-              fixedFilters: { specimen_status: ['active'] },
-              actions: baseState.configs[0]?.config.views[0]?.actions,
-              filters: [{ column: 'specimen_id', label: 'Sample identifier' }],
-              charts: [
-                {
-                  column: 'specimen_id',
-                  type: 'bar',
-                  title: 'Sample identifier',
-                },
-              ],
-              table: {
-                columns: [
-                  {
-                    column: 'specimen_id',
-                    label: 'Sample identifier',
-                    visible: true,
-                    pinned: true,
-                    customPresentation: 'preserve-me',
-                  },
-                ],
-              },
-            }),
-          ],
-        }),
-      },
-    });
-  });
-
-  it('keeps the edited config draft visible after a 409 response', async () => {
-    mockSaveProjectViewConfig.mockReturnValue({
-      unwrap: () =>
-        Promise.reject({
-          status: 409,
-          code: 'VIEW_CONFIG_REVISION_CONFLICT',
-          message: 'The view config revision changed.',
-        }),
-    });
-    renderViewBuilder('metadata');
-
-    const title = screen.getByRole('textbox', { name: 'View title' });
-    fireEvent.change(title, { target: { value: 'Unsaved title' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save config' }));
-
-    expect(
-      await screen.findByText('The view config revision changed.'),
-    ).toBeInTheDocument();
-    expect(screen.getByRole('textbox', { name: 'View title' })).toHaveValue(
-      'Unsaved title',
-    );
-    expect(
-      screen.getByRole('button', { name: 'Discard draft and reload' }),
-    ).toBeInTheDocument();
-  });
-
-  it('preserves newer local edits when an earlier save resolves', async () => {
-    let resolveFirstSave:
-      | ((result: ProjectViewBuilderState) => void)
-      | undefined;
-    const savedFirstVersion: ProjectViewBuilderState = {
-      ...baseState,
-      configs: [
-        {
-          config: { ...projectConfig, title: 'First title' },
-          revisionId: 'config-r2',
-        },
-      ],
-    };
-    mockSaveProjectViewConfig
-      .mockReturnValueOnce({
-        unwrap: () =>
-          new Promise<ProjectViewBuilderState>((resolve) => {
-            resolveFirstSave = resolve;
-          }),
-      })
-      .mockReturnValue({
-        unwrap: () => Promise.resolve(savedFirstVersion),
-      });
-    renderViewBuilder('metadata');
-
-    const title = screen.getByRole('textbox', { name: 'View title' });
-    fireEvent.change(title, { target: { value: 'First title' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save config' }));
-    fireEvent.change(screen.getByRole('textbox', { name: 'View title' }), {
-      target: { value: 'Second title' },
-    });
-
-    await act(async () => {
-      resolveFirstSave?.(savedFirstVersion);
-    });
-    expect(screen.getByRole('textbox', { name: 'View title' })).toHaveValue(
-      'Second title',
-    );
-
-    fireEvent.click(screen.getByRole('button', { name: 'Save config' }));
-    await waitFor(() =>
-      expect(mockSaveProjectViewConfig).toHaveBeenCalledTimes(2),
-    );
-    expect(mockSaveProjectViewConfig.mock.calls[1]?.[0].request).toMatchObject({
-      expectedRevisionId: 'config-r2',
-      config: expect.objectContaining({ title: 'Second title' }),
-    });
-  });
-
-  it('does not adopt catalogs during read-only GET; adoption requires an explicit click', async () => {
-    mockGetProjectViewBuilder.mockReturnValue({
-      data: {
-        ...baseState,
-        settings: { ...baseState.settings, catalogs: {} },
-        configs: [],
-        catalogs: [],
-        canEdit: true,
-      },
-      isLoading: false,
-      isFetching: false,
-      refetch: jest.fn(),
-    });
-    mockAdoptProjectViewBuilderCatalogs.mockReturnValue({
-      unwrap: () => Promise.resolve(baseState),
-    });
-    renderViewBuilder();
-
-    expect(mockAdoptProjectViewBuilderCatalogs).not.toHaveBeenCalled();
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Use existing published data' }),
-    );
-    await waitFor(() =>
-      expect(mockAdoptProjectViewBuilderCatalogs).toHaveBeenCalledWith({
-        project,
-      }),
-    );
-  });
-  it('edits one table at a time and retains edits when switching tabs', async () => {
-    const files = {
-      ...projectConfig.views[0],
-      id: 'files',
-      title: 'Files',
-      output: 'DocumentReference',
-      table: {
-        columns: [
-          { column: 'document_reference_id', label: 'File ID', visible: true },
-        ],
-      },
-      fixedFilters: {},
-      actions: [],
-    };
-    const multi: ProjectViewBuilderState = {
-      ...baseState,
-      configs: [
-        {
-          ...baseState.configs[0],
-          config: { ...projectConfig, views: [projectConfig.views[0], files] },
-        },
-      ],
-      catalogs: [
-        {
-          ...baseState.catalogs[0],
-          frames: [
-            ...baseState.catalogs[0].frames,
-            {
-              id: 'DocumentReference',
-              title: 'Files',
-              columns: [
-                {
-                  name: 'document_reference_id',
-                  label: 'File ID',
-                  logicalType: 'string',
-                  cardinality: 'required_one',
-                  filterable: true,
-                  chartable: true,
-                },
-              ],
-            },
-          ],
-        },
-      ],
-    };
-    mockGetProjectViewBuilder.mockReturnValue({
-      data: multi,
-      refetch: jest.fn(),
-    });
-    mockSaveProjectViewConfig.mockReturnValue({
-      unwrap: () => Promise.resolve(multi),
-    });
-    renderViewBuilder('metadata');
-    fireEvent.change(
-      screen.getByRole('textbox', { name: 'Column label for Specimen ID' }),
-      { target: { value: 'Sample identifier' } },
-    );
-    expect(screen.getByText('Unsaved changes')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('tab', { name: 'Files' }));
-    expect(
-      screen.queryByRole('textbox', { name: 'Column label for Specimen ID' }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.getByRole('textbox', { name: 'Column label for File ID' }),
-    ).toHaveValue('File ID');
-    fireEvent.click(screen.getByRole('tab', { name: 'Specimens' }));
-    expect(
-      screen.getByRole('textbox', { name: 'Column label for Specimen ID' }),
-    ).toHaveValue('Sample identifier');
-    fireEvent.click(screen.getByRole('button', { name: 'Save config' }));
-    await waitFor(() => expect(mockSaveProjectViewConfig).toHaveBeenCalled());
-    const saved = mockSaveProjectViewConfig.mock.calls[0][0].request.config;
-    expect(saved.views).toHaveLength(2);
-    expect(saved.views[0].table.columns[0].label).toBe('Sample identifier');
-    expect(saved.recipeRef).toEqual(projectConfig.recipeRef);
-  });
-  it('adds a published column directly to the local draft without autosaving', async () => {
-    const extra = {
-      name: 'another_id',
-      label: 'Another ID',
-      logicalType: 'string',
-      cardinality: 'required_one',
-      filterable: true,
-      chartable: true,
-    };
-    const state: ProjectViewBuilderState = {
-      ...baseState,
-      catalogs: [
-        {
-          ...baseState.catalogs[0],
-          frames: [
-            {
-              ...baseState.catalogs[0].frames[0],
-              columns: [...baseState.catalogs[0].frames[0].columns, extra],
-            },
-          ],
-        },
-      ],
-    };
-    mockGetProjectViewBuilder.mockReturnValue({
-      data: state,
-      refetch: jest.fn(),
-    });
-    renderViewBuilder('metadata');
-    const picker = screen.getByRole('textbox', {
-      name: 'Add a column from this published frame',
-    });
-    fireEvent.click(picker);
-    fireEvent.change(picker, { target: { value: 'Another ID' } });
-    fireEvent.click(
-      await screen.findByRole('option', { name: 'Another ID · another_id' }),
-    );
-    expect(
-      screen.getByRole('textbox', { name: 'Column label for Another ID' }),
-    ).toHaveValue('Another ID');
-    expect(screen.getByText('Unsaved changes')).toBeInTheDocument();
-    expect(mockSaveProjectViewConfig).not.toHaveBeenCalled();
-  });
+  mockPrincipal = 'user-b';
+  rerender(<ExplorerViewBuilder {...props} />);
+  expect(screen.getByRole('button', { name: 'Saved view edits: 0' })).toBeInTheDocument();
 });

@@ -3,8 +3,8 @@ import { render, screen } from '@testing-library/react';
 import {
   userHasMethodForServiceOnResource,
   useGetAuthzMappingsQuery,
-  useGetProjectViewBuilderQuery,
 } from '@gen3/core';
+import { useGetProjectViewBuilderQuery } from '../ExplorerViewBuilder/projectViewBuilderApi';
 import ProjectWorkspaceTabs from './ProjectWorkspaceTabs';
 
 jest.mock('next/link', () => ({
@@ -22,8 +22,10 @@ jest.mock('next/link', () => ({
 
 jest.mock('@gen3/core', () => ({
   useGetAuthzMappingsQuery: jest.fn(),
-  useGetProjectViewBuilderQuery: jest.fn(),
   userHasMethodForServiceOnResource: jest.fn(),
+}));
+jest.mock('../ExplorerViewBuilder/projectViewBuilderApi', () => ({
+  useGetProjectViewBuilderQuery: jest.fn(),
 }));
 
 const mockedAuthorization = userHasMethodForServiceOnResource as jest.Mock;

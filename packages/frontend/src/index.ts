@@ -296,6 +296,9 @@ export {
 
 export { ExplorerViewBuilder } from './features/ExplorerViewBuilder/ExplorerViewBuilder';
 export {
+  useGetProjectViewBuilderQuery,
+} from './features/ExplorerViewBuilder/projectViewBuilderApi';
+export {
   selectedProjectViewId,
   selectedProjectViewTab,
   useProjectViewTab,

@@ -1,9 +1,8 @@
 import React, { useMemo } from 'react';
 import {
   GEN3_LOOM_API,
-  fetchLoomResponse,
-  handleUnauthorizedStatus,
   selectCSRFToken,
+  selectUserDetails,
   useCoreSelector,
   type CoreState,
 } from '@gen3/core';
@@ -14,18 +13,7 @@ import {
 } from '@calypr/loom-ui';
 import '@calypr/loom-ui/styles.css';
 import { ProtectedContent } from '../../components/Protected';
-
-const calyprLoomFetch: typeof globalThis.fetch = async (input, init) => {
-  const endpoint =
-    typeof input === 'string'
-      ? input
-      : input instanceof URL
-        ? input.toString()
-        : input.url;
-  const response = await fetchLoomResponse(endpoint, init);
-  handleUnauthorizedStatus(response.status);
-  return response;
-};
+import { createAuthenticatedLoomFetch } from '../ExplorerViewBuilder/authenticatedLoomClient';
 
 export const ExplorerBuilderClient = ({
   organization,
@@ -37,14 +25,20 @@ export const ExplorerBuilderClient = ({
   readonly project: string;
   readonly explorerId?: string;
   readonly onExplorerChange?: (explorerId: string) => void;
-}) => (
-  <ExplorerBuilderPageContent
-    organization={organization}
-    project={project}
-    explorerId={explorerId}
-    onExplorerChange={onExplorerChange}
-  />
-);
+}) => {
+  const user = useCoreSelector((state: CoreState) => selectUserDetails(state));
+  const principal =
+    user.sub ?? user.username ?? user.email ?? String(user.id ?? 'anonymous');
+  return (
+    <ExplorerBuilderPageContent
+      key={principal}
+      organization={organization}
+      project={project}
+      explorerId={explorerId}
+      onExplorerChange={onExplorerChange}
+    />
+  );
+};
 
 const ExplorerBuilderPageContent = ({
   organization,
@@ -57,18 +51,17 @@ const ExplorerBuilderPageContent = ({
   readonly explorerId?: string;
   readonly onExplorerChange?: (explorerId: string) => void;
 }) => {
-  const csrfToken = useCoreSelector((state: CoreState) =>
-    selectCSRFToken(state),
-  );
+  const csrfToken = useCoreSelector((state: CoreState) => selectCSRFToken(state));
+  const csrfTokenRef = React.useRef(csrfToken);
+  csrfTokenRef.current = csrfToken;
   const client = useMemo<LoomClient>(
     () =>
       createLoomClient({
         baseUrl: GEN3_LOOM_API,
         credentials: 'include',
-        fetch: calyprLoomFetch,
-        headers: csrfToken ? { 'X-CSRF-Token': csrfToken } : undefined,
+        fetch: createAuthenticatedLoomFetch(csrfTokenRef),
       }),
-    [csrfToken],
+    [],
   );
 
   return (

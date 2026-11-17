@@ -5,8 +5,8 @@ import type { SharedFieldMapping } from '@gen3/core';
 import {
   canonicalLoomProjectId,
   useGetExplorerStateV1Query,
-  useGetProjectViewBuilderQuery,
 } from '@gen3/core';
+import { useGetProjectViewBuilderQuery } from '../../features/ExplorerViewBuilder/projectViewBuilderApi';
 import { NavPageLayout } from '../../features/Navigation';
 import PageLoadBoundary from '../../components/MessageCards/PageLoadBoundary';
 import { ProtectedContent } from '../../components/Protected';

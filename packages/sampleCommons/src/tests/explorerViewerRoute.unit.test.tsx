@@ -96,7 +96,6 @@ jest.mock('next/link', () => ({
 }));
 jest.mock('@gen3/core', () => ({
   canonicalLoomProjectId: (project: string) => project,
-  useGetProjectViewBuilderQuery: () => mockViewSettings,
   useGetGeckoProjectsQuery: () => ({
     data: [{ resourcePath: '/programs/HTAN_INT/projects/BForePC' }],
   }),
@@ -108,7 +107,28 @@ jest.mock('@gen3/core', () => ({
   ) => mockGetExplorerSummaries(args, options),
 }));
 jest.mock('@gen3/frontend', () => ({
-  ...jest.requireActual('../../../frontend/src/pages/Explorer/selection'),
+  selectedProjectViewId: (explicitId?: string, defaultId?: string) =>
+    explicitId || defaultId || 'default',
+  selectedProjectViewTab: (
+    runtime: { outputs: ReadonlyArray<{ title: string; selector: { recipe: string; output: string } }> } | null,
+    frameId?: string,
+  ) => frameId
+    ? runtime?.outputs.find((output) => `${output.selector.recipe}/${output.selector.output}` === frameId)?.title ?? null
+    : runtime?.outputs[0]?.title ?? null,
+  useProjectViewTab: (
+    runtime: { outputs: ReadonlyArray<{ title: string; selector: { recipe: string; output: string } }> } | null,
+    frameId: string | undefined,
+  ) => {
+    const activeTab = frameId
+      ? runtime?.outputs.find((output) => `${output.selector.recipe}/${output.selector.output}` === frameId)?.title ?? null
+      : runtime?.outputs[0]?.title ?? null;
+    return {
+      activeTab,
+      selectTab: jest.fn(),
+      unavailableDefault: Boolean(frameId && runtime && activeTab === null),
+    };
+  },
+  useGetProjectViewBuilderQuery: () => mockViewSettings,
   ProjectConfigurationSelect: ({
     value,
     options,

@@ -10,9 +10,16 @@ jest.mock('@gen3/core', () => ({
   encodeLoomProjectPath: (value: string) =>
     encodeURIComponent(encodeURIComponent(value)),
   assertExplorerStateV1: (value: unknown) => value,
-  viewBuilderStateSchema: jest.requireActual(
-    '../../../../core/src/features/loom/projectViewBuilder',
-  ).viewBuilderStateSchema,
+}));
+jest.mock('@calypr/loom-ui/saved-views', () => ({
+  projectViewBuilderPath: (project: string) =>
+    `/api/v1/projects/${encodeURIComponent(encodeURIComponent(project))}/view-builder`,
+  getProjectViewBuilderState: async (
+    get: (path: string) => Promise<unknown>,
+    project: string,
+  ) => get(`/api/v1/projects/${encodeURIComponent(encodeURIComponent(project))}/view-builder`),
+  selectedProjectViewId: (explicitId?: string, defaultId?: string) =>
+    explicitId || defaultId || 'default',
 }));
 import { loadExplorerStateV1 } from './data';
 import type { ServerPageContext } from '../../lib/pageLoader';
@@ -48,7 +55,7 @@ const contextFor = (
         Promise.resolve(
           endpoint.endsWith('/view-builder')
             ? {
-                settings: { project: 'project/1', version: 0, catalogs: {} },
+            settings: { project: 'project/1', version: 0, catalogs: {} },
                 configs: [],
                 catalogs: [],
                 canEdit: false,
@@ -170,7 +177,7 @@ describe('Explorer page loader', () => {
     );
     await loadExplorerStateV1(context);
     expect(context.loom.get).toHaveBeenCalledTimes(1);
-    expect(context.loom.get).toHaveBeenCalledWith(
+      expect(context.loom.get).toHaveBeenCalledWith(
       '/api/v1/projects/project%252F1/view-builder',
     );
   });
