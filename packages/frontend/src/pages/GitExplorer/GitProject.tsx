@@ -1091,22 +1091,36 @@ const GitProjectPage = ({
     </Card>
   );
 
+  const missingSyfonMatches =
+    funnelTaskStatus?.sourceLoadResult?.warnings.find(
+      (warning) => warning.code === 'MISSING_SYFON_MATCHES',
+    )?.count ?? 0;
+  const reconciliationNotRechecked =
+    funnelTaskStatus?.sourceLoadResult?.warnings.some(
+      (warning) => warning.code === 'RECONCILIATION_NOT_RECHECKED',
+    ) ?? false;
+  const hasSourceLoadWarnings =
+    missingSyfonMatches > 0 || reconciliationNotRechecked;
   const funnelTaskStatusMessage =
     funnelTaskStatus?.state === 'COMPLETE'
-      ? 'Metadata publishing completed.'
+      ? hasSourceLoadWarnings
+        ? 'Metadata published with warnings.'
+        : 'Metadata publishing completed.'
       : funnelTaskIsTerminal
         ? `Metadata publishing ended with ${funnelTaskStatus?.state}.`
         : funnelTaskStatus
           ? `Metadata publishing is ${funnelTaskStatus.state.toLowerCase()}.`
           : 'The publish task was submitted. Waiting for task status.';
   const funnelTaskAlertColor =
-    funnelTaskStatus?.state === 'COMPLETE'
-      ? 'green'
-      : funnelTaskIsTerminal
-        ? 'red'
-        : isFunnelTaskStatusError
-          ? 'yellow'
-          : 'blue';
+    funnelTaskStatus?.state === 'COMPLETE' && hasSourceLoadWarnings
+      ? 'yellow'
+      : funnelTaskStatus?.state === 'COMPLETE'
+        ? 'green'
+        : funnelTaskIsTerminal
+          ? 'red'
+          : isFunnelTaskStatusError
+            ? 'yellow'
+            : 'blue';
 
   const gitProjectContent = (
     <div className="min-h-screen bg-[#f6f8fa]">
@@ -1338,6 +1352,19 @@ const GitProjectPage = ({
                     style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}
                   >
                     {funnelTaskStatus.errorMessage}
+                  </Text>
+                ) : null}
+                {missingSyfonMatches > 0 ? (
+                  <Text size="sm">
+                    No DocumentReference was added for {missingSyfonMatches}{' '}
+                    unique file {missingSyfonMatches === 1 ? 'hash' : 'hashes'}{' '}
+                    without a matching Syfon record.
+                  </Text>
+                ) : null}
+                {reconciliationNotRechecked ? (
+                  <Text size="sm">
+                    Funnel reused the staged DocumentReference file. The missing
+                    Syfon match count is unavailable for this attempt.
                   </Text>
                 ) : null}
                 <Group gap="xs">

@@ -20,6 +20,15 @@ export interface FunnelTaskStatus extends FunnelTaskCreated {
   readonly state: FunnelTaskState;
   readonly errorMessage?: string;
   readonly publicationResult?: unknown;
+  readonly sourceLoadResult?: SourceLoadResult;
+}
+
+export interface SourceLoadResult {
+  readonly state: 'PUBLISHED';
+  readonly warnings: ReadonlyArray<
+    | { readonly code: 'MISSING_SYFON_MATCHES'; readonly count: number }
+    | { readonly code: 'RECONCILIATION_NOT_RECHECKED' }
+  >;
 }
 
 export interface CreateFunnelTaskRequest {
@@ -65,6 +74,7 @@ export const parseTaskStatus = (response: unknown): FunnelTaskStatus => {
   }
 
   let publicationResult: unknown;
+  let sourceLoadResult: SourceLoadResult | undefined;
   const messages: string[] = [];
   const systemMessages: string[] = [];
   if (Array.isArray(response.logs)) {
@@ -73,14 +83,47 @@ export const parseTaskStatus = (response: unknown): FunnelTaskStatus => {
       if (Array.isArray(run.logs)) {
         for (const executor of run.logs) {
           if (!isRecord(executor)) continue;
-          if (response.state === 'COMPLETE' && typeof executor.stdout === 'string') {
+          if (
+            response.state === 'COMPLETE' &&
+            typeof executor.stdout === 'string'
+          ) {
+            const lines = executor.stdout.split('\n');
             const prefix = 'LOOM_PUBLICATION_RESULT ';
-            const line = executor.stdout.split('\n').find((entry) => entry.startsWith(prefix));
+            const line = lines.find((entry) => entry.startsWith(prefix));
             if (line) {
               try {
                 publicationResult = JSON.parse(line.slice(prefix.length));
               } catch {
                 // An invalid result is handled by the publication caller.
+              }
+            }
+            const sourcePrefix = 'LOOM_SOURCE_LOAD_RESULT ';
+            const sourceLine = lines.find((entry) =>
+              entry.startsWith(sourcePrefix),
+            );
+            if (sourceLine) {
+              try {
+                const parsed: unknown = JSON.parse(
+                  sourceLine.slice(sourcePrefix.length),
+                );
+                if (isRecord(parsed) && parsed.state === 'PUBLISHED') {
+                  const warnings = (
+                    Array.isArray(parsed.warnings) ? parsed.warnings : []
+                  ).filter(
+                    (
+                      warning,
+                    ): warning is SourceLoadResult['warnings'][number] =>
+                      isRecord(warning) &&
+                      (warning.code === 'RECONCILIATION_NOT_RECHECKED' ||
+                        (warning.code === 'MISSING_SYFON_MATCHES' &&
+                          typeof warning.count === 'number' &&
+                          Number.isSafeInteger(warning.count) &&
+                          warning.count > 0)),
+                  );
+                  sourceLoadResult = { state: 'PUBLISHED', warnings };
+                }
+              } catch {
+                // Ignore malformed output from older or incompatible workers.
               }
             }
           }
@@ -107,6 +150,7 @@ export const parseTaskStatus = (response: unknown): FunnelTaskStatus => {
     ...task,
     state: response.state,
     ...(publicationResult === undefined ? {} : { publicationResult }),
+    ...(sourceLoadResult === undefined ? {} : { sourceLoadResult }),
     errorMessage:
       failed && output.length > 0
         ? output.join('\n').slice(0, 16_384)

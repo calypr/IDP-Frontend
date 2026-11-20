@@ -35,6 +35,42 @@ describe('Funnel task status', () => {
     expect(status.errorMessage).toBe('Loom rejected this upload: HTTP 413');
   });
 
+  it('reads missing Syfon match warnings only after a successful source load', () => {
+    const stdout =
+      'LOOM_SOURCE_LOAD_RESULT ' +
+      JSON.stringify({
+        state: 'PUBLISHED',
+        warnings: [{ code: 'MISSING_SYFON_MATCHES', count: 3 }],
+      });
+    const logs = [{ logs: [{ stdout }] }];
+
+    expect(
+      parseTaskStatus({ id: 'task', state: 'RUNNING', logs }).sourceLoadResult,
+    ).toBeUndefined();
+    expect(
+      parseTaskStatus({ id: 'task', state: 'COMPLETE', logs }).sourceLoadResult,
+    ).toEqual({
+      state: 'PUBLISHED',
+      warnings: [{ code: 'MISSING_SYFON_MATCHES', count: 3 }],
+    });
+    expect(
+      parseTaskStatus({
+        id: 'task',
+        state: 'COMPLETE',
+        logs: [{ logs: [{ stdout: 'LOOM_SOURCE_LOAD_RESULT malformed' }] }],
+      }).sourceLoadResult,
+    ).toBeUndefined();
+  });
+
+  it('recognizes a resumed load without a current match count', () => {
+    const warnings = [{ code: 'RECONCILIATION_NOT_RECHECKED' }];
+    const stdout = `LOOM_SOURCE_LOAD_RESULT ${JSON.stringify({ state: 'PUBLISHED', warnings })}`;
+    const logs = [{ logs: [{ stdout }] }];
+    expect(
+      parseTaskStatus({ id: 'task', state: 'COMPLETE', logs }).sourceLoadResult,
+    ).toEqual({ state: 'PUBLISHED', warnings });
+  });
+
   it('reads system failures without displaying informational logs', () => {
     const status = parseTaskStatus({
       id: 'task',
