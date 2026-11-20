@@ -5,6 +5,8 @@ import dynamic from 'next/dynamic';
 import {
   NavPageLayout,
   ProjectWorkspaceTabs,
+  isExplorerBuilderEnabled,
+  useGetProjectViewBuilderQuery,
   type NavPageLayoutProps,
 } from '@gen3/frontend';
 import { defineSamplePageLoader } from '@/lib/content/pageLoader';
@@ -40,7 +42,15 @@ const ProjectViewBuilder = ({
     typeof router.query.explorerId === 'string'
       ? router.query.explorerId
       : undefined;
-  const explorerHref = `/Explorer/${encodeURIComponent(`${organization}/${project}`)}${selectedConfigId ? `?explorerId=${encodeURIComponent(selectedConfigId)}` : ''}`;
+  const projectId = `${organization}/${project}`;
+  const { currentData: viewState } = useGetProjectViewBuilderQuery(
+    { project: projectId },
+    { skip: !organization || !project },
+  );
+  const linkedViewId = viewState?.configs.find(
+    ({ config }) => config.id === selectedConfigId,
+  )?.config.id;
+  const explorerHref = `/Explorer/${encodeURIComponent(projectId)}${linkedViewId ? `?explorerId=${encodeURIComponent(linkedViewId)}` : ''}`;
   const selectConfig = (id: string | undefined) => {
     void router.replace(
       { pathname: router.pathname, query: { ...router.query, explorerId: id } },
@@ -91,6 +101,15 @@ const ProjectViewBuilder = ({
                 >
                   View Builder
                 </span>
+                {isExplorerBuilderEnabled() && (
+                  <Link
+                    href={`/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}/explorers/builder`}
+                    role="tab"
+                    className="rounded-none border-0 border-b-2 border-transparent px-0 py-3 text-sm font-semibold text-slate-500 hover:text-slate-800"
+                  >
+                    Dataframe Builder
+                  </Link>
+                )}
               </div>
             </div>
           }

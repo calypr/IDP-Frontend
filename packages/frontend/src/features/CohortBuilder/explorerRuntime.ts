@@ -48,12 +48,7 @@ const panelFor = (
   project: string,
 ): CohortPanelConfiguration => {
   const byColumn = columnByName(output);
-  const tableBindings = [...output.table.columns].sort(
-    (left, right) =>
-      (byColumn.get(left.column)?.order ?? Number.MAX_SAFE_INTEGER) -
-      (byColumn.get(right.column)?.order ?? Number.MAX_SAFE_INTEGER),
-  );
-  const tableColumns = tableBindings
+  const tableColumns = output.table.columns
     .map((binding) => {
       const column = byColumn.get(binding.column);
       if (!column) return undefined;

@@ -31,7 +31,7 @@ const ProjectExplorerBuilder = ({
     typeof router.query.explorerId === 'string'
       ? router.query.explorerId
       : undefined;
-  const explorerHref = `/Explorer/${encodeURIComponent(`${organization}/${project}`)}${explorerId ? `?explorerId=${encodeURIComponent(explorerId)}` : ''}`;
+  const explorerHref = `/Explorer/${encodeURIComponent(`${organization}/${project}`)}`;
   const handleExplorerChange = (nextExplorerId: string) => {
     void router.replace(
       {
@@ -46,8 +46,8 @@ const ProjectExplorerBuilder = ({
     <NavPageLayout
       {...{ footerProps, headerProps, pageProblems }}
       headerMetadata={{
-        title: 'Explorer Builder',
-        content: 'Explorer Builder',
+        title: 'Dataframe Builder',
+        content: 'Dataframe Builder',
         key: 'explorer-builder-page',
       }}
     >
@@ -71,12 +71,19 @@ const ProjectExplorerBuilder = ({
                 >
                   View
                 </Link>
+                <Link
+                  className="rounded-none border-0 border-b-2 border-transparent bg-transparent px-0 pb-3 pt-3 text-sm font-semibold text-slate-500 hover:text-slate-800"
+                  href={`/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}/explorers/views`}
+                  role="tab"
+                >
+                  View Builder
+                </Link>
                 <span
                   aria-selected="true"
                   className="rounded-none border-0 border-b-2 border-[#2f5aac] px-0 pb-3 pt-3 text-sm font-semibold text-[#2f5aac]"
                   role="tab"
                 >
-                  Builder
+                  Dataframe Builder
                 </span>
               </div>
               <div

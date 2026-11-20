@@ -7,7 +7,19 @@ jest.mock('../gen3', () => ({
 
 import { parseTaskStatus } from './funnelApi';
 
-describe('Funnel failure messages', () => {
+describe('Funnel task status', () => {
+  it('reads a dataframe publication acknowledgement only after task completion', () => {
+    const result = { receiptId: 'receipt-a', revisionId: 'revision-a' };
+    const logs = [{ logs: [{ stdout: `started\nLOOM_PUBLICATION_RESULT ${JSON.stringify(result)}\n` }] }];
+    expect(parseTaskStatus({ id: 'task', state: 'RUNNING', logs }).publicationResult).toBeUndefined();
+    expect(parseTaskStatus({ id: 'task', state: 'COMPLETE', logs }).publicationResult).toEqual(result);
+    expect(parseTaskStatus({
+      id: 'task',
+      state: 'COMPLETE',
+      logs: [{ logs: [{ stdout: 'LOOM_PUBLICATION_RESULT invalid' }] }],
+    }).publicationResult).toBeUndefined();
+  });
+
   it('reads executor output from the TES FULL view', () => {
     const status = parseTaskStatus({
       id: 'task',

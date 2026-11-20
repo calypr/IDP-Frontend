@@ -3,7 +3,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import {
   canonicalLoomProjectId,
-  useGetExplorerAuthoringExplorersQuery,
   useGetExplorerStateV1Query,
   useGetGeckoProjectsQuery,
 } from '@gen3/core';
@@ -55,15 +54,10 @@ const CohortBuilderPage = ({
       : explorerId === settings?.defaultConfigId
         ? settings.defaultFrameId
         : undefined;
-  const explorerConfigsQuery = useGetExplorerAuthoringExplorersQuery(
-    { project: projectId },
-    { skip: !projectId, refetchOnMountOrArgChange: true },
-  );
-  const publishedExplorerConfigs = (explorerConfigsQuery.data ?? []).filter(
-    (summary) => Boolean(summary.activeRevisionId),
-  );
-  const showExplorerConfigPicker =
-    !explorerConfigsQuery.error && publishedExplorerConfigs.length >= 2;
+  const publishedExplorerConfigs = (viewSettings.currentData?.configs ?? [])
+    .filter(({ revisionId }) => Boolean(revisionId))
+    .map(({ config }) => ({ explorerId: config.id, title: config.title }));
+  const showExplorerConfigPicker = publishedExplorerConfigs.length >= 2;
   const selectedExplorerConfigId = publishedExplorerConfigs.some(
     (summary) => summary.explorerId === explorerId,
   )

@@ -188,4 +188,5 @@ export const invalidateProjectViewBuilder = (
 ): ReturnType<typeof loomApi.util.invalidateTags> =>
   projectViewBuilderApi.util.invalidateTags([
     { type: 'LOOM_EXPLORER_AUTHORING', id: project },
+    { type: 'LOOM_EXPLORER', id: project },
   ]);

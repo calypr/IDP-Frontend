@@ -1,5 +1,10 @@
 import type { AggregationsData } from '../../types';
-import { loomApi } from './loomApi';
+import { fetchLoomResponse, loomApi } from './loomApi';
+import { GEN3_LOOM_API } from '../../constants';
+import type { CoreState } from '../../reducers';
+import { selectCSRFToken } from '../user/userSliceRTK';
+import { handleUnauthorizedStatus } from '../user/unauthorized';
+import { encodeLoomProjectPath } from './projectId';
 import { shapeLoomRows, toHistogramKey } from './processing';
 import type {
   LoomAggregateRequest,
@@ -77,21 +82,21 @@ export const buildLoomDatasetSelectorQuery = (
   variables: { input: buildLoomIdentityInput(selector) },
 });
 
+const buildLoomRowsInput = (input: LoomRowsRequest) => ({
+  ...buildLoomIdentityInput(input),
+  columns: publicDataframeColumns(input.columns),
+  filters: input.filters ? [...input.filters] : undefined,
+  sort:
+    input.sort && !isInternalDataframeColumn(input.sort.column)
+      ? input.sort
+      : undefined,
+  first: input.first,
+  after: input.after,
+});
+
 export const buildLoomRowsQuery = (input: LoomRowsRequest): LoomQueryArgs => ({
   query: `query LoomRows($input: DataframeRowsInput!) { dataframeRows(input: $input) { ${rowsFields} } }`,
-  variables: {
-    input: {
-      ...buildLoomIdentityInput(input),
-      columns: publicDataframeColumns(input.columns),
-      filters: input.filters ? [...input.filters] : undefined,
-      sort:
-        input.sort && !isInternalDataframeColumn(input.sort.column)
-          ? input.sort
-          : undefined,
-      first: input.first,
-      after: input.after,
-    },
-  },
+  variables: { input: buildLoomRowsInput(input) },
 });
 
 export const buildLoomAggregateQuery = (
@@ -191,7 +196,7 @@ export const buildLoomRichAggregationsQuery = (
 export const buildLoomTableRenderQuery = (
   input: LoomTableRenderRequest,
 ): LoomQueryArgs => {
-  const rowsInput = buildLoomRowsQuery(input).variables?.input;
+  const rowsInput = buildLoomRowsInput(input);
   if (!input.facets || input.facets.length === 0) {
     return {
       query: `query LoomTableRender($rows: DataframeRowsInput!) { table: dataframeRows(input: $rows) { ${rowsFields} } }`,
@@ -312,6 +317,23 @@ export const normalizeLoomTableRenderGraphQLResponse = (response: {
     : {}),
 });
 
+const postPublishedDataframe = async (
+  operation: 'rows' | 'aggregations',
+  body: { projectId: string },
+  api: { getState: () => unknown; signal: AbortSignal },
+) => {
+  const csrfToken = selectCSRFToken(api.getState() as CoreState);
+  const base = `${GEN3_LOOM_API}/api/v1/projects/${encodeLoomProjectPath(body.projectId)}/dataframes`;
+  const response = await fetchLoomResponse(`${base}/${operation}`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+    signal: api.signal,
+    headers: csrfToken ? { 'X-CSRF-Token': csrfToken } : undefined,
+  });
+  handleUnauthorizedStatus(response.status);
+  return response;
+};
+
 export const loomTags = loomApi.enhanceEndpoints({
   addTagTypes: ['LOOM_DATASET', 'LOOM_ROWS', 'LOOM_AGGREGATE'],
 });
@@ -410,8 +432,22 @@ export const loomSlice = loomTags.injectEndpoints({
       LoomRichAggregationsResponse,
       LoomRichAggregationsRequest
     >({
-      query: buildLoomRichAggregationsQuery,
-      transformResponse: normalizeLoomRichAggregationsGraphQLResponse,
+      async queryFn(input, api) {
+        try {
+          const response = await postPublishedDataframe('aggregations', buildRichAggregationInput(input), api);
+          if (!response.ok) {
+            return { error: { status: response.status, requestId: response.headers.get('x-request-id') ?? undefined } };
+          }
+          return { data: normalizeLoomRichAggregationsGraphQLResponse({
+            dataframeAggregations: await response.json(),
+          }) };
+        } catch (error) {
+          return { error: {
+            status: 'FETCH_ERROR',
+            error: error instanceof Error ? error.message : String(error),
+          } };
+        }
+      },
       providesTags: (_result, _error, input) => [
         { type: 'LOOM_AGGREGATE', id: loomDatasetIdentityKey(input) },
       ],
@@ -420,8 +456,33 @@ export const loomSlice = loomTags.injectEndpoints({
       LoomTableRenderResponse,
       LoomTableRenderRequest
     >({
-      query: buildLoomTableRenderQuery,
-      transformResponse: normalizeLoomTableRenderGraphQLResponse,
+      async queryFn(input, api) {
+        try {
+          const [table, facets] = await Promise.all([
+            postPublishedDataframe('rows', buildLoomRowsInput(input), api),
+            input.facets?.length
+              ? postPublishedDataframe('aggregations', buildRichAggregationInput({ ...input, specs: input.facets }), api)
+              : undefined,
+          ]);
+          const failure = [table, facets].find((response) => response && !response.ok);
+          if (failure) {
+            return { error: {
+              status: failure.status,
+              requestId: failure.headers.get('x-request-id') ?? undefined,
+              error: 'Loom could not load the published view.',
+            } };
+          }
+          return { data: normalizeLoomTableRenderGraphQLResponse({
+            table: await table.json(),
+            facets: facets ? await facets.json() : undefined,
+          }) };
+        } catch (error) {
+          return { error: {
+            status: 'FETCH_ERROR',
+            error: error instanceof Error ? error.message : String(error),
+          } };
+        }
+      },
       providesTags: (_result, _error, input) => [
         { type: 'LOOM_ROWS', id: loomDatasetIdentityKey(input) },
         { type: 'LOOM_AGGREGATE', id: loomDatasetIdentityKey(input) },

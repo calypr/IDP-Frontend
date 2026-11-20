@@ -14,6 +14,7 @@ const mockSelectCSRFToken = jest.fn(
 const mockSelectUserDetails = jest.fn((_state: unknown) => ({ sub: 'user-1' }));
 const mockFetchLoomResponse = jest.fn();
 const mockHandleUnauthorizedStatus = jest.fn();
+const mockDispatch = jest.fn();
 
 jest.mock('@calypr/loom-ui/styles.css', () => ({}), { virtual: true });
 
@@ -31,6 +32,7 @@ jest.mock('@gen3/core', () => ({
     mockHandleUnauthorizedStatus(status),
   selectCSRFToken: (state: unknown) => mockSelectCSRFToken(state),
   selectUserDetails: (state: unknown) => mockSelectUserDetails(state),
+  useCoreDispatch: () => mockDispatch,
   useCoreSelector: (selector: (state: unknown) => unknown) => selector({}),
 }));
 

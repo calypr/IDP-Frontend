@@ -1,3 +1,5 @@
+import { configureStore } from '@reduxjs/toolkit';
+import { userAuthApi } from '../../user/userSliceRTK';
 import {
   buildLoomAggregateQuery,
   buildLoomAggregationsQuery,
@@ -7,6 +9,7 @@ import {
   buildLoomRichAggregationsQuery,
   buildLoomRowsQuery,
   buildLoomTableRenderQuery,
+  loomSlice,
   normalizeLoomAggregateGraphQLResponse,
   normalizeLoomRichAggregationsGraphQLResponse,
   normalizeLoomRowsGraphQLResponse,
@@ -317,6 +320,53 @@ describe('Loom GraphQL request contracts', () => {
     expect(() =>
       buildLoomRichAggregationsQuery({ ...scopedIdentity, specs: [] }),
     ).toThrow('Loom rich aggregations require at least one specification');
+  });
+
+  it('loads the published Viewer table and facets through project HTTP routes', async () => {
+    const fetch = jest.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
+      const payload = String(url).endsWith('/rows')
+        ? { columns: ['id'], rows: [['a']], totalCount: 1, pageInfo: { hasNextPage: false } }
+        : { materialization: null, aggregations: [{
+          name: 'status_values', kind: 'TERMS', columns: ['key', 'count'],
+          rows: [{ key: 'active', count: 7 }],
+        }] };
+      return new Response(JSON.stringify(payload));
+    });
+    const store = configureStore({
+      reducer: {
+        [loomSlice.reducerPath]: loomSlice.reducer,
+        [userAuthApi.reducerPath]: userAuthApi.reducer,
+      },
+      middleware: (defaults) => defaults().concat(loomSlice.middleware, userAuthApi.middleware),
+    });
+    try {
+      const result = await store.dispatch(loomSlice.endpoints.getLoomTableRender.initiate({
+        ...scopedIdentity,
+        columns: ['id', 'auth_resource_path'],
+        facets: [{ name: 'status_values', kind: 'TERMS', column: 'status' }],
+      })).unwrap();
+      expect(result.rows).toEqual([{ id: 'a' }]);
+      expect(result.totalCount).toBe(1);
+      const facets = await store.dispatch(loomSlice.endpoints.getLoomRichAggregations.initiate({
+        ...scopedIdentity,
+        specs: [{ name: 'status_values', kind: 'TERMS', column: 'status' }],
+      })).unwrap();
+      expect(facets.aggregations.status_values?.data).toEqual([{ key: 'active', count: 7 }]);
+      expect(fetch.mock.calls.map(([url]) => String(url).split('/dataframes/')[1])).toEqual([
+        'rows',
+        'aggregations',
+        'aggregations',
+      ]);
+      expect(fetch.mock.calls[0]?.[0]).toEqual(expect.stringContaining(encodeURIComponent(encodeURIComponent(projectId))));
+      expect(JSON.parse(String(fetch.mock.calls[0]?.[1]?.body))).toMatchObject({
+        projectId,
+        selector,
+        columns: ['id'],
+      });
+    } finally {
+      store.dispatch(loomSlice.util.resetApiState());
+      fetch.mockRestore();
+    }
   });
 
   it('combines rows and facets only when facets are explicitly requested', () => {

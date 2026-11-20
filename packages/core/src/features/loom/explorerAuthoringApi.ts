@@ -301,6 +301,7 @@ export const explorerAuthoringApi = loomApi.injectEndpoints({
         );
       },
       providesTags: (_result, _error, args) => [
+        { type: 'LOOM_EXPLORER', id: args.project },
         { type: 'LOOM_EXPLORER', id: `${args.project}:${args.explorerId}` },
       ],
     }),

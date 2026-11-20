@@ -19,6 +19,7 @@ export interface FunnelTaskCreated {
 export interface FunnelTaskStatus extends FunnelTaskCreated {
   readonly state: FunnelTaskState;
   readonly errorMessage?: string;
+  readonly publicationResult?: unknown;
 }
 
 export interface CreateFunnelTaskRequest {
@@ -63,6 +64,7 @@ export const parseTaskStatus = (response: unknown): FunnelTaskStatus => {
     throw new Error('Funnel task response included an unknown task state.');
   }
 
+  let publicationResult: unknown;
   const messages: string[] = [];
   const systemMessages: string[] = [];
   if (Array.isArray(response.logs)) {
@@ -71,6 +73,17 @@ export const parseTaskStatus = (response: unknown): FunnelTaskStatus => {
       if (Array.isArray(run.logs)) {
         for (const executor of run.logs) {
           if (!isRecord(executor)) continue;
+          if (response.state === 'COMPLETE' && typeof executor.stdout === 'string') {
+            const prefix = 'LOOM_PUBLICATION_RESULT ';
+            const line = executor.stdout.split('\n').find((entry) => entry.startsWith(prefix));
+            if (line) {
+              try {
+                publicationResult = JSON.parse(line.slice(prefix.length));
+              } catch {
+                // An invalid result is handled by the publication caller.
+              }
+            }
+          }
           for (const output of [executor.stderr, executor.stdout]) {
             if (typeof output === 'string' && output.trim()) {
               messages.push(output.trim());
@@ -93,6 +106,7 @@ export const parseTaskStatus = (response: unknown): FunnelTaskStatus => {
   return {
     ...task,
     state: response.state,
+    ...(publicationResult === undefined ? {} : { publicationResult }),
     errorMessage:
       failed && output.length > 0
         ? output.join('\n').slice(0, 16_384)
@@ -129,6 +143,7 @@ export const funnelApi = gen3Api.injectEndpoints({
             dispatch(
               loomApi.util.invalidateTags([
                 'LOOM_EXPLORER',
+                'LOOM_EXPLORER_AUTHORING',
                 'LOOM_DATASET',
                 'LOOM_ROWS',
                 'LOOM_AGGREGATE',

@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { partial } from 'lodash';
 import { skipToken } from '@reduxjs/toolkit/query';
 import {
@@ -12,8 +12,6 @@ import {
   FacetType,
   isIntersection,
   buildLoomFacetPlan,
-  LoomFacetCache,
-  loomFacetCacheKey,
   LoomTableRenderResponse,
   selectIndexFilters,
   selectSharedFilters,
@@ -114,13 +112,10 @@ export const CohortPanel = ({
   });
   const [tableRender, setTableRender] =
     useState<LoomTableRenderResponse | null>(null);
-  const [acceptedRenderSignature, setAcceptedRenderSignature] = useState('');
-  const renderSignatureRef = useRef('');
   const [tableRenderState, setTableRenderState] = useState({
     isFetching: false,
     isError: false,
   });
-  const facetCache = useRef(new LoomFacetCache());
   const onTableRenderState = useCallback(
     (state: { isFetching: boolean; isError: boolean }) =>
       setTableRenderState(state),
@@ -208,9 +203,6 @@ export const CohortPanel = ({
       current.includes(field) ? current : [...current, field],
     );
   }, []);
-  // Facets and charts use the same selector and active filters. Batch them
-  // into one GraphQL document; Loom executes these as published ClickHouse
-  // aggregates, not an on-the-fly dataframe build.
   const aggregationFields = useDeepCompareMemo(
     () => [...new Set([...chartKeys, ...demandedFacetFields, ...fields])],
     [demandedFacetFields, fields, chartKeys],
@@ -275,8 +267,8 @@ export const CohortPanel = ({
     );
   }, [aggregationFields, chartKeys, demandedFacetFields, facetConfig]);
   const {
-    data: fallbackRichAggregations,
-    isError: isFallbackAggregationsError,
+    currentData: facetResponse,
+    isError: isAggsQueryError,
   } = useGetLoomRichAggregationsQuery(
     loomIdentity
       ? {
@@ -287,100 +279,19 @@ export const CohortPanel = ({
       : skipToken,
     {
       skip:
-        usesTableRender ||
         !loomIdentity ||
-        !fallbackDataset ||
         facetPlan.specs.length === 0 ||
         !!effectiveLoomFilters.error,
     },
   );
-  const renderSignature = useMemo(
-    () =>
-      JSON.stringify({
-        identity: loomIdentity,
-        filters: effectiveLoomFilters.filters,
-        facets: facetPlan.specs,
-      }),
-    [effectiveLoomFilters.filters, facetPlan.specs, loomIdentity],
-  );
-  renderSignatureRef.current = renderSignature;
-  const onTableRender = useCallback(
-    (response: LoomTableRenderResponse, requestSignature?: string) => {
-      const currentSignature = renderSignatureRef.current;
-      if (requestSignature && requestSignature !== currentSignature) return;
-      const responseSignature = requestSignature ?? currentSignature;
-      if (loomIdentity && response.facets) {
-        Object.values(response.facets.aggregations).forEach((aggregation) => {
-          const spec = facetPlan.specs.find(
-            (candidate) => candidate.name === aggregation.name,
-          );
-          if (spec) {
-            facetCache.current.set(
-              loomFacetCacheKey({
-                identity: loomIdentity,
-                revision:
-                  response.materialization?.revision ?? activeDataset?.revision,
-                spec,
-                filters: effectiveLoomFilters.filters,
-              }),
-              aggregation,
-            );
-          }
-        });
-      }
-      setTableRender((current) => ({
-        ...response,
-        facets:
-          response.facets ??
-          (acceptedRenderSignature === responseSignature
-            ? current?.facets
-            : undefined),
-      }));
-      setAcceptedRenderSignature(responseSignature);
-    },
-    [
-      acceptedRenderSignature,
-      activeDataset?.revision,
-      effectiveLoomFilters.filters,
-      facetPlan.specs,
-      loomIdentity,
-    ],
-  );
-  const isAggsQueryError = usesTableRender
-    ? acceptedRenderSignature === renderSignature && tableRenderState.isError
-    : isFallbackAggregationsError;
-  const facetResponse = usesTableRender
-    ? acceptedRenderSignature === renderSignature
-      ? tableRender?.facets
-      : undefined
-    : fallbackRichAggregations;
   const data = useDeepCompareMemo(() => {
-    return facetPlan.specs.reduce((acc, spec) => {
-      const aggregation =
-        facetResponse?.aggregations[spec.name] ??
-        (loomIdentity
-          ? facetCache.current.get(
-              loomFacetCacheKey({
-                identity: loomIdentity,
-                revision: activeDataset?.revision,
-                spec,
-                filters: effectiveLoomFilters.filters,
-              }),
-            )
-          : undefined);
-      if (aggregation) acc[spec.column] = aggregation.data;
-      return acc;
-    }, {} as AggregationsData);
-  }, [
-    activeDataset?.revision,
-    effectiveLoomFilters.filters,
-    facetResponse,
-    facetPlan.specs,
-    loomIdentity,
-    acceptedRenderSignature,
-    renderSignature,
-    tableRender,
-  ]);
+    const aggregations: AggregationsData = {};
+    for (const spec of facetPlan.specs) {
+      const aggregation = facetResponse?.aggregations[spec.name];
+      if (aggregation) aggregations[spec.column] = aggregation.data;
+    }
+    return aggregations;
+  }, [facetResponse, facetPlan.specs]);
   const isSuccess = Boolean(data && Object.keys(data).length > 0);
   const isChartSuccess = isSuccess;
   const facetMetadata = useDeepCompareMemo(() => {
@@ -730,9 +641,7 @@ export const CohortPanel = ({
                 loomDataset={loomDataset}
                 loomProjectIds={loomProjectIds}
                 loomActiveDataset={activeDataset}
-                facetSpecs={facetPlan.specs}
-                tableRenderSignature={renderSignature}
-                onTableRender={onTableRender}
+                onTableRender={setTableRender}
                 onTableRenderState={onTableRenderState}
                 tableConfig={runtimeTable}
                 accessibility={accessLevel}

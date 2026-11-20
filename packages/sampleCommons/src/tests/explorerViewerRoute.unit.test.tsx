@@ -38,7 +38,7 @@ type ViewerStateResult = {
 
 let mockEmbedded = false;
 let mockViewerProps: { activeTab?: string | null } = {};
-let mockViewSettings = {
+let mockViewSettings: { currentData: { canEdit: boolean; settings: { defaultConfigId: string; defaultFrameId: string }; configs?: Array<{ revisionId?: string; config: { id: string; title: string } }> } } = {
   currentData: {
     canEdit: false,
     settings: { defaultConfigId: '', defaultFrameId: '' },
@@ -70,15 +70,6 @@ const mockGetExplorerState = jest.fn(
     },
   }),
 );
-const mockGetExplorerSummaries = jest.fn(
-  (
-    _args: { readonly project: string },
-    _options: QueryOptions,
-  ): { data?: ReadonlyArray<ExplorerSummary>; error?: { status: number } } => ({
-    data: [],
-  }),
-);
-
 jest.mock('next/router', () => ({
   useRouter: () => mockRouter,
 }));
@@ -101,10 +92,7 @@ jest.mock('@gen3/core', () => ({
   }),
   useGetExplorerStateV1Query: (args: ViewerStateArgs, options: QueryOptions) =>
     mockGetExplorerState(args, options),
-  useGetExplorerAuthoringExplorersQuery: (
-    args: { readonly project: string },
-    options: QueryOptions,
-  ) => mockGetExplorerSummaries(args, options),
+
 }));
 jest.mock('@gen3/frontend', () => ({
   selectedProjectViewId: (explicitId?: string, defaultId?: string) =>
@@ -233,6 +221,10 @@ describe('published Explorer route', () => {
       currentData: {
         canEdit: false,
         settings: { defaultConfigId: '', defaultFrameId: '' },
+        configs: publishedConfigs.map(({ explorerId, title, activeRevisionId }) => ({
+          config: { id: explorerId, title },
+          revisionId: activeRevisionId,
+        })),
       },
     };
     mockRouter.pathname = '/Explorer/[configId]';
@@ -258,8 +250,6 @@ describe('published Explorer route', () => {
         },
       },
     }));
-    mockGetExplorerSummaries.mockReset();
-    mockGetExplorerSummaries.mockReturnValue({ data: publishedConfigs });
     delete process.env.NEXT_PUBLIC_GEN3_EXPLORER_BUILDER_ENABLED;
   });
 
@@ -271,10 +261,6 @@ describe('published Explorer route', () => {
 
   it('selects an active project config and requests its Viewer state', () => {
     const { rerender } = render(<Explorer {...props} />);
-    expect(mockGetExplorerSummaries).toHaveBeenLastCalledWith(
-      { project },
-      { skip: false, refetchOnMountOrArgChange: true },
-    );
     expect(mockGetExplorerState).toHaveBeenLastCalledWith(
       { project, explorerId: 'metadata' },
       { skip: false, refetchOnMountOrArgChange: true },
@@ -316,12 +302,7 @@ describe('published Explorer route', () => {
   });
 
   it('hides the config picker unless at least two configs are published and keeps Builder hidden by default', () => {
-    mockGetExplorerSummaries.mockReturnValue({
-      data: [
-        publishedConfigs[0],
-        { ...publishedConfigs[1], activeRevisionId: undefined },
-      ],
-    });
+    mockViewSettings.currentData.configs![1].revisionId = undefined;
     render(<Explorer {...props} />);
     expect(
       screen.queryByRole('combobox', { name: 'Project configuration' }),
@@ -330,16 +311,16 @@ describe('published Explorer route', () => {
       screen.getByRole('tab', { name: 'metadata view' }),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole('link', { name: 'Builder' }),
+      screen.queryByRole('link', { name: 'Dataframe Builder' }),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole('tab', { name: 'Builder' }),
+      screen.queryByRole('tab', { name: 'Dataframe Builder' }),
     ).not.toBeInTheDocument();
   });
 
   it('keeps the valid default Viewer when the config list fails or the query id is absent', () => {
     mockRouter.query = { configId: project, tab: 'overview' };
-    mockGetExplorerSummaries.mockReturnValue({ error: { status: 503 } });
+    mockViewSettings.currentData.configs = undefined;
     render(<Explorer {...props} />);
     expect(
       screen.queryByRole('combobox', { name: 'Project configuration' }),
@@ -425,7 +406,7 @@ describe('published Explorer route', () => {
       '/org/HTAN_INT/project/BForePC/explorers/views?explorerId=files',
     );
     expect(
-      screen.queryByRole('tab', { name: 'Builder' }),
+      screen.queryByRole('tab', { name: 'Dataframe Builder' }),
     ).not.toBeInTheDocument();
   });
 
@@ -465,7 +446,7 @@ describe('published Explorer route', () => {
   it('exposes the preserved Builder link only after explicit opt-in', () => {
     process.env.NEXT_PUBLIC_GEN3_EXPLORER_BUILDER_ENABLED = 'true';
     render(<Explorer {...props} />);
-    expect(screen.getByRole('tab', { name: 'Builder' })).toHaveAttribute(
+    expect(screen.getByRole('tab', { name: 'Dataframe Builder' })).toHaveAttribute(
       'href',
       '/org/HTAN_INT/project/BForePC/explorers/builder?explorerId=metadata',
     );
