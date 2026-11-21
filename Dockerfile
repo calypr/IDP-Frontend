@@ -1,17 +1,6 @@
 # docker build -t ff .
 # docker run -p 3000:3000 -it ff
 
-FROM node:22-slim AS loom-ui
-# Keep this revision aligned with the Loom backend used by the Explorer.
-ARG LOOM_UI_REVISION=ba6dc97e33f319946bf8e8c0e52a7e0511b96295
-WORKDIR /loom
-ADD https://codeload.github.com/calypr/loom/tar.gz/${LOOM_UI_REVISION} /tmp/loom.tar.gz
-RUN tar -xzf /tmp/loom.tar.gz --strip-components=1 && rm /tmp/loom.tar.gz
-WORKDIR /loom/ui
-RUN npm ci --ignore-scripts --no-audit --no-fund \
-    && npm run build --workspace @calypr/loom-ui \
-    && npm pack --workspace @calypr/loom-ui --pack-destination /tmp
-
 FROM node:22-slim AS builder
 WORKDIR /gen3
 
@@ -32,12 +21,6 @@ COPY . .
 # Install deps (workspace aware)
 RUN npm install --location=global lerna@^8.1.8
 RUN npm ci --include=optional
-# Use the matching Loom build with the dependency tree installed from the lockfile.
-COPY --from=loom-ui /tmp/calypr-loom-ui-*.tgz /tmp/loom-ui.tgz
-RUN rm -rf node_modules/@calypr/loom-ui/dist \
-    && tar -xzf /tmp/loom-ui.tgz --strip-components=1 -C node_modules/@calypr/loom-ui \
-    && rm /tmp/loom-ui.tgz
-
 # Build all packages (lerna monorepo)
 ENV NODE_OPTIONS="--max-old-space-size=4096"
 RUN lerna run build --concurrency=1 --stream
