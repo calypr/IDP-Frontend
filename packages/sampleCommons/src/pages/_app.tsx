@@ -37,7 +37,6 @@ import '@fontsource/lato';
 
 import { setDRSHostnames } from '@gen3/core';
 import drsHostnames from '../../config/drsHostnames.json';
-import { loadContent } from '@/lib/content/loadContent';
 
 if (
   typeof window !== 'undefined' &&
@@ -135,7 +134,15 @@ Gen3App.getInitialProps = async (
 ): Promise<Gen3AppProps & AppInitialProps> => {
   const ctx = await App.getInitialProps(context);
 
+  if (typeof window !== 'undefined') {
+    return {
+      ...ctx,
+      ...(clientContent ?? { icons: [], sessionConfig: {}, modalsConfig: {} }),
+    };
+  }
+
   try {
+    const { loadContent } = await import('@/lib/content/loadContent');
     const res = await loadContent(context);
     return {
       ...ctx,

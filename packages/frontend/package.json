@@ -49,7 +49,7 @@
     "os": false
   },
   "dependencies": {
-    "@calypr/loom-ui": "0.1.3",
+    "@calypr/loom-ui": "0.1.4",
     "@codemirror/autocomplete": "^6.20.1",
     "@codemirror/view": "^6.39.17",
     "@gen3/core": "^0.11.32",
