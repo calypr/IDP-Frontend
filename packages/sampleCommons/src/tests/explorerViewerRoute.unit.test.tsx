@@ -138,8 +138,6 @@ jest.mock('@gen3/frontend', () => ({
       ))}
     </select>
   ),
-  isExplorerBuilderEnabled: () =>
-    process.env.NEXT_PUBLIC_GEN3_EXPLORER_BUILDER_ENABLED === 'true',
   ExplorerMainContent: ({
     project,
     runtime,
@@ -212,8 +210,6 @@ const publishedConfigs: ReadonlyArray<ExplorerSummary> = [
 ];
 
 describe('published Explorer route', () => {
-  const original = process.env.NEXT_PUBLIC_GEN3_EXPLORER_BUILDER_ENABLED;
-
   beforeEach(() => {
     mockEmbedded = false;
     mockViewerProps = {};
@@ -250,14 +246,8 @@ describe('published Explorer route', () => {
         },
       },
     }));
-    delete process.env.NEXT_PUBLIC_GEN3_EXPLORER_BUILDER_ENABLED;
   });
 
-  afterEach(() => {
-    if (original === undefined)
-      delete process.env.NEXT_PUBLIC_GEN3_EXPLORER_BUILDER_ENABLED;
-    else process.env.NEXT_PUBLIC_GEN3_EXPLORER_BUILDER_ENABLED = original;
-  });
 
   it('selects an active project config and requests its Viewer state', () => {
     const { rerender } = render(<Explorer {...props} />);
@@ -301,7 +291,7 @@ describe('published Explorer route', () => {
     ).toBeInTheDocument();
   });
 
-  it('hides the config picker unless at least two configs are published and keeps Builder hidden by default', () => {
+  it('hides the config picker unless at least two configs are published', () => {
     mockViewSettings.currentData.configs![1].revisionId = undefined;
     render(<Explorer {...props} />);
     expect(
@@ -310,12 +300,6 @@ describe('published Explorer route', () => {
     expect(
       screen.getByRole('tab', { name: 'metadata view' }),
     ).toBeInTheDocument();
-    expect(
-      screen.queryByRole('link', { name: 'Dataframe Builder' }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole('tab', { name: 'Dataframe Builder' }),
-    ).not.toBeInTheDocument();
   });
 
   it('keeps the valid default Viewer when the config list fails or the query id is absent', () => {
@@ -405,9 +389,6 @@ describe('published Explorer route', () => {
       'href',
       '/org/HTAN_INT/project/BForePC/explorers/views?explorerId=files',
     );
-    expect(
-      screen.queryByRole('tab', { name: 'Dataframe Builder' }),
-    ).not.toBeInTheDocument();
   });
 
   it('keeps an unavailable default unselected and visible as a warning when embedded', () => {
@@ -443,8 +424,7 @@ describe('published Explorer route', () => {
     );
   });
 
-  it('exposes the preserved Builder link only after explicit opt-in', () => {
-    process.env.NEXT_PUBLIC_GEN3_EXPLORER_BUILDER_ENABLED = 'true';
+  it('links to Dataframe Builder without deployment configuration', () => {
     render(<Explorer {...props} />);
     expect(screen.getByRole('tab', { name: 'Dataframe Builder' })).toHaveAttribute(
       'href',

@@ -23,14 +23,12 @@ jest.mock('next/link', () => ({
 jest.mock(
   '@/lib/content/pageLoader',
   () => ({
-    defineSamplePageLoader: jest.fn(() => jest.fn()),
+    defineSamplePageLoader: jest.fn(() => jest.fn(async () => ({ props: {} }))),
   }),
   { virtual: true },
 );
 
 jest.mock('@gen3/frontend', () => ({
-  isExplorerBuilderEnabled: () =>
-    process.env.NEXT_PUBLIC_GEN3_EXPLORER_BUILDER_ENABLED === 'true',
   ExplorerBuilderPage: ({
     explorerId,
     onExplorerChange,
@@ -116,17 +114,11 @@ describe('project Explorer Builder route', () => {
 });
 
 describe('Builder route availability', () => {
-  it('returns 404 before loading the page when Builder is disabled', async () => {
-    const original = process.env.NEXT_PUBLIC_GEN3_EXPLORER_BUILDER_ENABLED;
-    delete process.env.NEXT_PUBLIC_GEN3_EXPLORER_BUILDER_ENABLED;
-    try {
-      await expect(
-        getServerSideProps({} as GetServerSidePropsContext),
-      ).resolves.toEqual({ notFound: true });
-    } finally {
-      if (original === undefined)
-        delete process.env.NEXT_PUBLIC_GEN3_EXPLORER_BUILDER_ENABLED;
-      else process.env.NEXT_PUBLIC_GEN3_EXPLORER_BUILDER_ENABLED = original;
-    }
+  it('loads the Builder route without deployment configuration', async () => {
+    await expect(
+      getServerSideProps({} as GetServerSidePropsContext),
+    ).resolves.toEqual({
+      props: {},
+    });
   });
 });

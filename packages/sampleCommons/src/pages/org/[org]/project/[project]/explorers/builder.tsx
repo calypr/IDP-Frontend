@@ -3,19 +3,13 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import {
   ExplorerBuilderPage,
-  isExplorerBuilderEnabled,
   NavPageLayout,
   ProjectWorkspaceTabs,
   type NavPageLayoutProps,
 } from '@gen3/frontend';
 import { defineSamplePageLoader } from '@/lib/content/pageLoader';
 
-const loadBuilderPage = defineSamplePageLoader('ExplorerBuilder');
-
-export const getServerSideProps: typeof loadBuilderPage = async (context) => {
-  if (!isExplorerBuilderEnabled()) return { notFound: true };
-  return loadBuilderPage(context);
-};
+export const getServerSideProps = defineSamplePageLoader('ExplorerBuilder');
 
 const ProjectExplorerBuilder = ({
   headerProps,

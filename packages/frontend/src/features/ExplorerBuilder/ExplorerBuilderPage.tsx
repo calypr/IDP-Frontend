@@ -2,7 +2,6 @@ import React from 'react';
 import type { ComponentProps } from 'react';
 import dynamic from 'next/dynamic';
 import type { ExplorerBuilderClient } from './ExplorerBuilderClient';
-import { isExplorerBuilderEnabled } from './availability';
 
 export type ExplorerBuilderPageProps = ComponentProps<
   typeof ExplorerBuilderClient
@@ -16,7 +15,8 @@ const Builder = dynamic<ExplorerBuilderPageProps>(
   { ssr: false },
 );
 
-export const ExplorerBuilderPage = (props: ExplorerBuilderPageProps) =>
-  isExplorerBuilderEnabled() ? <Builder {...props} /> : null;
+export const ExplorerBuilderPage = (props: ExplorerBuilderPageProps) => (
+  <Builder {...props} />
+);
 
 export default ExplorerBuilderPage;

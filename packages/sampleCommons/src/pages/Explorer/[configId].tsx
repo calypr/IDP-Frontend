@@ -12,7 +12,6 @@ import {
   useGetProjectViewBuilderQuery,
   selectedProjectViewId,
   useProjectViewTab,
-  isExplorerBuilderEnabled,
   ExplorerPageGetServerSideProps as getServerSideProps,
   NavPageLayout,
   ProjectWorkspaceTabs,
@@ -265,40 +264,35 @@ const CohortBuilderPage = ({
                   );
                 })}
               </div>
-              {(viewSettings.currentData?.canEdit ||
-                isExplorerBuilderEnabled()) && (
-                <div
-                  aria-label="Explorer workspace"
-                  className="ml-auto flex shrink-0 self-stretch gap-5 border-l border-slate-200 pl-5"
-                  role="tablist"
+              <div
+                aria-label="Explorer workspace"
+                className="ml-auto flex shrink-0 self-stretch gap-5 border-l border-slate-200 pl-5"
+                role="tablist"
+              >
+                <span
+                  aria-selected="true"
+                  className="rounded-none border-0 border-b-2 border-[#2f5aac] bg-transparent px-0 pb-3 pt-3 text-sm font-semibold text-[#2f5aac]"
+                  role="tab"
                 >
-                  <span
-                    aria-selected="true"
-                    className="rounded-none border-0 border-b-2 border-[#2f5aac] bg-transparent px-0 pb-3 pt-3 text-sm font-semibold text-[#2f5aac]"
+                  View
+                </span>
+                {viewSettings.currentData?.canEdit && (
+                  <Link
+                    href={viewBuilderHref}
+                    className="px-0 pb-3 pt-3 text-sm font-semibold text-slate-500 hover:text-slate-800"
                     role="tab"
                   >
-                    View
-                  </span>
-                  {viewSettings.currentData?.canEdit && (
-                    <Link
-                      href={viewBuilderHref}
-                      className="px-0 pb-3 pt-3 text-sm font-semibold text-slate-500 hover:text-slate-800"
-                      role="tab"
-                    >
-                      View Builder
-                    </Link>
-                  )}
-                  {isExplorerBuilderEnabled() && (
-                    <Link
-                      className="rounded-none border-0 border-b-2 border-transparent bg-transparent px-0 pb-3 pt-3 text-sm font-semibold text-slate-500 hover:text-slate-800"
-                      href={builderHref}
-                      role="tab"
-                    >
-                      Dataframe Builder
-                    </Link>
-                  )}
-                </div>
-              )}
+                    View Builder
+                  </Link>
+                )}
+                <Link
+                  className="rounded-none border-0 border-b-2 border-transparent bg-transparent px-0 pb-3 pt-3 text-sm font-semibold text-slate-500 hover:text-slate-800"
+                  href={builderHref}
+                  role="tab"
+                >
+                  Dataframe Builder
+                </Link>
+              </div>
             </div>
           ) : null
         }

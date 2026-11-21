@@ -5,7 +5,6 @@ import dynamic from 'next/dynamic';
 import {
   NavPageLayout,
   ProjectWorkspaceTabs,
-  isExplorerBuilderEnabled,
   useGetProjectViewBuilderQuery,
   type NavPageLayoutProps,
 } from '@gen3/frontend';
@@ -101,15 +100,13 @@ const ProjectViewBuilder = ({
                 >
                   View Builder
                 </span>
-                {isExplorerBuilderEnabled() && (
-                  <Link
-                    href={`/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}/explorers/builder`}
-                    role="tab"
-                    className="rounded-none border-0 border-b-2 border-transparent px-0 py-3 text-sm font-semibold text-slate-500 hover:text-slate-800"
-                  >
-                    Dataframe Builder
-                  </Link>
-                )}
+                <Link
+                  href={`/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}/explorers/builder`}
+                  role="tab"
+                  className="rounded-none border-0 border-b-2 border-transparent px-0 py-3 text-sm font-semibold text-slate-500 hover:text-slate-800"
+                >
+                  Dataframe Builder
+                </Link>
               </div>
             </div>
           }
