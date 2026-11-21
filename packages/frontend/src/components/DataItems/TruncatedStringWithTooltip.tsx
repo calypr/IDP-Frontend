@@ -1,8 +1,8 @@
 import { Text, Tooltip } from '@mantine/core';
-import { isArray } from 'lodash';
 import React from 'react';
 import { DataItemRendererFunction, DataItemRenderFunctionProps } from './types';
 import { isTextTransform } from '../../utils';
+import { renderCell } from '../../utils/renderCell';
 
 export const TruncatedStringWithTooltip: DataItemRendererFunction = ({
   value,
@@ -22,24 +22,14 @@ export const TruncatedStringWithTooltip: DataItemRendererFunction = ({
     ? params?.transform
     : undefined;
   const valueIfNotAvailable = params?.valueIfNotAvailable ?? '';
-  const content = value as string | string[];
+  const content = renderCell(value);
 
-  if (
-    content === undefined ||
-    content === null ||
-    (isArray(content) && content.length === 0)
-  ) {
+  if (content === '') {
     return <Text>{`${valueIfNotAvailable}`}</Text>;
   }
 
-  if (content === '') {
-    return <Text>{`${valueIfNotAvailable}`} </Text>;
-  }
-  const contentString = isArray(content) ? content.join(', ') : content;
   const truncated =
-    contentString.length > limit
-      ? `${contentString.slice(0, limit)}...`
-      : contentString;
+    content.length > limit ? `${content.slice(0, limit)}...` : content;
   return (
     <Tooltip label={content}>
       <Text tt={ttValue}>{truncated}</Text>

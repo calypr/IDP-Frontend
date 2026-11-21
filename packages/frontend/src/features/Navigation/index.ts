@@ -6,7 +6,11 @@ import NavigationBar from './NavigationBar';
 import NavigationButton from './NavigationButton';
 import NavPageLayout from './NavPageLayout';
 import ProjectWorkspaceTabs from './ProjectWorkspaceTabs';
-import type { NavPageLayoutProps } from './types';
+import type {
+  MainContentProps,
+  NavPageLayoutProps,
+  PageLayoutMode,
+} from './types';
 import { type TopBarProps } from './TopBar/TopBar';
 import {
   HeaderProps,
@@ -21,6 +25,8 @@ export {
   type HeaderProps,
   type NavigationProps,
   type NavPageLayoutProps,
+  type MainContentProps,
+  type PageLayoutMode,
   type TopBarProps,
   type BannerProps,
   type BannerLevelCategories,

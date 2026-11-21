@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "state": {
+    "projectId": "acme/cancer-study",
+    "configId": "patient-overview",
+    "title": "Patient overview",
+    "draftVersion": 2,
+    "baseRevisionId": null,
+    "activeReleaseId": null,
+    "draftContent": {
+      "schemaVersion": 1,
+      "tabs": [{"id": "patients", "title": "Patients", "output": "Patients", "table": {"columns": [{"field": "id", "label": "Patient ID", "visible": true}]}}]
+    },
+    "updatedBy": "builder@example.org",
+    "updatedAt": "2026-08-11T18:05:00Z"
+  }
+}

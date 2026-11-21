@@ -1,3 +1,53 @@
+@layer base {
+  .gen3-nav-page-layout {
+    display: flex;
+    min-height: 100vh;
+    min-height: 100dvh;
+    flex-direction: column;
+  }
+
+  .gen3-nav-page-layout__header {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    flex: none;
+  }
+
+  .gen3-nav-page-layout__body {
+    position: relative;
+    display: flex;
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .gen3-nav-page-layout__main {
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow: visible;
+  }
+
+  .gen3-nav-page-layout__footer {
+    flex: none;
+  }
+
+  .gen3-nav-page-layout--viewport {
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  .gen3-nav-page-layout--viewport .gen3-nav-page-layout__body,
+  .gen3-nav-page-layout--viewport .gen3-nav-page-layout__main {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .gen3-nav-page-layout--viewport .gen3-nav-page-layout__main {
+    display: flex;
+    flex-direction: column;
+  }
+}
+
 @layer components {
   .discovery-subheading {
     @apply px-0 py-10 border-r-2;

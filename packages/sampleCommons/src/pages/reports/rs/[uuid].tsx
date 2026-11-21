@@ -11,14 +11,15 @@ import {
 const ReportsPage = ({
   headerProps,
   footerProps,
-  reportsConfig,
+  configuration,
+  pageProblems,
 }: ReportsPageProps) => {
   const router = useRouter();
   const { uuid } = router.query;
 
   return (
     <NavPageLayout
-      {...{ headerProps, footerProps }}
+      {...{ headerProps, footerProps, pageProblems }}
       headerMetadata={{
         title: 'Gen3 Cohort Builder Page',
         content: 'Cohort Builder',
@@ -26,10 +27,12 @@ const ReportsPage = ({
       }}
     >
       <ProtectedContent>
-        <ResearchSubjectDetailsPanel
-          id={Array.isArray(uuid) ? uuid[0] : uuid}
-          tableConfig={reportsConfig.tableConfig}
-        ></ResearchSubjectDetailsPanel>
+        {configuration ? (
+          <ResearchSubjectDetailsPanel
+            id={Array.isArray(uuid) ? uuid[0] : uuid}
+            tableConfig={configuration.tableConfig}
+          />
+        ) : null}
       </ProtectedContent>
     </NavPageLayout>
   );

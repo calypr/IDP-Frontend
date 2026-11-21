@@ -19,6 +19,10 @@ import {
   gripApiReducer,
   gripApiSliceReducerPath,
 } from './features/grip/gripApi';
+import {
+  loomApiReducer,
+  loomApiSliceReducerPath,
+} from './features/loom/loomApi';
 
 export const rootReducer = combineReducers({
   gen3Services: gen3ServicesReducer,
@@ -30,6 +34,7 @@ export const rootReducer = combineReducers({
   activeWorkspace: activeWorkspaceReducer,
   [guppyApiSliceReducerPath]: guppyApiReducer,
   [gripApiSliceReducerPath]: gripApiReducer,
+  [loomApiSliceReducerPath]: loomApiReducer,
   [userAuthApiReducerPath]: userAuthApiReducer,
 });
 

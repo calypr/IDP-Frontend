@@ -6,7 +6,6 @@ import {
   registerDiscoveryDefaultCellRenderers,
   registerDiscoveryDefaultStudyPreviewRenderers,
 } from '../../features/Discovery';
-import { Center } from '@mantine/core';
 import ProtectedContent from '../../components/Protected/ProtectedContent';
 import { useSession } from '../../lib/session/session';
 
@@ -14,41 +13,37 @@ import { useSession } from '../../lib/session/session';
 registerDiscoveryDefaultCellRenderers();
 registerDiscoveryDefaultStudyPreviewRenderers();
 
-export const DiscoveryMainContent = ({ discoveryConfig }: any) => {
+export const DiscoveryMainContent = ({
+  configuration,
+}: Pick<DiscoveryPageProps, 'configuration'>) => {
   const { status, pending } = useSession();
   if (pending || status !== 'issued') {
     return null;
   }
-  if (!discoveryConfig) {
-    return (
-      <Center maw={400} h={100} mx="auto">
-        <div>Discovery config is not defined. Page disabled</div>
-      </Center>
-    );
-  }
-  return <Discovery discoveryConfig={discoveryConfig} />;
+  return configuration ? <Discovery discoveryConfig={configuration} /> : null;
 };
 
 const DiscoveryPage = ({
   headerProps,
   footerProps,
-  discoveryConfig,
-  errorStatus,
+  pageProblems,
+  configuration,
 }: DiscoveryPageProps): JSX.Element => {
   return (
     <NavPageLayout
       {...{ headerProps, footerProps }}
+      pageProblems={pageProblems}
       headerMetadata={{
         title: 'Gen3 Discovery Page',
         content: 'Discovery Data',
         key: 'gen3-discovery-page',
-        ...(discoveryConfig?.headerMetadata
-          ? discoveryConfig.headerMetadata
+        ...(configuration?.headerMetadata
+          ? configuration.headerMetadata
           : {}),
       }}
     >
-      <ProtectedContent errorStatus={errorStatus}>
-        <DiscoveryMainContent discoveryConfig={discoveryConfig} />
+      <ProtectedContent>
+        <DiscoveryMainContent configuration={configuration} />
       </ProtectedContent>
     </NavPageLayout>
   );

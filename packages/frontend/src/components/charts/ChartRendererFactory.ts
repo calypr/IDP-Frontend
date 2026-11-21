@@ -9,6 +9,9 @@ const DefaultChartCatalog = {
   chart: {
     bar: BarChart,
     horizontalStacked: HorizontalBarChart,
+    // Explorer Builder v2 stores the canonical pie chart type as `pie`.
+    // Keep `fullPie` for compatibility with the legacy explorer config.
+    pie: PieChart,
     fullPie: PieChart,
     donut: DonutChart,
   },

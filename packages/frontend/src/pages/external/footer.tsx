@@ -1,6 +1,7 @@
 import { GetServerSideProps } from 'next';
 import React from 'react';
-import { getNavPageLayoutPropsFromConfig } from '../../lib/common/staticProps';
+import { definePageLoader, type PageProps } from '../../lib/pageLoader';
+import { loadNavigationFromContext } from '../../lib/common/staticProps';
 import Footer from '../../features/Navigation/Footer/Footer';
 import { FooterProps } from '../../features/Navigation';
 
@@ -8,13 +9,19 @@ const StandaloneFooterPage = (props: FooterProps) => {
   return <Footer {...props} />;
 };
 
-export const getStaticProps: GetServerSideProps = async () => {
-  const { footerProps } = await getNavPageLayoutPropsFromConfig();
-  return {
-    props: {
-      ...footerProps,
-    },
-  };
+const loadFooterPage = definePageLoader<PageProps>({
+  name: 'ExternalFooter',
+  loadNavigation: loadNavigationFromContext,
+  load: async () => ({}),
+});
+
+export const getServerSideProps: GetServerSideProps = async (context) => {
+  const result = await loadFooterPage(context);
+  if ('props' in result) {
+    const props = await result.props;
+    return { props: props.footerProps };
+  }
+  return result;
 };
 
 export default StandaloneFooterPage;

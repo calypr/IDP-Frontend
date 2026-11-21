@@ -16,14 +16,10 @@ import {
   duplicateCohort,
   isIndexedFilterSetEmpty,
   removeCohort,
-  selectAllCohorts,
-  selectCurrentCohort,
   setCurrentCohortId,
   updateCohortName,
   useCoreDispatch,
-  useCoreSelector,
 } from '@gen3/core';
-import { useDeepCompareEffect } from 'use-deep-compare';
 
 import {
   AddIcon,
@@ -37,6 +33,7 @@ import { Icon } from '@iconify-icon/react';
 
 import { IconSize } from '../../../utils/sizes';
 import { modals } from '@mantine/modals';
+import { useEnsuredCurrentCohort } from '../../../hooks/explorerViewer/useEnsuredCurrentCohort';
 
 const hasExportImport = false;
 
@@ -52,8 +49,7 @@ const CohortManagerPanel = ({
   const coreDispatch = useCoreDispatch();
   const [isEditing, setIsEditing] = useState(false);
   const [editingLabel, setEditingLabel] = useState('');
-  const allCohorts: Array<Cohort> = useCoreSelector(selectAllCohorts);
-  const currentCohort = useCoreSelector(selectCurrentCohort);
+  const { allCohorts, currentCohort } = useEnsuredCurrentCohort();
 
   const theme = useMantineTheme();
   const iconSize = IconSize[size] || IconSize['sm'];
@@ -95,12 +91,6 @@ const CohortManagerPanel = ({
       value: cohort.id,
     }));
   }, [allCohorts]);
-
-  useDeepCompareEffect(() => {
-    if (!currentCohort) {
-      coreDispatch(setCurrentCohortId(allCohorts[0].id));
-    }
-  }, [allCohorts, currentCohort, setCurrentCohortId]);
 
   const onSelectCohort = useCallback(
     (_value: unknown, option: ComboboxItem | null) => {

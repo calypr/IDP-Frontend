@@ -1,33 +1,39 @@
-import { GetServerSideProps } from 'next';
-import { getNavPageLayoutPropsFromConfig } from '../../lib/common/staticProps';
-import ContentSource from '../../lib/content';
+import { GEN3_COMMONS_NAME } from '@gen3/core';
+import { definePageLoader } from '../../lib/pageLoader';
+import { loadNavigationFromContext } from '../../lib/common/staticProps';
+import { CrosswalkConfigurationSchema } from './configurationSchema';
 import {
   type CrosswalkConfig,
   type CrosswalkName,
 } from '../../features/Crosswalk';
-import { type NavPageLayoutProps } from '../../features/Navigation';
-import { GEN3_COMMONS_NAME } from '@gen3/core';
+import type { CrosswalkPageProps } from './types';
 
 interface InitialCrosswalkInfo extends CrosswalkName {
   dataPath: string;
 }
 
-export interface InitialCrosswalkConfig
-  extends Omit<CrosswalkConfig, 'mapping'> {
+export interface InitialCrosswalkConfig extends Omit<
+  CrosswalkConfig,
+  'mapping'
+> {
   mapping: {
     source: CrosswalkName;
     external: Array<InitialCrosswalkInfo>;
   };
 }
 
-export const CrosswalkPageGetServerSideProps: GetServerSideProps<
-  NavPageLayoutProps
-> = async () => {
-  try {
-    const initialConfig: InitialCrosswalkConfig =
-      await ContentSource.getContentDatabase().get(
-        `${GEN3_COMMONS_NAME}/crosswalk.json`,
-      );
+const crosswalkConfiguration = {
+  id: 'crosswalk',
+  source: 'content' as const,
+  resolvePath: () => `${GEN3_COMMONS_NAME}/crosswalk.json`,
+  schema: CrosswalkConfigurationSchema,
+};
+
+export const CrosswalkPageGetServerSideProps = definePageLoader<CrosswalkPageProps>({
+  name: 'Crosswalk',
+  loadNavigation: loadNavigationFromContext,
+  load: async (context) => {
+    const initialConfig = (await context.config.load(crosswalkConfiguration)) as InitialCrosswalkConfig;
     const regex = /->/g;
     const processedConfig = {
       showSubmittedIdInTable: initialConfig.showSubmittedIdInTable,
@@ -46,23 +52,7 @@ export const CrosswalkPageGetServerSideProps: GetServerSideProps<
       },
     };
 
-    return {
-      props: {
-        ...(await getNavPageLayoutPropsFromConfig()),
-        config: processedConfig,
-      },
-    };
-  } catch (error: unknown) {
-    const errorMessage =
-      error instanceof Error
-        ? error.message
-        : 'Unknown error in crosswalk config';
-    console.error(errorMessage);
-    return {
-      props: {
-        ...(await getNavPageLayoutPropsFromConfig()),
-        config: undefined,
-      },
-    };
-  }
-};
+    return { configuration: processedConfig as unknown as CrosswalkConfig };
+  },
+  fallback: () => ({ configuration: null }),
+});

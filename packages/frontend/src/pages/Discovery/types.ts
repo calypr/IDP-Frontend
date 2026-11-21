@@ -1,5 +1,4 @@
-import { NavPageLayoutProps } from '../../features/Navigation';
-import { DiscoveryProps } from '../../features/Discovery/Discovery';
+import type { ConfigPageProps } from '../../lib/pageLoader';
+import type { DiscoveryConfig } from '../../features/Discovery';
 
-export type DiscoveryPageProps = NavPageLayoutProps &
-    DiscoveryProps & { errorStatus?: number };
+export type DiscoveryPageProps = ConfigPageProps<DiscoveryConfig>;

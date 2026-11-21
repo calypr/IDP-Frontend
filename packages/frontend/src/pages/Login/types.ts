@@ -1,6 +1,4 @@
-import { type NavPageLayoutProps } from '../../features/Navigation';
+import type { ConfigPageProps } from '../../lib/pageLoader';
 import { type LoginConfig } from '../../components/Login';
 
-export interface LoginPageLayoutProps extends NavPageLayoutProps {
-  loginConfig: LoginConfig;
-}
+export type LoginPageLayoutProps = ConfigPageProps<LoginConfig>;

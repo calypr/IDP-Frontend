@@ -11,6 +11,7 @@ import mantinetheme from '../mantineTheme';
 
 import '@xyflow/react/dist/style.css';
 import 'react-complex-tree/lib/style-modern.css';
+import '@calypr/loom-ui/styles.css';
 import {
   Gen3Provider,
   AuthenticatedPage,
@@ -21,6 +22,7 @@ import {
   registerCohortBuilderDefaultPreviewRenderers,
   registerMetadataSchemaApp,
   registerCohortDiscoveryApp,
+  installBrowserRuntimeErrorCapture,
 } from '@gen3/frontend';
 
 import { registerDefaultRemoteSupport } from '@gen3/core';
@@ -35,7 +37,6 @@ import '@fontsource/lato';
 
 import { setDRSHostnames } from '@gen3/core';
 import drsHostnames from '../../config/drsHostnames.json';
-import { loadContent } from '@/lib/content/loadContent';
 
 if (
   typeof window !== 'undefined' &&
@@ -90,6 +91,8 @@ const Gen3App = ({
     setIsClient(true); // Only on client-side
   }, []);
 
+  useEffect(() => installBrowserRuntimeErrorCapture(), []);
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const isAppsPortal =
@@ -131,10 +134,16 @@ Gen3App.getInitialProps = async (
 ): Promise<Gen3AppProps & AppInitialProps> => {
   const ctx = await App.getInitialProps(context);
 
+  if (typeof window !== 'undefined') {
+    return {
+      ...ctx,
+      ...(clientContent ?? { icons: [], sessionConfig: {}, modalsConfig: {} }),
+    };
+  }
+
   try {
-    const res = typeof window !== 'undefined' && clientContent
-      ? clientContent
-      : await loadContent();
+    const { loadContent } = await import('@/lib/content/loadContent');
+    const res = await loadContent(context);
     return {
       ...ctx,
       ...res,
@@ -144,22 +153,7 @@ Gen3App.getInitialProps = async (
       'Provider Wrapper error loading config',
       error instanceof Error ? error.message : String(error),
     );
+    throw error;
   }
-
-  // Return default values in case of an error
-  return {
-    ...ctx,
-    icons: [
-      {
-        prefix: 'gen3',
-        lastModified: 0,
-        icons: {},
-        width: 0,
-        height: 0,
-      },
-    ],
-    modalsConfig: {},
-    sessionConfig: {},
-  };
 };
 export default Gen3App;

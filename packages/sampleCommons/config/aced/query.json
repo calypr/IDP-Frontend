@@ -1,3 +1,10 @@
 {
-  "graphQLEndpoint": "https://development.compbio.ohsu.edu/guppy/graphql"
+  "version": 2,
+  "endpoints": {
+    "guppy": { "url": "https://development.compbio.ohsu.edu/guppy/graphql", "service": "guppy", "surface": "graphql" }
+  },
+  "modes": [
+    { "id": "guppy-flat", "label": "Guppy", "endpoint": "guppy", "preset": "guppy-flat" }
+  ],
+  "defaultMode": "guppy-flat"
 }

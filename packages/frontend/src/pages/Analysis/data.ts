@@ -1,36 +1,27 @@
-import { GetServerSideProps } from 'next';
-import { getNavPageLayoutPropsFromConfig } from '../../lib/common/staticProps';
-import { AnalysisPageLayoutProps } from './types';
+import { GEN3_COMMONS_NAME } from '@gen3/core';
 import {
   AnalysisCenterConfiguration,
   AnalysisCenterWithSectionsConfiguration,
 } from '../../features/Analysis/types';
-import ContentSource from '../../lib/content';
-import { GEN3_COMMONS_NAME } from '@gen3/core';
+import { definePageLoader } from '../../lib/pageLoader';
+import { loadNavigationFromContext } from '../../lib/common/staticProps';
+import { AnalysisConfigurationSchema } from './configurationSchema';
+import type { AnalysisPageProps } from './types';
 
-export const AnalysisPageGetServerSideProps: GetServerSideProps<
-  AnalysisPageLayoutProps
-> = async () => {
-  try {
-    const analysisConfig:
-      | AnalysisCenterConfiguration
-      | AnalysisCenterWithSectionsConfiguration =
-      await ContentSource.getContentDatabase().get(
-        `${GEN3_COMMONS_NAME}/analysisTools.json`,
-      );
-
-    return {
-      props: {
-        ...(await getNavPageLayoutPropsFromConfig()),
-        ...analysisConfig,
-      },
-    };
-  } catch (err) {
-    console.warn(err);
-    return {
-      props: {
-        ...(await getNavPageLayoutPropsFromConfig()),
-      },
-    };
-  }
+const analysisConfiguration = {
+  id: 'analysis-tools',
+  source: 'content' as const,
+  resolvePath: () => `${GEN3_COMMONS_NAME}/analysisTools.json`,
+  schema: AnalysisConfigurationSchema,
 };
+
+export const AnalysisPageGetServerSideProps = definePageLoader<AnalysisPageProps>({
+  name: 'Analysis',
+  loadNavigation: loadNavigationFromContext,
+  load: async (context) => ({
+    configuration: (await context.config.load(analysisConfiguration)) as
+      | AnalysisCenterConfiguration
+      | AnalysisCenterWithSectionsConfiguration,
+  }),
+  fallback: () => ({ configuration: null }),
+});

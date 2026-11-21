@@ -1,29 +1,27 @@
 import React from 'react';
-import { NavPageLayout, NavPageLayoutProps } from '../../features/Navigation';
+import { NavPageLayout } from '../../features/Navigation';
 import {
   DataLibrary,
-  type DataLibraryConfig,
 } from '../../features/DataLibrary';
-
-interface DataLibraryPageProps extends NavPageLayoutProps {
-  config: DataLibraryConfig;
-}
+import type { DataLibraryPageProps } from './types';
 
 const DataLibraryPage = ({
   headerProps,
   footerProps,
-  config,
+  pageProblems,
+  configuration,
 }: DataLibraryPageProps): JSX.Element => {
   return (
     <NavPageLayout
       {...{ headerProps, footerProps }}
+      pageProblems={pageProblems}
       headerMetadata={{
         title: 'Gen3 DataLibrary Page',
         content: 'DataLibrary Data',
         key: 'gen3-data-library-page',
       }}
     >
-      <DataLibrary {...config} />
+      {configuration && <DataLibrary {...configuration} />}
     </NavPageLayout>
   );
 };

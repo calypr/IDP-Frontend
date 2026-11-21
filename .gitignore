@@ -2,6 +2,7 @@
  
 # dependencies
 node_modules
+venv/
 /.pnp
 .pnp.js
 
@@ -21,6 +22,11 @@ packages/sampleCommons/.next/
 .vscode
 .nx
 .idea
+
+# local assistant artifacts
+.aider.chat.history.md
+.aider.input.history
+.aider.tags.cache.v4/
 
 # debug
 npm-debug.log*

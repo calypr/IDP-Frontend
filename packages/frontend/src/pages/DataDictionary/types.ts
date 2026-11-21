@@ -1,5 +1,4 @@
-import { NavPageLayoutProps } from '../../features/Navigation';
-import { DictionaryProps } from '../../features/Dictionary';
+import type { ConfigPageProps } from '../../lib/pageLoader';
+import type { DictionaryConfig } from '../../features/Dictionary/types';
 
-//& DictionaryProps;
-export type DictionaryPageProps = NavPageLayoutProps & DictionaryProps;
+export type DictionaryPageProps = ConfigPageProps<DictionaryConfig>;

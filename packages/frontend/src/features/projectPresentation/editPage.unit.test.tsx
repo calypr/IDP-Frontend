@@ -36,11 +36,13 @@ jest.mock('@gen3/frontend', () => ({
     <>{children}</>
   ),
   ProtectedContent: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  getNavPageLayoutPropsFromConfig: jest.fn(),
 }));
 
 jest.mock('../../features/Navigation', () => ({
   NavPageLayout: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+jest.mock('../../components/Protected', () => ({
+  ProtectedContent: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
 const useSessionMock = jest.fn();

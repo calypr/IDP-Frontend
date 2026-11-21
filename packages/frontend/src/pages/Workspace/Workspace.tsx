@@ -1,26 +1,29 @@
 import React from 'react';
 import { NavPageLayout } from '../../features/Navigation';
 import Workspace from '../../features/Workspace/Workspace';
-import { WorkspacePageLayoutProps } from './types';
+import { WorkspacePageProps } from './types';
 
 const WorkspacePage = ({
   headerProps,
   footerProps,
-  workspaceProps,
-}: WorkspacePageLayoutProps): JSX.Element => {
+  configuration,
+  pageProblems,
+}: WorkspacePageProps): JSX.Element => {
   return (
     <NavPageLayout
       {...{ headerProps, footerProps }}
+      layoutMode="viewport"
+      pageProblems={pageProblems}
       headerMetadata={{
         title: 'Gen3 Workspace Page',
         content: 'Workspace page',
         key: 'gen3-workspace-page',
-        ...(workspaceProps?.headerMetadata
-          ? workspaceProps.headerMetadata
+        ...(configuration?.headerMetadata
+          ? configuration.headerMetadata
           : {}),
       }}
     >
-      <Workspace config={workspaceProps} />
+      <Workspace configuration={configuration} />
     </NavPageLayout>
   );
 };

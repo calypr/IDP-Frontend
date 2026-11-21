@@ -5,6 +5,8 @@ const jestConfig: JestConfigWithTsJest = {
   setupFilesAfterEnv: ['<rootDir>/setupTests.ts'],
   testEnvironment: 'jsdom',
   moduleNameMapper: {
+    '^@gen3/core$': '<rootDir>/../core/src/index.ts',
+    '^@gen3/frontend$': '<rootDir>/../frontend/src/index.ts',
     '^@/app(.*)$': '<rootDir>/src/app/$1',
     '^@/components(.*)$': '<rootDir>/src/components/$1',
     '^@/features/(.*)$': '<rootDir>/src/features/$1',

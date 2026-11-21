@@ -70,6 +70,7 @@ const parseGitLFSPointer = (
 const GitProjectFilePage = ({
   headerProps,
   footerProps,
+  pageProblems,
 }: GitExplorerPageProps) => {
   const router = useRouter();
   const organization =
@@ -386,7 +387,7 @@ const GitProjectFilePage = ({
 
   return (
     <NavPageLayout
-      {...{ headerProps, footerProps }}
+      {...{ headerProps, footerProps, pageProblems }}
       headerMetadata={{
         content: `${organization}/${project}/${filePath}`,
         key: 'gecko-git-project-file',

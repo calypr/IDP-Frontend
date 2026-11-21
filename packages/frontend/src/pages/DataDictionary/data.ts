@@ -1,40 +1,34 @@
-import { GetServerSideProps } from 'next';
-import { getNavPageLayoutPropsFromConfig } from '../../lib/common/staticProps';
-import { NavPageLayoutProps } from '../../features/Navigation';
-import { CohortBuilderConfiguration } from '../../features/CohortBuilder';
-import ContentSource from '../../lib/content';
 import { GEN3_COMMONS_NAME } from '@gen3/core';
+import { definePageLoader } from '../../lib/pageLoader';
+import { loadNavigationFromContext } from '../../lib/common/staticProps';
+import type { DictionaryConfig } from '../../features/Dictionary/types';
 import {
   KEY_FOR_SEARCH_HISTORY,
   MAX_SEARCH_HISTORY,
 } from '../../features/Dictionary/constants';
+import { DictionaryConfigurationSchema } from './configurationSchema';
+import type { DictionaryPageProps } from './types';
 
-export const DictionaryPageGetServerSideProps: GetServerSideProps<
-  NavPageLayoutProps
-> = async () => {
-  try {
-    const cohortBuilderProps: CohortBuilderConfiguration =
-      await ContentSource.getContentDatabase().get(
-        `${GEN3_COMMONS_NAME}/dictionary.json`,
-      );
-    return {
-      props: {
-        ...(await getNavPageLayoutPropsFromConfig()),
-        config: cohortBuilderProps,
-      },
-    };
-  } catch (err) {
-    console.error(err);
-    return {
-      props: {
-        ...(await getNavPageLayoutPropsFromConfig()),
-        config: {
-          showGraph: false,
-          showDownloads: false,
-          historyStorageId: KEY_FOR_SEARCH_HISTORY,
-          maxHistoryItems: MAX_SEARCH_HISTORY,
-        },
-      },
-    };
-  }
+const dictionaryConfiguration = {
+  id: 'dictionary',
+  source: 'content' as const,
+  resolvePath: () => `${GEN3_COMMONS_NAME}/dictionary.json`,
+  schema: DictionaryConfigurationSchema,
 };
+
+export const DictionaryPageGetServerSideProps =
+  definePageLoader<DictionaryPageProps>({
+    name: 'DataDictionary',
+    loadNavigation: loadNavigationFromContext,
+    load: async (context) => ({
+      configuration: (await context.config.load(dictionaryConfiguration)) as DictionaryConfig,
+    }),
+    fallback: () => ({
+      configuration: {
+        showGraph: false,
+        showDownloads: false,
+        historyStorageId: KEY_FOR_SEARCH_HISTORY,
+        maxHistoryItems: MAX_SEARCH_HISTORY,
+      },
+    }),
+  });

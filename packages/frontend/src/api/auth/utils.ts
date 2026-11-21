@@ -1,7 +1,7 @@
 import { fetchFence } from '@gen3/core';
 
-interface Gen3JTWKeys {
-  keys: string[];
+interface Gen3JWTKeys {
+  keys: Array<[kid: string, pem: string]>;
 }
 
 /**
@@ -15,8 +15,8 @@ interface Gen3JTWKeys {
  * @async
  * @returns {Promise<string|null>} A Promise resolving to the JWT key as a string if available, or null if not.
  */
-export const fetchJWTKey = async () => {
-  const response = await fetchFence<Gen3JTWKeys>({
+export const fetchJWTKey = async (kid?: string) => {
+  const response = await fetchFence<Gen3JWTKeys>({
     endpoint: '/jwt/keys',
     isJSON: true,
   });
@@ -24,8 +24,7 @@ export const fetchJWTKey = async () => {
     return null;
   }
 
-  if (response?.data?.keys.length && response?.data?.keys[0].length > 1) {
-    return response.data.keys[0][1];
-  }
-  return null;
+  const keys = response?.data?.keys ?? [];
+  if (kid) return keys.find(([candidate]) => candidate === kid)?.[1] ?? null;
+  return keys.length === 1 ? keys[0][1] : null;
 };

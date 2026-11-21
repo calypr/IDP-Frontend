@@ -1,6 +1,11 @@
 import React, { useMemo } from 'react';
 import Link from 'next/link';
-import { useGetAuthzMappingsQuery, userHasMethodForServiceOnResource } from '@gen3/core';
+import {
+  useGetAuthzMappingsQuery,
+  userHasMethodForServiceOnResource,
+} from '@gen3/core';
+import { useGetProjectViewBuilderQuery } from '../ExplorerViewBuilder/projectViewBuilderApi';
+import type { ProjectViewBuilderState } from '../ExplorerViewBuilder/projectViewBuilderApi';
 
 type ProjectWorkspaceTabKey = 'git' | 'presentation' | 'explorer' | 'storage';
 
@@ -15,6 +20,8 @@ interface ProjectWorkspaceTabsProps {
   readonly explorerHref?: string;
   readonly storageHref?: string;
   readonly toolbarContent?: React.ReactNode;
+  readonly stickyHeader?: boolean;
+  readonly belowTabsContent?: React.ReactNode;
 }
 
 const ProjectWorkspaceTabs = ({
@@ -28,8 +35,21 @@ const ProjectWorkspaceTabs = ({
   explorerHref,
   storageHref,
   toolbarContent,
+  stickyHeader = false,
+  belowTabsContent,
 }: ProjectWorkspaceTabsProps) => {
   const { data: authzMapping = {} } = useGetAuthzMappingsQuery();
+  const { data: viewSettings } = useGetProjectViewBuilderQuery(
+    { project: `${organization}/${project}` },
+    { skip: !organization || !project || hasExplorerConfig },
+  );
+  const hasConfiguredExplorer =
+    hasExplorerConfig ||
+    Boolean(
+      viewSettings?.configs.some(
+        (view: ProjectViewBuilderState['configs'][number]) => view.revisionId,
+      ),
+    );
 
   const hasGitAccess = useMemo(() => {
     if (!organization || !project) return false;
@@ -42,7 +62,7 @@ const ProjectWorkspaceTabs = ({
       '*',
     ];
     return candidatePaths.some((path) =>
-      userHasMethodForServiceOnResource('update', '*', path, authzMapping)
+      userHasMethodForServiceOnResource('update', '*', path, authzMapping),
     );
   }, [organization, project, authzMapping]);
 
@@ -57,7 +77,7 @@ const ProjectWorkspaceTabs = ({
       '*',
     ];
     return candidatePaths.some((path) =>
-      userHasMethodForServiceOnResource('read', '*', path, authzMapping)
+      userHasMethodForServiceOnResource('read', '*', path, authzMapping),
     );
   }, [organization, project, authzMapping]);
 
@@ -69,51 +89,50 @@ const ProjectWorkspaceTabs = ({
     `/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}/presentation`;
   const explorerBaseHref =
     explorerHref ||
-    `/Explorer/${encodeURIComponent(`${organization}-${project}`)}`;
+    `/Explorer/${encodeURIComponent(`${organization}/${project}`)}`;
   const storageBaseHref =
     storageHref ||
     `/org/${encodeURIComponent(organization)}/project/${encodeURIComponent(project)}/storage`;
 
   const visibleTabs = useMemo(
-    () =>
-      [
-        {
-          key: 'presentation' as const,
-          label: 'Home',
-          href: presentationBaseHref,
-        },
-        ...(hasExplorerConfig && (hasReadAccess || activeTab === 'explorer')
-          ? [
-              {
-                key: 'explorer' as const,
-                label: 'Explorer',
-                href: explorerBaseHref,
-              },
-            ]
-          : []),
-        ...(hasGitAccess || activeTab === 'git'
-          ? [
-              {
-                key: 'git' as const,
-                label: 'Source',
-                href: gitBaseHref,
-              },
-            ]
-          : []),
-        ...(hasReadAccess || activeTab === 'storage'
-          ? [
-              {
-                key: 'storage' as const,
-                label: 'Storage',
-                href: storageBaseHref,
-              },
-            ]
-          : []),
-      ],
+    () => [
+      {
+        key: 'presentation' as const,
+        label: 'Home',
+        href: presentationBaseHref,
+      },
+      ...(hasConfiguredExplorer || hasGitAccess || activeTab === 'explorer'
+        ? [
+            {
+              key: 'explorer' as const,
+              label: 'Explorer',
+              href: explorerBaseHref,
+            },
+          ]
+        : []),
+      ...(hasGitAccess || activeTab === 'git'
+        ? [
+            {
+              key: 'git' as const,
+              label: 'Source',
+              href: gitBaseHref,
+            },
+          ]
+        : []),
+      ...(hasReadAccess || activeTab === 'storage'
+        ? [
+            {
+              key: 'storage' as const,
+              label: 'Storage',
+              href: storageBaseHref,
+            },
+          ]
+        : []),
+    ],
     [
       explorerBaseHref,
       gitBaseHref,
-      hasExplorerConfig,
+      hasConfiguredExplorer,
       presentationBaseHref,
       storageBaseHref,
       hasReadAccess,
@@ -128,8 +147,10 @@ const ProjectWorkspaceTabs = ({
 
   return (
     <div>
-      <div className="border-b border-slate-200 bg-white">
-        <div className="flex min-h-[3rem] items-center gap-6 px-4">
+      <div
+        className={`border-b border-slate-200 bg-white ${stickyHeader ? 'sticky top-0 z-20' : ''}`}
+      >
+        <div className="flex min-h-[3rem] flex-wrap items-center gap-x-6 px-4">
           <div
             aria-label={`Project workspaces for ${organization}/${project}`}
             className="flex self-stretch gap-5"
@@ -156,10 +177,11 @@ const ProjectWorkspaceTabs = ({
             })}
           </div>
           {toolbarContent ? (
-            <div className="min-w-0 flex-1">{toolbarContent}</div>
+            <div className="min-w-0 flex-[1_1_18rem]">{toolbarContent}</div>
           ) : null}
         </div>
       </div>
+      {belowTabsContent ? <div>{belowTabsContent}</div> : null}
 
       <div>{children}</div>
     </div>

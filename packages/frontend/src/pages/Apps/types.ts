@@ -1,6 +1,6 @@
-import { NavPageLayoutProps } from '../../features/Navigation';
+import type { PageProps } from '../../lib/pageLoader';
 
-export type AppsPageProps = NavPageLayoutProps;
+export type AppsPageProps = PageProps;
 
 export interface AppCardProps {
   title: string;

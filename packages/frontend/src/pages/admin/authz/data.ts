@@ -2,10 +2,19 @@ import fs from 'fs';
 import path from 'path';
 import YAML from 'yaml';
 import { GEN3_COMMONS_NAME } from '@gen3/core';
-import { getNavPageLayoutPropsFromConfig } from '../../../lib/common/staticProps';
+import { definePageLoader } from '../../../lib/pageLoader';
+import { loadNavigationFromContext } from '../../../lib/common/staticProps';
 import { convertUserYAMLToAuthz } from '../../../features/Authz';
+import { AdminAuthzConfigurationSchema } from './configurationSchema';
+import type { ConfigPageProps } from '../../../lib/pageLoader';
+import type { Authz } from '../../../features/Authz';
 
-export const AdminAuthZPageGetServerSideProps = async () => {
+type AdminAuthzPageProps = ConfigPageProps<Authz>;
+
+export const AdminAuthZPageGetServerSideProps = definePageLoader<AdminAuthzPageProps>({
+  name: 'AdminAuthz',
+  loadNavigation: loadNavigationFromContext,
+  load: async () => {
   const rootPath = `${GEN3_COMMONS_NAME}/`;
   const filepath = 'user.yaml';
   let data: Record<string, any> = {};
@@ -19,11 +28,14 @@ export const AdminAuthZPageGetServerSideProps = async () => {
     }
     throw new Error(`Cannot process ${rootPath}${filepath}`);
   }
+  const configuration = AdminAuthzConfigurationSchema.parse(data);
   return {
-    props: {
-      ...(await getNavPageLayoutPropsFromConfig()),
-      // TODO: add support for helm and original user.yaml layout
-      authz: convertUserYAMLToAuthz(data['fence']['USER_YAML']),
-    },
+    configuration: convertUserYAMLToAuthz(
+      configuration.fence?.USER_YAML as unknown as Parameters<
+        typeof convertUserYAMLToAuthz
+      >[0],
+    ),
   };
-};
+  },
+  fallback: () => ({ configuration: null }),
+});

@@ -2,14 +2,13 @@ import React, { useMemo, useState } from 'react';
 import {
   NavPageLayout,
   NavPageLayoutProps,
-  getNavPageLayoutPropsFromConfig,
   convertPathsToTree,
 } from '@gen3/frontend';
 import {
   useGetAuthzResourcesQuery,
   useCreateAuthzResourceMutation,
 } from '@gen3/core';
-import { GetServerSideProps } from 'next';
+import { defineSamplePageLoader } from '@/lib/content/pageLoader';
 import {
   Button,
   Group,
@@ -24,6 +23,7 @@ import { FaChevronDown as ChevronDown } from 'react-icons/fa';
 const AuthzResourceManagement = ({
   headerProps,
   footerProps,
+  pageProblems,
 }: NavPageLayoutProps) => {
   const [resourcePath, setResourcePath] = useState<string>('');
   const [newResourcePath, setNewResourcePath] = useState<string>('');
@@ -62,6 +62,7 @@ const AuthzResourceManagement = ({
   return (
     <NavPageLayout
       {...{ headerProps, footerProps }}
+      pageProblems={pageProblems}
       headerMetadata={{
         title: 'Gen3 Resource Management Page',
         content: 'Forms Data',
@@ -127,14 +128,6 @@ const AuthzResourceManagement = ({
   );
 };
 
-export const getServerSideProps: GetServerSideProps<
-  NavPageLayoutProps
-> = async () => {
-  return {
-    props: {
-      ...(await getNavPageLayoutPropsFromConfig()),
-    },
-  };
-};
+export const getServerSideProps = defineSamplePageLoader('AuthzResources');
 
 export default AuthzResourceManagement;

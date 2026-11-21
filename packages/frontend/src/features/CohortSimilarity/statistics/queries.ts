@@ -1,7 +1,4 @@
 import { AggregationsData } from '@gen3/core';
-import { JSONPath } from 'jsonpath-plus';
-
-export const processQueryResponse = (data: Record<string, any>) => {};
 
 const convertToValidJSON = (inputString: string): string => {
   // Remove all newline characters and extra spaces

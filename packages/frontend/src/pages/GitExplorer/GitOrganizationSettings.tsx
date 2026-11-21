@@ -543,6 +543,7 @@ const ProjectAccessSection = ({
 const GitOrganizationSettingsPage = ({
   headerProps,
   footerProps,
+  pageProblems,
 }: GitExplorerPageProps) => {
   const router = useRouter();
   const organization =
@@ -1690,7 +1691,7 @@ const GitOrganizationSettingsPage = ({
 
   return (
     <NavPageLayout
-      {...{ headerProps, footerProps }}
+      {...{ headerProps, footerProps, pageProblems }}
       headerMetadata={{
         content: 'Manage Calypr organization access',
         key: 'gecko-organization-settings',

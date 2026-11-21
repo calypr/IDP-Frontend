@@ -1,2 +1,5 @@
-export * from './ProjectPresentation';
-export * from './ProjectPresentationEdit';
+export {
+  ProjectPresentationPage as default,
+  ProjectPresentationPage,
+} from './ProjectPresentation';
+export { ProjectPresentationEditPage } from './ProjectPresentationEdit';

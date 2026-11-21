@@ -8,12 +8,16 @@ jest.mock('next/router', () => ({
 }));
 
 jest.mock('@gen3/core', () => ({
+  GEN3_API: '',
   SYFON_API: '/syfon',
   mintSyfonObjectIdFromChecksum: jest.fn(),
+  useCreateFunnelTaskMutation: jest.fn(),
   useGetConfigListQuery: jest.fn(),
   useGetConfigContentQuery: jest.fn(),
+  useGetFunnelTaskQuery: jest.fn(),
   useGetGeckoProjectsQuery: jest.fn(),
   useGetGeckoGitProjectsQuery: jest.fn(),
+  useGetExplorerStateV1Query: jest.fn(),
   useGetGeckoGitProjectRefsQuery: jest.fn(),
   useGetGeckoGitProjectStatusQuery: jest.fn(),
   useGetGeckoGitProjectTreeQuery: jest.fn(),
@@ -45,7 +49,7 @@ jest.mock('../../features/Navigation', () => ({
         Home
       </a>
       {hasExplorerConfig ? (
-        <a href={`/Explorer/${organization}-${project}`} role="tab">
+        <a href={`/Explorer/${organization}%2F${project}`} role="tab">
           Explorer
         </a>
       ) : null}
@@ -75,11 +79,14 @@ const { useIsEmbedded } = jest.requireMock('../../utils') as {
 };
 
 const coreMocks = jest.requireMock('@gen3/core') as {
+  useCreateFunnelTaskMutation: jest.Mock;
+  useGetFunnelTaskQuery: jest.Mock;
   mintSyfonObjectIdFromChecksum: jest.Mock;
   useGetConfigListQuery: jest.Mock;
   useGetConfigContentQuery: jest.Mock;
   useGetGeckoProjectsQuery: jest.Mock;
   useGetGeckoGitProjectsQuery: jest.Mock;
+  useGetExplorerStateV1Query: jest.Mock;
   useGetGeckoGitProjectRefsQuery: jest.Mock;
   useGetGeckoGitProjectStatusQuery: jest.Mock;
   useGetGeckoGitProjectTreeQuery: jest.Mock;
@@ -128,6 +135,16 @@ describe('GitProjectPage', () => {
       jest.fn(),
       { isLoading: false },
     ]);
+    coreMocks.useCreateFunnelTaskMutation.mockReturnValue([
+      jest.fn(),
+      { isLoading: false },
+    ]);
+    coreMocks.useGetFunnelTaskQuery.mockReturnValue({
+      data: undefined,
+      isError: false,
+      isFetching: false,
+      refetch: jest.fn(),
+    });
     coreMocks.useGetConfigListQuery.mockReturnValue({
       data: { success: true, data: [] },
     });
@@ -146,6 +163,11 @@ describe('GitProjectPage', () => {
       isLoading: false,
       refetch: jest.fn(),
     });
+    coreMocks.useGetExplorerStateV1Query.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+    });
     coreMocks.useReconcileGeckoGitOrganizationMutation.mockReturnValue([
       jest.fn(() => ({ unwrap: jest.fn().mockResolvedValue(undefined) })),
       { isLoading: false },
@@ -156,7 +178,11 @@ describe('GitProjectPage', () => {
       refetch: jest.fn(),
     });
     coreMocks.useGetGeckoGitProjectTreeQuery.mockReturnValue({
-      data: { entries: [] },
+      data: {
+        path: '',
+        ref: 'main',
+        entries: [],
+      },
       isLoading: false,
       refetch: jest.fn(),
     });
@@ -164,7 +190,6 @@ describe('GitProjectPage', () => {
       jest.fn(() => ({ unwrap: jest.fn().mockResolvedValue({}) })),
       { isLoading: false },
     ]);
-    coreMocks.mintSyfonObjectIdFromChecksum.mockResolvedValue('did-123');
   });
 
   afterEach(() => {
@@ -227,16 +252,13 @@ describe('GitProjectPage', () => {
     ).not.toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Source' })).toBeInTheDocument();
     expect(screen.getByText('About')).toBeInTheDocument();
-    expect(coreMocks.useGetConfigContentQuery).toHaveBeenCalledWith(
-      'Ellrott_Lab-embedding_rotation',
-      expect.objectContaining({ skip: true }),
+    expect(coreMocks.useGetExplorerStateV1Query).toHaveBeenCalledWith(
+      { project: 'Ellrott_Lab/embedding_rotation', explorerId: 'default' },
+      expect.objectContaining({ skip: false }),
     );
   });
 
-  it('renders the Explorer tab when Gecko config exists for the project', () => {
-    coreMocks.useGetConfigListQuery.mockReturnValue({
-      data: { success: true, data: ['Ellrott_Lab-embedding_rotation'] },
-    });
+  it('renders the Explorer tab when Loom state exists for the project', () => {
     const projectStatus = {
       project_id: 'Ellrott_Lab/embedding_rotation',
       organization: 'Ellrott_Lab',
@@ -278,6 +300,16 @@ describe('GitProjectPage', () => {
       isLoading: false,
       isError: false,
     });
+    coreMocks.useGetExplorerStateV1Query.mockReturnValue({
+      data: {
+        apiVersion: 'loom.calypr.org/explorer-state/v1',
+        kind: 'ExplorerState',
+        project: 'Ellrott_Lab/embedding_rotation',
+        explorerId: 'default',
+      },
+      isLoading: false,
+      isError: false,
+    });
 
     render(
       <MantineProvider>
@@ -286,8 +318,8 @@ describe('GitProjectPage', () => {
     );
 
     expect(screen.getByRole('tab', { name: 'Explorer' })).toBeInTheDocument();
-    expect(coreMocks.useGetConfigContentQuery).toHaveBeenCalledWith(
-      'Ellrott_Lab-embedding_rotation',
+    expect(coreMocks.useGetExplorerStateV1Query).toHaveBeenCalledWith(
+      { project: 'Ellrott_Lab/embedding_rotation', explorerId: 'default' },
       expect.objectContaining({ skip: false }),
     );
   });
@@ -341,6 +373,8 @@ describe('GitProjectPage', () => {
     });
     coreMocks.useGetGeckoGitProjectTreeQuery.mockReturnValue({
       data: {
+        path: '',
+        ref: 'main',
         entries: [
           {
             name: 'README.md',
@@ -421,7 +455,11 @@ describe('GitProjectPage', () => {
       refetch: jest.fn(),
     });
     coreMocks.useGetGeckoGitProjectTreeQuery.mockReturnValue({
-      data: { entries: [] },
+      data: {
+        path: '',
+        ref: 'main',
+        entries: [],
+      },
       isLoading: false,
       refetch: jest.fn(),
     });
@@ -523,6 +561,8 @@ describe('GitProjectPage', () => {
     });
     coreMocks.useGetGeckoGitProjectTreeQuery.mockReturnValue({
       data: {
+        path: '',
+        ref: 'main',
         entries: [
           {
             name: 'tcga.tumor.ensembl.tsv',
@@ -600,6 +640,8 @@ describe('GitProjectPage', () => {
     });
     coreMocks.useGetGeckoGitProjectTreeQuery.mockReturnValue({
       data: {
+        path: '',
+        ref: 'main',
         entries: [
           {
             name: 'sample.ome.tiff',

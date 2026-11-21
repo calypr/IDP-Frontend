@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import useGuppyActionButton from './downloadActionHook';
+import useDownloadAction from '../../../hooks/explorerViewer/useDownloadAction';
 import { Button, Tooltip } from '@mantine/core';
 import { FiDownload } from 'react-icons/fi';
 import { GuppyActionButtonProps } from '../types';
@@ -21,7 +21,7 @@ const CohortActionButton = ({
   actionFunction,
   actionArgs,
 }: GuppyActionButtonProps) => {
-  const { handleClick, icon, active } = useGuppyActionButton({
+  const { handleClick, icon, active } = useDownloadAction({
     Modal403,
     Modal400,
     done,

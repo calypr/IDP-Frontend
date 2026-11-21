@@ -1,0 +1,196 @@
+jest.mock('../../lib/pageLoader', () => ({
+  definePageLoader: jest.fn((config) => config),
+}));
+jest.mock('../../lib/common/staticProps', () => ({
+  loadNavigationFromContext: jest.fn(),
+}));
+jest.mock('@gen3/core', () => ({
+  canonicalLoomProjectId: (value: string) =>
+    value.includes('/') ? value : value.replace('-', '/'),
+  encodeLoomProjectPath: (value: string) =>
+    encodeURIComponent(encodeURIComponent(value)),
+  assertExplorerStateV1: (value: unknown) => value,
+}));
+jest.mock('@calypr/loom-ui/saved-views', () => ({
+  projectViewBuilderPath: (project: string) =>
+    `/api/v1/projects/${encodeURIComponent(encodeURIComponent(project))}/view-builder`,
+  getProjectViewBuilderState: async (
+    get: (path: string) => Promise<unknown>,
+    project: string,
+  ) => get(`/api/v1/projects/${encodeURIComponent(encodeURIComponent(project))}/view-builder`),
+  selectedProjectViewId: (explicitId?: string, defaultId?: string) =>
+    explicitId || defaultId || 'default',
+}));
+import { loadExplorerStateV1 } from './data';
+import type { ServerPageContext } from '../../lib/pageLoader';
+
+const runtime = {
+  outputs: [],
+  sharedFilters: {},
+  diagnostics: [],
+};
+
+const explorerState = {
+  apiVersion: 'loom.calypr.org/explorer-state/v1',
+  kind: 'ExplorerState',
+  project: 'project/1',
+  explorerId: 'default',
+  title: 'Explorer',
+  management: 'interactive',
+  draft: { version: 1, digest: 'draft-digest' },
+  active: {},
+  generated: {},
+  activeUrl: '/Explorer/project-1',
+  runtime,
+};
+
+const contextFor = (
+  query: Record<string, string | undefined>,
+  response: unknown = explorerState,
+) =>
+  ({
+    next: { query },
+    loom: {
+      get: jest.fn().mockImplementation((endpoint: string) =>
+        Promise.resolve(
+          endpoint.endsWith('/view-builder')
+            ? {
+            settings: { project: 'project/1', version: 0, catalogs: {} },
+                configs: [],
+                catalogs: [],
+                canEdit: false,
+              }
+            : response,
+        ),
+      ),
+    },
+    problems: { add: jest.fn() },
+  }) as unknown as ServerPageContext;
+
+describe('Explorer page loader', () => {
+  it('loads the canonical Explorer runtime during SSR', async () => {
+    const context = contextFor({
+      configId: 'project-1',
+      explorerId: 'default',
+    });
+    await expect(loadExplorerStateV1(context)).resolves.toEqual({
+      runtime,
+      project: 'project/1',
+      explorerId: 'default',
+      sharedFiltersMap: null,
+    });
+    expect(context.loom.get).toHaveBeenCalledWith(
+      '/api/v1/projects/project%252F1/explorers/default',
+    );
+  });
+
+  it('unwraps data envelopes and encodes canonical project paths', async () => {
+    const context = contextFor(
+      { configId: 'HTAN_INT-BForePC', explorerId: 'published explorer' },
+      { data: { ...explorerState, project: 'HTAN_INT/BForePC' } },
+    );
+    await expect(loadExplorerStateV1(context)).resolves.toEqual({
+      runtime,
+      project: 'HTAN_INT/BForePC',
+      explorerId: 'published explorer',
+      sharedFiltersMap: null,
+    });
+    expect(context.loom.get).toHaveBeenCalledWith(
+      '/api/v1/projects/HTAN_INT%252FBForePC/explorers/published%20explorer',
+    );
+  });
+
+  it('keeps SSR failures recoverable by the browser revalidation', async () => {
+    const context = contextFor({ configId: 'project-1' });
+    (context.loom.get as jest.Mock).mockRejectedValue(
+      Object.assign(new Error('Loom request failed'), { status: 503 }),
+    );
+
+    await expect(loadExplorerStateV1(context)).resolves.toEqual({
+      runtime: null,
+      project: 'project/1',
+      explorerId: 'default',
+      sharedFiltersMap: null,
+    });
+    expect(context.problems.add).toHaveBeenCalledWith(
+      expect.objectContaining({
+        severity: 'warning',
+        source: 'loom',
+        status: 503,
+        retryable: true,
+      }),
+    );
+  });
+
+  it('reports a missing server runtime without blocking client recovery', async () => {
+    const context = contextFor(
+      { configId: 'project-1' },
+      { ...explorerState, runtime: undefined },
+    );
+
+    await expect(loadExplorerStateV1(context)).resolves.toEqual({
+      runtime: null,
+      project: 'project/1',
+      explorerId: 'default',
+      sharedFiltersMap: null,
+    });
+    expect(context.problems.add).toHaveBeenCalledWith(
+      expect.objectContaining({
+        severity: 'warning',
+        source: 'loom',
+        status: 422,
+        code: 'EXPLORER_RUNTIME_REQUIRED',
+        retryable: false,
+      }),
+    );
+  });
+
+  it('loads the project-selected default rather than a literal default owner', async () => {
+    const context = contextFor({ configId: 'project-1' });
+    (context.loom.get as jest.Mock)
+      .mockResolvedValueOnce({
+        settings: {
+          project: 'project/1',
+          version: 4,
+          catalogs: {},
+          defaultConfigId: 'files',
+          defaultFrameId: 'metadata/Documents',
+        },
+        configs: [],
+        catalogs: [],
+        canEdit: true,
+      })
+      .mockResolvedValueOnce({ ...explorerState, explorerId: 'files' });
+    const result = await loadExplorerStateV1(context);
+    expect(result).toEqual(
+      expect.objectContaining({ explorerId: 'files', runtime }),
+    );
+    expect(context.loom.get).toHaveBeenLastCalledWith(
+      '/api/v1/projects/project%252F1/explorers/files',
+    );
+  });
+
+  it('never silently falls back when project default lookup fails', async () => {
+    const context = contextFor({ configId: 'project-1' });
+    (context.loom.get as jest.Mock).mockRejectedValue(
+      new Error('Settings unavailable'),
+    );
+    await loadExplorerStateV1(context);
+    expect(context.loom.get).toHaveBeenCalledTimes(1);
+      expect(context.loom.get).toHaveBeenCalledWith(
+      '/api/v1/projects/project%252F1/view-builder',
+    );
+  });
+
+  it('still reports a missing route project during SSR', async () => {
+    const context = contextFor({});
+    await expect(loadExplorerStateV1(context)).resolves.toEqual({
+      runtime: null,
+      explorerId: 'default',
+      sharedFiltersMap: null,
+    });
+    expect(context.problems.add).toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'EXPLORER_NOT_FOUND' }),
+    );
+  });
+});

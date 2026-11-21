@@ -3,19 +3,22 @@ import { Center } from '@mantine/core';
 import { NavPageLayout } from '../../features/Navigation';
 import AnalysisPanel from '../../features/Analysis/AnalysisPanel';
 import AnalysisCenterWithSections from '../../features/Analysis/AnalysisCenterWithSections';
-import { AnalysisPageLayoutProps } from './types';
+import type { AnalysisPageProps } from './types';
 import { ErrorCard } from '../../components/MessageCards';
 
 const AnalysisPage = ({
   headerProps,
   footerProps,
-  tools,
-  sections,
-  classNames,
-}: AnalysisPageLayoutProps): JSX.Element => {
+  pageProblems,
+  configuration,
+}: AnalysisPageProps): JSX.Element => {
+  const tools = configuration && 'tools' in configuration ? configuration.tools : undefined;
+  const sections = configuration && 'sections' in configuration ? configuration.sections : undefined;
+  const classNames = configuration && 'classNames' in configuration ? configuration.classNames : undefined;
   return (
     <NavPageLayout
       {...{ headerProps, footerProps }}
+      pageProblems={pageProblems}
       headerMetadata={{
         title: 'Gen3 Analysis Center',
         content: 'Analysis Center',

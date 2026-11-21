@@ -1,0 +1,91 @@
+import React from 'react';
+import { render, screen } from '@testing-library/react';
+import {
+  userHasMethodForServiceOnResource,
+  useGetAuthzMappingsQuery,
+} from '@gen3/core';
+import { useGetProjectViewBuilderQuery } from '../ExplorerViewBuilder/projectViewBuilderApi';
+import ProjectWorkspaceTabs from './ProjectWorkspaceTabs';
+
+jest.mock('next/link', () => ({
+  __esModule: true,
+  default: ({
+    children,
+    href,
+    ...props
+  }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
+    <a href={String(href)} {...props}>
+      {children}
+    </a>
+  ),
+}));
+
+jest.mock('@gen3/core', () => ({
+  useGetAuthzMappingsQuery: jest.fn(),
+  userHasMethodForServiceOnResource: jest.fn(),
+}));
+jest.mock('../ExplorerViewBuilder/projectViewBuilderApi', () => ({
+  useGetProjectViewBuilderQuery: jest.fn(),
+}));
+
+const mockedAuthorization = userHasMethodForServiceOnResource as jest.Mock;
+
+const renderTabs = (hasExplorerConfig = false) =>
+  render(
+    <ProjectWorkspaceTabs
+      activeTab="git"
+      hasExplorerConfig={hasExplorerConfig}
+      organization="HTAN_INT"
+      project="BForePC"
+    >
+      <div>Project content</div>
+    </ProjectWorkspaceTabs>,
+  );
+
+describe('ProjectWorkspaceTabs', () => {
+  beforeEach(() => {
+    (useGetAuthzMappingsQuery as jest.Mock).mockReturnValue({ data: {} });
+    (useGetProjectViewBuilderQuery as jest.Mock).mockReturnValue({
+      data: null,
+    });
+    mockedAuthorization.mockReturnValue(false);
+  });
+
+  it('shows Explorer for an existing content or Loom configuration', () => {
+    renderTabs(true);
+    expect(screen.getByRole('tab', { name: 'Explorer' })).toHaveAttribute(
+      'href',
+      '/Explorer/HTAN_INT%2FBForePC',
+    );
+    expect(useGetProjectViewBuilderQuery).toHaveBeenCalledWith(
+      { project: 'HTAN_INT/BForePC' },
+      { skip: true },
+    );
+  });
+
+  it('shows an independently named published view to project readers', () => {
+    (useGetProjectViewBuilderQuery as jest.Mock).mockReturnValue({
+      data: { configs: [{ revisionId: 'published-custom-view' }] },
+    });
+    renderTabs(false);
+    expect(screen.getByRole('tab', { name: 'Explorer' })).toBeInTheDocument();
+  });
+
+  it('shows Explorer to project updaters so they can create the first configuration', () => {
+    mockedAuthorization.mockImplementation(
+      (method: string) => method === 'update',
+    );
+    renderTabs(false);
+    expect(screen.getByRole('tab', { name: 'Explorer' })).toBeInTheDocument();
+  });
+
+  it('does not add Explorer to an unconfigured read-only project', () => {
+    mockedAuthorization.mockImplementation(
+      (method: string) => method === 'read',
+    );
+    renderTabs(false);
+    expect(
+      screen.queryByRole('tab', { name: 'Explorer' }),
+    ).not.toBeInTheDocument();
+  });
+});

@@ -1,6 +1,4 @@
-import { NavPageLayoutProps } from '../../features/Navigation';
-import { WorkspaceConfig } from '../../features/Workspace';
+import { type ConfigPageProps } from '../../lib/pageLoader';
+import { type WorkspaceConfig } from '../../features/Workspace';
 
-export interface WorkspacePageLayoutProps extends NavPageLayoutProps {
-  workspaceProps: WorkspaceConfig;
-}
+export type WorkspacePageProps = ConfigPageProps<WorkspaceConfig>;

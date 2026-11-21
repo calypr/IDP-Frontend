@@ -1,9 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import {
-  CALYPR_EXPLORER_CONFIG_API,
-  useGetConfigListQuery,
-  useGetConfigContentQuery,
+  GEN3_GECKO_API,
+  useGetExplorerStateV1Query,
 } from '@gen3/core';
 import {
   ActionIcon,
@@ -61,7 +60,8 @@ import {
 export const FileSummaryPage = ({
   headerProps,
   footerProps,
-  filesummaryConfig,
+  pageProblems,
+  configuration,
 }: FileSummaryPageProps) => {
   const router = useRouter();
   const routeOrganization =
@@ -82,17 +82,17 @@ export const FileSummaryPage = ({
       return forcedProjectSelection;
     }
     return resolveProjectSelection({
-      defaultProject: filesummaryConfig?.defaultProject,
+      defaultProject: configuration?.defaultProject,
       options: projectOptions,
     });
   }, [
-    filesummaryConfig?.defaultProject,
+    configuration?.defaultProject,
     forcedProjectSelection,
     projectOptions,
   ]);
   const [selectedProject, setSelectedProject] = useState('');
   const [currentPath, setCurrentPath] = useState(
-    filesummaryConfig?.defaultPath?.trim() ?? '',
+    configuration?.defaultPath?.trim() ?? '',
   );
   const [hasCopiedStoragePath, setHasCopiedStoragePath] = useState(false);
   const [expandedChainIssueIds, setExpandedChainIssueIds] = useState<
@@ -145,7 +145,7 @@ export const FileSummaryPage = ({
       setIsProjectsLoading(true);
       try {
         const response = await fetch(
-          `${CALYPR_EXPLORER_CONFIG_API}/projects/summary`,
+          `${GEN3_GECKO_API}/projects/summary`,
           {
             credentials: 'include',
             method: 'GET',
@@ -203,23 +203,13 @@ export const FileSummaryPage = ({
     () => splitProjectSelectionValue(selectedProject),
     [selectedProject],
   );
-  const explorerConfigId = selectedProjectParts
-    ? `${selectedProjectParts.organization}-${selectedProjectParts.project}`
-    : '';
-  const { data: explorerConfigs } = useGetConfigListQuery(undefined, {
-    skip: !explorerConfigId,
-  });
-  const explorerConfigAvailable =
-    Array.isArray(explorerConfigs?.data) &&
-    explorerConfigs.data.includes(explorerConfigId);
-  const { data: explorerConfigResponse } = useGetConfigContentQuery(
-    explorerConfigId,
+  const { data: explorer } = useGetExplorerStateV1Query(
+    { project: `${selectedProjectParts?.organization ?? ''}/${selectedProjectParts?.project ?? ''}`, explorerId: 'default' },
     {
-      skip: !explorerConfigId || !explorerConfigAvailable,
+      skip: !selectedProjectParts,
     },
   );
-  const hasExplorerConfig =
-    explorerConfigAvailable && Boolean(explorerConfigResponse?.data);
+  const hasExplorerConfig = Boolean(explorer);
   const breadcrumbSegments = useMemo(
     () => getPathSegments(currentPath),
     [currentPath],
@@ -262,7 +252,7 @@ export const FileSummaryPage = ({
     loadMore,
     refresh,
   } = useSyfonPathStorageSummary({
-    config: filesummaryConfig,
+    config: configuration ?? undefined,
     currentPath,
     exactRequest: exactStorageRequest ?? undefined,
     projectSelection: selectedProject,
@@ -275,7 +265,7 @@ export const FileSummaryPage = ({
     runAudit: runChainAudit,
     setAuditResult: setChainAuditResult,
   } = useSyfonStorageChain({
-    config: filesummaryConfig,
+    config: configuration ?? undefined,
     currentPath,
     projectSelection: selectedProject,
   });
@@ -289,7 +279,7 @@ export const FileSummaryPage = ({
     isApplying,
     isAuditing,
   } = useSyfonStorageCleanup({
-    config: filesummaryConfig,
+    config: configuration ?? undefined,
     currentPath,
     projectSelection: selectedProject,
   });
@@ -1155,7 +1145,7 @@ export const FileSummaryPage = ({
                   onChange={(value) => {
                     setSelectedProject(value ?? '');
                     setCurrentPath(
-                      filesummaryConfig?.defaultPath?.trim() ?? '',
+                      configuration?.defaultPath?.trim() ?? '',
                     );
                   }}
                   placeholder="Select a project"
@@ -1208,7 +1198,7 @@ export const FileSummaryPage = ({
                   </Stack>
                   <StorageBrowser
                     data={data}
-                    filesummaryConfig={filesummaryConfig}
+                    filesummaryConfig={configuration ?? undefined}
                     isLoadingMore={isLoadingMore}
                     largestRowSize={largestRowSize}
                     onLoadMore={() => {
@@ -1290,7 +1280,7 @@ export const FileSummaryPage = ({
 
   return (
     <NavPageLayout
-      {...{ headerProps, footerProps }}
+      {...{ headerProps, footerProps, pageProblems }}
       headerMetadata={{
         title: 'CALYPR Storage Monitor',
         content: 'Storage Monitor',

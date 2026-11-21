@@ -1,6 +1,5 @@
 import CohortBuilder from './CohortBuilder';
 import {
-  type CohortBuilderConfiguration,
   type CohortBuilderProps,
   type CohortPanelConfiguration,
 } from './types';
@@ -12,6 +11,7 @@ import {
   registerCohortBuilderDefaultPreviewRenderers,
   registerExplorerDefaultCellRenderers,
   RenderFileActions,
+  getSafeRowValue,
   type TableDetailsPanelProps,
   type TableDetailsReportPanelProps,
 } from './ExplorerTable';
@@ -31,7 +31,6 @@ import TabbedCohortBuilder, {
 import { SummaryTableColumn } from './ExplorerTable';
 export {
   type SummaryTableColumn,
-  type CohortBuilderConfiguration,
   type CohortBuilderProps,
   type TableDetailsPanelProps,
   type TableDetailsReportPanelProps,
@@ -44,6 +43,7 @@ export {
   ExplorerTableDetailsPanelFactory,
   registerExplorerDefaultCellRenderers,
   RenderFileActions,
+  getSafeRowValue,
   registerCohortBuilderDefaultPreviewRenderers,
   QueryExpressionContext,
   QueryExpression,

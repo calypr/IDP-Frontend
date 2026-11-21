@@ -1,50 +1,34 @@
-import { GetServerSideProps } from 'next';
 import { GEN3_COMMONS_NAME } from '@gen3/core';
-import { getNavPageLayoutPropsFromConfig } from '../../lib/common/staticProps';
-import ContentSource from '../../lib/content';
+import { definePageLoader } from '../../lib/pageLoader';
+import { loadNavigationFromContext } from '../../lib/common/staticProps';
 import { type ReportsPageProps } from './types';
-import type { NavPageLayoutProps } from '../../features/Navigation';
+import { ReportsConfigurationSchema } from './configurationSchema';
 
-export const RSReportsPageGetServerSideProps: GetServerSideProps<
-  NavPageLayoutProps
-> = async () => {
-  const reportsConfig: ReportsPageProps =
-    await ContentSource.getContentDatabase().get(
-      `${GEN3_COMMONS_NAME}/reports/researchsubject.json`,
-    );
-  return {
-    props: {
-      ...(await getNavPageLayoutPropsFromConfig()),
-      reportsConfig: reportsConfig ? reportsConfig : null,
-    },
-  };
-};
+const loadReportsPage = (id: string, filepath: string) =>
+  definePageLoader<ReportsPageProps>({
+    name: id,
+    loadNavigation: loadNavigationFromContext,
+    load: async (context) => ({
+      configuration: (await context.config.load({
+        id,
+        source: 'content',
+        resolvePath: () => `${GEN3_COMMONS_NAME}/${filepath}`,
+        schema: ReportsConfigurationSchema,
+      })) as unknown as ReportsPageProps['configuration'],
+    }),
+    fallback: () => ({ configuration: null }),
+  });
 
-export const SpecimenReportsPageGetServerSideProps: GetServerSideProps<
-  NavPageLayoutProps
-> = async () => {
-  const reportsConfig: ReportsPageProps =
-    await ContentSource.getContentDatabase().get(
-      `${GEN3_COMMONS_NAME}/reports/specimen.json`,
-    );
-  return {
-    props: {
-      ...(await getNavPageLayoutPropsFromConfig()),
-      reportsConfig: reportsConfig ? reportsConfig : null,
-    },
-  };
-};
-export const MAReportsPageGetServerSideProps: GetServerSideProps<
-  NavPageLayoutProps
-> = async () => {
-  const reportsConfig: ReportsPageProps =
-    await ContentSource.getContentDatabase().get(
-      `${GEN3_COMMONS_NAME}/reports/medicationadministration.json`,
-    );
-  return {
-    props: {
-      ...(await getNavPageLayoutPropsFromConfig()),
-      reportsConfig: reportsConfig ? reportsConfig : null,
-    },
-  };
-};
+export const RSReportsPageGetServerSideProps = loadReportsPage(
+  'reports.researchsubject',
+  'reports/researchsubject.json',
+);
+
+export const SpecimenReportsPageGetServerSideProps = loadReportsPage(
+  'reports.specimen',
+  'reports/specimen.json',
+);
+export const MAReportsPageGetServerSideProps = loadReportsPage(
+  'reports.medicationadministration',
+  'reports/medicationadministration.json',
+);

@@ -10,18 +10,13 @@ import ProjectCard from './ProjectCard';
 const SmmartPage = ({
   headerProps,
   footerProps,
-  smmartConfig,
+  configuration,
+  pageProblems,
 }: SmmartLandingPageProps): JSX.Element => {
-  if (smmartConfig === undefined) {
-    return (
-      <Center maw={400} h={100} mx="auto">
-        <div>Smmart config is not defined. Page disabled</div>
-      </Center>
-    );
-  }
   return (
     <NavPageLayout
       {...{ headerProps, footerProps }}
+      pageProblems={pageProblems}
       headerMetadata={{
         title: 'CALYPR SMMART Landing Page',
         content: 'CALYPR SMMART Landing Page',
@@ -43,7 +38,7 @@ const SmmartPage = ({
             </Container>
           </div>
           <Grid gutter="md" className="p-3">
-            {smmartConfig?.smmartCards?.map((project, index) => (
+            {configuration?.smmartCards?.map((project, index) => (
               <Grid.Col key={index} span={4}>
                 <ProjectCard
                   title={project.title}

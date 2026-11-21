@@ -39,6 +39,7 @@ import {
 } from './types';
 
 import { getFederatedLoginStatus, useGetFederatedLoginStatus } from './hooks';
+import { handleUnauthorizedStatus } from './unauthorized';
 
 export {
   type Gen3User,
@@ -72,4 +73,5 @@ export {
   selectHeadersWithCSRFToken,
   getFederatedLoginStatus,
   useGetFederatedLoginStatus,
+  handleUnauthorizedStatus,
 };

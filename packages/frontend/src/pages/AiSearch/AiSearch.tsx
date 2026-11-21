@@ -1,15 +1,16 @@
 import React from 'react';
 import { NavPageLayout } from '../../features/Navigation';
-import type { NavPageLayoutProps } from '../../features/Navigation';
+import type { PageProps } from '../../lib/pageLoader';
 import AiSearch from '../../features/Discovery/Search/AiSearch';
 
 const AISearchPage = ({
   headerProps,
   footerProps,
-}: NavPageLayoutProps): JSX.Element => {
+  pageProblems,
+}: PageProps): JSX.Element => {
   return (
     <NavPageLayout
-      {...{ headerProps, footerProps }}
+      {...{ headerProps, footerProps, pageProblems }}
       headerMetadata={{
         title: 'Gen3 AI Search Page',
         content: 'AI Search',
